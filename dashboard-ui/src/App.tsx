@@ -55,6 +55,11 @@ import {
   ProjectsPayload,
   ScannerDoctorItem,
   TargetSelection,
+  ToolCatalogItem,
+  ToolCategory,
+  ToolInstallState,
+  ToolLifecycle,
+  ToolPackId,
   averageHealth,
   caseNeedsAttention,
   categoryLabel,
@@ -84,11 +89,13 @@ import {
   targetLabel,
   targetValue,
   totalFindings,
+  toolCatalogItems,
 } from './dashboardData';
 
 type TabId = 'overview' | 'findings' | 'honey-keys' | 'scanners' | 'playbooks' | 'verification' | 'activity' | 'reports' | 'settings';
 type AuditId = 'quick' | 'secrets' | 'code' | 'deps' | 'iac' | 'platform-posture' | 'ai' | 'full';
 type Tone = 'low' | 'warn' | 'high' | 'crit' | 'info' | 'neutral';
+type CatalogStatusFilter = 'all' | 'ready' | 'setup' | 'missing' | 'advanced' | 'coming-soon';
 
 type CompletedScan = {
   scan_id: string;
@@ -155,7 +162,7 @@ const navGroups: {title: string; items: {id: TabId; label: string; icon: typeof 
   {
     title: 'Operate',
     items: [
-      {id: 'scanners', label: 'Scanners', icon: Search},
+      {id: 'scanners', label: 'Tool Catalog', icon: Search},
       {id: 'playbooks', label: 'Recovery playbooks', icon: BookOpen},
       {id: 'verification', label: 'Verification', icon: CheckCircle2},
     ],
@@ -173,7 +180,7 @@ const tabTitles: Record<TabId, string> = {
   overview: 'Overview',
   findings: 'Findings',
   'honey-keys': 'Honey keys',
-  scanners: 'Scanners',
+  scanners: 'Tool Catalog',
   playbooks: 'Recovery playbooks',
   verification: 'Verification',
   activity: 'Activity',
@@ -194,6 +201,147 @@ const auditOptions: {id: AuditId; label: string; estimate: string; description: 
   {id: 'ai', label: 'AI agent risks', estimate: '1-4 min', description: 'Checks prompts, MCP setup, tool permissions, and agent instructions.'},
   {id: 'full', label: 'Full repo audit', estimate: '5-20 min', description: 'Runs the deepest available scan across all categories.'},
 ];
+
+const catalogCategoryLabels: Record<ToolCategory, string> = {
+  'code-security': 'Code security',
+  secrets: 'Secrets',
+  dependencies: 'Dependencies',
+  'supply-chain': 'Supply chain',
+  infrastructure: 'Infrastructure',
+  'ai-agent': 'AI agent',
+  'platform-posture': 'Platform posture',
+  'external-surface': 'External surface',
+  'defense-intel': 'Defense intel',
+};
+
+const catalogCategoryOrder: ToolCategory[] = [
+  'code-security',
+  'secrets',
+  'dependencies',
+  'supply-chain',
+  'ai-agent',
+  'defense-intel',
+  'infrastructure',
+  'platform-posture',
+  'external-surface',
+];
+
+const catalogPackLabels: Record<ToolPackId, string> = {
+  starter: 'Starter',
+  secrets: 'Secrets',
+  dependencies: 'Dependencies',
+  'ai-agent': 'AI Agent',
+  iac: 'IaC',
+  'platform-posture': 'Platform Posture',
+  'advanced-dependency': 'Advanced Dependency',
+  'external-surface': 'External Surface',
+};
+
+const catalogPackOrder: ToolPackId[] = [
+  'starter',
+  'secrets',
+  'dependencies',
+  'ai-agent',
+  'iac',
+  'platform-posture',
+  'advanced-dependency',
+  'external-surface',
+];
+
+const catalogStatusFilters: {id: CatalogStatusFilter; label: string}[] = [
+  {id: 'all', label: 'All'},
+  {id: 'ready', label: 'Ready'},
+  {id: 'setup', label: 'Needs setup'},
+  {id: 'missing', label: 'Missing'},
+  {id: 'advanced', label: 'Advanced'},
+  {id: 'coming-soon', label: 'Coming soon'},
+];
+
+const catalogInstallLabels: Record<ToolInstallState, string> = {
+  'built-in': 'Built in',
+  managed: 'DëvSec managed',
+  detected: 'Detected locally',
+  missing: 'Missing',
+  unavailable: 'Unavailable',
+  'not-configured': 'Needs setup',
+  'coming-soon': 'Display only',
+};
+
+const catalogLifecycleLabels: Record<ToolLifecycle, string> = {
+  available: 'Available',
+  beta: 'Beta',
+  advanced: 'Advanced',
+  'coming-soon': 'Coming soon',
+  deprecated: 'Deprecated',
+  hidden: 'Hidden',
+};
+
+const catalogInstallMethodLabels: Record<ToolCatalogItem['install']['method'], string> = {
+  'built-in': 'Built in',
+  homebrew: 'Homebrew',
+  'uv-tool': 'uv tool',
+  manual: 'Manual setup',
+  'docker-optional': 'Docker optional',
+  'managed-future': 'DëvSec managed future',
+  none: 'None',
+};
+
+const catalogInstallOwnerLabels: Record<ToolCatalogItem['install']['owner'], string> = {
+  devsec: 'DëvSec',
+  external: 'External project',
+  user: 'User-owned local install',
+  'not-applicable': 'Not applicable',
+};
+
+const catalogInstallDetectionLabels: Record<ToolCatalogItem['install']['detection'], string> = {
+  'built-in': 'Built in',
+  'path-binary': 'Binary on PATH',
+  'config-preflight': 'Config preflight',
+  'cache-preflight': 'Cache preflight',
+  'registry-future': 'Managed registry future',
+  none: 'None',
+};
+
+const catalogUninstallLabels: Record<ToolCatalogItem['install']['uninstall_posture'], string> = {
+  'not-needed': 'No uninstall needed',
+  'devsec-managed': 'DëvSec-managed cleanup',
+  'user-owned': 'User-owned; DëvSec will not remove it',
+  'manual-only': 'Manual cleanup only',
+  'not-supported': 'No uninstall action',
+};
+
+const catalogNetworkLabels: Record<ToolCatalogItem['policy']['network_access'], string> = {
+  none: 'No network required',
+  optional: 'Optional network',
+  required: 'Network required',
+};
+
+const catalogTargetLabels: Record<ToolCatalogItem['policy']['external_targets'], string> = {
+  none: 'No external target',
+  'repo-derived': 'Repository-derived target',
+  'user-provided': 'User-provided target',
+};
+
+const catalogCredentialLabels: Record<ToolCatalogItem['policy']['uses_credentials'], string> = {
+  none: 'No credentials',
+  optional: 'Optional credentials',
+  required: 'Needs credentials',
+};
+
+const catalogEvidenceLabels: Record<ToolCatalogItem['capabilities']['evidence_types'][number], string> = {
+  'source-pattern': 'Source code patterns',
+  'secret-match': 'Secret matches',
+  'dependency-advisory': 'Dependency advisories',
+  sbom: 'SBOM inventory',
+  'iac-policy': 'Infrastructure policy',
+  'workflow-policy': 'Workflow policy',
+  'install-hook': 'Install hooks',
+  'ai-config': 'AI-agent config',
+  'platform-posture': 'Platform posture',
+  'behavior-diff': 'Behavior changes',
+  'ioc-match': 'IOC matches',
+  'external-observation': 'External observation',
+};
 
 const severityMeta: Record<Tone, {label: string; dot: string; bg: string; fg: string}> = {
   low: {label: 'LOW', dot: 'var(--sev-low)', bg: 'rgba(138,163,154,0.20)', fg: '#3c4b48'},
@@ -441,6 +589,265 @@ function scannerStatusTone(status: ScannerDoctorItem['status']): Tone {
   if (status === 'not-run') return 'info';
   if (status === 'missing') return 'warn';
   return 'crit';
+}
+
+function catalogRuntimeMap(summary: DashboardSummary): Map<string, ScannerDoctorItem> {
+  return new Map(topScannerItems(summary).map((item) => [item.scanner, item]));
+}
+
+function catalogStatusBucket(item: ToolCatalogItem): CatalogStatusFilter {
+  if (item.lifecycle === 'coming-soon' || item.install_state === 'coming-soon') return 'coming-soon';
+  if (item.lifecycle === 'advanced') return 'advanced';
+  if (item.install_state === 'missing') return 'missing';
+  if (item.install_state === 'not-configured' || item.install_state === 'unavailable') return 'setup';
+  if (item.install_state === 'built-in' || item.install_state === 'managed' || item.install_state === 'detected') return 'ready';
+  return 'all';
+}
+
+function catalogStatusTone(item: ToolCatalogItem, runtime?: ScannerDoctorItem): Tone {
+  if (runtime?.status === 'error') return 'crit';
+  if (item.lifecycle === 'coming-soon' || item.install_state === 'coming-soon') return 'neutral';
+  if (item.install_state === 'missing' || item.install_state === 'not-configured') return 'info';
+  if (item.install_state === 'unavailable') return 'warn';
+  if (item.lifecycle === 'advanced') return 'info';
+  if (item.install_state === 'built-in' || item.install_state === 'managed' || item.install_state === 'detected') return 'low';
+  return 'neutral';
+}
+
+function safetyLabelTone(label: string): Tone {
+  const normalized = label.toLowerCase();
+  if (normalized.includes('sends source') || normalized.includes('destructive')) return 'crit';
+  if (normalized.includes('network required') || normalized.includes('needs credentials') || normalized.includes('approval required') || normalized.includes('writes files')) return 'warn';
+  if (normalized.includes('optional network') || normalized.includes('blocked')) return 'info';
+  return normalized.includes('display only') ? 'neutral' : 'low';
+}
+
+function catalogIcon(category: ToolCategory): ReactNode {
+  if (category === 'code-security') return <FileCode2 size={18} />;
+  if (category === 'secrets') return <KeyRound size={18} />;
+  if (category === 'dependencies') return <Database size={18} />;
+  if (category === 'supply-chain') return <GitBranch size={18} />;
+  if (category === 'infrastructure') return <Layers3 size={18} />;
+  if (category === 'ai-agent') return <TerminalSquare size={18} />;
+  if (category === 'platform-posture') return <ShieldCheck size={18} />;
+  if (category === 'external-surface') return <Gauge size={18} />;
+  return <Shield size={18} />;
+}
+
+function catalogPackIconCategory(pack: ToolPackId): ToolCategory {
+  if (pack === 'external-surface') return 'external-surface';
+  if (pack === 'ai-agent') return 'ai-agent';
+  if (pack === 'iac') return 'infrastructure';
+  if (pack === 'platform-posture') return 'platform-posture';
+  if (pack === 'secrets') return 'secrets';
+  if (pack === 'dependencies' || pack === 'advanced-dependency') return 'dependencies';
+  return 'code-security';
+}
+
+function catalogSearchText(item: ToolCatalogItem): string {
+  return [
+    item.id,
+    item.label,
+    item.summary,
+    item.description,
+    catalogCategoryLabels[item.category],
+    item.scanner_key,
+    item.lifecycle,
+    item.install_state,
+    ...item.profiles,
+    ...item.derived_labels.safety,
+    ...item.derived_labels.install,
+    item.derived_labels.agent_lab,
+    ...item.packs.map((pack) => catalogPackLabels[pack.pack_id]),
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function isAdvancedCatalogItem(item: ToolCatalogItem): boolean {
+  return item.lifecycle === 'advanced' || item.packs.some((pack) => pack.pack_id === 'advanced-dependency' || pack.pack_id === 'platform-posture');
+}
+
+function shouldShowAdvancedCatalogItem(item: ToolCatalogItem, search: string, category: ToolCategory | 'all', pack: ToolPackId | 'all', status: CatalogStatusFilter): boolean {
+  if (!isAdvancedCatalogItem(item)) return true;
+  if (search.trim()) return true;
+  if (status === 'advanced') return true;
+  if (category === 'infrastructure' || category === 'platform-posture') return true;
+  return pack === 'advanced-dependency' || pack === 'platform-posture' || pack === 'iac';
+}
+
+function catalogStatusLabel(item: ToolCatalogItem, runtime?: ScannerDoctorItem): string {
+  return runtime?.status === 'error' ? 'Error' : catalogInstallLabels[item.install_state];
+}
+
+function catalogRuntimeTone(runtime?: ScannerDoctorItem): Tone {
+  if (!runtime) return 'info';
+  return scannerStatusTone(runtime.status);
+}
+
+function catalogRuntimeLabel(item: ToolCatalogItem, runtime?: ScannerDoctorItem): string {
+  if (runtime) return runtime.status.replace('-', ' ');
+  if (item.scanner_key) return 'Not run';
+  return catalogLifecycleLabels[item.lifecycle];
+}
+
+function catalogRuntimeCopy(item: ToolCatalogItem, runtime?: ScannerDoctorItem): string {
+  if (!item.scanner_key) {
+    return item.lifecycle === 'coming-soon'
+      ? 'This entry is product education only. It has no runtime path in this version.'
+      : 'This entry is not joined to a scanner runtime yet.';
+  }
+  if (!runtime) return 'No scan has reported runtime status for this tool in the selected scope.';
+  if (runtime.status === 'ran') {
+    const repoCopy = runtime.repoNames.length ? ` across ${runtime.repoNames.join(', ')}` : '';
+    return `${runtime.findings} finding${runtime.findings === 1 ? '' : 's'} reported${repoCopy}.`;
+  }
+  return runtime.action;
+}
+
+function catalogStateCopy(item: ToolCatalogItem, runtime?: ScannerDoctorItem): {title: string; detail: string; action: string; tone: Tone} {
+  if (runtime?.status === 'error') {
+    return {
+      title: 'Runtime error from last scan',
+      detail: runtime.error ?? 'The scanner reported an error in the selected scope.',
+      action: 'Fix the scanner error, then rerun the matching profile before trusting this coverage.',
+      tone: 'crit',
+    };
+  }
+  if (item.lifecycle === 'coming-soon' || item.install_state === 'coming-soon') {
+    return {
+      title: 'Display-only future coverage',
+      detail: 'This placeholder explains future coverage. It cannot collect targets, install tooling, run scans, or trigger Agent Lab.',
+      action: item.category === 'external-surface'
+        ? 'External Surface stays idle until target approval controls exist.'
+        : 'Wait for a future release before treating this as active coverage.',
+      tone: 'neutral',
+    };
+  }
+  if (item.install_state === 'built-in') {
+    return {
+      title: 'Built into DëvSec',
+      detail: 'No external binary or install step is needed. DëvSec owns the scanner logic.',
+      action: 'Use the existing profile picker when you want this check included in a scan.',
+      tone: 'low',
+    };
+  }
+  if (item.install_state === 'managed') {
+    return {
+      title: 'DëvSec-managed install',
+      detail: 'DëvSec owns this install path, so future update and cleanup controls can be tied to a managed-tool record.',
+      action: 'Install and uninstall controls remain disabled here until backend ownership proof is wired.',
+      tone: 'low',
+    };
+  }
+  if (item.install_state === 'detected') {
+    return {
+      title: 'Detected locally',
+      detail: 'The tool was found on this Mac, but it was installed outside DëvSec.',
+      action: 'DëvSec may use it in scans, but will not claim it can upgrade or remove the tool.',
+      tone: 'low',
+    };
+  }
+  if (item.install_state === 'missing') {
+    return {
+      title: 'Supported, not installed',
+      detail: 'This is a setup gap, not evidence that the repository is unsafe.',
+      action: item.install.instructions ?? item.install.next_step ?? 'Install the tool outside the catalog, then rerun the matching scan.',
+      tone: 'info',
+    };
+  }
+  if (item.install_state === 'unavailable') {
+    return {
+      title: 'Unavailable in this context',
+      detail: 'Installation alone is not enough for this check right now.',
+      action: item.install.next_step ?? 'Resolve the environment or prerequisite blocker before expecting this tool to run.',
+      tone: 'warn',
+    };
+  }
+  if (item.install_state === 'not-configured') {
+    return {
+      title: 'Needs setup',
+      detail: 'The tool needs credentials, local artifacts, cache data, or repository context before it can produce useful evidence.',
+      action: item.install.next_step ?? 'Complete the setup requirement, then rerun the matching profile.',
+      tone: 'info',
+    };
+  }
+  return {
+    title: catalogLifecycleLabels[item.lifecycle],
+    detail: 'No extra availability detail has been published for this state yet.',
+    action: item.install.next_step ?? 'Review setup and safety details before running checks.',
+    tone: 'neutral',
+  };
+}
+
+function catalogPolicySummary(item: ToolCatalogItem): string {
+  if (catalogStatusBucket(item) === 'coming-soon') {
+    return 'Display-only future coverage. It cannot collect targets, install tooling, run scans, or trigger Agent Lab in this version.';
+  }
+  const notes = [
+    item.policy.local_only && item.policy.network_access === 'none' ? 'Runs locally' : catalogNetworkLabels[item.policy.network_access],
+    catalogCredentialLabels[item.policy.uses_credentials],
+    item.policy.writes_files ? 'writes files' : 'read-only',
+  ];
+  if (item.policy.needs_approval) notes.push('approval required');
+  if (!item.policy.allowed_for_agent_lab) notes.push('Agent Lab blocked');
+  return `${notes.join(', ')}.`;
+}
+
+function catalogCapabilityLabels(item: ToolCatalogItem): string[] {
+  const categories = item.capabilities.finding_categories.map((category) => humanizeKey(category));
+  const evidence = item.capabilities.evidence_types.map((type) => catalogEvidenceLabels[type] ?? humanizeKey(type));
+  return [...new Set([...categories, ...evidence])];
+}
+
+function catalogProfileRole(item: ToolCatalogItem, profile: string): string {
+  const normalized = profile.toLowerCase();
+  if (item.lifecycle === 'coming-soon') return 'Future';
+  if (item.lifecycle === 'advanced' || normalized.includes('iac') || normalized.includes('platform') || normalized.includes('full')) return 'Advanced';
+  if (item.policy.default_enabled && (normalized === 'default' || normalized === 'quick')) return 'Default';
+  return 'Opt-in';
+}
+
+function catalogProfileTone(item: ToolCatalogItem, profile: string): Tone {
+  const role = catalogProfileRole(item, profile);
+  if (role === 'Default') return 'low';
+  if (role === 'Future') return 'neutral';
+  return role === 'Advanced' ? 'info' : 'neutral';
+}
+
+function catalogRunReady(item: ToolCatalogItem): boolean {
+  if (item.lifecycle === 'coming-soon' || item.lifecycle === 'deprecated' || item.lifecycle === 'hidden') return false;
+  return item.install_state === 'built-in' || item.install_state === 'managed' || item.install_state === 'detected';
+}
+
+function catalogDisplayLabels(item: ToolCatalogItem): string[] {
+  const labels = [
+    ...item.derived_labels.safety,
+    ...item.derived_labels.install,
+    item.derived_labels.agent_lab,
+  ]
+    .filter(Boolean)
+    .map((label) => label === 'DevSec managed' || label === 'Managed' ? 'DëvSec managed' : label);
+  return [...new Set(labels)];
+}
+
+function humanizeKey(value: string): string {
+  const acronyms: Record<string, string> = {
+    ai: 'AI',
+    api: 'API',
+    cve: 'CVE',
+    iac: 'IaC',
+    ioc: 'IOC',
+    mcp: 'MCP',
+    osv: 'OSV',
+    sbom: 'SBOM',
+    scm: 'SCM',
+    ssl: 'SSL',
+    tls: 'TLS',
+  };
+  return value
+    .split(/[-_]/g)
+    .filter(Boolean)
+    .map((part) => acronyms[part.toLowerCase()] ?? `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
 }
 
 function countRecord(record?: Record<string, number>): number {
@@ -770,7 +1177,7 @@ function ActiveView({
   if (tab === 'overview') return <OverviewView summary={summary} posture={posture} error={error} onOpenTab={onOpenTab} />;
   if (tab === 'findings') return <FindingsView summary={summary} search={search} onCaseDecision={onCaseDecision} />;
   if (tab === 'honey-keys') return <HoneyKeysView summary={summary} target={target} onRefresh={onRefresh} />;
-  if (tab === 'scanners') return <ScannersView summary={summary} onChooseChecks={onChooseChecks} />;
+  if (tab === 'scanners') return <CatalogView summary={summary} search={search} onChooseChecks={onChooseChecks} />;
   if (tab === 'playbooks') return <PlaybooksView summary={summary} onChooseChecks={onChooseChecks} />;
   if (tab === 'verification') return <VerificationView summary={summary} onChooseChecks={onChooseChecks} />;
   if (tab === 'activity') return <ActivityView summary={summary} search={search} />;
@@ -868,6 +1275,7 @@ function Toolbar({
   onRunAll: () => void;
   canRun: boolean;
 }) {
+  const searchPlaceholder = title === 'Tool Catalog' ? 'Search tools, packs' : 'Search findings, manifests';
   return (
     <header className="mist-toolbar">
       <div className="toolbar-title">
@@ -883,7 +1291,7 @@ function Toolbar({
       </div>
       <label className="toolbar-search">
         <Search size={16} />
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search findings, manifests" />
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={searchPlaceholder} />
         <kbd>⌘K</kbd>
       </label>
       <IconButton label={agentRunning ? 'Pause agent' : 'Resume agent'} onClick={() => setAgentRunning(!agentRunning)}>
@@ -986,6 +1394,7 @@ function OverviewView({summary, posture, error, onOpenTab}: {summary: DashboardS
   const counts = severityCounts(summary);
   const honeyCounts = honeyKeyCounts(summary);
   const scanners = topScannerItems(summary);
+  const catalogCount = toolCatalogItems(summary).length || scanners.length;
   const scannerHealthy = scanners.filter((item) => item.status === 'ran').length;
   const activities = buildActivity(summary);
   const lastScan = latestScanTime(summary);
@@ -1023,7 +1432,7 @@ function OverviewView({summary, posture, error, onOpenTab}: {summary: DashboardS
       <section className="kpi-grid">
         <KpiCard title="Open findings" value={String(totalFindings(summary))} detail={`${counts.critical + counts.elevated + counts.warning} non-low`} icon={<ShieldAlert size={18} />} onClick={() => onOpenTab('findings')} />
         <KpiCard title="Honey keys armed" value={String(honeyCounts.active)} detail={honeyCounts.triggered ? `${honeyCounts.triggered} tripped` : 'all quiet'} icon={<ShieldCheck size={18} />} onClick={() => onOpenTab('honey-keys')} />
-        <KpiCard title="Scanners" value={`${scannerHealthy} / ${Math.max(scanners.length, 1)}`} detail="running on cadence" icon={<ScanIcon size={18} />} onClick={() => onOpenTab('scanners')} />
+        <KpiCard title="Tool Catalog" value={`${scannerHealthy} / ${Math.max(scanners.length, 1)}`} detail={`${catalogCount} catalog entries`} icon={<ScanIcon size={18} />} onClick={() => onOpenTab('scanners')} />
       </section>
 
       {error && <Notice tone="warn" icon={<AlertTriangle size={17} />} title="Dashboard data could not refresh" body="Saved data may be older than shown." />}
@@ -1331,7 +1740,186 @@ function HoneyKeysView({summary, target, onRefresh}: {summary: DashboardSummary;
   );
 }
 
-function ScannersView({summary, onChooseChecks}: {summary: DashboardSummary; onChooseChecks: () => void}) {
+function CatalogView({summary, search, onChooseChecks}: {summary: DashboardSummary; search: string; onChooseChecks: () => void}) {
+  const catalog = toolCatalogItems(summary);
+  if (!catalog.length) return <ScannerDoctorFallback summary={summary} onChooseChecks={onChooseChecks} />;
+  return <ToolCatalogBrowse summary={summary} catalog={catalog} search={search} onChooseChecks={onChooseChecks} />;
+}
+
+function ToolCatalogBrowse({summary, catalog, search, onChooseChecks}: {summary: DashboardSummary; catalog: ToolCatalogItem[]; search: string; onChooseChecks: () => void}) {
+  const runtime = catalogRuntimeMap(summary);
+  const [categoryFilter, setCategoryFilter] = useState<ToolCategory | 'all'>('all');
+  const [packFilter, setPackFilter] = useState<ToolPackId | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<CatalogStatusFilter>('all');
+  const [activeId, setActiveId] = useState<string | null>(catalog[0]?.id ?? null);
+  const query = search.trim().toLowerCase();
+
+  const categories = useMemo(
+    () => catalogCategoryOrder.filter((category) => catalog.some((item) => item.category === category && item.lifecycle !== 'hidden')),
+    [catalog],
+  );
+  const packSummaries = useMemo(
+    () => catalogPackOrder
+      .map((packId) => {
+        const matching = catalog.filter((item) => item.packs.some((pack) => pack.pack_id === packId));
+        return {
+          id: packId,
+          label: catalogPackLabels[packId],
+          count: matching.length,
+          ready: matching.filter((item) => catalogStatusBucket(item) === 'ready').length,
+          future: matching.filter((item) => item.packs.some((pack) => pack.pack_id === packId && pack.role === 'coming-soon')).length,
+        };
+      })
+      .filter((pack) => pack.count > 0),
+    [catalog],
+  );
+
+  const activeCatalog = useMemo(
+    () => catalog.filter((item) => item.lifecycle !== 'hidden' && catalogStatusBucket(item) !== 'coming-soon'),
+    [catalog],
+  );
+  const futureCatalog = useMemo(
+    () => catalog.filter((item) => item.lifecycle !== 'hidden' && catalogStatusBucket(item) === 'coming-soon'),
+    [catalog],
+  );
+  const browseCatalog = statusFilter === 'coming-soon' ? futureCatalog : activeCatalog;
+  const filteredCatalog = useMemo(
+    () => browseCatalog.filter((item) => {
+      if (!shouldShowAdvancedCatalogItem(item, search, categoryFilter, packFilter, statusFilter)) return false;
+      if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
+      if (packFilter !== 'all' && !item.packs.some((pack) => pack.pack_id === packFilter)) return false;
+      if (statusFilter !== 'all' && catalogStatusBucket(item) !== statusFilter) return false;
+      return !query || catalogSearchText(item).includes(query);
+    }),
+    [browseCatalog, categoryFilter, packFilter, query, search, statusFilter],
+  );
+  const futureMatches = useMemo(
+    () => statusFilter === 'coming-soon' ? [] : futureCatalog.filter((item) => {
+      if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
+      if (packFilter !== 'all' && !item.packs.some((pack) => pack.pack_id === packFilter)) return false;
+      return !query || catalogSearchText(item).includes(query);
+    }),
+    [categoryFilter, futureCatalog, packFilter, query, statusFilter],
+  );
+
+  useEffect(() => {
+    const visible = [...filteredCatalog, ...futureMatches];
+    if (activeId && visible.some((item) => item.id === activeId)) return;
+    setActiveId(visible[0]?.id ?? catalog[0]?.id ?? null);
+  }, [activeId, catalog, filteredCatalog, futureMatches]);
+
+  const active = catalog.find((item) => item.id === activeId) ?? filteredCatalog[0] ?? futureMatches[0] ?? catalog[0] ?? null;
+  const readyCount = activeCatalog.filter((item) => catalogStatusBucket(item) === 'ready').length;
+  const setupCount = activeCatalog.filter((item) => catalogStatusBucket(item) === 'setup' || catalogStatusBucket(item) === 'missing').length;
+  const riskyCount = catalog.filter((item) => item.derived_labels.safety.some((label) => safetyLabelTone(label) === 'warn' || safetyLabelTone(label) === 'crit')).length;
+  const stateCounts = catalog.reduce<Record<ToolInstallState, number>>((counts, item) => {
+    counts[item.install_state] += 1;
+    return counts;
+  }, {'built-in': 0, managed: 0, detected: 0, missing: 0, unavailable: 0, 'not-configured': 0, 'coming-soon': 0});
+
+  return (
+    <div className="view-stack catalog-view">
+      <section className="catalog-hero">
+        <div>
+          <Eyebrow>Tool Catalog</Eyebrow>
+          <h1>Security capability, with the safety rules visible.</h1>
+          <p>Browse tools by job, local readiness, pack membership, and safety boundary before choosing a scan profile.</p>
+        </div>
+        <div className="catalog-hero-metrics">
+          <MetricBlock label="Tools" value={String(catalog.length)} detail="catalog entries" />
+          <MetricBlock label="Ready" value={String(readyCount)} detail="built in or detected" tone="low" />
+          <MetricBlock label="Setup gaps" value={String(setupCount)} detail="missing or needs setup" tone={setupCount ? 'info' : 'low'} />
+          <MetricBlock label="Bounded" value={String(riskyCount)} detail="network, credentials, approval" tone={riskyCount ? 'warn' : 'low'} />
+        </div>
+      </section>
+
+      <section className="catalog-state-strip" aria-label="Catalog install states">
+        {([
+          ['built-in', 'Built in'],
+          ['managed', 'DëvSec managed'],
+          ['detected', 'Detected locally'],
+          ['missing', 'Missing'],
+          ['not-configured', 'Needs setup'],
+          ['unavailable', 'Unavailable'],
+          ['coming-soon', 'Display only'],
+        ] as [ToolInstallState, string][]).map(([state, label]) => (
+          <span key={state} className="catalog-state-chip">
+            <strong>{stateCounts[state]}</strong>
+            <span>{label}</span>
+          </span>
+        ))}
+      </section>
+
+      <section className="catalog-controls">
+        <div className="catalog-filter-row">
+          <span>Category</span>
+          <Chip active={categoryFilter === 'all'} onClick={() => setCategoryFilter('all')}>All</Chip>
+          {categories.map((category) => (
+            <Chip key={category} active={categoryFilter === category} onClick={() => setCategoryFilter(category)}>
+              {catalogCategoryLabels[category]}
+            </Chip>
+          ))}
+        </div>
+        <div className="catalog-filter-row">
+          <span>Status</span>
+          {catalogStatusFilters.map((status) => (
+            <Chip key={status.id} active={statusFilter === status.id} onClick={() => setStatusFilter(status.id)}>
+              {status.label}
+            </Chip>
+          ))}
+        </div>
+      </section>
+
+      {!!packSummaries.length && (
+        <section className="catalog-pack-strip">
+          {packSummaries.map((pack) => (
+            <button key={pack.id} type="button" className={`catalog-pack-card ${packFilter === pack.id ? 'selected' : ''}`} onClick={() => setPackFilter(pack.id === packFilter ? 'all' : pack.id)}>
+              <span>{catalogIcon(catalogPackIconCategory(pack.id))}</span>
+              <strong>{pack.label}</strong>
+              <div className="catalog-pack-meta">
+                <em>{pack.ready ? `${pack.ready} ready` : `${pack.count} entries`}</em>
+                {!!pack.future && <em>{pack.future} display only</em>}
+              </div>
+            </button>
+          ))}
+        </section>
+      )}
+
+      <section className="catalog-layout">
+        <div className="catalog-grid">
+          {filteredCatalog.length ? filteredCatalog.map((item) => (
+            <CatalogToolCard key={item.id} item={item} runtime={item.scanner_key ? runtime.get(item.scanner_key) : undefined} selected={active?.id === item.id} onClick={() => setActiveId(item.id)} />
+          )) : (
+            <PaperCard className="catalog-empty">
+              <EmptyLine title={statusFilter === 'coming-soon' ? 'No display-only entries match this view' : 'No tools match this view'} detail="Adjust category, status, pack, or search to widen the catalog." />
+            </PaperCard>
+          )}
+        </div>
+        <PaperCard className="catalog-side">
+          {active ? (
+            <CatalogSelectedTool summary={summary} item={active} runtime={active.scanner_key ? runtime.get(active.scanner_key) : undefined} onChooseChecks={onChooseChecks} />
+          ) : (
+            <EmptyLine title="No catalog entry selected" detail="Choose a tool card to see readiness and safety context." />
+          )}
+        </PaperCard>
+      </section>
+
+      {!!futureMatches.length && (
+        <section className="catalog-future">
+          <SectionHeader title="Future coverage" right={<span>{futureMatches.length} display-only</span>} />
+          <p className="catalog-future-note">Display-only entries stay educational until DëvSec has the approval controls to run them safely.</p>
+          <div className="catalog-future-grid">
+            {futureMatches.map((item) => (
+              <CatalogFutureCard key={item.id} item={item} selected={active?.id === item.id} onClick={() => setActiveId(item.id)} />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function ScannerDoctorFallback({summary, onChooseChecks}: {summary: DashboardSummary; onChooseChecks: () => void}) {
   const scanners = topScannerItems(summary);
   const [activeId, setActiveId] = useState<string | null>(null);
   const active = scanners.find((item) => item.scanner === activeId) ?? scanners[0] ?? null;
@@ -1358,6 +1946,216 @@ function ScannersView({summary, onChooseChecks}: {summary: DashboardSummary; onC
         </PaperCard>
       </section>
     </div>
+  );
+}
+
+function CatalogToolCard({item, runtime, selected, onClick}: {item: ToolCatalogItem; runtime?: ScannerDoctorItem; selected: boolean; onClick: () => void}) {
+  const statusLabel = catalogStatusLabel(item, runtime);
+  const safetyLabels = item.derived_labels.safety.slice(0, 3);
+  return (
+    <button type="button" className={`catalog-tool-card ${selected ? 'selected' : ''}`} data-category={item.category} aria-pressed={selected} onClick={onClick}>
+      <div className="catalog-card-top">
+        <span className="catalog-icon">{catalogIcon(item.category)}</span>
+        <SeverityPill tone={catalogStatusTone(item, runtime)} label={statusLabel} />
+      </div>
+      <strong>{item.label}</strong>
+      <p>{item.summary}</p>
+      <div className="catalog-label-row">
+        {safetyLabels.map((label) => <CatalogLabel key={label} label={label} />)}
+      </div>
+      <div className="catalog-pack-row">
+        {item.packs.slice(0, 3).map((pack) => (
+          <span key={`${item.id}:${pack.pack_id}`} className={pack.role === 'coming-soon' ? 'muted' : ''}>
+            {catalogPackLabels[pack.pack_id]}
+          </span>
+        ))}
+      </div>
+      <div className="catalog-card-foot">
+        <span>{item.profiles.slice(0, 2).join(', ') || catalogLifecycleLabels[item.lifecycle]}</span>
+        <em>View details</em>
+      </div>
+    </button>
+  );
+}
+
+function CatalogSelectedTool({summary, item, runtime, onChooseChecks}: {summary: DashboardSummary; item: ToolCatalogItem; runtime?: ScannerDoctorItem; onChooseChecks: () => void}) {
+  const isDisplayOnly = catalogStatusBucket(item) === 'coming-soon';
+  const statusLabel = catalogStatusLabel(item, runtime);
+  const runtimeLabel = catalogRuntimeLabel(item, runtime);
+  const capabilityLabels = catalogCapabilityLabels(item);
+  const profileNames = [...new Set([...item.profiles, ...item.capabilities.scan_profiles])];
+  const canOpenProfiles = !isDisplayOnly && profileNames.length > 0;
+  const canRunNow = canOpenProfiles && catalogRunReady(item);
+  const docsAvailable = Boolean(item.docs_path || item.homepage_url);
+  const stateCopy = catalogStateCopy(item, runtime);
+  const displayLabels = catalogDisplayLabels(item);
+  return (
+    <div className="catalog-detail">
+      <div className="catalog-detail-head">
+        <span className="catalog-icon large">{catalogIcon(item.category)}</span>
+        <div>
+          <Eyebrow>{catalogCategoryLabels[item.category]}</Eyebrow>
+          <h2>{item.label}</h2>
+        </div>
+      </div>
+      <div className="catalog-detail-status">
+        <SeverityPill tone={catalogStatusTone(item, runtime)} label={statusLabel} />
+        <SeverityPill tone={catalogRuntimeTone(runtime)} label={runtimeLabel} />
+      </div>
+      <p className="catalog-detail-summary">{item.description ?? item.summary}</p>
+      <div className="catalog-label-row wrap">
+        {displayLabels.map((label) => <CatalogLabel key={label} label={label} />)}
+      </div>
+
+      <CatalogDetailSection title="Purpose" icon={<FileText size={15} />}>
+        <p>{item.summary}</p>
+      </CatalogDetailSection>
+
+      <CatalogDetailSection title="What it checks" icon={<ClipboardList size={15} />}>
+        {capabilityLabels.length ? (
+          <ul className="catalog-detail-list">
+            {capabilityLabels.slice(0, 6).map((label) => (
+              <li key={label}><ListChecks size={14} /><span>{label}</span></li>
+            ))}
+          </ul>
+        ) : (
+          <p>No capability labels have been published for this entry yet.</p>
+        )}
+        {!!item.capabilities.evidence_types.length && (
+          <div className="catalog-label-row">
+            {item.capabilities.evidence_types.map((type) => <CatalogLabel key={type} label={catalogEvidenceLabels[type] ?? humanizeKey(type)} />)}
+          </div>
+        )}
+      </CatalogDetailSection>
+
+      <CatalogDetailSection title="Current availability" icon={<Stethoscope size={15} />}>
+        <CatalogStatePanel item={item} runtime={runtime} />
+        <div className="catalog-runtime-line">
+          <SeverityPill tone={catalogRuntimeTone(runtime)} label={runtimeLabel} />
+          <span>{catalogRuntimeCopy(item, runtime)}</span>
+        </div>
+        <div className="catalog-kv-grid">
+          <KV label="Latest scan" value={formatDate(latestScanTime(summary))} />
+          <KV label="Findings" value={runtime ? String(runtime.findings) : 'Not reported'} />
+          <KV label="Repos" value={runtime?.repoNames.join(', ') || 'No runtime evidence'} />
+          <KV label="Command" value={runtime?.command?.join(' ') || item.install.binary || 'Not reported'} />
+        </div>
+        {runtime?.error && <Notice tone="crit" icon={<AlertTriangle size={16} />} title="Runtime error" body={runtime.error} />}
+      </CatalogDetailSection>
+
+      <CatalogDetailSection title="Safety and permissions" icon={<Lock size={15} />}>
+        <p>{catalogPolicySummary(item)}</p>
+        <div className="catalog-kv-grid">
+          <KV label="Network" value={catalogNetworkLabels[item.policy.network_access]} />
+          <KV label="Credentials" value={catalogCredentialLabels[item.policy.uses_credentials]} />
+          <KV label="Target" value={catalogTargetLabels[item.policy.external_targets]} />
+          <KV label="File writes" value={item.policy.writes_files ? 'Writes files' : 'Read-only'} />
+          <KV label="Approval" value={item.policy.needs_approval ? 'Required' : 'Not required'} />
+          <KV label="Agent Lab" value={item.derived_labels.agent_lab} />
+        </div>
+      </CatalogDetailSection>
+
+      <CatalogDetailSection title="Scan profiles and packs" icon={<Layers3 size={15} />}>
+        <div className="catalog-profile-list">
+          {profileNames.length ? profileNames.map((profile) => (
+            <span key={profile} className={`catalog-profile-pill ${catalogProfileTone(item, profile)}`}>
+              <strong>{profile}</strong>
+              <em>{catalogProfileRole(item, profile)}</em>
+            </span>
+          )) : <span className="catalog-muted-line">No active scan profile in this version.</span>}
+        </div>
+        <div className="catalog-pack-detail-list">
+          {item.packs.length ? item.packs.map((pack) => (
+            <span key={`${item.id}:${pack.pack_id}`} className={pack.role === 'coming-soon' ? 'muted' : ''}>
+              {catalogPackLabels[pack.pack_id]} · {humanizeKey(pack.role)}{pack.default_enabled ? ' · default' : ''}
+            </span>
+          )) : <span>No pack membership</span>}
+        </div>
+      </CatalogDetailSection>
+
+      <CatalogDetailSection title="Setup and ownership" icon={<Settings size={15} />}>
+        <div className="catalog-kv-grid">
+          <KV label="Install state" value={catalogInstallLabels[item.install_state]} />
+          <KV label="Method" value={catalogInstallMethodLabels[item.install.method]} />
+          <KV label="Owner" value={catalogInstallOwnerLabels[item.install.owner]} />
+          <KV label="Detection" value={catalogInstallDetectionLabels[item.install.detection]} />
+          <KV label="Binary" value={item.install.binary ?? 'Not required'} />
+          <KV label="Uninstall" value={catalogUninstallLabels[item.install.uninstall_posture]} />
+        </div>
+        <div className="next-step">
+          <Eyebrow>Next action</Eyebrow>
+          <p>{item.install.next_step ?? runtime?.action ?? 'Open the matching scan profile when you are ready to verify this coverage.'}</p>
+        </div>
+      </CatalogDetailSection>
+
+      <CatalogDetailSection title="Actions" icon={<Play size={15} />}>
+        {isDisplayOnly ? (
+          <Notice tone="info" icon={<CircleSlash size={16} />} title="Display only" body={stateCopy.action} />
+        ) : (
+          <>
+            <div className="button-row wrap">
+              <Button icon={<SlidersHorizontal size={14} />} onClick={onChooseChecks} disabled={!canOpenProfiles}>Choose profile</Button>
+              <Button variant="secondary" icon={<Play size={14} />} onClick={onChooseChecks} disabled={!canRunNow}>Run checks</Button>
+              <Button variant="secondary" icon={<Download size={14} />} disabled>{item.install_state === 'missing' ? 'Install unavailable' : 'Install preview'}</Button>
+              <Button variant="ghost" icon={<RotateCcw size={14} />} disabled>{item.install.uninstall_posture === 'user-owned' ? 'User-owned cleanup' : 'Uninstall preview'}</Button>
+            </div>
+            <p className="catalog-action-help">{stateCopy.action} Install and uninstall actions stay disabled until backend managed-tool ownership can be proven.</p>
+          </>
+        )}
+      </CatalogDetailSection>
+
+      <CatalogDetailSection title="Docs" icon={<BookOpen size={15} />}>
+        {docsAvailable ? (
+          <div className="catalog-doc-links">
+            {item.docs_path && <a className="catalog-doc-link" href={item.docs_path}><BookOpen size={15} />DëvSec docs <ChevronRight size={15} /></a>}
+            {item.homepage_url && <a className="catalog-doc-link" href={item.homepage_url} target="_blank" rel="noreferrer"><Archive size={15} />Tool homepage <ChevronRight size={15} /></a>}
+          </div>
+        ) : (
+          <p>No documentation link has been published for this entry yet.</p>
+        )}
+      </CatalogDetailSection>
+    </div>
+  );
+}
+
+function CatalogStatePanel({item, runtime}: {item: ToolCatalogItem; runtime?: ScannerDoctorItem}) {
+  const stateCopy = catalogStateCopy(item, runtime);
+  return (
+    <div className={`catalog-state-panel ${stateCopy.tone}`}>
+      <div>
+        <SeverityPill tone={stateCopy.tone} label={catalogStatusLabel(item, runtime)} />
+        <strong>{stateCopy.title}</strong>
+      </div>
+      <p>{stateCopy.detail}</p>
+      <span>{stateCopy.action}</span>
+    </div>
+  );
+}
+
+function CatalogFutureCard({item, selected, onClick}: {item: ToolCatalogItem; selected: boolean; onClick: () => void}) {
+  return (
+    <button type="button" className={`catalog-future-card ${selected ? 'selected' : ''}`} data-category={item.category} aria-pressed={selected} onClick={onClick}>
+      <span className="catalog-icon">{catalogIcon(item.category)}</span>
+      <div>
+        <SeverityPill tone="neutral" label="Display only" />
+        <strong>{item.label}</strong>
+        <p>{item.summary}</p>
+        <em>{item.category === 'external-surface' ? 'Target approval is not built yet, so this cannot collect domains or run external recon.' : item.install.next_step ?? 'No run action is available in this version.'}</em>
+      </div>
+    </button>
+  );
+}
+
+function CatalogLabel({label}: {label: string}) {
+  return <span className={`catalog-label ${safetyLabelTone(label)}`}>{label}</span>;
+}
+
+function CatalogDetailSection({title, icon, children}: {title: string; icon: ReactNode; children: ReactNode}) {
+  return (
+    <section className="catalog-detail-section">
+      <h3>{icon}{title}</h3>
+      {children}
+    </section>
   );
 }
 

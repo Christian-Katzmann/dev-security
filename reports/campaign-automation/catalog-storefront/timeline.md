@@ -10,3 +10,78 @@
 
 - `2026-05-21T16:40:30+00:00` Verified automation `d-vsec-catalog-storefront` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
 - `2026-05-21T16:40:35+00:00` Created automation `d-vsec-catalog-storefront` for step 1.1 Design the catalog IA and detail model.
+- `2026-05-21T16:42:19+00:00` Automation `d-vsec-catalog-storefront` has no scheduler run since `1779381644000` in the Codex app registry.
+- `2026-05-21T16:42:37+00:00` Verified automation `d-vsec-catalog-storefront` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T16:44:17+00:00` Verified automation `d-vsec-catalog-storefront` launched thread `019e4b6c-64c5-7a73-9d9d-28d6977d34d5` with status `IN_PROGRESS`.
+- `2026-05-21T16:45:33+00:00` Verified automation `d-vsec-catalog-storefront` launched thread `019e4b6c-64c5-7a73-9d9d-28d6977d34d5` with status `IN_PROGRESS`.
+- `2026-05-21T16:47:47+00:00` Completed step 1.1 UX plan; campaign markdown now points to step 2.1.
+- `2026-05-21T16:49:05+00:00` Registered fallback automation `d-vsec-catalog-storefront-2-1-20260521-184905` for step 2.1 at 2026-05-21T18:51:00+02:00.
+- `2026-05-21T16:49:16+00:00` Verified fallback automation d-vsec-catalog-storefront-2-1-20260521-184905 is ACTIVE in the Codex app registry.
+- `2026-05-21T16:49:16+00:00` Recorded next automation d-vsec-catalog-storefront-2-1-20260521-184905 for step 2.1.
+- `2026-05-21T16:49:58+00:00` Released lock after step 1.1 before fallback launch observation for step 2.1.
+- `2026-05-21T16:51:21+00:00` Verified fallback automation `d-vsec-catalog-storefront-2-1-20260521-184905` launched thread `019e4b72-cd77-75e3-9a50-70c0152e7713`.
+- `2026-05-21T16:51:21+00:00` Paused current automation `d-vsec-catalog-storefront` after verified fallback launch of `d-vsec-catalog-storefront-2-1-20260521-184905`.
+- `2026-05-21T16:51:21+00:00` Verified current automation `d-vsec-catalog-storefront` is PAUSED in the Codex app registry.
+- `2026-05-21T17:04:55+00:00` Completed Step 2.1 implementation and moved cursor to step 2.2 after parser verification.
+- `2026-05-21T17:05:32+00:00` Registered fallback automation `d-vsec-catalog-storefront-2-2-20260521-190700` for step 2.2 at 2026-05-21T19:07:00+02:00.
+- `2026-05-21T17:05:48+00:00` Verified fallback automation d-vsec-catalog-storefront-2-2-20260521-190700 is ACTIVE in Codex registry with gpt-5.5/xhigh.
+- `2026-05-21T17:06:00+00:00` Recorded next automation d-vsec-catalog-storefront-2-2-20260521-190700 for step 2.2 after registry verification.
+- `2026-05-21T17:07:48+00:00` Verified scheduler launched d-vsec-catalog-storefront-2-2-20260521-190700 after fallback registration.
+- `2026-05-21T17:07:58+00:00` Paused current automation d-vsec-catalog-storefront-2-1-20260521-184905 after verified Step 2.2 chain launch.
+- `2026-05-21T17:08:05+00:00` Verified current automation d-vsec-catalog-storefront-2-1-20260521-184905 is PAUSED in Codex registry.
+- `2026-05-21T17:08:13+00:00` Recorded current automation d-vsec-catalog-storefront-2-1-20260521-184905 as PAUSED in campaign state.
+- `2026-05-21T17:08:36+00:00` Released lock after Step 2.1; next automation d-vsec-catalog-storefront-2-2-20260521-190700 is verified launched.
+- `2026-05-21T17:20:30+00:00` Completed Step 2.2 implementation with detail safety panels, docs links, disabled install/uninstall previews, and External Surface display-only verification; parser now points to step 2.3.
+- `2026-05-21T17:20:49+00:00` Registered fallback automation `d-vsec-catalog-storefront-2-3-20260521-192200` for step 2.3 at 2026-05-21T19:22:00+02:00.
+- `2026-05-21T17:20:55+00:00` Verified fallback automation d-vsec-catalog-storefront-2-3-20260521-192200 is ACTIVE in Codex registry with gpt-5.5/xhigh.
+- `2026-05-21T17:21:01+00:00` Recorded next automation d-vsec-catalog-storefront-2-3-20260521-192200 for step 2.3 after registry verification.
+- `2026-05-21T17:21:17+00:00` Released lock after Step 2.2 before fallback launch observation for step 2.3.
+- `2026-05-21T17:22:51+00:00` Verified scheduler launched d-vsec-catalog-storefront-2-3-20260521-192200 after fallback registration.
+- `2026-05-21T17:23:02+00:00` Verified next automation d-vsec-catalog-storefront-2-3-20260521-192200 remains ACTIVE after scheduler launch.
+- `2026-05-21T17:23:02+00:00` Paused current automation d-vsec-catalog-storefront-2-2-20260521-190700 after verified Step 2.3 chain launch.
+- `2026-05-21T17:23:10+00:00` Verified current automation d-vsec-catalog-storefront-2-2-20260521-190700 is PAUSED in Codex registry.
+- `2026-05-21T17:23:10+00:00` Recorded current automation d-vsec-catalog-storefront-2-2-20260521-190700 as PAUSED in campaign state.
+- `2026-05-21T17:32:16+00:00` Completed step 2.3; parser now points to step 3.1 Tune responsive layout and copy.
+- `2026-05-21T17:33:40+00:00` Registered fallback automation `d-vsec-catalog-storefront-3-1-20260521-193600` for step 3.1 at 2026-05-21T19:36:00+02:00.
+- `2026-05-21T17:33:46+00:00` Verified fallback automation d-vsec-catalog-storefront-3-1-20260521-193600 is ACTIVE in the Codex registry.
+- `2026-05-21T17:33:51+00:00` Recorded automation d-vsec-catalog-storefront-3-1-20260521-193600 for step 3.1 after registry verification.
+- `2026-05-21T17:33:57+00:00` Paused current automation d-vsec-catalog-storefront-2-3-20260521-192200 after verified next registry row.
+- `2026-05-21T17:34:02+00:00` Verified current automation d-vsec-catalog-storefront-2-3-20260521-192200 is PAUSED in the Codex registry.
+- `2026-05-21T17:36:30+00:00` Verified fallback automation d-vsec-catalog-storefront-3-1-20260521-193600 produced a scheduler run after registration.
+- `2026-05-21T17:37:00+00:00` Released lock after Step 2.3; next automation d-vsec-catalog-storefront-3-1-20260521-193600 is registered, launched, and ready for step 3.1.
+- `2026-05-21T17:37:09+00:00` Verified next automation d-vsec-catalog-storefront-3-1-20260521-193600 remains ACTIVE after scheduler launch.
+- `2026-05-21T17:47:28+00:00` Completed step 3.1 responsive polish; lint/build passed and desktop/mobile screenshots show no catalog overflow or clipped safety labels. Parser now points to step 3.2.
+- `2026-05-21T17:48:23+00:00` Registered fallback automation `d-vsec-catalog-storefront-3-2-20260521-194900` for step 3.2 at 2026-05-21T19:49:00+02:00.
+- `2026-05-21T17:48:32+00:00` Verified fallback automation d-vsec-catalog-storefront-3-2-20260521-194900 is ACTIVE in the Codex registry with gpt-5.5/xhigh.
+- `2026-05-21T17:48:41+00:00` Recorded next automation d-vsec-catalog-storefront-3-2-20260521-194900 for step 3.2 after registry verification.
+- `2026-05-21T17:50:05+00:00` Verified scheduler launched d-vsec-catalog-storefront-3-2-20260521-194900 after fallback registration.
+- `2026-05-21T17:50:17+00:00` Verified next automation d-vsec-catalog-storefront-3-2-20260521-194900 remains ACTIVE after scheduler launch.
+- `2026-05-21T17:50:33+00:00` Paused current automation d-vsec-catalog-storefront-3-1-20260521-193600 after verified Step 3.2 chain launch.
+- `2026-05-21T17:50:41+00:00` Verified current automation d-vsec-catalog-storefront-3-1-20260521-193600 is PAUSED in the Codex registry.
+- `2026-05-21T17:50:49+00:00` Released lock after Step 3.1; next automation d-vsec-catalog-storefront-3-2-20260521-194900 is registered, launched, and ready for step 3.2.
+- `2026-05-21T18:02:37+00:00` Verified automation `d-vsec-catalog-storefront-3-2-20260521-194900` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T18:02:53+00:00` Verified automation `d-vsec-catalog-storefront-3-2-20260521-194900` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T18:04:47+00:00` Automation `d-vsec-catalog-storefront-3-2-20260521-194900` has no scheduler run since `1779386582000` in the Codex app registry.
+- `2026-05-21T18:05:21+00:00` Paused stale Step 3.2 automation after usage-limit interruption before creating a fresh retry.
+- `2026-05-21T18:05:21+00:00` Verified automation `d-vsec-catalog-storefront-3-2-20260521-194900` in Codex app registry as PAUSED with model gpt-5.5/xhigh.
+- `2026-05-21T18:05:46+00:00` Verified automation `d-vsec-catalog-storefront-3-2-retry` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T18:05:51+00:00` Created automation `d-vsec-catalog-storefront-3-2-retry` for step 3.2 Validate dashboard build and screenshot review.
+- `2026-05-21T18:07:48+00:00` Automation `d-vsec-catalog-storefront-3-2-retry` has no scheduler run since `1779386758000` in the Codex app registry.
+- `2026-05-21T18:08:27+00:00` Verified automation `d-vsec-catalog-storefront-3-2-retry` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T18:15:05+00:00` Verified automation `d-vsec-catalog-storefront-3-2-retry` launched thread `019e4bbe-cc72-7912-9bbd-d3712354c8de` with status `IN_PROGRESS`.
+- `2026-05-21T18:15:41+00:00` Verified automation `d-vsec-catalog-storefront-3-2-retry` launched thread `019e4bbe-cc72-7912-9bbd-d3712354c8de` with status `IN_PROGRESS`.
+- `2026-05-21T18:23:59+00:00` Completed Step 3.2 validation; lint/build passed, browser screenshots captured, External Surface verified display-only, and parser now points to whole-campaign final review.
+- `2026-05-21T18:24:46+00:00` Registered fallback automation `d-vsec-catalog-storefront-final-review-20260521-202600` for whole-campaign final review at 2026-05-21T20:26:00+02:00.
+- `2026-05-21T18:24:54+00:00` Verified automation `d-vsec-catalog-storefront-final-review-20260521-202600` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T18:24:55+00:00` Recorded next automation d-vsec-catalog-storefront-final-review-20260521-202600 for whole-campaign final review after registry verification.
+- `2026-05-21T18:26:32+00:00` Verified automation `d-vsec-catalog-storefront-final-review-20260521-202600` launched thread `019e4bc9-c8e9-72d2-94f6-dd9120f57642` with status `IN_PROGRESS`.
+- `2026-05-21T18:26:55+00:00` Paused current automation d-vsec-catalog-storefront-3-2-retry after verified final-review fallback launch.
+- `2026-05-21T18:26:55+00:00` Verified automation `d-vsec-catalog-storefront-3-2-retry` in Codex app registry as PAUSED with model gpt-5.5/xhigh.
+- `2026-05-21T18:26:55+00:00` Recorded current automation d-vsec-catalog-storefront-3-2-retry as PAUSED in campaign state after registry verification.
+- `2026-05-21T18:27:18+00:00` Released lock after Step 3.2; final-review automation d-vsec-catalog-storefront-final-review-20260521-202600 is registered, launched, and ready for whole-campaign review.
+- `2026-05-21T18:27:29+00:00` Verified automation `d-vsec-catalog-storefront-final-review-20260521-202600` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T18:30:31+00:00` Verified final-review automation before campaign close.
+- `2026-05-21T18:30:40+00:00` Final review APPROVED; campaign checklist marked complete and no follow-up automation is needed.
+- `2026-05-21T18:30:49+00:00` Paused final-review automation after campaign completion; no next automation required.
+- `2026-05-21T18:31:01+00:00` Verified final-review automation is PAUSED after campaign completion.
+- `2026-05-21T18:31:18+00:00` Released lock after final review; campaign complete and final-review automation paused.

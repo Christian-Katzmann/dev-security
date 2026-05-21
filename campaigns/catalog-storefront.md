@@ -43,19 +43,19 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 1 — Experience design
 
-- [ ] Step 1.1 — Design the catalog IA and detail model
+- [x] Step 1.1 — Design the catalog IA and detail model
 
 ### Phase 2 — Storefront implementation
 
-- [ ] Step 2.1 — Add catalog navigation and browse view
-- [ ] Step 2.2 — Add tool detail pages and safety panels
-- [ ] Step 2.3 — Add empty, missing, coming-soon, and detected-install states
+- [x] Step 2.1 — Add catalog navigation and browse view
+- [x] Step 2.2 — Add tool detail pages and safety panels
+- [x] Step 2.3 — Add empty, missing, coming-soon, and detected-install states
 
 ### Phase 3 — Polish and verification
 
-- [ ] Step 3.1 — Tune responsive layout and copy
-- [ ] Step 3.2 — Validate dashboard build and screenshot review
-- [ ] Final review
+- [x] Step 3.1 — Tune responsive layout and copy
+- [x] Step 3.2 — Validate dashboard build and screenshot review
+- [x] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
 

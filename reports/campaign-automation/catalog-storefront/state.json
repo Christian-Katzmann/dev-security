@@ -7,8 +7,8 @@
     "campaign_path": "/Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/catalog-storefront.md",
     "run_dir": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/catalog-storefront",
     "created_at": "2026-05-21T16:39:58+00:00",
-    "updated_at": "2026-05-21T16:40:35+00:00",
-    "status": "active",
+    "updated_at": "2026-05-21T18:30:49+00:00",
+    "status": "complete",
     "model": "gpt-5.5",
     "reasoning_effort": "xhigh",
     "execution_environment": "worktree",
@@ -16,7 +16,7 @@
     "schedule_mode": "fast-chain",
     "fast_chain_delay_minutes": 2
   },
-  "phase": "step",
+  "phase": "complete",
   "cursor": {
     "step_id": null,
     "phase": null,
@@ -41,13 +41,91 @@
   "automations": [
     {
       "id": "d-vsec-catalog-storefront",
-      "status": "ACTIVE",
+      "status": "PAUSED",
       "kind": "cron",
       "execution_environment": "worktree",
       "model": "gpt-5.5",
       "reasoning_effort": "xhigh",
       "created_at": "2026-05-21T16:40:35+00:00",
-      "expected_next": "step 1.1 Design the catalog IA and detail model"
+      "expected_next": "step 1.1 Design the catalog IA and detail model",
+      "updated_at": "2026-05-21T16:51:21+00:00"
+    },
+    {
+      "id": "d-vsec-catalog-storefront-2-1-20260521-184905",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T16:49:16+00:00",
+      "expected_next": "step 2.1 Add catalog navigation and browse view",
+      "updated_at": "2026-05-21T17:08:13+00:00"
+    },
+    {
+      "id": "d-vsec-catalog-storefront-2-2-20260521-190700",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T17:06:00+00:00",
+      "expected_next": "step 2.2 Add tool detail pages and safety panels",
+      "updated_at": "2026-05-21T17:23:10+00:00"
+    },
+    {
+      "id": "d-vsec-catalog-storefront-2-3-20260521-192200",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T17:21:01+00:00",
+      "expected_next": "step 2.3 Add empty, missing, coming-soon, and detected-install states",
+      "updated_at": "2026-05-21T17:33:57+00:00"
+    },
+    {
+      "id": "d-vsec-catalog-storefront-3-1-20260521-193600",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T17:33:51+00:00",
+      "expected_next": "step 3.1 Tune responsive layout and copy",
+      "updated_at": "2026-05-21T17:50:32+00:00"
+    },
+    {
+      "id": "d-vsec-catalog-storefront-3-2-20260521-194900",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T17:48:41+00:00",
+      "expected_next": "step 3.2 Validate dashboard build and screenshot review",
+      "updated_at": "2026-05-21T18:05:21+00:00"
+    },
+    {
+      "id": "d-vsec-catalog-storefront-3-2-retry",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T18:05:51+00:00",
+      "expected_next": "step 3.2 Validate dashboard build and screenshot review",
+      "updated_at": "2026-05-21T18:26:55+00:00"
+    },
+    {
+      "id": "d-vsec-catalog-storefront-final-review-20260521-202600",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T18:24:55+00:00",
+      "expected_next": "final_review Tool Catalog Storefront",
+      "updated_at": "2026-05-21T18:30:49+00:00"
     }
   ],
   "blockers": []
