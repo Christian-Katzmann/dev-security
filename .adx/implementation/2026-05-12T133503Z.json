@@ -1,0 +1,93 @@
+{
+  "timestamp": "2026-05-12T13:35:03Z",
+  "source_audit": "adx-forensic audit from 2026-05-12 in conversation context",
+  "bundles_implemented": [
+    "boot",
+    "commands",
+    "verification",
+    "safety",
+    "recovery",
+    "modules",
+    "maintenance"
+  ],
+  "files_changed": [
+    "AGENTS.md",
+    ".adx/README.md",
+    ".adx/adx.json",
+    ".adx/commands.json",
+    ".adx/verification.json",
+    ".adx/risks.json",
+    ".adx/recovery.md",
+    ".adx/modules/index.json",
+    ".adx/modules/python-cli-scanners.md",
+    ".adx/modules/dashboard-server.md",
+    ".adx/modules/dashboard-ui.md",
+    ".adx/modules/desktop-launcher.md",
+    ".adx/modules/docs-and-templates.md",
+    ".adx/audit/latest.json",
+    ".adx/audit/history/2026-05-12T133503Z.json",
+    ".socraticodeignore",
+    ".socraticodecontextartifacts.json"
+  ],
+  "validations": [
+    {
+      "command": "python3 -m json.tool",
+      "target": ".adx/adx.json .adx/commands.json .adx/verification.json .adx/risks.json .adx/modules/index.json .socraticodecontextartifacts.json .adx/audit/latest.json",
+      "status": "passed"
+    },
+    {
+      "command": "python3 /Users/christiankatzmann/.agents/skills/adx-forensic/kit/scripts/adx_manifest.py validate --root /Users/christiankatzmann/Dev/Projects/dëv-security",
+      "status": "passed",
+      "output": "ADX manifest/contracts are valid."
+    },
+    {
+      "command": "python3 /Users/christiankatzmann/.agents/skills/adx-forensic/kit/scripts/adx_score.py --root /Users/christiankatzmann/Dev/Projects/dëv-security",
+      "status": "passed",
+      "output": "ADX readiness: 23/30"
+    },
+    {
+      "command": "python3 -c \"import sys; sys.path.insert(0, 'src'); import security_observatory.cli; print('ok')\"",
+      "status": "passed",
+      "output": "ok"
+    },
+    {
+      "command": "python3 /Users/christiankatzmann/.agents/skills/adx-forensic/kit/scripts/adx_doctor.py --root /Users/christiankatzmann/Dev/Projects/dëv-security --json",
+      "status": "passed",
+      "output_file": ".adx/audit/latest.json",
+      "summary": "Doctor reported canonical AGENTS.md present, .adx directory present, no findings, and work-loop total 19/30."
+    }
+  ],
+  "commands_not_run": [
+    {
+      "command": "./install-security-observatory.sh",
+      "reason": "Installer mutates the local machine and may install tools through Homebrew/uv."
+    },
+    {
+      "command": "security-scan --quick",
+      "reason": "Scanner run writes local reports under ~/.security-observatory and was not needed to validate ADX files."
+    },
+    {
+      "command": "security-scan dashboard",
+      "reason": "Starts a long-running local server; not needed for ADX validation."
+    },
+    {
+      "command": "python3 -m pytest",
+      "reason": "Observed pytest is not installed in system python3 or the checked .venv."
+    },
+    {
+      "command": "make dashboard-build",
+      "reason": "No dashboard source changes were made."
+    },
+    {
+      "command": "make desktop-build / make desktop-install / make desktop-quit",
+      "reason": "No desktop launcher changes were made, and desktop helpers affect app bundles or local processes."
+    }
+  ],
+  "remaining_adx_debt": [
+    "Repair or document the intended Python test environment so python3 -m pytest can be trusted.",
+    "Add memory and probe contracts only after repeated agent sessions produce durable repo-specific lessons.",
+    "Consider vendoring minimal ADX runner scripts if future agents need command execution through .adx instead of the shared kit.",
+    "Run a follow-up adx-forensic audit after test setup is fixed and the repo is a git checkout."
+  ],
+  "notes": "No blocking rails, hooks, CI gates, scanner runs, installers, dashboards, or desktop processes were added or run."
+}

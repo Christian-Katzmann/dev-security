@@ -1,0 +1,63 @@
+rules:
+  - id: python-dangerous-eval
+    languages: [python]
+    severity: ERROR
+    message: Avoid eval/exec on dynamic input. Use a parser or explicit dispatch table instead.
+    patterns:
+      - pattern-either:
+          - pattern: eval(...)
+          - pattern: exec(...)
+    metadata:
+      category: security
+
+  - id: python-subprocess-shell-true
+    languages: [python]
+    severity: WARNING
+    message: subprocess with shell=True expands the attack surface. Prefer argument arrays with shell=False.
+    pattern: subprocess.$FUNC(..., shell=True, ...)
+    metadata:
+      category: security
+
+  - id: javascript-dangerous-eval
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Avoid eval or Function constructors on dynamic input.
+    patterns:
+      - pattern-either:
+          - pattern: eval(...)
+          - pattern: new Function(...)
+    metadata:
+      category: security
+
+  - id: javascript-child-process-exec
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: child_process.exec invokes a shell. Prefer execFile/spawn with fixed arguments.
+    patterns:
+      - pattern-either:
+          - pattern: require("child_process").exec(...)
+          - pattern: child_process.exec(...)
+    metadata:
+      category: security
+
+  - id: github-actions-pull-request-target-checkout
+    languages: [yaml]
+    severity: WARNING
+    message: pull_request_target can expose privileged tokens to untrusted code. Review checkout and script execution carefully.
+    patterns:
+      - pattern-inside: |
+          on:
+            pull_request_target: ...
+          ...
+      - pattern: |
+          uses: actions/checkout@...
+    metadata:
+      category: supply-chain
+
+  - id: dockerfile-curl-pipe-shell
+    languages: [dockerfile]
+    severity: WARNING
+    message: Avoid piping remote install scripts directly into a shell. Pin and verify downloaded artifacts.
+    pattern-regex: (?i)(curl|wget).*(bash|sh)
+    metadata:
+      category: supply-chain

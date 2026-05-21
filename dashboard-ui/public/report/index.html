@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Security Report - Security Observatory</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f2ed;
+      --panel: rgba(255, 255, 255, 0.74);
+      --ink: #111111;
+      --muted: rgba(17, 17, 17, 0.58);
+      --line: rgba(17, 17, 17, 0.12);
+      --gold: #d4a62d;
+      --code: #171717;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top left, rgba(212,166,45,0.12), transparent 34rem), var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    a { color: inherit; }
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem clamp(1rem, 4vw, 3rem);
+      border-bottom: 1px solid var(--line);
+      background: rgba(245, 242, 237, 0.93);
+      backdrop-filter: blur(14px);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      min-width: 0;
+      text-decoration: none;
+    }
+    .mark {
+      width: 2rem;
+      height: 2rem;
+      border: 1px solid var(--ink);
+      display: grid;
+      place-items: center;
+      background: white;
+      font-size: 0.8rem;
+    }
+    .brand-title {
+      display: block;
+      font-size: 0.7rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .brand-subtitle {
+      display: block;
+      font-size: 0.85rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 54vw;
+    }
+    .nav { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
+    .nav a, .button {
+      display: inline-flex;
+      min-height: 2.25rem;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.58);
+      padding: 0.55rem 0.8rem;
+      text-decoration: none;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    .nav a.active { border-color: var(--ink); box-shadow: inset 3px 0 0 var(--gold); }
+    .button.primary { background: var(--ink); border-color: var(--ink); color: white; }
+    main { width: min(1180px, calc(100% - 2rem)); margin: 0 auto; padding: 2rem 0 4rem; }
+    .hero {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: clamp(1.5rem, 4vw, 3rem);
+      margin-bottom: 1rem;
+    }
+    .eyebrow {
+      margin: 0 0 0.8rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    h1 { margin: 0; font-size: clamp(2.2rem, 7vw, 5rem); line-height: 0.95; font-weight: 300; letter-spacing: -0.03em; }
+    h2 { margin: 0 0 0.9rem; font-size: 1.1rem; font-weight: 540; }
+    .lede { max-width: 48rem; color: var(--muted); line-height: 1.7; margin: 1rem 0 0; }
+    .actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.5rem; }
+    .grid { display: grid; gap: 1rem; margin-bottom: 1rem; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .panel {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .section-head { display: flex; align-items: start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+    .muted { color: var(--muted); line-height: 1.6; margin: 0; }
+    .plain-list { margin: 0; padding-left: 1.1rem; color: var(--muted); line-height: 1.75; }
+    .summary-table { display: grid; grid-template-columns: 11rem minmax(0, 1fr); gap: 0.6rem 1rem; font-size: 0.9rem; }
+    .summary-table dt { color: var(--muted); }
+    .summary-table dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+    .case-stack { display: grid; gap: 0.75rem; }
+    .case-card { border: 1px solid var(--line); background: rgba(255,255,255,0.62); padding: 1rem; }
+    .case-meta { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.7rem; }
+    .pill {
+      border: 1px solid var(--line);
+      background: #fbfbfb;
+      padding: 0.25rem 0.45rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.62rem;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .pill.hot { border-color: rgba(212,166,45,0.55); color: #8a6400; }
+    .case-card h3 { margin: 0 0 0.55rem; font-size: 1rem; }
+    .case-card p { margin: 0.4rem 0; color: var(--muted); line-height: 1.6; }
+    .case-card ul { margin: 0.45rem 0 0; padding-left: 1.1rem; color: var(--muted); line-height: 1.6; }
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      border: 1px solid rgba(255,255,255,0.10);
+      background: var(--code);
+      color: #f4f4f4;
+      padding: 1rem;
+      overflow: auto;
+      line-height: 1.55;
+      font-size: 0.82rem;
+    }
+    .raw-json { min-height: 60vh; }
+    .error { border-color: rgba(212, 70, 45, 0.35); background: rgba(255,255,255,0.8); }
+    @media (max-width: 760px) {
+      .topbar { align-items: flex-start; flex-direction: column; }
+      .nav { justify-content: flex-start; }
+      .grid.two { grid-template-columns: 1fr; }
+      .section-head { flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Back to dashboard">
+      <span class="mark">S</span>
+      <span>
+        <span class="brand-title">Security Observatory</span>
+        <span id="subtitle" class="brand-subtitle">Loading report...</span>
+      </span>
+    </a>
+    <nav class="nav">
+      <a href="/">Back To Dashboard</a>
+      <a id="prompt-link" href="#">AI Prompt</a>
+      <a id="raw-link" href="#">Full Report</a>
+    </nav>
+  </header>
+  <main id="app">
+    <section class="hero">
+      <p class="eyebrow">Loading</p>
+      <h1>Security Report</h1>
+      <p class="lede">Loading the saved local scan...</p>
+    </section>
+  </main>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const scanId = params.get('scanId') || '';
+    const kind = params.get('kind') === 'raw' ? 'raw' : 'prompt';
+    const app = document.getElementById('app');
+    const subtitle = document.getElementById('subtitle');
+    const promptLink = document.getElementById('prompt-link');
+    const rawLink = document.getElementById('raw-link');
+
+    promptLink.href = `/report/?scanId=${encodeURIComponent(scanId)}&kind=prompt`;
+    rawLink.href = `/report/?scanId=${encodeURIComponent(scanId)}&kind=raw`;
+    if (kind === 'prompt') promptLink.classList.add('active');
+    if (kind === 'raw') rawLink.classList.add('active');
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      })[char]);
+    }
+
+    function label(value) {
+      return String(value ?? 'unknown').replace(/[_-]+/g, ' ');
+    }
+
+    function casesFromReport(report) {
+      if (Array.isArray(report.cases) && report.cases.length) return report.cases;
+      return (report.findings || []).slice(0, 24).map((finding, index) => ({
+        case_id: finding.fingerprint || `finding-${index}`,
+        title: finding.title || 'Security finding',
+        plain_english_risk: finding.remediation || 'This finding should be verified in the codebase.',
+        action_level: finding.category === 'secrets' ? 'fix_now' : ['critical', 'high'].includes(finding.severity) ? 'verify' : 'watch',
+        severity: finding.severity,
+        confidence: finding.file ? 'medium' : 'low',
+        category: finding.category,
+        affected_files: [finding.line ? `${finding.file}:${finding.line}` : finding.file].filter(Boolean),
+        scanners: [finding.scanner].filter(Boolean),
+        evidence: [{
+          scanner: finding.scanner,
+          title: finding.title,
+          location: finding.line ? `${finding.file}:${finding.line}` : finding.file || 'repository',
+        }],
+        fix_steps: [finding.remediation].filter(Boolean),
+      }));
+    }
+
+    function caseCard(caseItem) {
+      const evidence = Array.isArray(caseItem.evidence) ? caseItem.evidence.slice(0, 5) : [];
+      const fixSteps = Array.isArray(caseItem.fix_steps) ? caseItem.fix_steps.slice(0, 4) : [];
+      const files = Array.isArray(caseItem.affected_files) && caseItem.affected_files.length ? caseItem.affected_files.join(', ') : 'Repository';
+      return `
+        <article class="case-card">
+          <div class="case-meta">
+            <span class="pill hot">${escapeHtml(label(caseItem.action_level || 'verify'))}</span>
+            <span class="pill">${escapeHtml(caseItem.severity || 'medium')}</span>
+            <span class="pill">${escapeHtml(caseItem.confidence || 'medium')} confidence</span>
+            <span class="pill">${escapeHtml(label(caseItem.category || 'unknown'))}</span>
+          </div>
+          <h3>${escapeHtml(caseItem.title || 'Security case')}</h3>
+          <p>${escapeHtml(caseItem.plain_english_risk || 'This case may affect the safety or reliability of the project.')}</p>
+          <p><strong>Affected place:</strong> ${escapeHtml(files)}</p>
+          ${evidence.length ? `<ul>${evidence.map((item) => `<li>${escapeHtml(item.scanner || 'scanner')}: ${escapeHtml(item.title || 'finding')} at ${escapeHtml(item.location || 'repository')}</li>`).join('')}</ul>` : ''}
+          ${fixSteps.length ? `<ul>${fixSteps.map((step) => `<li>${escapeHtml(step)}</li>`).join('')}</ul>` : ''}
+        </article>
+      `;
+    }
+
+    function summaryTable(report, caseCount) {
+      const rows = [
+        ['Repository', report.repo],
+        ['Health score', report.health_score],
+        ['Status', report.status],
+        ['Profile', report.profile],
+        ['Cases', caseCount],
+        ['Findings', Array.isArray(report.findings) ? report.findings.length : 0],
+        ['Finished', report.finished_at || 'unknown'],
+      ];
+      return `<dl class="summary-table">${rows.map(([key, value]) => `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(value)}</dd>`).join('')}</dl>`;
+    }
+
+    async function fetchText(url) {
+      const response = await fetch(url, {cache: 'no-store'});
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      return response.text();
+    }
+
+    async function loadReport() {
+      if (!scanId) throw new Error('No scan id was provided.');
+      const rawText = await fetchText(`/api/report?scanId=${encodeURIComponent(scanId)}&kind=raw`);
+      const report = JSON.parse(rawText);
+      const cases = casesFromReport(report);
+      subtitle.textContent = `${report.repo || 'repository'} / ${scanId}`;
+      document.title = `${kind === 'prompt' ? 'AI Prompt' : 'Full Report'} - Security Observatory`;
+
+      if (kind === 'raw') {
+        app.innerHTML = `
+          <section class="hero">
+            <p class="eyebrow">Complete local scan output</p>
+            <h1>Full Report</h1>
+            <p class="lede">This is the raw normalized report with cases, findings, scanner status, and evidence gaps. It is intentionally plain.</p>
+            <div class="actions">
+              <a class="button primary" href="/api/report?scanId=${encodeURIComponent(scanId)}&kind=raw">Download JSON</a>
+              <a class="button" href="/report/?scanId=${encodeURIComponent(scanId)}&kind=prompt">View AI Prompt</a>
+            </div>
+          </section>
+          <section class="panel">
+            <h2>Raw JSON</h2>
+            <pre class="raw-json">${escapeHtml(JSON.stringify(report, null, 2))}</pre>
+          </section>
+        `;
+        return;
+      }
+
+      const promptText = await fetchText(`/api/report?scanId=${encodeURIComponent(scanId)}&kind=prompt`);
+      app.innerHTML = `
+        <section class="hero">
+          <p class="eyebrow">Agent-ready security handoff</p>
+          <h1>AI Handoff Prompt</h1>
+          <p class="lede">This page turns the local scan into a focused brief for an AI coding agent. It is generated locally from saved cases and findings.</p>
+          <div class="actions">
+            <a class="button primary" href="/api/report?scanId=${encodeURIComponent(scanId)}&kind=prompt">Download Markdown</a>
+            <a class="button" href="/report/?scanId=${encodeURIComponent(scanId)}&kind=raw">View Full Report</a>
+          </div>
+        </section>
+        <section class="grid two">
+          <div class="panel">
+            <h2>What The Agent Gets</h2>
+            <ul class="plain-list">
+              <li>Case-first priorities, not a raw scanner dump.</li>
+              <li>Evidence from the scanners that produced each case.</li>
+              <li>Verification steps before any fix is trusted.</li>
+              <li>Fix steps and guardrails for secrets, risky upgrades, and destructive changes.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <h2>Scan Snapshot</h2>
+            ${summaryTable(report, cases.length)}
+          </div>
+        </section>
+        <section class="panel">
+          <h2>Cases In This Prompt</h2>
+          <div class="case-stack">${cases.length ? cases.map(caseCard).join('') : '<p class="muted">No cases were saved for this scan.</p>'}</div>
+        </section>
+        <section class="panel">
+          <div class="section-head">
+            <div>
+              <h2>Prompt Text</h2>
+              <p class="muted">Use this when handing the scan to an AI agent.</p>
+            </div>
+            <button class="button" type="button" id="copy-prompt">Copy Prompt</button>
+          </div>
+          <pre id="prompt-text">${escapeHtml(promptText)}</pre>
+        </section>
+      `;
+      document.getElementById('copy-prompt')?.addEventListener('click', async () => {
+        await navigator.clipboard.writeText(promptText);
+      });
+    }
+
+    loadReport().catch((error) => {
+      app.innerHTML = `
+        <section class="hero error">
+          <p class="eyebrow">Report Error</p>
+          <h1>Could not open report</h1>
+          <p class="lede">${escapeHtml(error.message)}</p>
+          <div class="actions"><a class="button primary" href="/">Back To Dashboard</a></div>
+        </section>
+      `;
+    });
+  </script>
+</body>
+</html>

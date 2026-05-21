@@ -1,0 +1,15 @@
+{
+  "apps": [
+    {
+      "name": "Security Observatory",
+      "slug": "security-observatory",
+      "port": 8766,
+      "start_command": "bash scripts/run-dashboard.sh",
+      "bundle_id": "com.user.security-observatory",
+      "version": "0.1.0",
+      "polyfill_path": "",
+      "backend_port": null,
+      "backend_start_command": null
+    }
+  ]
+}

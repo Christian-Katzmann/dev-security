@@ -1,0 +1,52 @@
+# Campaign Automation Timeline
+
+- Campaign: `named-campaign-defense`
+- Title: `Named-Campaign Defense and Tripwires`
+- Repo: `/Users/christiankatzmann/Dev/Projects/dëv-security`
+- Campaign file: `/Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/named-campaign-defense.md`
+- Created: `2026-05-20T18:57:35+00:00`
+- Model: `gpt-5.5`
+- Reasoning effort: `xhigh`
+
+- `2026-05-20T18:58:07+00:00` Verified automation `campaign-named-campaign-defense` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-20T18:58:11+00:00` Created automation `campaign-named-campaign-defense` for step 1.1 — Ship IOC Watch end-to-end.
+- `2026-05-20T19:14:59+00:00` Completed Step 1.1 IOC Watch end-to-end; next parser unit is Step 1.2 recency-aware rotation advisor.
+- `2026-05-20T19:15:52+00:00` Registered fallback automation for Step 1.2 recency-aware rotation advisor.
+- `2026-05-20T19:15:57+00:00` Verified automation `campaign-named-campaign-defense-20260520-2117-step-1-2` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-20T19:16:03+00:00` Verified and recorded next automation for Step 1.2.
+- `2026-05-20T19:17:31+00:00` Verified automation `campaign-named-campaign-defense-20260520-2117-step-1-2` launched thread `019e46d2-08f8-7fc3-bd82-ddbb7a7d6fa7` with status `IN_PROGRESS`.
+- `2026-05-20T19:17:39+00:00` Paused current automation after Step 1.1 chained to verified Step 1.2 automation.
+- `2026-05-20T19:17:42+00:00` Verified automation `campaign-named-campaign-defense` in Codex app registry as PAUSED with model gpt-5.5/xhigh.
+- `2026-05-20T19:17:52+00:00` Current automation registry pause verified.
+- `2026-05-20T19:19:02+00:00` Verified automation `campaign-named-campaign-defense` launched thread `019e46c3-6301-79e1-80c6-0fe2675d5743` with status `IN_PROGRESS`.
+- `2026-05-20T19:26:51+00:00` Completed Step 1.2 recency-aware rotation advisor; parser next is Step 2.1 install-hook and workflow surface scanners.
+- `2026-05-20T19:27:36+00:00` Registered fallback automation for Step 2.1 install-hook and workflow surface scanners.
+- `2026-05-20T19:27:41+00:00` Verified Step 2.1 automation is ACTIVE in Codex app registry.
+- `2026-05-20T19:27:46+00:00` Recorded verified Step 2.1 automation after Step 1.2 completion.
+- `2026-05-20T19:29:32+00:00` Verified scheduler launched Step 2.1 fallback automation.
+- `2026-05-20T19:29:40+00:00` Paused current Step 1.2 automation after verifying Step 2.1 launch.
+- `2026-05-20T19:29:51+00:00` Recorded current Step 1.2 automation status as PAUSED.
+- `2026-05-20T19:29:51+00:00` Verified current Step 1.2 automation is PAUSED in Codex app registry.
+- `2026-05-20T19:30:30+00:00` Verified automation `campaign-named-campaign-defense-20260520-2129-step-2-1` launched thread `019e46dd-086b-7ae1-ba67-0bdf268c48dd` with status `IN_PROGRESS`.
+- `2026-05-20T19:39:06+00:00` Completed Step 2.1 install-hook and workflow surface scanners; parser next is Step 2.2.
+- `2026-05-20T19:40:30+00:00` Registered fallback automation campaign-named-campaign-defense-20260520-2142-step-2-2 for Step 2.2 at 2026-05-20T21:42:00+02:00.
+- `2026-05-20T19:40:30+00:00` Verified fallback automation campaign-named-campaign-defense-20260520-2142-step-2-2 is ACTIVE in the Codex registry.
+- `2026-05-20T19:40:30+00:00` Recorded next automation campaign-named-campaign-defense-20260520-2142-step-2-2 for step 2.2.
+- `2026-05-20T19:40:38+00:00` Released Step 2.1 lock before fallback scheduler run verification.
+- `2026-05-20T19:40:46+00:00` Verified fallback automation campaign-named-campaign-defense-20260520-2142-step-2-2 launched after registration.
+- `2026-05-20T19:42:45+00:00` Verified fallback automation campaign-named-campaign-defense-20260520-2142-step-2-2 launched after registration.
+- `2026-05-20T19:42:53+00:00` Re-verified next automation campaign-named-campaign-defense-20260520-2142-step-2-2 remains ACTIVE after launch proof.
+- `2026-05-20T19:42:53+00:00` Paused current automation campaign-named-campaign-defense-20260520-2129-step-2-1 after verified Step 2.2 launch.
+- `2026-05-20T19:43:12+00:00` Recorded current automation campaign-named-campaign-defense-20260520-2129-step-2-1 as PAUSED in campaign state.
+- `2026-05-20T19:43:12+00:00` Verified current automation campaign-named-campaign-defense-20260520-2129-step-2-1 is PAUSED in the Codex registry.
+- `2026-05-20T19:51:09+00:00` Completed Step 2.2 silent-upgrade detector; implementation verified and receipt written.
+- `2026-05-20T19:51:15+00:00` Parser next is whole-campaign final review after Step 2.2 completion.
+- `2026-05-20T19:51:54+00:00` Registered fallback automation campaign-named-campaign-defense-20260520-2153-final-review for whole-campaign final review at 2026-05-20T21:53:00+02:00.
+- `2026-05-20T19:52:00+00:00` Verified final-review automation is ACTIVE in Codex registry.
+- `2026-05-20T19:52:00+00:00` Recorded verified final-review automation after Step 2.2 completion.
+- `2026-05-20T19:52:08+00:00` Released Step 2.2 lock before fallback scheduler run verification.
+- `2026-05-20T19:53:20+00:00` Verified fallback final-review automation launched after registration.
+- `2026-05-20T19:53:29+00:00` Re-verified final-review automation remains ACTIVE after launch proof.
+- `2026-05-20T19:53:29+00:00` Paused current Step 2.2 automation after verified final-review launch.
+- `2026-05-20T19:53:36+00:00` Recorded current Step 2.2 automation status as PAUSED.
+- `2026-05-20T19:53:36+00:00` Verified current Step 2.2 automation is PAUSED in the Codex registry.

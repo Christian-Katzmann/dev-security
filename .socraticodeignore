@@ -1,0 +1,25 @@
+# Runtime, dependencies, and generated outputs.
+dashboard-ui/node_modules/
+dashboard-ui/dist/
+.venv/
+.pytest_cache/
+.playwright-mcp/
+**/__pycache__/
+*.pyc
+
+# Generated app/dashboard artifacts.
+desktop/
+assets/icons/build/
+assets/icons/security-observatory/
+src/security_observatory/dashboard/assets/
+
+# Agent/audit/session noise.
+.adx/audit/
+.adx/implementation/
+.claude/sessions/
+.codex/sessions/
+**/*-planning-prompt.md
+**/archive/
+**/legacy/
+**/__generated__/
+*.generated.*

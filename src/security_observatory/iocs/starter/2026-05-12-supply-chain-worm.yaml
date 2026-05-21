@@ -1,0 +1,30 @@
+id: 2026-05-12-supply-chain-worm
+source: Security Observatory incident log
+published_at: 2026-05-12
+advisory_url: docs/incidents/2026-05-12-npm-pypi-supply-chain-worm-ioc-scan.md
+confidence: high
+indicators:
+  - ecosystem: npm
+    name: "@opensearch-project/opensearch"
+    versions: ["3.5.3", "3.6.2", "3.7.0", "3.8.0"]
+    confidence: high
+  - ecosystem: pypi
+    name: mistralai
+    versions: ["2.4.6"]
+    confidence: high
+  - ecosystem: pypi
+    name: guardrails-ai
+    versions: ["0.10.1"]
+    confidence: high
+  - ecosystem: npm
+    namespace_prefix: "@tanstack/"
+    confidence: low
+  - ecosystem: npm
+    namespace_prefix: "@squawk/"
+    confidence: low
+  - ecosystem: npm
+    namespace_prefix: "@uipath/"
+    confidence: low
+  - ecosystem: other
+    domain: git-tanstack.com
+    confidence: medium

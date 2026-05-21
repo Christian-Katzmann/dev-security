@@ -1,0 +1,13 @@
+.DS_Store
+.venv/
+.pytest_cache/
+.playwright-mcp/
+__pycache__/
+*.py[cod]
+
+desktop/
+assets/icons/build/
+assets/icons/security-observatory/
+src/security_observatory/dashboard/assets/
+dashboard-ui/node_modules/
+dashboard-ui/dist/

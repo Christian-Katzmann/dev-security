@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>DëvSec Tool Catalog</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-dim": "#d3dcd8",
+                      "surface-container-lowest": "#ffffff",
+                      "surface-tint": "#4c635e",
+                      "surface-container": "#e7f0ec",
+                      "on-tertiary-fixed-variant": "#3d4a44",
+                      "primary-fixed": "#cfe8e2",
+                      "on-tertiary-container": "#eaf9f1",
+                      "mist-300": "#7d9189",
+                      "paper-soft": "#ebe9e3",
+                      "error-container": "#ffdad6",
+                      "paper": "#f3f1ec",
+                      "on-surface": "#151d1b",
+                      "primary-container": "#5e7570",
+                      "error": "#ba1a1a",
+                      "surface-container-highest": "#dce4e1",
+                      "outline-variant": "#c2c8c5",
+                      "background": "#f3fbf8",
+                      "on-tertiary": "#ffffff",
+                      "on-error-container": "#93000a",
+                      "tertiary-fixed-dim": "#bccac3",
+                      "sev-low": "#8aa39a",
+                      "inverse-primary": "#b3ccc6",
+                      "ink-strong": "#1c2422",
+                      "primary-fixed-dim": "#b3ccc6",
+                      "surface": "#f3fbf8",
+                      "on-secondary": "#ffffff",
+                      "outline": "#727876",
+                      "surface-container-low": "#edf6f2",
+                      "on-primary-fixed-variant": "#354b47",
+                      "inverse-surface": "#2a3230",
+                      "surface-container-high": "#e1eae6",
+                      "sev-crit": "#9c3b3b",
+                      "glass-border": "rgba(255, 255, 255, 0.18)",
+                      "mist-100": "#b6c4bd",
+                      "on-primary-fixed": "#081f1c",
+                      "on-surface-variant": "#424846",
+                      "surface-variant": "#dce4e1",
+                      "sev-warn": "#c98a3f",
+                      "on-secondary-fixed": "#0d1f19",
+                      "mist-500": "#5e7570",
+                      "paper-deep": "#e2ded6",
+                      "secondary-container": "#cfe4db",
+                      "tertiary-fixed": "#d8e6de",
+                      "secondary": "#4f625b",
+                      "on-error": "#ffffff",
+                      "tertiary-container": "#66736d",
+                      "secondary-fixed": "#d2e7de",
+                      "ink-muted": "#5e6864",
+                      "secondary-fixed-dim": "#b6cbc2",
+                      "inverse-on-surface": "#eaf3ef",
+                      "on-primary-container": "#e2fbf5",
+                      "mist-900": "#1c2422",
+                      "on-tertiary-fixed": "#121e1a",
+                      "on-secondary-fixed-variant": "#384b44",
+                      "primary": "#465c58",
+                      "on-primary": "#ffffff",
+                      "surface-bright": "#f3fbf8",
+                      "on-secondary-container": "#53675f",
+                      "tertiary": "#4e5b55",
+                      "on-background": "#151d1b",
+                      "sev-high": "#b56b4a"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "xs": "4px",
+                      "lg": "24px",
+                      "xl": "32px",
+                      "gutter": "24px",
+                      "unit": "4px",
+                      "card-padding": "20px",
+                      "md": "16px",
+                      "desktop-margin": "48px",
+                      "sm": "8px"
+              },
+              "fontFamily": {
+                      "display": [
+                              "Geist"
+                      ],
+                      "label-caps": [
+                              "Geist"
+                      ],
+                      "h2": [
+                              "Geist"
+                      ],
+                      "h3": [
+                              "Geist"
+                      ],
+                      "h1": [
+                              "Geist"
+                      ],
+                      "body": [
+                              "Geist"
+                      ],
+                      "caption": [
+                              "Geist"
+                      ],
+                      "body-mono": [
+                              "Geist Mono"
+                      ]
+              },
+              "fontSize": {
+                      "display": [
+                              "34px",
+                              {
+                                      "lineHeight": "1.15",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-caps": [
+                              "11px",
+                              {
+                                      "lineHeight": "1.0",
+                                      "letterSpacing": "0.08em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "h2": [
+                              "22px",
+                              {
+                                      "lineHeight": "1.30",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "h3": [
+                              "18px",
+                              {
+                                      "lineHeight": "1.30",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "h1": [
+                              "28px",
+                              {
+                                      "lineHeight": "1.15",
+                                      "letterSpacing": "-0.01em",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body": [
+                              "16px",
+                              {
+                                      "lineHeight": "1.45",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "caption": [
+                              "12px",
+                              {
+                                      "lineHeight": "1.30",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "body-mono": [
+                              "14px",
+                              {
+                                      "lineHeight": "1.30",
+                                      "fontWeight": "500"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+        
+        .shadow-1 { box-shadow: 0 1px 2px rgba(28,36,34,0.04); }
+        .shadow-2 { box-shadow: 0 4px 12px rgba(28,36,34,0.06); }
+        
+        .border-hair { border-color: var(--outline-variant); }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body text-body antialiased min-h-screen flex">
+<!-- SideNavBar -->
+<nav class="h-screen w-64 fixed left-0 top-0 bg-paper-soft dark:bg-surface-container-low border-r border-outline-variant dark:border-outline flex flex-col h-full p-md z-40 hidden md:flex">
+<div class="mb-xl">
+<h1 class="font-display text-h3 font-bold text-ink-strong dark:text-on-surface flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary fill">shield_lock</span>
+                DëvSec
+            </h1>
+<p class="font-caption text-caption text-ink-muted mt-xs">Pro Account</p>
+</div>
+<ul class="flex flex-col gap-sm flex-grow">
+<li>
+<a class="flex items-center gap-sm px-md py-sm rounded-lg text-ink-muted dark:text-mist-300 hover:text-ink-strong dark:hover:text-on-surface hover:bg-paper-deep dark:hover:bg-surface-container-high transition-all scale-98 duration-140" href="#">
+<span class="material-symbols-outlined" data-icon="security">security</span>
+<span class="font-label-caps text-label-caps uppercase tracking-wider">Posture</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-sm px-md py-sm rounded-lg text-ink-muted dark:text-mist-300 hover:text-ink-strong dark:hover:text-on-surface hover:bg-paper-deep dark:hover:bg-surface-container-high transition-all scale-98 duration-140" href="#">
+<span class="material-symbols-outlined" data-icon="fact_check">fact_check</span>
+<span class="font-label-caps text-label-caps uppercase tracking-wider">Audits</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-sm px-md py-sm rounded-lg text-ink-muted dark:text-mist-300 hover:text-ink-strong dark:hover:text-on-surface hover:bg-paper-deep dark:hover:bg-surface-container-high transition-all scale-98 duration-140" href="#">
+<span class="material-symbols-outlined" data-icon="hub">hub</span>
+<span class="font-label-caps text-label-caps uppercase tracking-wider">Network</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-sm px-md py-sm rounded-lg text-ink-muted dark:text-mist-300 hover:text-ink-strong dark:hover:text-on-surface hover:bg-paper-deep dark:hover:bg-surface-container-high transition-all scale-98 duration-140" href="#">
+<span class="material-symbols-outlined" data-icon="vpn_key">vpn_key</span>
+<span class="font-label-caps text-label-caps uppercase tracking-wider">Secrets</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-sm px-md py-sm bg-secondary-container dark:bg-secondary text-on-secondary-container dark:text-on-secondary rounded-lg font-semibold transition-all scale-98 duration-140" href="#">
+<span class="material-symbols-outlined fill" data-icon="storefront">storefront</span>
+<span class="font-label-caps text-label-caps uppercase tracking-wider">Marketplace</span>
+</a>
+</li>
+</ul>
+<ul class="flex flex-col gap-sm mt-auto border-t border-outline-variant pt-md">
+<li>
+<a class="flex items-center gap-sm px-md py-sm rounded-lg text-ink-muted dark:text-mist-300 hover:text-ink-strong dark:hover:text-on-surface hover:bg-paper-deep dark:hover:bg-surface-container-high transition-all scale-98 duration-140" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-caps text-label-caps uppercase tracking-wider">Settings</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-sm px-md py-sm rounded-lg text-ink-muted dark:text-mist-300 hover:text-ink-strong dark:hover:text-on-surface hover:bg-paper-deep dark:hover:bg-surface-container-high transition-all scale-98 duration-140" href="#">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+<span class="font-label-caps text-label-caps uppercase tracking-wider">Support</span>
+</a>
+</li>
+</ul>
+</nav>
+<!-- Main Content Canvas -->
+<main class="flex-1 md:ml-64 flex flex-col min-h-screen">
+<!-- TopAppBar -->
+<header class="bg-paper dark:bg-surface-container shadow-sm flex justify-between items-center w-full px-desktop-margin h-16 max-w-[1280px] mx-auto z-30 sticky top-0">
+<div class="flex items-center gap-lg flex-1">
+<h2 class="font-display text-h2 font-semibold text-ink-strong dark:text-on-surface hidden lg:block">
+                    DëvSec Tool Catalog
+                </h2>
+<div class="relative flex-1 max-w-md ml-auto lg:ml-0">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted">search</span>
+<input class="w-full bg-surface-container-lowest border border-outline-variant rounded-full py-2 pl-10 pr-4 text-body font-body focus:outline-none focus:border-mist-500 transition-colors placeholder:text-ink-muted" placeholder="Search tools, plugins, or packs..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-md ml-lg">
+<button class="text-ink-muted hover:bg-paper-deep rounded-full p-2 transition-colors scale-98 duration-140 ease-[cubic-bezier(0.32,0.72,0.20,1)]">
+<span class="material-symbols-outlined" data-icon="shopping_cart">shopping_cart</span>
+</button>
+<button class="text-ink-muted hover:bg-paper-deep rounded-full p-2 transition-colors scale-98 duration-140 ease-[cubic-bezier(0.32,0.72,0.20,1)]">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+</button>
+<button class="text-ink-muted hover:bg-paper-deep rounded-full p-2 transition-colors scale-98 duration-140 ease-[cubic-bezier(0.32,0.72,0.20,1)]">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Canvas Content -->
+<div class="flex-1 max-w-[1280px] w-full mx-auto px-desktop-margin py-xl flex flex-col gap-y-[72px]">
+<!-- Hero Section -->
+<section class="bg-paper border border-outline-variant rounded-xl p-xl shadow-1 flex flex-col md:flex-row items-center gap-xl relative overflow-hidden">
+<div class="absolute inset-0 opacity-5 pointer-events-none" style="background-image: radial-gradient(var(--ink-strong) 1px, transparent 1px); background-size: 14px 14px;"></div>
+<div class="flex-1 relative z-10">
+<h1 class="font-display text-display text-ink-strong mb-md">Secure your stack<br/>with one click.</h1>
+<p class="font-body text-body text-ink-muted max-w-lg mb-lg">
+                        Discover and deploy enterprise-grade security tools instantly. From static analysis to runtime protection, build your defensive posture with curated plugins designed for modern workflows.
+                    </p>
+<div class="flex gap-md">
+<button class="bg-mist-900 text-on-primary px-lg py-3 rounded-lg font-body text-body font-medium hover:opacity-90 active:scale-98 transition-all duration-140 ease-[cubic-bezier(0.32,0.72,0.20,1)] shadow-1">
+                            Browse All Tools
+                        </button>
+<button class="bg-surface-container-lowest border border-outline-variant text-ink-strong px-lg py-3 rounded-lg font-body text-body font-medium hover:bg-paper-soft active:scale-98 transition-all duration-140 ease-[cubic-bezier(0.32,0.72,0.20,1)]">
+                            View Documentation
+                        </button>
+</div>
+</div>
+<div class="hidden md:block w-1/3 relative z-10">
+<div class="aspect-square bg-surface-container-lowest rounded-xl border border-outline-variant shadow-2 flex items-center justify-center relative overflow-hidden">
+<span class="material-symbols-outlined text-[120px] text-surface-tint opacity-20">shield_lock</span>
+<div class="absolute bottom-4 right-4 bg-sev-low text-on-surface font-label-caps text-label-caps px-2 py-1 rounded-sm uppercase tracking-wider flex items-center gap-1">
+<div class="w-1.5 h-1.5 rounded-full bg-primary-container"></div>
+                            System Secure
+                        </div>
+</div>
+</div>
+</section>
+<!-- Featured Security Packs -->
+<section>
+<div class="flex justify-between items-end mb-lg">
+<div>
+<h2 class="font-h2 text-h2 text-ink-strong">Featured Security Packs</h2>
+<p class="font-body text-body text-ink-muted mt-xs">Curated bundles for specific compliance and threat models.</p>
+</div>
+<a class="font-caption text-caption text-primary hover:underline flex items-center gap-xs" href="#">View all packs <span class="material-symbols-outlined text-[16px]">arrow_forward</span></a>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+<!-- Pack Card 1 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-card-padding shadow-1 hover:shadow-2 transition-shadow group">
+<div class="flex justify-between items-start mb-md">
+<div class="bg-primary-container text-on-primary-container p-sm rounded-lg">
+<span class="material-symbols-outlined">cloud_done</span>
+</div>
+<span class="font-label-caps text-label-caps text-ink-muted bg-paper px-2 py-1 rounded uppercase tracking-wider">Bundle</span>
+</div>
+<h3 class="font-h3 text-h3 text-ink-strong mb-xs group-hover:text-primary transition-colors">Cloud Hardening Pack</h3>
+<p class="font-body text-body text-ink-muted mb-lg line-clamp-2">Essential CSPM and infrastructure-as-code scanning tools for AWS and GCP environments.</p>
+<div class="flex items-center gap-xs text-ink-muted font-caption text-caption mb-lg">
+<span class="material-symbols-outlined text-[16px]">build</span> 4 Tools included
+                        </div>
+<button class="w-full bg-surface-container-lowest border border-outline-variant text-ink-strong py-2 rounded-lg font-body text-body font-medium hover:bg-paper-soft active:scale-98 transition-all duration-140">
+                            View Bundle
+                        </button>
+</div>
+<!-- Pack Card 2 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-card-padding shadow-1 hover:shadow-2 transition-shadow group">
+<div class="flex justify-between items-start mb-md">
+<div class="bg-secondary text-on-secondary p-sm rounded-lg">
+<span class="material-symbols-outlined">api</span>
+</div>
+<span class="font-label-caps text-label-caps text-ink-muted bg-paper px-2 py-1 rounded uppercase tracking-wider">Bundle</span>
+</div>
+<h3 class="font-h3 text-h3 text-ink-strong mb-xs group-hover:text-primary transition-colors">API Defense Suite</h3>
+<p class="font-body text-body text-ink-muted mb-lg line-clamp-2">Protect REST and GraphQL endpoints with automated fuzzing and schema validation.</p>
+<div class="flex items-center gap-xs text-ink-muted font-caption text-caption mb-lg">
+<span class="material-symbols-outlined text-[16px]">build</span> 3 Tools included
+                        </div>
+<button class="w-full bg-surface-container-lowest border border-outline-variant text-ink-strong py-2 rounded-lg font-body text-body font-medium hover:bg-paper-soft active:scale-98 transition-all duration-140">
+                            View Bundle
+                        </button>
+</div>
+<!-- Pack Card 3 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-card-padding shadow-1 hover:shadow-2 transition-shadow group">
+<div class="flex justify-between items-start mb-md">
+<div class="bg-tertiary text-on-tertiary p-sm rounded-lg">
+<span class="material-symbols-outlined">policy</span>
+</div>
+<span class="font-label-caps text-label-caps text-ink-muted bg-paper px-2 py-1 rounded uppercase tracking-wider">Bundle</span>
+</div>
+<h3 class="font-h3 text-h3 text-ink-strong mb-xs group-hover:text-primary transition-colors">SOC2 Compliance</h3>
+<p class="font-body text-body text-ink-muted mb-lg line-clamp-2">Automated evidence gathering and continuous monitoring for SOC2 Type II audits.</p>
+<div class="flex items-center gap-xs text-ink-muted font-caption text-caption mb-lg">
+<span class="material-symbols-outlined text-[16px]">build</span> 6 Tools included
+                        </div>
+<button class="w-full bg-surface-container-lowest border border-outline-variant text-ink-strong py-2 rounded-lg font-body text-body font-medium hover:bg-paper-soft active:scale-98 transition-all duration-140">
+                            View Bundle
+                        </button>
+</div>
+</div>
+</section>
+<!-- Popular Plugins -->
+<section>
+<div class="flex justify-between items-end mb-lg">
+<div>
+<h2 class="font-h2 text-h2 text-ink-strong">Popular Plugins</h2>
+<p class="font-body text-body text-ink-muted mt-xs">Highly rated standalone tools to integrate into your CI/CD pipeline.</p>
+</div>
+<div class="flex gap-2">
+<button class="p-2 border border-outline-variant rounded text-ink-muted hover:bg-paper-soft transition-colors"><span class="material-symbols-outlined text-[20px]">filter_list</span></button>
+</div>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter">
+<!-- Plugin Card 1 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-1 flex flex-col h-full">
+<div class="flex items-center gap-md mb-md">
+<div class="w-10 h-10 rounded bg-paper flex items-center justify-center border border-outline-variant">
+<span class="material-symbols-outlined text-primary">bug_report</span>
+</div>
+<div>
+<h4 class="font-h3 text-[16px] font-medium text-ink-strong leading-tight">SonarQube Scan</h4>
+<p class="font-caption text-caption text-ink-muted">Code Quality</p>
+</div>
+</div>
+<p class="font-body text-[14px] text-ink-muted mb-lg flex-grow">Continuous inspection of code quality to perform automatic reviews with static analysis of code.</p>
+<button class="w-full bg-mist-900 text-on-primary py-2 rounded-lg font-body text-[14px] font-medium hover:opacity-90 active:scale-98 transition-all duration-140 shadow-1 flex items-center justify-center gap-sm">
+<span class="material-symbols-outlined text-[18px]">download</span> One-click Install
+                        </button>
+</div>
+<!-- Plugin Card 2 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-1 flex flex-col h-full">
+<div class="flex items-center gap-md mb-md">
+<div class="w-10 h-10 rounded bg-paper flex items-center justify-center border border-outline-variant">
+<span class="material-symbols-outlined text-primary">key</span>
+</div>
+<div>
+<h4 class="font-h3 text-[16px] font-medium text-ink-strong leading-tight">TruffleHog</h4>
+<p class="font-caption text-caption text-ink-muted">Secrets Scanning</p>
+</div>
+</div>
+<p class="font-body text-[14px] text-ink-muted mb-lg flex-grow">Find verified credentials in your repositories. Scans git commit history and branches.</p>
+<button class="w-full bg-mist-900 text-on-primary py-2 rounded-lg font-body text-[14px] font-medium hover:opacity-90 active:scale-98 transition-all duration-140 shadow-1 flex items-center justify-center gap-sm">
+<span class="material-symbols-outlined text-[18px]">download</span> One-click Install
+                        </button>
+</div>
+<!-- Plugin Card 3 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-1 flex flex-col h-full">
+<div class="flex items-center gap-md mb-md">
+<div class="w-10 h-10 rounded bg-paper flex items-center justify-center border border-outline-variant">
+<span class="material-symbols-outlined text-primary">lan</span>
+</div>
+<div>
+<h4 class="font-h3 text-[16px] font-medium text-ink-strong leading-tight">Nmap Mapper</h4>
+<p class="font-caption text-caption text-ink-muted">Network</p>
+</div>
+</div>
+<p class="font-body text-[14px] text-ink-muted mb-lg flex-grow">Automated network discovery and security auditing utility integrated directly into workflows.</p>
+<button class="w-full bg-mist-900 text-on-primary py-2 rounded-lg font-body text-[14px] font-medium hover:opacity-90 active:scale-98 transition-all duration-140 shadow-1 flex items-center justify-center gap-sm">
+<span class="material-symbols-outlined text-[18px]">download</span> One-click Install
+                        </button>
+</div>
+<!-- Plugin Card 4 -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-md shadow-1 flex flex-col h-full">
+<div class="flex items-center gap-md mb-md">
+<div class="w-10 h-10 rounded bg-paper flex items-center justify-center border border-outline-variant">
+<span class="material-symbols-outlined text-primary">description</span>
+</div>
+<div>
+<h4 class="font-h3 text-[16px] font-medium text-ink-strong leading-tight">Checkov IaC</h4>
+<p class="font-caption text-caption text-ink-muted">Infrastructure</p>
+</div>
+</div>
+<p class="font-body text-[14px] text-ink-muted mb-lg flex-grow">Static code analysis tool for infrastructure-as-code. Prevents cloud misconfigurations.</p>
+<button class="w-full bg-mist-900 text-on-primary py-2 rounded-lg font-body text-[14px] font-medium hover:opacity-90 active:scale-98 transition-all duration-140 shadow-1 flex items-center justify-center gap-sm">
+<span class="material-symbols-outlined text-[18px]">download</span> One-click Install
+                        </button>
+</div>
+</div>
+</section>
+</div>
+<!-- Footer -->
+<footer class="bg-paper dark:bg-surface-container-lowest border-t border-outline-variant dark:border-outline full-width py-lg mt-auto">
+<div class="flex flex-col md:flex-row justify-between items-center px-desktop-margin max-w-[1280px] mx-auto">
+<div class="text-label-caps font-bold text-ink-strong dark:text-on-surface mb-md md:mb-0">
+<span class="font-display text-caption text-ink-muted dark:text-mist-300">© 2024 DëvSec Tool Catalog. Secure by design.</span>
+</div>
+<div class="flex gap-md font-display text-caption text-ink-muted dark:text-mist-300">
+<a class="hover:text-primary dark:hover:text-primary-fixed-dim underline transition-all opacity-80 hover:opacity-100" href="#">Documentation</a>
+<a class="hover:text-primary dark:hover:text-primary-fixed-dim underline transition-all opacity-80 hover:opacity-100" href="#">Privacy Policy</a>
+<a class="hover:text-primary dark:hover:text-primary-fixed-dim underline transition-all opacity-80 hover:opacity-100" href="#">Terms of Service</a>
+<a class="hover:text-primary dark:hover:text-primary-fixed-dim underline transition-all opacity-80 hover:opacity-100" href="#">Security Disclosure</a>
+</div>
+</div>
+</footer>
+</main>
+</body></html>

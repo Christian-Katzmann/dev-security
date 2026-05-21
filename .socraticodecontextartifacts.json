@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "artifacts": [
+    {
+      "name": "architecture",
+      "path": "docs/architecture.md",
+      "description": "High-level pipeline and scanner adapter contract."
+    },
+    {
+      "name": "setup",
+      "path": "docs/setup.md",
+      "description": "Local installation requirements, scanner binaries, PATH, and first scan."
+    },
+    {
+      "name": "troubleshooting",
+      "path": "docs/troubleshooting.md",
+      "description": "Known setup, scanner, scan speed, noise, secret, and dashboard recovery notes."
+    },
+    {
+      "name": "honey-keys",
+      "path": "docs/honey-keys.md",
+      "description": "Safety model and response guidance for defensive decoy secrets."
+    },
+    {
+      "name": "adx-risk-register",
+      "path": ".adx/risks.json",
+      "description": "Agent-facing risk boundaries and required behavior."
+    }
+  ]
+}

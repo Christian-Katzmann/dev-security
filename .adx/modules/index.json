@@ -1,0 +1,99 @@
+{
+  "version": 1,
+  "modules": [
+    {
+      "id": "python-cli-scanners",
+      "path": "src/security_observatory/",
+      "purpose": "Python CLI, scanner orchestration, normalization, scoring, storage, and security case generation.",
+      "common_changes": [
+        "Add or tune scanner adapters",
+        "Change normalized finding shape",
+        "Adjust severity scoring or case grouping",
+        "Update CLI flags or scan profiles"
+      ],
+      "relevant_commands": [
+        "python-import-cli",
+        "python-pytest",
+        "security-scan-quick"
+      ],
+      "risks": [
+        "local-security-data",
+        "scanner-installer",
+        "honey-keys"
+      ],
+      "intro": ".adx/modules/python-cli-scanners.md"
+    },
+    {
+      "id": "dashboard-server",
+      "path": "src/security_observatory/dashboard_server.py",
+      "purpose": "Local HTTP dashboard server, API endpoints, scan job orchestration, report exports, and Honey Key endpoints.",
+      "common_changes": [
+        "Add dashboard API endpoints",
+        "Adjust report export pages",
+        "Change Honey Key request handling",
+        "Change background scan job behavior"
+      ],
+      "relevant_commands": [
+        "python-import-cli",
+        "python-pytest"
+      ],
+      "risks": [
+        "local-security-data",
+        "honey-keys"
+      ],
+      "intro": ".adx/modules/dashboard-server.md"
+    },
+    {
+      "id": "dashboard-ui",
+      "path": "dashboard-ui/",
+      "purpose": "React/Vite dashboard source for the local browser UI.",
+      "common_changes": [
+        "Edit dashboard views and components",
+        "Adjust TypeScript dashboard data mapping",
+        "Update visual styling or assets"
+      ],
+      "relevant_commands": [
+        "dashboard-lint",
+        "dashboard-build"
+      ],
+      "risks": [
+        "generated-assets"
+      ],
+      "intro": ".adx/modules/dashboard-ui.md"
+    },
+    {
+      "id": "desktop-launcher",
+      "path": "scripts/",
+      "purpose": "macOS appify-style desktop wrapper, icon generation, install, and process cleanup scripts.",
+      "common_changes": [
+        "Change app bundle metadata",
+        "Refresh icons",
+        "Adjust launch/quit behavior",
+        "Rebuild or reinstall the local app bundle"
+      ],
+      "relevant_commands": [
+        "desktop-build",
+        "desktop-install",
+        "desktop-quit"
+      ],
+      "risks": [
+        "desktop-process-control",
+        "generated-assets"
+      ],
+      "intro": ".adx/modules/desktop-launcher.md"
+    },
+    {
+      "id": "docs-and-templates",
+      "path": "docs/",
+      "purpose": "Human-facing setup, architecture, scanner, troubleshooting, desktop launcher, and Honey Key documentation.",
+      "common_changes": [
+        "Update setup or troubleshooting notes",
+        "Document scanner behavior",
+        "Keep desktop launcher reports current"
+      ],
+      "relevant_commands": [],
+      "risks": [],
+      "intro": ".adx/modules/docs-and-templates.md"
+    }
+  ]
+}

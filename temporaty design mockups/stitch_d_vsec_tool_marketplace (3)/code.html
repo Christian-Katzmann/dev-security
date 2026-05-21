@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>DëvSec Tool Catalog</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&amp;family=Geist+Mono:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        :root {
+            --dotgrid-dark: radial-gradient(circle, rgba(255,255,255,0.15) 1px, transparent 1px);
+        }
+        
+        .mistglass-bg {
+            background: linear-gradient(135deg, #1c2422 0%, #2a3230 50%, #465c58 100%);
+            background-size: cover;
+            background-attachment: fixed;
+            position: relative;
+        }
+
+        .mistglass-bg::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: var(--dotgrid-dark);
+            background-size: 14px 14px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 4px 24px rgba(0, 0, 0, 0.2);
+            position: relative;
+            z-index: 1;
+        }
+
+        .glass-card-hover {
+            transition: all 140ms cubic-bezier(0.32, 0.72, 0.20, 1);
+        }
+        
+        .glass-card-hover:hover {
+            background: rgba(255, 255, 255, 0.08);
+            transform: translateY(-2px);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .app-button {
+            transition: transform 140ms cubic-bezier(0.32, 0.72, 0.20, 1), background-color 140ms ease;
+        }
+        
+        .app-button:active {
+            transform: scale(0.98);
+        }
+
+        /* Material Symbols Setup */
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "surface-dim": "#d3dcd8",
+                      "on-secondary": "#ffffff",
+                      "secondary": "#4f625b",
+                      "primary": "#465c58",
+                      "primary-fixed": "#cfe8e2",
+                      "on-primary-fixed-variant": "#354b47",
+                      "surface-container": "#e7f0ec",
+                      "primary-container": "#5e7570",
+                      "secondary-fixed": "#d2e7de",
+                      "surface-container-low": "#edf6f2",
+                      "on-tertiary-fixed": "#121e1a",
+                      "mist-500": "#5e7570",
+                      "secondary-container": "#cfe4db",
+                      "mist-100": "#b6c4bd",
+                      "paper": "#f3f1ec",
+                      "error": "#ba1a1a",
+                      "primary-fixed-dim": "#b3ccc6",
+                      "background": "#f3fbf8",
+                      "sev-warn": "#c98a3f",
+                      "on-secondary-fixed-variant": "#384b44",
+                      "tertiary-fixed-dim": "#bccac3",
+                      "sev-crit": "#9c3b3b",
+                      "tertiary": "#4e5b55",
+                      "on-tertiary-container": "#eaf9f1",
+                      "paper-deep": "#e2ded6",
+                      "on-error-container": "#93000a",
+                      "surface": "#f3fbf8",
+                      "glass-border": "rgba(255, 255, 255, 0.18)",
+                      "surface-container-highest": "#dce4e1",
+                      "tertiary-container": "#66736d",
+                      "on-error": "#ffffff",
+                      "surface-bright": "#f3fbf8",
+                      "error-container": "#ffdad6",
+                      "on-tertiary-fixed-variant": "#3d4a44",
+                      "on-primary-container": "#e2fbf5",
+                      "on-primary-fixed": "#081f1c",
+                      "surface-container-lowest": "#ffffff",
+                      "tertiary-fixed": "#d8e6de",
+                      "on-background": "#151d1b",
+                      "ink-muted": "#5e6864",
+                      "on-secondary-container": "#53675f",
+                      "on-surface-variant": "#424846",
+                      "inverse-primary": "#b3ccc6",
+                      "on-secondary-fixed": "#0d1f19",
+                      "mist-300": "#7d9189",
+                      "outline-variant": "#c2c8c5",
+                      "outline": "#727876",
+                      "on-primary": "#ffffff",
+                      "ink-strong": "#1c2422",
+                      "surface-tint": "#4c635e",
+                      "mist-900": "#1c2422",
+                      "surface-variant": "#dce4e1",
+                      "secondary-fixed-dim": "#b6cbc2",
+                      "inverse-surface": "#2a3230",
+                      "sev-high": "#b56b4a",
+                      "on-tertiary": "#ffffff",
+                      "sev-low": "#8aa39a",
+                      "paper-soft": "#ebe9e3",
+                      "surface-container-high": "#e1eae6",
+                      "inverse-on-surface": "#eaf3ef",
+                      "on-surface": "#151d1b"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "lg": "24px",
+                      "md": "16px",
+                      "xs": "4px",
+                      "desktop-margin": "48px",
+                      "unit": "4px",
+                      "gutter": "24px",
+                      "sm": "8px",
+                      "xl": "32px",
+                      "card-padding": "20px"
+              },
+              "fontFamily": {
+                      "h3": ["Geist"],
+                      "body": ["Geist"],
+                      "h1": ["Geist"],
+                      "caption": ["Geist"],
+                      "h2": ["Geist"],
+                      "display": ["Geist"],
+                      "label-caps": ["Geist"],
+                      "body-mono": ["Geist Mono"]
+              },
+              "fontSize": {
+                      "h3": ["18px", {"lineHeight": "1.30", "fontWeight": "500"}],
+                      "body": ["16px", {"lineHeight": "1.45", "fontWeight": "400"}],
+                      "h1": ["28px", {"lineHeight": "1.15", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "caption": ["12px", {"lineHeight": "1.30", "fontWeight": "500"}],
+                      "h2": ["22px", {"lineHeight": "1.30", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                      "display": ["34px", {"lineHeight": "1.15", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                      "label-caps": ["11px", {"lineHeight": "1.0", "letterSpacing": "0.08em", "fontWeight": "600"}],
+                      "body-mono": ["14px", {"lineHeight": "1.30", "fontWeight": "500"}]
+              }
+            }
+          }
+        }
+    </script>
+</head>
+<body class="mistglass-bg min-h-screen text-on-surface antialiased flex text-on-primary">
+<!-- SideNavBar (from JSON) -->
+<nav class="glass-panel h-screen w-64 fixed left-0 top-0 flex flex-col h-full p-md z-40 border-r border-outline-variant/30">
+<!-- Header -->
+<div class="flex items-center gap-sm mb-xl mt-sm px-sm">
+<div class="w-8 h-8 rounded-full bg-primary/30 flex items-center justify-center border border-white/20">
+<span class="material-symbols-outlined text-white" style="font-size: 18px;">security</span>
+</div>
+<div>
+<h1 class="font-display text-h3 font-bold text-white tracking-tight">DëvSec</h1>
+<p class="font-display text-caption text-mist-100">Pro Account</p>
+</div>
+</div>
+<!-- Navigation Links -->
+<div class="flex flex-col gap-xs flex-1">
+<!-- Active: Posture (Assuming Home context) -->
+<a class="flex items-center gap-md px-md py-sm bg-white/10 text-white rounded-lg font-semibold hover:bg-white/20 transition-all scale-98 duration-140" href="#">
+<span class="material-symbols-outlined fill" data-icon="security">security</span>
+<span class="font-display text-label-caps uppercase tracking-wider">Posture</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-mist-100 hover:text-white hover:bg-white/5 rounded-lg transition-all scale-98 duration-140" href="#">
+<span class="material-symbols-outlined" data-icon="fact_check">fact_check</span>
+<span class="font-display text-label-caps uppercase tracking-wider">Audits</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-mist-100 hover:text-white hover:bg-white/5 rounded-lg transition-all scale-98 duration-140" href="#">
+<span class="material-symbols-outlined" data-icon="hub">hub</span>
+<span class="font-display text-label-caps uppercase tracking-wider">Network</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-mist-100 hover:text-white hover:bg-white/5 rounded-lg transition-all scale-98 duration-140" href="#">
+<span class="material-symbols-outlined" data-icon="vpn_key">vpn_key</span>
+<span class="font-display text-label-caps uppercase tracking-wider">Secrets</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-mist-100 hover:text-white hover:bg-white/5 rounded-lg transition-all scale-98 duration-140" href="#">
+<span class="material-symbols-outlined" data-icon="storefront">storefront</span>
+<span class="font-display text-label-caps uppercase tracking-wider">Marketplace</span>
+</a>
+</div>
+<!-- Footer Links -->
+<div class="flex flex-col gap-xs pt-md border-t border-white/10 mt-auto">
+<a class="flex items-center gap-md px-md py-sm text-mist-100 hover:text-white hover:bg-white/5 rounded-lg transition-all scale-98 duration-140" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-display text-label-caps uppercase tracking-wider">Settings</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-mist-100 hover:text-white hover:bg-white/5 rounded-lg transition-all scale-98 duration-140" href="#">
+<span class="material-symbols-outlined" data-icon="help_outline">help_outline</span>
+<span class="font-display text-label-caps uppercase tracking-wider">Support</span>
+</a>
+</div>
+</nav>
+<!-- Main Content Area -->
+<main class="ml-64 flex-1 flex flex-col min-h-screen relative z-10">
+<!-- TopAppBar (from JSON - adapted for Mistglass) -->
+<header class="glass-panel flex justify-between items-center w-full px-desktop-margin h-16 max-w-[1280px] mx-auto border-x-0 border-t-0 border-b border-white/10 shadow-[0_4px_30px_rgba(0,0,0,0.1)]">
+<div class="flex items-center gap-md">
+<span class="font-display text-h2 font-semibold text-white tracking-tight">DëvSec Tool Catalog</span>
+</div>
+<div class="flex-1 max-w-md mx-lg">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-mist-300">search</span>
+<input class="w-full bg-black/20 border border-white/10 rounded-full py-2 pl-10 pr-4 text-white placeholder-mist-300 focus:outline-none focus:border-mist-500 focus:bg-black/30 font-body text-body transition-colors" placeholder="Search catalog..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-sm">
+<button class="p-2 text-mist-100 hover:text-white hover:bg-white/10 rounded-full transition-colors scale-98 duration-140 ease-[cubic-bezier(0.32,0.72,0.20,1)]">
+<span class="material-symbols-outlined" data-icon="shopping_cart">shopping_cart</span>
+</button>
+<button class="p-2 text-mist-100 hover:text-white hover:bg-white/10 rounded-full transition-colors scale-98 duration-140 ease-[cubic-bezier(0.32,0.72,0.20,1)]">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+</button>
+<button class="p-2 text-mist-100 hover:text-white hover:bg-white/10 rounded-full transition-colors scale-98 duration-140 ease-[cubic-bezier(0.32,0.72,0.20,1)]">
+<span class="material-symbols-outlined" data-icon="account_circle">account_circle</span>
+</button>
+</div>
+</header>
+<!-- Page Content -->
+<div class="flex-1 px-desktop-margin py-xl max-w-[1280px] mx-auto w-full">
+<!-- Hero Bento -->
+<section class="grid grid-cols-12 gap-gutter mb-[72px]">
+<!-- Main Featured GlassCard -->
+<div class="col-span-8 glass-panel rounded-xl p-xl flex flex-col justify-between min-h-[320px] overflow-hidden relative">
+<!-- Background texture/image for hero -->
+<div class="absolute inset-0 opacity-20 bg-cover bg-center z-0" data-alt="A highly atmospheric, dark macro photograph of a dense server rack illuminated by subtle teal and sage green LED lights. The image features a shallow depth of field, with glowing fiber optic cables stretching into the blurry background. The mood is highly technical, secure, and slightly mysterious, fitting a modern cybersecurity aesthetic." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA7akrplUX3pfCrwbqtQ-51uSIaM0qbZXd6YiD9F3MyVL7F-GnXoguWPmwumrpTnvYupZkjYaNOp0hN7nxFq1g8EYkm5vu-pBtAZ5mwSHxpID6osSMf6U-q_8mG51y80ev4MW6Q16xgU055wB4mEF1cw9vkESBEJJDxlVZzzLptD4ECoHtVwI-3ptKG9UTygswRHVsf5mxHG6Ok9v7xaRD6wmxQfahqZC9rMZuFmgyUqtMJ-UwxlXUrXMA_4OLRqXpaQB4AbIntWJk');"></div>
+<div class="absolute inset-0 bg-gradient-to-t from-[#1c2422]/90 to-transparent z-0"></div>
+<div class="relative z-10 flex justify-between items-start">
+<div>
+<span class="inline-flex items-center gap-1 bg-white/10 border border-white/20 rounded-full px-3 py-1 font-display text-label-caps text-white uppercase tracking-wider mb-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-fixed"></span> Featured Tool
+                            </span>
+<h2 class="font-display text-display text-white mt-xs">AquaTrivy Scanner</h2>
+<p class="font-body text-body text-mist-100 max-w-md mt-sm">Comprehensive vulnerability scanning for containers, Kubernetes, and IaC. Deep integration with existing CI/CD pipelines.</p>
+</div>
+<div class="w-12 h-12 rounded-lg bg-white/10 border border-white/20 flex items-center justify-center backdrop-blur-md">
+<span class="material-symbols-outlined text-white text-2xl">radar</span>
+</div>
+</div>
+<div class="relative z-10 flex items-center gap-md mt-auto pt-lg">
+<button class="app-button bg-white text-[#1c2422] font-display text-caption font-semibold px-6 py-2.5 rounded-lg hover:bg-mist-100 flex items-center gap-2">
+                            Deploy Now
+                            <span class="material-symbols-outlined" style="font-size: 16px;">arrow_forward</span>
+</button>
+<button class="app-button bg-white/10 border border-white/20 text-white font-display text-caption font-semibold px-6 py-2.5 rounded-lg hover:bg-white/20 flex items-center gap-2">
+                            View Docs
+                        </button>
+</div>
+</div>
+<!-- Secondary Stats Bento -->
+<div class="col-span-4 flex flex-col gap-gutter">
+<div class="glass-panel rounded-xl p-lg flex-1 glass-card-hover cursor-pointer">
+<div class="flex items-center justify-between mb-sm">
+<h3 class="font-display text-h3 text-white">Security Posture</h3>
+<span class="material-symbols-outlined text-sev-high">warning</span>
+</div>
+<div class="flex items-end gap-sm">
+<span class="font-display text-[42px] leading-none font-bold text-white tracking-tighter">B-</span>
+<span class="font-display text-caption text-mist-100 mb-1">Score</span>
+</div>
+<div class="mt-md">
+<div class="w-full bg-black/30 h-1.5 rounded-full overflow-hidden">
+<div class="bg-sev-high h-full w-[65%] rounded-full"></div>
+</div>
+<p class="font-body text-caption text-mist-100 mt-2">Requires attention in CI/CD pipeline</p>
+</div>
+</div>
+<div class="glass-panel rounded-xl p-lg flex-1 glass-card-hover cursor-pointer">
+<div class="flex items-center justify-between mb-sm">
+<h3 class="font-display text-h3 text-white">Active Scans</h3>
+<span class="material-symbols-outlined text-primary-fixed">radar</span>
+</div>
+<div class="flex items-end gap-sm">
+<span class="font-display text-[42px] leading-none font-bold text-white tracking-tighter">14</span>
+<span class="font-display text-caption text-mist-100 mb-1">Running</span>
+</div>
+<p class="font-body text-caption text-mist-100 mt-xs">Across 3 clusters</p>
+</div>
+</div>
+</section>
+</div>
+<!-- Footer (from JSON) -->
+<footer class="glass-panel border-t border-white/10 py-lg mt-auto w-full">
+<div class="flex flex-col md:flex-row justify-between items-center px-desktop-margin max-w-[1280px] mx-auto w-full gap-4">
+<div class="text-label-caps font-bold text-white uppercase tracking-wider">
+                    DëvSec Tool Catalog
+                </div>
+<div class="flex items-center gap-lg">
+<a class="font-display text-caption text-mist-300 hover:text-white transition-all opacity-80 hover:opacity-100 hover:underline" href="#">Documentation</a>
+<a class="font-display text-caption text-mist-300 hover:text-white transition-all opacity-80 hover:opacity-100 hover:underline" href="#">Privacy Policy</a>
+<a class="font-display text-caption text-mist-300 hover:text-white transition-all opacity-80 hover:opacity-100 hover:underline" href="#">Terms of Service</a>
+<a class="font-display text-caption text-mist-300 hover:text-white transition-all opacity-80 hover:opacity-100 hover:underline" href="#">Security Disclosure</a>
+</div>
+<div class="font-display text-caption text-mist-300">
+                    © 2024 DëvSec Tool Catalog. Secure by design.
+                </div>
+</div>
+</footer>
+</main>
+</body></html>

@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "repo": {
+    "name": "security-observatory",
+    "kind": "tool",
+    "stakes": "high",
+    "summary": "Local-first security observability for repositories: a Python CLI runs open-source scanners, normalizes findings, stores local scan history in SQLite, and serves a React dashboard with optional macOS desktop launcher support."
+  },
+  "entrypoints": {
+    "canonical": "AGENTS.md",
+    "overlays": []
+  },
+  "contracts": {
+    "boot": true,
+    "commands": true,
+    "verification": true,
+    "safety": true,
+    "recovery": true,
+    "modules": true,
+    "memory": false,
+    "probes": false,
+    "maintenance": true
+  },
+  "paths": {
+    "commands": ".adx/commands.json",
+    "verification": ".adx/verification.json",
+    "risks": ".adx/risks.json",
+    "recovery": ".adx/recovery.md",
+    "modules": ".adx/modules/index.json",
+    "latest_audit": ".adx/audit/latest.json",
+    "implementation_receipts": ".adx/implementation/"
+  },
+  "last_audit": ".adx/audit/latest.json",
+  "last_verified": "2026-05-12T13:35:03Z"
+}

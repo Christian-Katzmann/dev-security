@@ -1,0 +1,1268 @@
+export type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
+
+export type SeverityCounts = Partial<Record<Severity, number>>;
+
+export type CategoryCounts = Record<string, number>;
+
+export type ScannerStatus = {
+  scanner: string;
+  available: boolean;
+  command?: string[];
+  status?: string;
+  error?: string | null;
+  findings?: number;
+};
+
+export type ScannerCatalogItem = {
+  scanner: string;
+  label: string;
+  area: string;
+  covers: string;
+  profile: string;
+  install: string;
+  next_step: string;
+  built_in?: boolean;
+};
+
+export type ScannerDoctorStatus = 'ran' | 'missing' | 'error' | 'not-run';
+
+export type ScannerDoctorItem = ScannerCatalogItem & {
+  status: ScannerDoctorStatus;
+  findings: number;
+  repoNames: string[];
+  command?: string[];
+  error?: string | null;
+  action: string;
+};
+
+export type ScannerDoctorGroup = {
+  area: string;
+  items: ScannerDoctorItem[];
+};
+
+export type RepositorySummary = {
+  scan_id: string | null;
+  repo: string;
+  path: string;
+  health: number;
+  last_scan: string | null;
+  status: string;
+  profile: string;
+  report_path: string | null;
+  counts: SeverityCounts;
+  categories: CategoryCounts;
+  raw_counts?: SeverityCounts;
+  raw_categories?: CategoryCounts;
+  scanners: ScannerStatus[];
+  suppressed_counts?: SuppressedCounts;
+  suppression_reasons?: SuppressionReason[];
+  previous_scan_id?: string | null;
+  previous_health?: number | null;
+  health_delta?: number | null;
+  case_delta?: CaseDelta;
+  dependency_delta?: DependencyDelta;
+  dependency_trust?: DependencyTrustRecord[];
+  platform_posture?: PlatformPostureSnapshot | null;
+};
+
+export type HoneyKeyStatus = 'active' | 'triggered' | 'archived';
+
+export type HoneyKey = {
+  id: string;
+  project_id: string;
+  repo_id: string | null;
+  name: string;
+  token_prefix: string;
+  status: HoneyKeyStatus;
+  placement_path: string | null;
+  note: string | null;
+  created_at: string;
+  created_by: string | null;
+  last_triggered_at: string | null;
+  trigger_count: number;
+  archived_at: string | null;
+};
+
+export type HoneyKeyEvent = {
+  id: string;
+  honey_key_id: string;
+  project_id: string;
+  repo_id: string | null;
+  triggered_at: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  method: string;
+  path: string;
+  headers?: Record<string, string>;
+  body_summary: string | null;
+  confidence: number;
+  source_type: 'api_call' | 'url_open' | 'unknown';
+  reason: string;
+  approximate_geo?: string | null;
+  created_at: string;
+  incident?: HoneyIncident | null;
+};
+
+export type HoneyIncident = {
+  event_id: string;
+  investigating: boolean;
+  secrets_rotated: boolean;
+  logs_reviewed: boolean;
+  archived_reset: boolean;
+  accepted_risk_note: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SecurityProjectStatus = {
+  project_id: string;
+  status: 'green' | 'yellow' | 'red';
+  reason: string;
+  last_event_at: string | null;
+};
+
+export type Finding = {
+  id: number;
+  scan_id: string;
+  repo_name: string;
+  scanner: string;
+  severity: Severity;
+  category: string;
+  title: string;
+  file: string | null;
+  line: number | null;
+  remediation: string | null;
+  vulnerability_id?: string | null;
+  package_name?: string | null;
+  package_version?: string | null;
+  package_ecosystem?: string | null;
+  package_url?: string | null;
+  component_fingerprint?: string | null;
+  component_package_key?: string | null;
+  old_version?: string | null;
+  new_version?: string | null;
+  behavior_category?: string | null;
+  evidence_summary?: string | null;
+  before_behavior?: string | null;
+  after_behavior?: string | null;
+  ioc_pack_id?: string | null;
+  ioc_source?: string | null;
+  ioc_advisory_url?: string | null;
+  ioc_confidence?: string | null;
+  ioc_match_type?: 'exact match' | 'namespace watch' | 'domain watch' | string | null;
+  ioc_indicator?: string | null;
+  fingerprint: string;
+  suppressed?: boolean;
+  suppression?: Suppression;
+  created_at: string;
+};
+
+export type AttentionBucket = 'fix-now' | 'verify' | 'watch' | 'info';
+
+export type CaseDecisionStatus = 'verified' | 'false_positive' | 'accepted_risk' | 'fixed';
+export type CaseChangeStatus = 'new' | 'recurring' | 'resolved';
+export type VexStatus = 'affected' | 'not_affected' | 'fixed' | 'under_investigation';
+
+export type CaseDelta = {
+  new: number;
+  recurring: number;
+  resolved: number;
+};
+
+export type DependencyChangeType = 'added' | 'removed' | 'upgraded' | 'downgraded' | 'version-changed' | 'license-changed';
+
+export type DependencyDeltaStatus = 'no-sbom' | 'first-scan' | 'unchanged' | 'changed';
+export type DependencyCveStatus = 'has-cve' | 'no-cve' | 'not-checked' | 'unknown';
+export type DependencyMatchConfidence = 'strong' | 'weak-match' | 'unknown';
+export type SilentUpgradeStatus = 'flagged' | 'explained' | 'not-silent' | 'unknown';
+export type SilentUpgradeKind = 'direct' | 'transitive' | string;
+
+export type DependencyDeltaCounts = Partial<Record<DependencyChangeType, number>>;
+export type DependencyCveCounts = Partial<Record<DependencyCveStatus, number>>;
+
+export type DependencyComponent = {
+  package_key: string;
+  name: string | null;
+  version: string | null;
+  ecosystem: string | null;
+  component_type: string | null;
+  package_url: string | null;
+  license: string | null;
+  supplier: string | null;
+  source_path: string | null;
+  source_format: string | null;
+  source_file: string | null;
+  bom_ref: string | null;
+  component_fingerprint: string | null;
+};
+
+export type DependencyChange = {
+  repo_name: string;
+  scan_id: string;
+  previous_scan_id: string;
+  package_key: string;
+  change_type: DependencyChangeType;
+  change_types: DependencyChangeType[];
+  name: string | null;
+  ecosystem: string | null;
+  component_type: string | null;
+  package_url: string | null;
+  source_path: string | null;
+  previous_version: string | null;
+  current_version: string | null;
+  previous_license: string | null;
+  current_license: string | null;
+  version_changed: boolean;
+  license_changed: boolean;
+  version_direction: 'upgraded' | 'downgraded' | 'changed' | null;
+  previous_component: DependencyComponent | null;
+  current_component: DependencyComponent | null;
+  match_confidence?: DependencyMatchConfidence;
+  match_label?: string;
+  metadata_warnings?: string[];
+  cve_status?: DependencyCveStatus;
+  cve_label?: string;
+  cve_reason?: string;
+  checked_by?: string[];
+  silent_upgrade?: {
+    status: SilentUpgradeStatus | string;
+    kind?: SilentUpgradeKind | null;
+    label?: string | null;
+    reason?: string | null;
+    manifest_path?: string | null;
+    manifest_scope?: string | null;
+    manifest_declaration?: string | null;
+  };
+};
+
+export type DependencyDelta = {
+  repo_name: string;
+  scan_id: string;
+  previous_scan_id: string | null;
+  has_previous_scan: boolean;
+  status: DependencyDeltaStatus;
+  current_count: number;
+  previous_count: number;
+  counts: DependencyDeltaCounts;
+  cve_counts?: DependencyCveCounts;
+  comparison_explanation?: string;
+  changes: DependencyChange[];
+};
+
+export type DependencyTrustRecord = {
+  id?: number;
+  scan_id: string;
+  repo_name: string;
+  component_fingerprint: string | null;
+  component_package_key: string | null;
+  package_name: string | null;
+  package_version: string | null;
+  package_ecosystem: string | null;
+  package_url: string | null;
+  source_repo: string | null;
+  source_repo_url: string | null;
+  source_repo_confidence: string;
+  source_repo_reason: string;
+  scorecard_score: number | null;
+  scorecard_status: string;
+  criticality_score: number | null;
+  criticality_status: string;
+  checked_at: string | null;
+  freshness: 'fresh' | 'stale' | 'unknown' | 'unavailable' | string;
+  status: string;
+  cache_key: string | null;
+  error?: string | null;
+};
+
+export type PlatformPostureSnapshot = {
+  id?: number;
+  scan_id: string;
+  repo_name: string;
+  scanner: string;
+  source: string;
+  target: string;
+  status: 'checked' | 'partial' | 'skipped' | 'empty' | 'unknown' | string;
+  reason?: string | null;
+  summary?: {
+    records?: number;
+    failed?: number;
+    passed?: number;
+    skipped?: number;
+    by_status?: Record<string, number>;
+    failed_by_severity?: Record<string, number>;
+    failed_by_namespace?: Record<string, number>;
+  };
+  records?: unknown[];
+  snapshot_fingerprint?: string | null;
+  created_at?: string | null;
+};
+
+export type CaseDecision = {
+  case_id: string;
+  repo_name: string;
+  status: CaseDecisionStatus;
+  note: string | null;
+  vex_status?: VexStatus | null;
+  vex_justification?: string | null;
+  vex_reason?: string | null;
+  vulnerability_id?: string | null;
+  package_name?: string | null;
+  package_version?: string | null;
+  package_ecosystem?: string | null;
+  package_url?: string | null;
+  component_package_key?: string | null;
+  fixed_version?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SuppressionReason = {
+  reason: string;
+  decision_status: CaseDecisionStatus | string;
+  vex_status: VexStatus | string;
+  cases: number;
+  findings: number;
+};
+
+export type SuppressedCounts = {
+  cases: number;
+  findings: number;
+  reasons: SuppressionReason[];
+};
+
+export type Suppression = {
+  case_id?: string;
+  repo_name?: string;
+  status?: CaseDecisionStatus | string;
+  decision_status?: CaseDecisionStatus | string;
+  vex_status?: VexStatus | string;
+  reason?: string;
+  vex_justification?: string;
+  vex_reason?: string;
+  vulnerability_id?: string | null;
+  package_name?: string | null;
+  package_ecosystem?: string | null;
+  package_url?: string | null;
+  component_package_key?: string | null;
+  matched_by?: string;
+  updated_at?: string | null;
+};
+
+export type SecurityCase = {
+  id?: string | number;
+  case_id?: string | number;
+  scan_id?: string;
+  repo?: string;
+  repo_name?: string;
+  title?: string;
+  plain_title?: string;
+  summary?: string;
+  plain_english_risk?: string;
+  why_matters?: string;
+  why_it_matters?: string;
+  affected_files?: string[];
+  affected_path?: string | null;
+  path?: string | null;
+  file?: string | null;
+  line?: number | null;
+  confidence?: string | number | null;
+  source_scanners?: string[];
+  scanners?: string[];
+  scanner?: string;
+  next_step?: string;
+  remediation?: string | null;
+  severity?: Severity;
+  category?: string;
+  action_level?: AttentionBucket | string;
+  bucket?: AttentionBucket | string;
+  action_bucket?: AttentionBucket | string;
+  fix_steps?: string[];
+  priority_reasons?: string[];
+  install_recency?: {
+    confidence?: 'strong' | 'weak' | 'unknown' | string | null;
+    last_install_signal_at?: string | null;
+    evidence?: string[];
+  } | null;
+  rotation_surfaces?: string[];
+  evidence?: unknown[];
+  agent_prompt?: string;
+  raw_report_url?: string;
+  ai_prompt_url?: string;
+  created_at?: string;
+  decision?: CaseDecision;
+  suppressed?: boolean;
+  suppression?: Suppression;
+  change_status?: CaseChangeStatus;
+  previous_scan_id?: string;
+  resolved_by_scan_id?: string;
+  resolved_at?: string;
+  honey_event_id?: string;
+  incident?: HoneyIncident | null;
+};
+
+export type DisplayCase = {
+  id: string;
+  repoName: string;
+  bucket: AttentionBucket;
+  title: string;
+  why: string;
+  location: string;
+  confidence: string;
+  sources: string[];
+  nextStep: string;
+  severity?: Severity;
+  category?: string;
+  scanId?: string;
+  rawReportUrl?: string;
+  aiPromptUrl?: string;
+  createdAt?: string;
+  decision?: CaseDecision;
+  suppressed?: boolean;
+  suppression?: Suppression;
+  changeStatus?: CaseChangeStatus;
+  resolvedAt?: string;
+  honeyEventId?: string;
+  incident?: HoneyIncident | null;
+  installRecency?: SecurityCase['install_recency'];
+  rotationSurfaces?: string[];
+};
+
+export type ScanCompleteness = {
+  checksRan: string[];
+  checksMissing: string[];
+  cannotProve: string[];
+};
+
+export type ScanHistoryItem = {
+  id: string;
+  repo_name: string;
+  started_at: string;
+  finished_at: string | null;
+  health_score: number;
+  status: string;
+  profile: string;
+};
+
+export type DashboardSummary = {
+  repos: RepositorySummary[];
+  history: ScanHistoryItem[];
+  findings: Finding[];
+  active_findings?: Finding[];
+  suppressed_findings?: Finding[];
+  cases?: SecurityCase[];
+  active_cases?: SecurityCase[];
+  suppressed_cases?: SecurityCase[];
+  case_decisions?: CaseDecision[];
+  suppressed_counts?: SuppressedCounts;
+  suppression_reasons?: SuppressionReason[];
+  honey_keys?: HoneyKey[];
+  honey_key_events?: HoneyKeyEvent[];
+  project_statuses?: SecurityProjectStatus[];
+  honey_event_retention_days?: number;
+  scanner_catalog?: ScannerCatalogItem[];
+  completeness?: {
+    checks_ran?: string[];
+    checks_skipped?: string[];
+    checks_missing?: string[];
+    cannot_prove?: string[];
+  };
+  scan_completeness?: {
+    checks_ran?: string[];
+    checks_skipped?: string[];
+    checks_missing?: string[];
+    cannot_prove?: string[];
+  };
+};
+
+export type ProjectRepo = {
+  name: string;
+  path: string;
+};
+
+export type ProjectsPayload = {
+  root: string;
+  repos: ProjectRepo[];
+};
+
+export type TargetSelection =
+  | {type: 'dashboard'}
+  | {type: 'repo'; repo: ProjectRepo};
+
+export const emptySummary: DashboardSummary = {
+  repos: [],
+  history: [],
+  findings: [],
+};
+
+const severityWeight: Record<Severity, number> = {
+  critical: 5,
+  high: 4,
+  medium: 3,
+  low: 2,
+  info: 1,
+};
+
+export const severities: Severity[] = ['critical', 'high', 'medium', 'low', 'info'];
+
+export const attentionBuckets: AttentionBucket[] = ['fix-now', 'verify', 'watch', 'info'];
+
+export const attentionBucketLabels: Record<AttentionBucket, string> = {
+  'fix-now': 'Fix now',
+  verify: 'Verify',
+  watch: 'Watch',
+  info: 'Info',
+};
+
+export const caseDecisionLabels: Record<CaseDecisionStatus, string> = {
+  verified: 'Verified',
+  false_positive: 'False positive',
+  accepted_risk: 'Accepted risk',
+  fixed: 'Marked fixed',
+};
+
+export const caseChangeLabels: Record<CaseChangeStatus, string> = {
+  new: 'New',
+  recurring: 'Still open',
+  resolved: 'Resolved',
+};
+
+export const dependencyChangeLabels: Record<DependencyChangeType, string> = {
+  added: 'Added',
+  removed: 'Removed',
+  upgraded: 'Upgraded',
+  downgraded: 'Downgraded',
+  'version-changed': 'Version changed',
+  'license-changed': 'License changed',
+};
+
+export const dependencyDeltaStatuses: Record<DependencyDeltaStatus, string> = {
+  'no-sbom': 'No SBOM',
+  'first-scan': 'First scan',
+  unchanged: 'No changes',
+  changed: 'Changed',
+};
+
+export const dependencyCveStatusLabels: Record<DependencyCveStatus, string> = {
+  'has-cve': 'Known CVE',
+  'no-cve': 'No CVE found',
+  'not-checked': 'Not checked',
+  unknown: 'Unknown',
+};
+
+export const dependencyMatchLabels: Record<DependencyMatchConfidence, string> = {
+  strong: 'Strong match',
+  'weak-match': 'Weak match',
+  unknown: 'Unknown',
+};
+
+export const scannerStatusLabels: Record<ScannerDoctorStatus, string> = {
+  ran: 'Ran',
+  missing: 'Missing',
+  error: 'Error',
+  'not-run': 'Not run',
+};
+
+export const defaultScannerCatalog: ScannerCatalogItem[] = [
+  {
+    scanner: 'ioc-watch',
+    label: 'IOC Watch',
+    area: 'Named-campaign defense',
+    covers: 'Local IOC packs matched against saved SBOM components, namespace watches, and known campaign domains.',
+    profile: 'default, deps, full, ioc',
+    install: 'Built in. No install needed.',
+    next_step: 'Run security-scan ioc after an SBOM-backed dependency scan.',
+    built_in: true,
+  },
+  {
+    scanner: 'ai-static',
+    label: 'Built-in AI static checks',
+    area: 'AI agent/MCP',
+    covers: 'Prompt files, MCP configs, agent-readable instructions, and risky local tool setup.',
+    profile: 'quick, ai, full',
+    install: 'Built in. No install needed.',
+    next_step: 'Run a quick or AI scan to include this check.',
+    built_in: true,
+  },
+  {
+    scanner: 'install-hooks',
+    label: 'Install hook classifier',
+    area: 'Supply-chain surfaces',
+    covers: 'Package install scripts and Python build hooks classified by install-time execution risk.',
+    profile: 'default, quick, deps, full',
+    install: 'Built in. No install needed.',
+    next_step: 'Run a default, quick, dependency, or full scan to include install-hook classification.',
+    built_in: true,
+  },
+  {
+    scanner: 'workflow-audit',
+    label: 'Workflow surface audit',
+    area: 'Supply-chain surfaces',
+    covers: 'GitHub Actions pins, fetch-and-exec patterns, secret handling, token permissions, and pull_request_target risk.',
+    profile: 'default, quick, iac, full',
+    install: 'Built in. No install needed.',
+    next_step: 'Run a default, quick, IaC, or full scan to include workflow surface findings.',
+    built_in: true,
+  },
+  {
+    scanner: 'semgrep',
+    label: 'Semgrep',
+    area: 'Code security',
+    covers: 'Code vulnerability patterns such as injection, unsafe parsing, and insecure defaults.',
+    profile: 'quick, code, full',
+    install: './install-security-observatory.sh or brew install semgrep',
+    next_step: 'Install Semgrep, then rerun the code or quick scan.',
+  },
+  {
+    scanner: 'gitleaks',
+    label: 'Gitleaks',
+    area: 'Secrets',
+    covers: 'Fast detection of exposed API keys, tokens, passwords, and private keys.',
+    profile: 'quick, secrets, full',
+    install: './install-security-observatory.sh or brew install gitleaks',
+    next_step: 'Install Gitleaks, then rerun the secrets or quick scan.',
+  },
+  {
+    scanner: 'trufflehog',
+    label: 'TruffleHog',
+    area: 'Secrets',
+    covers: 'Deeper second-opinion secret detection.',
+    profile: 'secrets, full',
+    install: './install-security-observatory.sh or brew install trufflehog',
+    next_step: 'Install TruffleHog, then rerun the secrets or full scan.',
+  },
+  {
+    scanner: 'trivy',
+    label: 'Trivy',
+    area: 'Dependencies / IaC',
+    covers: 'Filesystem, dependency, secret, and infrastructure misconfiguration checks.',
+    profile: 'deps, secrets, iac, full',
+    install: './install-security-observatory.sh or brew install trivy',
+    next_step: 'Install Trivy, then rerun the dependency, secrets, IaC, or full scan.',
+  },
+  {
+    scanner: 'osv-scanner',
+    label: 'OSV-Scanner',
+    area: 'Dependencies / SBOM',
+    covers: 'Open-source dependency vulnerabilities from OSV advisories.',
+    profile: 'quick, deps, full',
+    install: './install-security-observatory.sh or brew install osv-scanner',
+    next_step: 'Install OSV-Scanner, then rerun the dependency or quick scan.',
+  },
+  {
+    scanner: 'syft',
+    label: 'Syft',
+    area: 'Dependencies / SBOM',
+    covers: 'Software bill of materials generation.',
+    profile: 'deps, full',
+    install: './install-security-observatory.sh or brew install syft',
+    next_step: 'Install Syft, then rerun the dependency or full scan.',
+  },
+  {
+    scanner: 'grype',
+    label: 'Grype',
+    area: 'Dependencies / SBOM',
+    covers: 'Dependency vulnerability scanning from an SBOM or repository filesystem.',
+    profile: 'deps, full',
+    install: './install-security-observatory.sh or brew install grype',
+    next_step: 'Install Grype, then rerun the dependency or full scan.',
+  },
+  {
+    scanner: 'checkov',
+    label: 'Checkov',
+    area: 'Infrastructure',
+    covers: 'Terraform, Kubernetes, and cloud configuration policy checks.',
+    profile: 'iac, full',
+    install: './install-security-observatory.sh or uv tool install checkov',
+    next_step: 'Install Checkov, then rerun the IaC or full scan.',
+  },
+  {
+    scanner: 'medusa',
+    label: 'Medusa',
+    area: 'AI agent/MCP',
+    covers: 'MCP, prompt injection, AI editor config, and repo-poisoning checks.',
+    profile: 'ai, full',
+    install: './install-security-observatory.sh or uv tool install medusa-security',
+    next_step: 'Install Medusa, then rerun the AI or full scan.',
+  },
+  {
+    scanner: 'malcontent',
+    label: 'malcontent',
+    area: 'Behavioral drift',
+    covers: 'Advanced diffing of old and new dependency artifacts for suspicious behavior changes.',
+    profile: 'behavioral-drift',
+    install: 'Install malcontent separately, then provide local package artifacts under the behavioral artifact cache.',
+    next_step: 'Run security-scan --behavioral-drift after at least two SBOM-backed dependency scans.',
+  },
+  {
+    scanner: 'legitify',
+    label: 'legitify',
+    area: 'Platform posture',
+    covers: 'Optional connected checks for repository branch protection, Actions permissions, webhooks, and SCM settings.',
+    profile: 'platform-posture',
+    install: 'brew install legitify, then set SCM_TOKEN for the platform posture profile.',
+    next_step: 'Run security-scan --platform-posture only when you want a token-backed platform check.',
+  },
+];
+
+export const categoryLabels: Record<string, string> = {
+  'code-security': 'Code vulnerabilities',
+  secrets: 'Leaked secrets',
+  dependencies: 'Dependency risks',
+  iac: 'Infrastructure exposure',
+  workflow: 'Workflow surfaces',
+  'install-hooks': 'Install hooks',
+  'platform-posture': 'Platform posture',
+  'supply-chain-ioc': 'Named-campaign matches',
+  'silent-upgrade': 'Silent dependency changes',
+  'ai-risk': 'AI agent risks',
+  system: 'System checks',
+};
+
+export function categoryLabel(category: string): string {
+  return categoryLabels[category] ?? category.replace(/[-_]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+export function severityLabel(severity: Severity): string {
+  return severity.charAt(0).toUpperCase() + severity.slice(1);
+}
+
+export function averageHealth(summary: DashboardSummary): number {
+  if (!summary.repos.length) return 100;
+  const total = summary.repos.reduce((sum, repo) => sum + repo.health, 0);
+  return Math.round(total / summary.repos.length);
+}
+
+export function categoryTotal(summary: DashboardSummary, category: string): number {
+  return summary.repos.reduce((sum, repo) => sum + (repo.categories[category] ?? 0), 0);
+}
+
+export function severityTotal(summary: DashboardSummary, severity: Severity): number {
+  return summary.repos.reduce((sum, repo) => sum + (repo.counts[severity] ?? 0), 0);
+}
+
+function activeFindingRecords(summary: DashboardSummary): Finding[] {
+  return summary.active_findings ?? summary.findings.filter((finding) => !finding.suppressed);
+}
+
+export function totalFindings(summary: DashboardSummary): number {
+  return activeFindingRecords(summary).length;
+}
+
+export function unresolvedRisk(summary: DashboardSummary): number {
+  return severityTotal(summary, 'critical') + severityTotal(summary, 'high');
+}
+
+export function sortedFindings(summary: DashboardSummary, category?: string): Finding[] {
+  return [...activeFindingRecords(summary)]
+    .filter((finding) => !category || finding.category === category)
+    .sort((a, b) => severityWeight[b.severity] - severityWeight[a.severity]);
+}
+
+export function latestScanTime(summary: DashboardSummary): string | null {
+  return summary.repos
+    .map((repo) => repo.last_scan)
+    .filter((value): value is string => Boolean(value))
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] ?? null;
+}
+
+export function findingScanTime(summary: DashboardSummary, finding: Finding): string | null {
+  const repo = summary.repos.find((item) => item.scan_id === finding.scan_id);
+  if (repo?.last_scan) return repo.last_scan;
+  const historyItem = summary.history.find((item) => item.id === finding.scan_id);
+  return historyItem?.finished_at ?? historyItem?.started_at ?? finding.created_at;
+}
+
+export function reportDownloadUrl(scanId: string, kind: 'raw' | 'prompt'): string {
+  return `/api/report?scanId=${encodeURIComponent(scanId)}&kind=${kind}`;
+}
+
+export function reportViewUrl(scanId: string, kind: 'raw' | 'prompt'): string {
+  return `/report/?scanId=${encodeURIComponent(scanId)}&kind=${kind}`;
+}
+
+export function honeyKeyCounts(summary: DashboardSummary): Record<HoneyKeyStatus, number> {
+  return {
+    active: summary.honey_keys?.filter((key) => key.status === 'active').length ?? 0,
+    triggered: summary.honey_keys?.filter((key) => key.status === 'triggered').length ?? 0,
+    archived: summary.honey_keys?.filter((key) => key.status === 'archived').length ?? 0,
+  };
+}
+
+export function latestHoneyKeyEvent(summary: DashboardSummary): HoneyKeyEvent | null {
+  return [...(summary.honey_key_events ?? [])].sort((a, b) => new Date(b.triggered_at).getTime() - new Date(a.triggered_at).getTime())[0] ?? null;
+}
+
+export function latestOpenHoneyKeyEvent(summary: DashboardSummary): HoneyKeyEvent | null {
+  return [...(summary.honey_key_events ?? [])]
+    .filter((event) => !event.incident?.closed_at)
+    .sort((a, b) => new Date(b.triggered_at).getTime() - new Date(a.triggered_at).getTime())[0] ?? null;
+}
+
+export function honeyKeyById(summary: DashboardSummary, keyId: string): HoneyKey | undefined {
+  return summary.honey_keys?.find((key) => key.id === keyId);
+}
+
+function normalizeBucket(value: string | undefined, severity?: Severity): AttentionBucket {
+  const normalized = value?.toLowerCase().replace(/[_\s]+/g, '-');
+  if (normalized === 'fix-now' || normalized === 'verify' || normalized === 'watch' || normalized === 'info') return normalized;
+  if (severity === 'critical' || severity === 'high') return 'fix-now';
+  if (severity === 'medium') return 'verify';
+  if (severity === 'low') return 'watch';
+  return 'info';
+}
+
+function confidenceLabel(confidence: string | number | null | undefined, severity?: Severity): string {
+  if (typeof confidence === 'number') return confidence <= 1 ? `${Math.round(confidence * 100)}%` : `${Math.round(confidence)}%`;
+  if (confidence?.trim()) return confidence.trim();
+  if (severity === 'critical' || severity === 'high') return 'High enough to act';
+  if (severity === 'medium') return 'Needs a quick check';
+  return 'Low';
+}
+
+function whyForFinding(finding: Finding): string {
+  if (finding.category === 'secrets') return 'A saved secret can let someone access accounts, services, or data without permission.';
+  if (finding.category === 'dependencies') return 'This package may include a known weakness that is already documented elsewhere.';
+  if (finding.category === 'silent-upgrade') return 'A package changed in the saved SBOM without a matching source-manifest dependency change.';
+  if (finding.category === 'iac') return 'A configuration issue can accidentally expose infrastructure or data.';
+  if (finding.category === 'workflow') return 'A workflow can expose tokens or run untrusted automation in a risky way.';
+  if (finding.category === 'install-hooks') return 'An install hook can run code when dependencies are installed.';
+  if (finding.category === 'platform-posture') return 'A repository setting outside the code may make unsafe changes or broad automation permissions easier.';
+  if (finding.category === 'ai-risk') return 'An AI agent or tool setup may be easier to misuse than intended.';
+  if (finding.severity === 'critical' || finding.severity === 'high') return 'This looks important enough to fix before adding more work on top of it.';
+  return 'This is worth checking so small security debt does not quietly pile up.';
+}
+
+function remediationForFinding(finding: Finding): string {
+  if (finding.remediation?.trim()) return finding.remediation;
+  if (finding.category === 'secrets') return 'Remove the value, rotate it if it was real, and store the replacement outside the repo.';
+  if (finding.category === 'dependencies') return 'Update the affected package, then run the dependency check again.';
+  if (finding.category === 'silent-upgrade') return 'Verify or revert the lockfile movement; this is a signal to check, not proof of compromise.';
+  if (finding.category === 'iac') return 'Make the setting private by default, then run the infrastructure check again.';
+  if (finding.category === 'workflow') return 'Pin actions, remove fetch-and-exec shell patterns, and narrow workflow token permissions.';
+  if (finding.category === 'install-hooks') return 'Review the install-time command and remove unsafe remote execution or credential-file writes.';
+  if (finding.category === 'platform-posture') return 'Restore the stricter platform setting, then rerun the connected posture check.';
+  if (finding.category === 'ai-risk') return 'Narrow the tool permissions and keep untrusted text away from agent instructions.';
+  return 'Ask an AI agent to inspect this file, make the smallest safe fix, and run the check again.';
+}
+
+function caseLocation(item: SecurityCase): string {
+  const file = item.affected_files?.[0] ?? item.affected_path ?? item.path ?? item.file ?? 'Repository';
+  return item.line ? `${file}:${item.line}` : file;
+}
+
+function caseSources(item: SecurityCase): string[] {
+  const sources = item.source_scanners ?? item.scanners ?? (item.scanner ? [item.scanner] : []);
+  return [...new Set(sources.filter(Boolean).map((source) => String(source)))];
+}
+
+function caseToDisplayCase(item: SecurityCase, index: number): DisplayCase {
+  const severity = item.severity;
+  const scanId = item.scan_id;
+  const title = item.plain_title ?? item.title ?? 'Security case needs attention';
+  const firstFixStep = item.fix_steps?.find((step) => step.trim());
+  const repoName = String(item.repo_name ?? item.repo ?? 'repository');
+  const changeStatus = item.change_status;
+  return {
+    id: String(item.case_id ?? item.id ?? `${scanId ?? 'case'}-${index}`),
+    repoName,
+    bucket: normalizeBucket(item.action_level ?? item.action_bucket ?? item.bucket, severity),
+    title,
+    why: item.plain_english_risk ?? item.why_it_matters ?? item.why_matters ?? item.summary ?? 'This case may affect the safety or reliability of the project.',
+    location: caseLocation(item),
+    confidence: confidenceLabel(item.confidence, severity),
+    sources: caseSources(item),
+    nextStep: item.next_step ?? item.remediation ?? firstFixStep ?? 'Give this case to an AI agent and ask it to make the smallest safe fix.',
+    severity,
+    category: item.category,
+    scanId,
+    rawReportUrl: item.raw_report_url,
+    aiPromptUrl: item.ai_prompt_url,
+    createdAt: item.created_at,
+    decision: item.decision,
+    suppressed: Boolean(item.suppressed),
+    suppression: item.suppression,
+    changeStatus,
+    resolvedAt: item.resolved_at,
+    honeyEventId: item.honey_event_id,
+    incident: item.incident,
+    installRecency: item.install_recency,
+    rotationSurfaces: item.rotation_surfaces,
+  };
+}
+
+function findingToDisplayCase(finding: Finding): DisplayCase {
+  return {
+    id: `${finding.scan_id}-${finding.fingerprint}-${finding.id}`,
+    repoName: finding.repo_name,
+    bucket: normalizeBucket(undefined, finding.severity),
+    title: finding.title,
+    why: whyForFinding(finding),
+    location: formatLocation(finding),
+    confidence: confidenceLabel(undefined, finding.severity),
+    sources: [finding.scanner],
+    nextStep: remediationForFinding(finding),
+    severity: finding.severity,
+    category: finding.category,
+    scanId: finding.scan_id,
+    createdAt: finding.created_at,
+    suppressed: Boolean(finding.suppressed),
+    suppression: finding.suppression,
+  };
+}
+
+function sortDisplayCases(items: DisplayCase[]): DisplayCase[] {
+  return items.sort((a, b) => {
+    const changeSort = changeRank(a.changeStatus) - changeRank(b.changeStatus);
+    if (changeSort) return changeSort;
+    const decisionSort = decisionRank(a.decision?.status) - decisionRank(b.decision?.status);
+    if (decisionSort) return decisionSort;
+    return attentionBuckets.indexOf(a.bucket) - attentionBuckets.indexOf(b.bucket);
+  });
+}
+
+export function displayCases(summary: DashboardSummary): DisplayCase[] {
+  if (summary.cases?.length || summary.active_cases?.length || summary.suppressed_cases?.length) {
+    const sourceCases = summary.cases ?? summary.active_cases ?? [];
+    return sortDisplayCases(sourceCases.filter((item) => !item.suppressed).map(caseToDisplayCase));
+  }
+
+  return sortedFindings(summary).map(findingToDisplayCase);
+}
+
+export function suppressedDisplayCases(summary: DashboardSummary): DisplayCase[] {
+  const suppressedCases = summary.suppressed_cases?.length
+    ? summary.suppressed_cases
+    : (summary.cases ?? []).filter((item) => item.suppressed);
+  if (suppressedCases.length) return sortDisplayCases(suppressedCases.map(caseToDisplayCase));
+  return (summary.suppressed_findings ?? summary.findings.filter((finding) => finding.suppressed)).map(findingToDisplayCase);
+}
+
+export function actionBucketCounts(summary: DashboardSummary): Record<AttentionBucket, number> {
+  const counts: Record<AttentionBucket, number> = {'fix-now': 0, verify: 0, watch: 0, info: 0};
+  for (const item of displayCases(summary)) {
+    if (caseNeedsAttention(item)) counts[item.bucket] += 1;
+  }
+  return counts;
+}
+
+function changeRank(status?: CaseChangeStatus): number {
+  if (!status) return 1;
+  return {new: 0, recurring: 1, resolved: 9}[status];
+}
+
+function decisionRank(status?: CaseDecisionStatus): number {
+  if (!status) return 0;
+  return {verified: 1, accepted_risk: 2, fixed: 3, false_positive: 4}[status];
+}
+
+export function caseNeedsAttention(item: DisplayCase): boolean {
+  if (item.changeStatus === 'resolved') return false;
+  if (item.decision?.status === 'false_positive' || item.decision?.status === 'accepted_risk') return false;
+  return true;
+}
+
+export function caseDecisionCounts(summary: DashboardSummary): Record<CaseDecisionStatus | 'open', number> {
+  const counts: Record<CaseDecisionStatus | 'open', number> = {open: 0, verified: 0, false_positive: 0, accepted_risk: 0, fixed: 0};
+  for (const item of displayCases(summary)) {
+    counts[item.decision?.status ?? 'open'] += 1;
+  }
+  return counts;
+}
+
+export function caseChangeCounts(summary: DashboardSummary): Record<CaseChangeStatus, number> {
+  const counts: Record<CaseChangeStatus, number> = {new: 0, recurring: 0, resolved: 0};
+  for (const item of displayCases(summary)) {
+    if (item.changeStatus) counts[item.changeStatus] += 1;
+  }
+  return counts;
+}
+
+export function aggregateCaseDelta(summary: DashboardSummary): CaseDelta {
+  return summary.repos.reduce(
+    (total, repo) => ({
+      new: total.new + (repo.case_delta?.new ?? 0),
+      recurring: total.recurring + (repo.case_delta?.recurring ?? 0),
+      resolved: total.resolved + (repo.case_delta?.resolved ?? 0),
+    }),
+    {new: 0, recurring: 0, resolved: 0},
+  );
+}
+
+export function staleRepoCount(summary: DashboardSummary, maxAgeDays = 7): number {
+  const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+  return summary.repos.filter((repo) => !repo.last_scan || new Date(repo.last_scan).getTime() < cutoff).length;
+}
+
+export function scannerDoctorGroups(summary: DashboardSummary): ScannerDoctorGroup[] {
+  const catalog = summary.scanner_catalog?.length ? summary.scanner_catalog : defaultScannerCatalog;
+  const statuses = latestScannerStatuses(summary);
+  const groups = new Map<string, ScannerDoctorItem[]>();
+
+  for (const item of catalog) {
+    const records = statuses.get(item.scanner) ?? [];
+    const failed = records.find((record) => !record.status.available || record.status.error);
+    const successful = records.find((record) => record.status.available && !record.status.error);
+    const status: ScannerDoctorStatus = failed
+      ? failed.status.available ? 'error' : 'missing'
+      : successful ? 'ran' : 'not-run';
+    const findings = records.reduce((sum, record) => sum + (record.status.findings ?? 0), 0);
+    const repoNames = [...new Set(records.map((record) => record.repoName))].sort((a, b) => a.localeCompare(b));
+    const action = scannerAction(item, status, failed?.status.error);
+    const doctorItem: ScannerDoctorItem = {
+      ...item,
+      status,
+      findings,
+      repoNames,
+      command: failed?.status.command ?? successful?.status.command,
+      error: failed?.status.error ?? null,
+      action,
+    };
+    const group = groups.get(item.area) ?? [];
+    group.push(doctorItem);
+    groups.set(item.area, group);
+  }
+
+  return [...groups.entries()].map(([area, items]) => ({
+    area,
+    items: items.sort((a, b) => scannerStatusRank(a.status) - scannerStatusRank(b.status) || a.label.localeCompare(b.label)),
+  }));
+}
+
+export function scannerCoverageSummary(summary: DashboardSummary): string {
+  if (!summary.repos.length) return 'Run a scan to see which security checks are actually available.';
+  const items = scannerDoctorGroups(summary).flatMap((group) => group.items);
+  const missing = items.filter((item) => item.status === 'missing').length;
+  const errors = items.filter((item) => item.status === 'error').length;
+  const ran = items.filter((item) => item.status === 'ran').length;
+  const notRun = items.filter((item) => item.status === 'not-run').length;
+  if (missing || errors) {
+    return `Trust is limited: ${missing + errors} scanner${missing + errors === 1 ? '' : 's'} need attention before clean results mean much.`;
+  }
+  if (notRun) {
+    return `${ran} scanner${ran === 1 ? '' : 's'} ran for this profile. Use the relevant opt-in profile when you need broader trust.`;
+  }
+  return 'All configured scanners ran without install or runtime errors.';
+}
+
+function latestScannerStatuses(summary: DashboardSummary): Map<string, {repoName: string; status: ScannerStatus}[]> {
+  const records = new Map<string, {repoName: string; status: ScannerStatus}[]>();
+  for (const repo of summary.repos) {
+    for (const status of repo.scanners) {
+      const list = records.get(status.scanner) ?? [];
+      list.push({repoName: repo.repo, status});
+      records.set(status.scanner, list);
+    }
+  }
+  return records;
+}
+
+function scannerAction(item: ScannerCatalogItem, status: ScannerDoctorStatus, error?: string | null): string {
+  if (status === 'ran') return `Covered by ${item.profile}. Findings: review the cases above.`;
+  if (status === 'not-run') return item.next_step;
+  if (status === 'missing') return item.install;
+  return error ? `Fix this scanner error, then rerun: ${error}` : `Run security-scan doctor, fix ${item.label}, then rerun the scan.`;
+}
+
+function scannerStatusRank(status: ScannerDoctorStatus): number {
+  return {missing: 0, error: 1, 'not-run': 2, ran: 3}[status];
+}
+
+export function scanCompleteness(summary: DashboardSummary): ScanCompleteness {
+  const payload = summary.scan_completeness ?? summary.completeness;
+  const checksRan = new Set<string>();
+  const checksMissing = new Set<string>();
+
+  for (const check of payload?.checks_ran ?? []) checksRan.add(check);
+  for (const check of [...(payload?.checks_skipped ?? []), ...(payload?.checks_missing ?? [])]) checksMissing.add(check);
+
+  for (const repo of summary.repos) {
+    for (const scanner of repo.scanners) {
+      const label = categoryLabel(scanner.scanner);
+      const status = scanner.status?.toLowerCase() ?? '';
+      const skipped = status.includes('skip') || status.includes('missing') || status.includes('unavailable') || status.includes('error');
+      if (scanner.available && !scanner.error && !skipped) checksRan.add(label);
+      else checksMissing.add(label);
+    }
+  }
+
+  if (!checksRan.size && summary.findings.length) {
+    for (const finding of summary.findings) checksRan.add(categoryLabel(finding.category));
+  }
+
+  const cannotProve = payload?.cannot_prove?.length
+    ? payload.cannot_prove
+    : [
+      'It cannot prove the project is safe.',
+      'It cannot prove runtime behavior, deployed settings, or third-party accounts are secure.',
+      'It cannot prove secrets found in history were never used.',
+    ];
+
+  return {
+    checksRan: [...checksRan].sort((a, b) => a.localeCompare(b)),
+    checksMissing: [...checksMissing].sort((a, b) => a.localeCompare(b)),
+    cannotProve,
+  };
+}
+
+export function latestRepoScan(summary: DashboardSummary): RepositorySummary | null {
+  return [...summary.repos].sort((a, b) => new Date(b.last_scan ?? 0).getTime() - new Date(a.last_scan ?? 0).getTime())[0] ?? null;
+}
+
+export function weakestRepo(summary: DashboardSummary): RepositorySummary | null {
+  return [...summary.repos].sort((a, b) => a.health - b.health)[0] ?? null;
+}
+
+export function trendValues(summary: DashboardSummary, points = 22): number[] {
+  const history = [...summary.history].reverse().slice(-points);
+  if (!history.length) return [5, 12, 8, 24, 16, 9, 32, 64, 100, 48, 80, 24, 16, 12, 18, 14, 22, 10, 32, 18, 12, 8];
+  return history.map((scan) => Math.max(4, 100 - scan.health_score));
+}
+
+export function formatDate(value: string | null | undefined): string {
+  if (!value) return 'Never';
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+export function formatLocation(finding: Finding): string {
+  const file = finding.file ?? 'repository';
+  return finding.line ? `${file}:${finding.line}` : file;
+}
+
+export function scannerCount(summary: DashboardSummary, scannerName: string): number {
+  return summary.repos.reduce((sum, repo) => {
+    const scanner = repo.scanners.find((item) => item.scanner.toLowerCase().includes(scannerName));
+    return sum + (scanner?.findings ?? 0);
+  }, 0);
+}
+
+export function dependencyDeltas(summary: DashboardSummary): DependencyDelta[] {
+  return summary.repos
+    .map((repo) => repo.dependency_delta)
+    .filter((delta): delta is DependencyDelta => Boolean(delta));
+}
+
+export function dependencyChanges(summary: DashboardSummary): DependencyChange[] {
+  return dependencyDeltas(summary).flatMap((delta) => delta.changes ?? []);
+}
+
+export function dependencyTrustRecords(summary: DashboardSummary): DependencyTrustRecord[] {
+  return summary.repos.flatMap((repo) => repo.dependency_trust ?? []);
+}
+
+export function behavioralDriftFindings(summary: DashboardSummary): Finding[] {
+  return sortedFindings(summary, 'behavioral-drift');
+}
+
+export function iocMatchFindings(summary: DashboardSummary): Finding[] {
+  return sortedFindings(summary, 'supply-chain-ioc');
+}
+
+export function platformPostureFindings(summary: DashboardSummary): Finding[] {
+  return sortedFindings(summary, 'platform-posture');
+}
+
+export function platformPostureSnapshots(summary: DashboardSummary): PlatformPostureSnapshot[] {
+  return summary.repos
+    .map((repo) => repo.platform_posture)
+    .filter((snapshot): snapshot is PlatformPostureSnapshot => Boolean(snapshot));
+}
+
+export function dependencyDeltaCounts(summary: DashboardSummary): Record<DependencyChangeType, number> {
+  const counts: Record<DependencyChangeType, number> = {
+    added: 0,
+    removed: 0,
+    upgraded: 0,
+    downgraded: 0,
+    'version-changed': 0,
+    'license-changed': 0,
+  };
+  for (const delta of dependencyDeltas(summary)) {
+    for (const key of Object.keys(counts) as DependencyChangeType[]) {
+      counts[key] += delta.counts?.[key] ?? 0;
+    }
+  }
+  return counts;
+}
+
+export function dependencyCveCounts(summary: DashboardSummary): Record<DependencyCveStatus, number> {
+  const counts: Record<DependencyCveStatus, number> = {
+    'has-cve': 0,
+    'no-cve': 0,
+    'not-checked': 0,
+    unknown: 0,
+  };
+  for (const delta of dependencyDeltas(summary)) {
+    for (const key of Object.keys(counts) as DependencyCveStatus[]) {
+      counts[key] += delta.cve_counts?.[key] ?? 0;
+    }
+  }
+  return counts;
+}
+
+export function repoKeyFromPath(path: string): string {
+  const name = path.split('/').filter(Boolean).at(-1) ?? path;
+  return name.trim().replace(/[^A-Za-z0-9_.-]+/g, '-').replace(/^-+|-+$/g, '') || 'repo';
+}
+
+export function targetValue(target: TargetSelection): string {
+  return target.type === 'dashboard' ? 'dashboard' : `repo:${target.repo.path}`;
+}
+
+export function targetLabel(target: TargetSelection): string {
+  return target.type === 'dashboard' ? 'Dashboard' : target.repo.name;
+}
+
+export function mergeProjectRepos(discovered: ProjectRepo[], custom: ProjectRepo[], scanned: RepositorySummary[]): ProjectRepo[] {
+  const byPath = new Map<string, ProjectRepo>();
+  for (const repo of [...discovered, ...custom]) {
+    byPath.set(repo.path, repo);
+  }
+  for (const repo of scanned) {
+    byPath.set(repo.path, {name: repo.path.split('/').filter(Boolean).at(-1) ?? repo.repo, path: repo.path});
+  }
+  return [...byPath.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, {sensitivity: 'base'}));
+}
+
+export function filterSummaryByTarget(summary: DashboardSummary, target: TargetSelection): DashboardSummary {
+  if (target.type === 'dashboard') return summary;
+  const repoKey = repoKeyFromPath(target.repo.path);
+  const repos = summary.repos.filter((repo) => repo.path === target.repo.path || repo.repo === repoKey);
+  const repoNames = new Set(repos.map((repo) => repo.repo));
+  repoNames.add(repoKey);
+  const targetKeys = summary.honey_keys?.filter((key) => key.repo_id === target.repo.path || key.project_id === repoKey) ?? [];
+  const targetProjectIds = new Set([repoKey, ...targetKeys.map((key) => key.project_id)]);
+  return {
+    repos,
+    history: summary.history.filter((item) => repoNames.has(item.repo_name)),
+    findings: summary.findings.filter((finding) => repoNames.has(finding.repo_name)),
+    active_findings: summary.active_findings?.filter((finding) => repoNames.has(finding.repo_name)),
+    suppressed_findings: summary.suppressed_findings?.filter((finding) => repoNames.has(finding.repo_name)),
+    cases: summary.cases?.filter((item) => {
+      const caseRepo = item.repo_name ?? item.repo;
+      return !caseRepo || repoNames.has(caseRepo) || targetProjectIds.has(String(caseRepo));
+    }),
+    active_cases: summary.active_cases?.filter((item) => {
+      const caseRepo = item.repo_name ?? item.repo;
+      return !caseRepo || repoNames.has(caseRepo) || targetProjectIds.has(String(caseRepo));
+    }),
+    suppressed_cases: summary.suppressed_cases?.filter((item) => {
+      const caseRepo = item.repo_name ?? item.repo;
+      return !caseRepo || repoNames.has(caseRepo) || targetProjectIds.has(String(caseRepo));
+    }),
+    case_decisions: summary.case_decisions?.filter((decision) => repoNames.has(decision.repo_name) || targetProjectIds.has(decision.repo_name)),
+    suppressed_counts: summary.suppressed_counts,
+    suppression_reasons: summary.suppression_reasons,
+    honey_keys: targetKeys,
+    honey_key_events: summary.honey_key_events?.filter((event) => targetProjectIds.has(event.project_id)),
+    project_statuses: summary.project_statuses?.filter((status) => targetProjectIds.has(status.project_id)),
+    honey_event_retention_days: summary.honey_event_retention_days,
+    completeness: summary.completeness,
+    scan_completeness: summary.scan_completeness,
+  };
+}

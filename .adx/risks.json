@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "risks": [
+    {
+      "id": "scanner-installer",
+      "area": "local tool installation",
+      "paths": [
+        "install-security-observatory.sh",
+        ".github/workflows/security.yml",
+        "templates/security.yml"
+      ],
+      "risk": "Installer and CI setup install security tools through Homebrew, uv, pipx, apt, and remote shell installers.",
+      "required_behavior": "Do not run or modify installer behavior casually. Explain network and machine-level impact before executing install commands.",
+      "approval": "human_recommended",
+      "evidence": [
+        "install-security-observatory.sh:93",
+        ".github/workflows/security.yml:23"
+      ]
+    },
+    {
+      "id": "local-security-data",
+      "area": "local reports and SQLite storage",
+      "paths": [
+        "src/security_observatory/cli.py",
+        "src/security_observatory/storage.py",
+        "~/.security-observatory/"
+      ],
+      "risk": "Scans create local report directories and a SQLite database that may contain security findings, file paths, and redacted evidence.",
+      "required_behavior": "Treat report output as local sensitive data. Do not delete, upload, or paste report contents without user intent.",
+      "approval": "human_recommended",
+      "evidence": [
+        "README.md:66",
+        "src/security_observatory/cli.py:21",
+        "src/security_observatory/storage.py:117"
+      ]
+    },
+    {
+      "id": "honey-keys",
+      "area": "defensive decoy secrets",
+      "paths": [
+        "src/security_observatory/honey_keys.py",
+        "src/security_observatory/dashboard_server.py",
+        "docs/honey-keys.md"
+      ],
+      "risk": "Honey Keys are fake decoy secrets, but creation, insertion, and trigger records are security-sensitive workflows.",
+      "required_behavior": "Preserve safeguards that keep placement inside the selected repo, prevent overwrites, and require explicit confirmation for file insertion.",
+      "approval": "human_recommended",
+      "evidence": [
+        "docs/honey-keys.md:7",
+        "src/security_observatory/dashboard_server.py:995"
+      ]
+    },
+    {
+      "id": "desktop-process-control",
+      "area": "macOS desktop launcher",
+      "paths": [
+        "scripts/desktop-quit.sh",
+        "scripts/desktop-install.sh",
+        "scripts/desktop-build.sh",
+        "scripts/run-template.sh",
+        "desktop/"
+      ],
+      "risk": "Desktop helper scripts create app bundles, copy them to ~/Desktop/MyApps, refresh Dock icon state, and intentionally terminate matching local processes.",
+      "required_behavior": "Run desktop helpers only for launcher tasks. Always stop warm servers after launcher work.",
+      "approval": "human_recommended",
+      "evidence": [
+        "scripts/desktop-quit.sh:1",
+        "scripts/desktop-install.sh:21",
+        "docs/desktop-launcher.md:17"
+      ]
+    },
+    {
+      "id": "generated-assets",
+      "area": "generated or vendored files",
+      "paths": [
+        "dashboard-ui/node_modules/",
+        "src/security_observatory/dashboard/",
+        "desktop/",
+        "assets/icons/build/",
+        "**/__pycache__/"
+      ],
+      "risk": "Generated, vendored, or runtime artifacts can crowd out source files and should not be hand-edited as source.",
+      "required_behavior": "Edit source files, then regenerate outputs with the matching command when required.",
+      "approval": "not_required",
+      "evidence": [
+        ".gitignore:1",
+        "dashboard-ui/package.json:6",
+        "Makefile:6"
+      ]
+    }
+  ],
+  "dangerous_command_patterns": [
+    "./install-security-observatory.sh",
+    "security-scan --all-repos",
+    "security-scan --full",
+    "security-scan --secrets",
+    "make desktop-install",
+    "make desktop-quit",
+    "rm -rf",
+    "killall",
+    "curl -sSfL",
+    "sudo",
+    "pipx install",
+    "brew install"
+  ]
+}

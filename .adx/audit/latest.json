@@ -1,0 +1,379 @@
+{
+  "adx": {
+    "audit_history": [
+      ".adx/audit/latest.json"
+    ],
+    "claims": {
+      "exists": false,
+      "invalid_lines": [],
+      "stale": []
+    },
+    "commands": {
+      "error": null,
+      "exists": true,
+      "ids": [
+        "python-import-cli",
+        "python-pytest",
+        "python-editable-install",
+        "dashboard-install",
+        "dashboard-lint",
+        "dashboard-build",
+        "cli-doctor",
+        "security-scan-quick",
+        "desktop-build",
+        "desktop-install",
+        "desktop-quit"
+      ],
+      "invalid_cwd": [],
+      "invalid_entries": [],
+      "unsafe_by_default": [
+        {
+          "id": "python-pytest",
+          "safety": "local_mutation"
+        },
+        {
+          "id": "python-editable-install",
+          "safety": "network"
+        },
+        {
+          "id": "dashboard-install",
+          "safety": "network"
+        },
+        {
+          "id": "dashboard-build",
+          "safety": "local_mutation"
+        },
+        {
+          "id": "cli-doctor",
+          "safety": "local_mutation"
+        },
+        {
+          "id": "security-scan-quick",
+          "safety": "local_mutation"
+        },
+        {
+          "id": "desktop-build",
+          "safety": "local_mutation"
+        },
+        {
+          "id": "desktop-install",
+          "safety": "local_mutation"
+        },
+        {
+          "id": "desktop-quit",
+          "safety": "destructive"
+        }
+      ]
+    },
+    "directory_exists": true,
+    "files": {
+      "advisory_rules": {
+        "bytes": 0,
+        "empty": false,
+        "exists": false,
+        "headings": [],
+        "lines": 0,
+        "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/.adx/rails/advisory-rules.json"
+      },
+      "claims": {
+        "bytes": 0,
+        "empty": false,
+        "exists": false,
+        "headings": [],
+        "lines": 0,
+        "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/.adx/claims.jsonl"
+      },
+      "commands": {
+        "bytes": 6207,
+        "empty": false,
+        "exists": true,
+        "headings": [],
+        "lines": 167,
+        "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/.adx/commands.json"
+      },
+      "journal": {
+        "bytes": 0,
+        "empty": false,
+        "exists": false,
+        "headings": [],
+        "lines": 0,
+        "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/.adx/journal.jsonl"
+      },
+      "legacy_tour": {
+        "bytes": 0,
+        "empty": false,
+        "exists": false,
+        "headings": [],
+        "lines": 0,
+        "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/.adx/tour.json"
+      },
+      "manifest": {
+        "bytes": 1026,
+        "empty": false,
+        "exists": true,
+        "headings": [],
+        "lines": 35,
+        "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/.adx/adx.json"
+      },
+      "modules_index": {
+        "bytes": 3002,
+        "empty": false,
+        "exists": true,
+        "headings": [],
+        "lines": 99,
+        "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/.adx/modules/index.json"
+      },
+      "probes": {
+        "bytes": 0,
+        "empty": false,
+        "exists": false,
+        "headings": [],
+        "lines": 0,
+        "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/.adx/probes.json"
+      },
+      "readme": {
+        "bytes": 916,
+        "empty": false,
+        "exists": true,
+        "headings": [
+          "# ADX Operating Layer",
+          "## Contracts"
+        ],
+        "lines": 24,
+        "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/.adx/README.md"
+      },
+      "recovery": {
+        "bytes": 2417,
+        "empty": false,
+        "exists": true,
+        "headings": [
+          "# ADX Recovery Notes",
+          "## Python Import Fails",
+          "## Pytest Is Missing",
+          "## Dashboard Dependencies Are Missing",
+          "## Dashboard Has No Data",
+          "## Scanner Is Missing",
+          "## Desktop Launcher Server Stays Warm",
+          "## Repo Path Moved"
+        ],
+        "lines": 96,
+        "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/.adx/recovery.md"
+      },
+      "risks": {
+        "bytes": 3876,
+        "empty": false,
+        "exists": true,
+        "headings": [],
+        "lines": 106,
+        "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/.adx/risks.json"
+      },
+      "tour": {
+        "bytes": 0,
+        "empty": false,
+        "exists": false,
+        "headings": [],
+        "lines": 0,
+        "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/.adx/workflows/tour.json"
+      },
+      "verification": {
+        "bytes": 2522,
+        "empty": false,
+        "exists": true,
+        "headings": [],
+        "lines": 86,
+        "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/.adx/verification.json"
+      }
+    },
+    "implementation_receipts": [],
+    "informal_journals": [],
+    "json_errors": {},
+    "manifest_error": null,
+    "manifest_version": 2,
+    "module_cards": [
+      ".adx/modules/dashboard-server.md",
+      ".adx/modules/dashboard-ui.md",
+      ".adx/modules/desktop-launcher.md",
+      ".adx/modules/docs-and-templates.md",
+      ".adx/modules/python-cli-scanners.md"
+    ],
+    "rails": [],
+    "verification": {
+      "error": null,
+      "exists": true,
+      "unknown_command_refs": []
+    }
+  },
+  "agent_guidance": {
+    "canonical": "AGENTS.md",
+    "canonical_present": true,
+    "claude_overlay_present": false,
+    "codex_loaded_by_fallback": false,
+    "codex_overlay_present": false,
+    "fallback_evidence": [],
+    "missing": [],
+    "nested_agents": []
+  },
+  "ci": {
+    "commands": {
+      ".github/workflows/security.yml": [
+        "python -m pip install -e .",
+        "|",
+        "security-scan --quick --fail-on high --json"
+      ]
+    },
+    "files": [
+      ".github/workflows/security.yml"
+    ]
+  },
+  "danger": {
+    "has_migrations": false,
+    "has_prod_or_deploy_signals": false,
+    "has_secret_signals": false,
+    "signals": []
+  },
+  "env": {
+    "env_files": [],
+    "examples": []
+  },
+  "findings": [],
+  "generated_signals": [],
+  "guidance": {
+    "AGENTS.md": {
+      "bytes": 2681,
+      "empty": false,
+      "exists": true,
+      "headings": [
+        "# Agent Guide",
+        "## Start Here",
+        "## Repo Shape",
+        "## Operating Rules",
+        "## Verification",
+        "## Known Gaps"
+      ],
+      "lines": 40,
+      "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/AGENTS.md"
+    },
+    "CLAUDE.md": {
+      "bytes": 0,
+      "empty": false,
+      "exists": false,
+      "headings": [],
+      "lines": 0,
+      "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/CLAUDE.md"
+    },
+    "CODEX.md": {
+      "bytes": 0,
+      "empty": false,
+      "exists": false,
+      "headings": [],
+      "lines": 0,
+      "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/CODEX.md"
+    }
+  },
+  "max_total": 30,
+  "readme_commands": {
+    "README.md": [
+      "npm if rebuilding the dashboard"
+    ],
+    "readme.md": [
+      "npm if rebuilding the dashboard"
+    ]
+  },
+  "readmes": {
+    "README.md": {
+      "bytes": 10951,
+      "empty": false,
+      "exists": true,
+      "headings": [
+        "# Security Observatory",
+        "## What It Is",
+        "## What It Is Not",
+        "## Current Features",
+        "### Local Repository Scanning",
+        "### Scan Profiles",
+        "### Normalized Reports",
+        "### Security Cases",
+        "### Dashboard",
+        "### Honey Keys",
+        "### Local Reports and AI Handoff",
+        "### Optional Desktop Launcher"
+      ],
+      "lines": 392,
+      "path": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security/README.md"
+    }
+  },
+  "root": "/Users/christiankatzmann/Dev/Projects/de\u0308v-security",
+  "scores": {
+    "arrive": 4,
+    "change": 4,
+    "compound": 1,
+    "recover": 4,
+    "start": 3,
+    "verify": 3
+  },
+  "source_of_truth": {
+    "package_manager": {
+      "confidence": "low",
+      "conflicts": [],
+      "evidence": [],
+      "value": null
+    },
+    "test": {
+      "confidence": "low",
+      "conflicts": [
+        "test files/configs exist but no authoritative test command was found"
+      ],
+      "evidence": [
+        "tests"
+      ],
+      "value": null
+    }
+  },
+  "stack": {
+    "make_targets": [
+      ".PHONY",
+      "dashboard-install",
+      "dashboard-build",
+      "dashboard-dev",
+      "desktop-icons",
+      "desktop-build",
+      "desktop-install",
+      "desktop-quit"
+    ],
+    "package_manager": {
+      "confidence": "low",
+      "conflicts": [],
+      "declared": null,
+      "evidence": [],
+      "lockfiles": [],
+      "value": null
+    },
+    "signals": [
+      "pyproject.toml"
+    ]
+  },
+  "tests": {
+    "configs": [],
+    "directories": [
+      "tests"
+    ],
+    "nested_directories": [],
+    "sample_files": []
+  },
+  "top_level_dirs": [
+    "assets",
+    "dashboard-ui",
+    "desktop",
+    "docs",
+    "scripts",
+    "src",
+    "templates",
+    "tests"
+  ],
+  "total": 19,
+  "work_loop_hints": {
+    "compound": [
+      "No ADX journal was found."
+    ]
+  }
+}

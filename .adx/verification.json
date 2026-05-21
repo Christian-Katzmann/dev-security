@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "levels": {
+    "fast": [
+      "python-import-cli"
+    ],
+    "python": [
+      "python-import-cli",
+      "python-pytest"
+    ],
+    "frontend": [
+      "dashboard-lint",
+      "dashboard-build"
+    ],
+    "desktop": [
+      "desktop-build"
+    ],
+    "security_scan": [
+      "security-scan-quick"
+    ],
+    "full": [
+      "python-import-cli",
+      "python-pytest",
+      "dashboard-lint",
+      "dashboard-build"
+    ]
+  },
+  "change_type_matrix": [
+    {
+      "change_type": "docs_or_adx",
+      "commands": [],
+      "notes": "Validate JSON files directly. No project tests required unless docs alter executable commands."
+    },
+    {
+      "change_type": "python_cli_or_scanner",
+      "commands": [
+        "python-import-cli",
+        "python-pytest"
+      ],
+      "notes": "The pytest command is authoritative but currently blocked until pytest exists in the selected Python environment."
+    },
+    {
+      "change_type": "normalization_storage_or_cases",
+      "commands": [
+        "python-import-cli",
+        "python-pytest"
+      ],
+      "notes": "Prefer targeted tests in tests/test_normalize.py, tests/test_storage-related behavior via test_cases.py, and tests/test_priority.py when available."
+    },
+    {
+      "change_type": "dashboard_server_or_api",
+      "commands": [
+        "python-import-cli",
+        "python-pytest"
+      ],
+      "notes": "Run dashboard manually only when the task requires browser/API verification."
+    },
+    {
+      "change_type": "dashboard_ui",
+      "commands": [
+        "dashboard-lint",
+        "dashboard-build"
+      ],
+      "notes": "Use the React/Vite source in dashboard-ui as the editable source; bundled assets under src/security_observatory/dashboard are generated build output."
+    },
+    {
+      "change_type": "desktop_launcher",
+      "commands": [
+        "desktop-build"
+      ],
+      "notes": "Run desktop-install and desktop-quit only when the task requires installed-app validation or cleanup."
+    },
+    {
+      "change_type": "scanner_install_or_ci",
+      "commands": [],
+      "notes": "Do not run installer, CI scanner installs, or network scanner bootstrap commands unless explicitly needed. Review .adx/risks.json first."
+    },
+    {
+      "change_type": "security_scan_behavior",
+      "commands": [
+        "security-scan-quick"
+      ],
+      "notes": "This writes local reports under ~/.security-observatory and may call external scanner binaries. Run only for scanner behavior validation."
+    }
+  ]
+}

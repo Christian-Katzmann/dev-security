@@ -1,0 +1,2473 @@
+from __future__ import annotations
+
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any
+import json
+import re
+import secrets
+import sqlite3
+
+from .model import Finding, SecurityCase, redact_text
+from .decisions import (
+    CASE_DECISION_STATUSES,
+    SUPPRESSING_DECISION_STATUSES,
+    VEX_STATUSES,
+    assemble_suppression,
+    dependency_fields_from_case,
+    normalize_case_decision,
+    normalize_vex_status,
+    suppression_counts,
+)
+from .honey_keys import HONEY_KEY_PREFIX, utc_now
+from .platform_posture import platform_posture_snapshot_fingerprint
+from .scanners import scanner_catalog
+from .sbom import SBOMComponent, component_fingerprint
+from .silent_upgrades import annotate_dependency_changes
+from .vex import build_vex_document, parse_vex_document
+
+
+SCHEMA = """
+create table if not exists scans (
+  id text primary key,
+  repo_name text not null,
+  repo_path text not null,
+  started_at text not null,
+  finished_at text,
+  profile text not null,
+  health_score integer not null,
+  status text not null,
+  scanner_status_json text not null,
+  cases_json text not null default '[]',
+  report_path text
+);
+
+create table if not exists findings (
+  id integer primary key autoincrement,
+  scan_id text not null,
+  repo_name text not null,
+  scanner text not null,
+  severity text not null,
+  category text not null,
+  title text not null,
+  file text,
+  line integer,
+  remediation text,
+  vulnerability_id text,
+  package_name text,
+  package_version text,
+  package_ecosystem text,
+  package_url text,
+  fixed_version text,
+  component_fingerprint text,
+  component_package_key text,
+  component_match_confidence text,
+  component_match_reason text,
+  old_version text,
+  new_version text,
+  behavior_category text,
+  evidence_summary text,
+  before_behavior text,
+  after_behavior text,
+  ioc_pack_id text,
+  ioc_source text,
+  ioc_advisory_url text,
+  ioc_confidence text,
+  ioc_match_type text,
+  ioc_indicator text,
+  install_recency_confidence text,
+  last_install_signal_at text,
+  install_recency_evidence text,
+  rotation_surfaces_json text,
+  fingerprint text not null,
+  created_at text not null,
+  foreign key(scan_id) references scans(id)
+);
+
+create index if not exists idx_scans_repo_started on scans(repo_name, started_at desc);
+create index if not exists idx_findings_scan on findings(scan_id);
+create index if not exists idx_findings_fingerprint on findings(fingerprint);
+
+create table if not exists sbom_components (
+  id integer primary key autoincrement,
+  scan_id text not null,
+  repo_name text not null,
+  source_format text not null,
+  source_file text,
+  bom_ref text,
+  name text,
+  version text,
+  ecosystem text,
+  component_type text,
+  package_url text,
+  license text,
+  supplier text,
+  source_path text,
+  component_fingerprint text not null,
+  created_at text not null,
+  foreign key(scan_id) references scans(id)
+);
+
+create index if not exists idx_sbom_components_scan on sbom_components(scan_id);
+create index if not exists idx_sbom_components_repo on sbom_components(repo_name, scan_id);
+create index if not exists idx_sbom_components_fingerprint on sbom_components(component_fingerprint);
+
+create table if not exists dependency_manifest_entries (
+  id integer primary key autoincrement,
+  scan_id text not null,
+  repo_name text not null,
+  manifest_path text not null,
+  ecosystem text not null,
+  name text not null,
+  declaration text not null,
+  normalized_declaration text not null,
+  scope text not null,
+  manifest_fingerprint text not null,
+  created_at text not null,
+  foreign key(scan_id) references scans(id)
+);
+
+create index if not exists idx_dependency_manifest_scan on dependency_manifest_entries(scan_id);
+create index if not exists idx_dependency_manifest_repo on dependency_manifest_entries(repo_name, scan_id);
+create index if not exists idx_dependency_manifest_package on dependency_manifest_entries(ecosystem, name);
+
+create table if not exists ioc_packs (
+  pack_id text primary key,
+  source text not null,
+  published_at text,
+  advisory_url text,
+  confidence text not null,
+  source_file text,
+  raw_json text not null,
+  imported_at text not null
+);
+
+create table if not exists ioc_indicators (
+  id integer primary key autoincrement,
+  pack_id text not null,
+  ecosystem text not null,
+  name text,
+  versions_json text not null,
+  namespace_prefix text,
+  domain text,
+  confidence text,
+  source_file text,
+  source_line integer,
+  indicator_json text not null,
+  created_at text not null,
+  foreign key(pack_id) references ioc_packs(pack_id) on delete cascade
+);
+
+create index if not exists idx_ioc_indicators_pack on ioc_indicators(pack_id);
+create index if not exists idx_ioc_indicators_package on ioc_indicators(ecosystem, name);
+
+create table if not exists dependency_trust_enrichments (
+  id integer primary key autoincrement,
+  scan_id text not null,
+  repo_name text not null,
+  component_fingerprint text,
+  component_package_key text,
+  package_name text,
+  package_version text,
+  package_ecosystem text,
+  package_url text,
+  source_repo text,
+  source_repo_url text,
+  source_repo_confidence text not null,
+  source_repo_reason text not null,
+  scorecard_score real,
+  scorecard_status text not null,
+  criticality_score real,
+  criticality_status text not null,
+  checked_at text,
+  freshness text not null,
+  status text not null,
+  cache_key text,
+  error text,
+  created_at text not null,
+  foreign key(scan_id) references scans(id)
+);
+
+create index if not exists idx_dependency_trust_scan on dependency_trust_enrichments(scan_id);
+create index if not exists idx_dependency_trust_repo on dependency_trust_enrichments(repo_name, scan_id);
+create index if not exists idx_dependency_trust_component on dependency_trust_enrichments(component_fingerprint);
+
+create table if not exists platform_posture_snapshots (
+  id integer primary key autoincrement,
+  scan_id text not null,
+  repo_name text not null,
+  scanner text not null,
+  source text not null,
+  target text not null,
+  status text not null,
+  summary_json text not null,
+  snapshot_json text not null,
+  snapshot_fingerprint text not null,
+  created_at text not null,
+  foreign key(scan_id) references scans(id)
+);
+
+create index if not exists idx_platform_posture_scan on platform_posture_snapshots(scan_id);
+create index if not exists idx_platform_posture_repo on platform_posture_snapshots(repo_name, scan_id);
+
+create table if not exists case_decisions (
+  case_id text primary key,
+  repo_name text not null,
+  status text not null check(status in ('verified', 'false_positive', 'accepted_risk', 'fixed')),
+  note text,
+  vex_status text,
+  vex_justification text,
+  vulnerability_id text,
+  package_name text,
+  package_version text,
+  package_ecosystem text,
+  package_url text,
+  component_package_key text,
+  fixed_version text,
+  created_at text not null,
+  updated_at text not null
+);
+
+create index if not exists idx_case_decisions_repo on case_decisions(repo_name, status);
+
+create table if not exists observatory_settings (
+  key text primary key,
+  value text not null
+);
+
+create table if not exists honey_keys (
+  id text primary key,
+  project_id text not null,
+  repo_id text,
+  name text not null,
+  token_prefix text not null,
+  token_hash text not null,
+  status text not null check(status in ('active', 'triggered', 'archived')),
+  placement_path text,
+  note text,
+  created_at text not null,
+  created_by text,
+  last_triggered_at text,
+  trigger_count integer not null default 0,
+  archived_at text
+);
+
+create table if not exists honey_key_events (
+  id text primary key,
+  honey_key_id text not null,
+  project_id text not null,
+  repo_id text,
+  triggered_at text not null,
+  ip_address text,
+  user_agent text,
+  method text not null,
+  path text not null,
+  headers_json text not null,
+  body_summary text,
+  confidence real not null,
+  source_type text not null check(source_type in ('api_call', 'url_open', 'unknown')),
+  reason text not null,
+  approximate_geo text,
+  created_at text not null,
+  foreign key(honey_key_id) references honey_keys(id)
+);
+
+create table if not exists security_project_status (
+  project_id text primary key,
+  status text not null check(status in ('green', 'yellow', 'red')),
+  reason text not null,
+  last_event_at text
+);
+
+create table if not exists honey_incidents (
+  event_id text primary key,
+  investigating integer not null default 0,
+  secrets_rotated integer not null default 0,
+  logs_reviewed integer not null default 0,
+  archived_reset integer not null default 0,
+  accepted_risk_note text,
+  closed_at text,
+  created_at text not null,
+  updated_at text not null,
+  foreign key(event_id) references honey_key_events(id)
+);
+
+create index if not exists idx_honey_keys_project on honey_keys(project_id, status);
+create unique index if not exists idx_honey_keys_token_hash on honey_keys(token_hash);
+create index if not exists idx_honey_events_project on honey_key_events(project_id, triggered_at desc);
+create index if not exists idx_honey_events_key on honey_key_events(honey_key_id, triggered_at desc);
+"""
+
+
+class ObservatoryDB:
+    def __init__(self, db_path: Path) -> None:
+        self.db_path = db_path
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self.conn = sqlite3.connect(str(db_path))
+        self.conn.row_factory = sqlite3.Row
+        self.conn.executescript(SCHEMA)
+        self._ensure_columns()
+        self.conn.commit()
+
+    def close(self) -> None:
+        self.conn.close()
+
+    def _ensure_columns(self) -> None:
+        columns = {row["name"] for row in self.conn.execute("pragma table_info(scans)").fetchall()}
+        if "cases_json" not in columns:
+            self.conn.execute("alter table scans add column cases_json text not null default '[]'")
+        honey_columns = {row["name"] for row in self.conn.execute("pragma table_info(honey_keys)").fetchall()}
+        if honey_columns and "note" not in honey_columns:
+            self.conn.execute("alter table honey_keys add column note text")
+        finding_columns = {row["name"] for row in self.conn.execute("pragma table_info(findings)").fetchall()}
+        for column in (
+            "vulnerability_id",
+            "package_name",
+            "package_version",
+            "package_ecosystem",
+            "package_url",
+            "fixed_version",
+            "component_fingerprint",
+            "component_package_key",
+            "component_match_confidence",
+            "component_match_reason",
+            "old_version",
+            "new_version",
+            "behavior_category",
+            "evidence_summary",
+            "before_behavior",
+            "after_behavior",
+            "ioc_pack_id",
+            "ioc_source",
+            "ioc_advisory_url",
+            "ioc_confidence",
+            "ioc_match_type",
+            "ioc_indicator",
+            "install_recency_confidence",
+            "last_install_signal_at",
+            "install_recency_evidence",
+            "rotation_surfaces_json",
+        ):
+            if finding_columns and column not in finding_columns:
+                self.conn.execute(f"alter table findings add column {column} text")
+        decision_columns = {row["name"] for row in self.conn.execute("pragma table_info(case_decisions)").fetchall()}
+        for column in (
+            "vex_status",
+            "vex_justification",
+            "vulnerability_id",
+            "package_name",
+            "package_version",
+            "package_ecosystem",
+            "package_url",
+            "component_package_key",
+            "fixed_version",
+        ):
+            if decision_columns and column not in decision_columns:
+                self.conn.execute(f"alter table case_decisions add column {column} text")
+
+    def save_scan(
+        self,
+        *,
+        scan_id: str,
+        repo_name: str,
+        repo_path: str,
+        started_at: str,
+        finished_at: str,
+        profile: str,
+        health_score: int,
+        status: str,
+        scanner_statuses: list[dict[str, Any]],
+        findings: list[Finding],
+        report_path: str,
+        cases: list[SecurityCase] | list[dict[str, Any]] | None = None,
+        sbom_components: list[SBOMComponent] | list[dict[str, Any]] | None = None,
+        dependency_manifest_entries: list[Any] | None = None,
+        dependency_trust_enrichments: list[Any] | None = None,
+        platform_posture_snapshot: dict[str, Any] | None = None,
+    ) -> None:
+        case_dicts = [case.to_dict() if isinstance(case, SecurityCase) else dict(case) for case in (cases or [])]
+        component_dicts = [
+            component.to_dict() if isinstance(component, SBOMComponent) else dict(component)
+            for component in (sbom_components or [])
+        ]
+        component_rows = [_sbom_component_row(component, scan_id, repo_name) for component in component_dicts]
+        manifest_rows = [
+            _dependency_manifest_row(item.to_dict() if hasattr(item, "to_dict") else dict(item), scan_id, repo_name)
+            for item in (dependency_manifest_entries or [])
+        ]
+        trust_dicts = [
+            item.to_dict() if hasattr(item, "to_dict") else dict(item)
+            for item in (dependency_trust_enrichments or [])
+        ]
+        trust_rows = [_dependency_trust_row(item, scan_id, repo_name) for item in trust_dicts]
+        platform_posture_row = (
+            _platform_posture_snapshot_row(platform_posture_snapshot, scan_id, repo_name)
+            if platform_posture_snapshot
+            else None
+        )
+        component_created_at = utc_now()
+        trust_created_at = utc_now()
+        platform_created_at = utc_now()
+        with self.conn:
+            self.conn.execute(
+                """
+                insert or replace into scans
+                (id, repo_name, repo_path, started_at, finished_at, profile, health_score, status, scanner_status_json, cases_json, report_path)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    scan_id,
+                    repo_name,
+                    repo_path,
+                    started_at,
+                    finished_at,
+                    profile,
+                    health_score,
+                    status,
+                    json.dumps(scanner_statuses, sort_keys=True),
+                    json.dumps(case_dicts, sort_keys=True),
+                    report_path,
+                ),
+            )
+            self.conn.execute("delete from findings where scan_id = ?", (scan_id,))
+            self.conn.executemany(
+                """
+                insert into findings
+                (scan_id, repo_name, scanner, severity, category, title, file, line, remediation, vulnerability_id, package_name, package_version, package_ecosystem, package_url, fixed_version, component_fingerprint, component_package_key, component_match_confidence, component_match_reason, old_version, new_version, behavior_category, evidence_summary, before_behavior, after_behavior, ioc_pack_id, ioc_source, ioc_advisory_url, ioc_confidence, ioc_match_type, ioc_indicator, install_recency_confidence, last_install_signal_at, install_recency_evidence, rotation_surfaces_json, fingerprint, created_at)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        scan_id,
+                        repo_name,
+                        finding.scanner,
+                        finding.severity,
+                        finding.category,
+                        finding.title,
+                        finding.file,
+                        finding.line,
+                        finding.remediation,
+                        finding.vulnerability_id,
+                        finding.package_name,
+                        finding.package_version,
+                        finding.package_ecosystem,
+                        finding.package_url,
+                        finding.fixed_version,
+                        finding.component_fingerprint,
+                        finding.component_package_key,
+                        finding.component_match_confidence,
+                        finding.component_match_reason,
+                        finding.old_version,
+                        finding.new_version,
+                        finding.behavior_category,
+                        finding.evidence_summary,
+                        finding.before_behavior,
+                        finding.after_behavior,
+                        finding.ioc_pack_id,
+                        finding.ioc_source,
+                        finding.ioc_advisory_url,
+                        finding.ioc_confidence,
+                        finding.ioc_match_type,
+                        finding.ioc_indicator,
+                        finding.install_recency_confidence,
+                        finding.last_install_signal_at,
+                        finding.install_recency_evidence,
+                        finding.rotation_surfaces_json,
+                        finding.fingerprint,
+                        finding.timestamp,
+                    )
+                    for finding in findings
+                ],
+            )
+            self.conn.execute("delete from sbom_components where scan_id = ?", (scan_id,))
+            self.conn.executemany(
+                """
+                insert into sbom_components
+                (scan_id, repo_name, source_format, source_file, bom_ref, name, version, ecosystem, component_type, package_url, license, supplier, source_path, component_fingerprint, created_at)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        row["scan_id"],
+                        row["repo_name"],
+                        row["source_format"],
+                        row["source_file"],
+                        row["bom_ref"],
+                        row["name"],
+                        row["version"],
+                        row["ecosystem"],
+                        row["component_type"],
+                        row["package_url"],
+                        row["license"],
+                        row["supplier"],
+                        row["source_path"],
+                        row["component_fingerprint"],
+                        component_created_at,
+                    )
+                    for row in component_rows
+                ],
+            )
+            self.conn.execute("delete from dependency_manifest_entries where scan_id = ?", (scan_id,))
+            self.conn.executemany(
+                """
+                insert into dependency_manifest_entries
+                (scan_id, repo_name, manifest_path, ecosystem, name, declaration, normalized_declaration, scope, manifest_fingerprint, created_at)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        row["scan_id"],
+                        row["repo_name"],
+                        row["manifest_path"],
+                        row["ecosystem"],
+                        row["name"],
+                        row["declaration"],
+                        row["normalized_declaration"],
+                        row["scope"],
+                        row["manifest_fingerprint"],
+                        component_created_at,
+                    )
+                    for row in manifest_rows
+                ],
+            )
+            self.conn.execute("delete from dependency_trust_enrichments where scan_id = ?", (scan_id,))
+            self.conn.executemany(
+                """
+                insert into dependency_trust_enrichments
+                (scan_id, repo_name, component_fingerprint, component_package_key, package_name, package_version, package_ecosystem, package_url, source_repo, source_repo_url, source_repo_confidence, source_repo_reason, scorecard_score, scorecard_status, criticality_score, criticality_status, checked_at, freshness, status, cache_key, error, created_at)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        row["scan_id"],
+                        row["repo_name"],
+                        row["component_fingerprint"],
+                        row["component_package_key"],
+                        row["package_name"],
+                        row["package_version"],
+                        row["package_ecosystem"],
+                        row["package_url"],
+                        row["source_repo"],
+                        row["source_repo_url"],
+                        row["source_repo_confidence"],
+                        row["source_repo_reason"],
+                        row["scorecard_score"],
+                        row["scorecard_status"],
+                        row["criticality_score"],
+                        row["criticality_status"],
+                        row["checked_at"],
+                        row["freshness"],
+                        row["status"],
+                        row["cache_key"],
+                        row["error"],
+                        trust_created_at,
+                    )
+                    for row in trust_rows
+                ],
+            )
+            self.conn.execute("delete from platform_posture_snapshots where scan_id = ?", (scan_id,))
+            if platform_posture_row:
+                self.conn.execute(
+                    """
+                    insert into platform_posture_snapshots
+                    (scan_id, repo_name, scanner, source, target, status, summary_json, snapshot_json, snapshot_fingerprint, created_at)
+                    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        platform_posture_row["scan_id"],
+                        platform_posture_row["repo_name"],
+                        platform_posture_row["scanner"],
+                        platform_posture_row["source"],
+                        platform_posture_row["target"],
+                        platform_posture_row["status"],
+                        platform_posture_row["summary_json"],
+                        platform_posture_row["snapshot_json"],
+                        platform_posture_row["snapshot_fingerprint"],
+                        platform_created_at,
+                    ),
+                )
+
+    def list_sbom_components(self, scan_id: str | None = None, repo_name: str | None = None) -> list[dict[str, Any]]:
+        conditions = []
+        params: list[str] = []
+        if scan_id:
+            conditions.append("scan_id = ?")
+            params.append(scan_id)
+        if repo_name:
+            conditions.append("repo_name = ?")
+            params.append(repo_name)
+        where = f"where {' and '.join(conditions)}" if conditions else ""
+        rows = self.conn.execute(
+            f"""
+            select *
+            from sbom_components
+            {where}
+            order by name asc, version asc, id asc
+            """,
+            params,
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_dependency_manifest_entries(self, scan_id: str | None = None, repo_name: str | None = None) -> list[dict[str, Any]]:
+        conditions = []
+        params: list[str] = []
+        if scan_id:
+            conditions.append("scan_id = ?")
+            params.append(scan_id)
+        if repo_name:
+            conditions.append("repo_name = ?")
+            params.append(repo_name)
+        where = f"where {' and '.join(conditions)}" if conditions else ""
+        rows = self.conn.execute(
+            f"""
+            select *
+            from dependency_manifest_entries
+            {where}
+            order by manifest_path asc, ecosystem asc, name asc, id asc
+            """,
+            params,
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def import_ioc_packs(self, packs: list[dict[str, Any]] | tuple[dict[str, Any], ...]) -> None:
+        imported_at = utc_now()
+        with self.conn:
+            for pack in packs:
+                pack_id = _optional_text(pack.get("id") or pack.get("pack_id"))
+                if not pack_id:
+                    continue
+                indicators = [dict(item) for item in pack.get("indicators", []) if isinstance(item, dict)]
+                pack_json = {
+                    "id": pack_id,
+                    "source": _optional_text(pack.get("source")) or pack_id,
+                    "published_at": _optional_text(pack.get("published_at")),
+                    "advisory_url": _optional_text(pack.get("advisory_url")),
+                    "confidence": _optional_text(pack.get("confidence")) or "medium",
+                    "source_file": _optional_text(pack.get("source_file")),
+                    "indicators": indicators,
+                }
+                self.conn.execute(
+                    """
+                    insert into ioc_packs
+                    (pack_id, source, published_at, advisory_url, confidence, source_file, raw_json, imported_at)
+                    values (?, ?, ?, ?, ?, ?, ?, ?)
+                    on conflict(pack_id) do update set
+                      source = excluded.source,
+                      published_at = excluded.published_at,
+                      advisory_url = excluded.advisory_url,
+                      confidence = excluded.confidence,
+                      source_file = excluded.source_file,
+                      raw_json = excluded.raw_json,
+                      imported_at = excluded.imported_at
+                    """,
+                    (
+                        pack_id,
+                        pack_json["source"],
+                        pack_json["published_at"],
+                        pack_json["advisory_url"],
+                        pack_json["confidence"],
+                        pack_json["source_file"],
+                        json.dumps(pack_json, sort_keys=True),
+                        imported_at,
+                    ),
+                )
+                self.conn.execute("delete from ioc_indicators where pack_id = ?", (pack_id,))
+                self.conn.executemany(
+                    """
+                    insert into ioc_indicators
+                    (pack_id, ecosystem, name, versions_json, namespace_prefix, domain, confidence, source_file, source_line, indicator_json, created_at)
+                    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    [
+                        (
+                            pack_id,
+                            _optional_text(indicator.get("ecosystem")) or "other",
+                            _optional_text(indicator.get("name")),
+                            json.dumps(_list_text(indicator.get("versions")), sort_keys=True),
+                            _optional_text(indicator.get("namespace_prefix")),
+                            _optional_text(indicator.get("domain")),
+                            _optional_text(indicator.get("confidence")) or pack_json["confidence"],
+                            _optional_text(indicator.get("source_file")) or pack_json["source_file"],
+                            _optional_int(indicator.get("source_line")),
+                            json.dumps(indicator, sort_keys=True),
+                            imported_at,
+                        )
+                        for indicator in indicators
+                    ],
+                )
+
+    def list_ioc_packs(self, pack_ids: list[str] | None = None) -> list[dict[str, Any]]:
+        params: list[Any] = []
+        where = ""
+        if pack_ids:
+            placeholders = ", ".join("?" for _ in pack_ids)
+            where = f"where pack_id in ({placeholders})"
+            params.extend(pack_ids)
+        pack_rows = self.conn.execute(
+            f"""
+            select *
+            from ioc_packs
+            {where}
+            order by published_at desc, pack_id asc
+            """,
+            params,
+        ).fetchall()
+        packs: list[dict[str, Any]] = []
+        for pack_row in pack_rows:
+            indicators = [
+                _public_ioc_indicator(row)
+                for row in self.conn.execute(
+                    """
+                    select *
+                    from ioc_indicators
+                    where pack_id = ?
+                    order by id asc
+                    """,
+                    (pack_row["pack_id"],),
+                ).fetchall()
+            ]
+            packs.append(
+                {
+                    "id": pack_row["pack_id"],
+                    "source": pack_row["source"],
+                    "published_at": pack_row["published_at"],
+                    "advisory_url": pack_row["advisory_url"],
+                    "confidence": pack_row["confidence"],
+                    "source_file": pack_row["source_file"],
+                    "imported_at": pack_row["imported_at"],
+                    "indicators": indicators,
+                }
+            )
+        return packs
+
+    def list_dependency_trust_enrichments(self, scan_id: str | None = None, repo_name: str | None = None) -> list[dict[str, Any]]:
+        conditions = []
+        params: list[str] = []
+        if scan_id:
+            conditions.append("scan_id = ?")
+            params.append(scan_id)
+        if repo_name:
+            conditions.append("repo_name = ?")
+            params.append(repo_name)
+        where = f"where {' and '.join(conditions)}" if conditions else ""
+        rows = self.conn.execute(
+            f"""
+            select *
+            from dependency_trust_enrichments
+            {where}
+            order by package_name asc, package_version asc, id asc
+            """,
+            params,
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_platform_posture_snapshots(
+        self,
+        scan_id: str | None = None,
+        repo_name: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        conditions = []
+        params: list[Any] = []
+        if scan_id:
+            conditions.append("scan_id = ?")
+            params.append(scan_id)
+        if repo_name:
+            conditions.append("repo_name = ?")
+            params.append(repo_name)
+        where = f"where {' and '.join(conditions)}" if conditions else ""
+        params.append(limit)
+        rows = self.conn.execute(
+            f"""
+            select *
+            from platform_posture_snapshots
+            {where}
+            order by created_at desc, id desc
+            limit ?
+            """,
+            params,
+        ).fetchall()
+        return [_public_platform_posture_snapshot(row) for row in rows]
+
+    def latest_platform_posture_snapshot(
+        self,
+        repo_name: str,
+        before_started_at: str | None = None,
+        scan_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        if scan_id:
+            rows = self.list_platform_posture_snapshots(scan_id=scan_id, repo_name=repo_name, limit=1)
+            return rows[0] if rows else None
+        params: list[Any] = [repo_name]
+        before_clause = ""
+        if before_started_at:
+            before_clause = "and s.started_at < ?"
+            params.append(before_started_at)
+        row = self.conn.execute(
+            f"""
+            select p.*
+            from platform_posture_snapshots p
+            join scans s on s.id = p.scan_id
+            where p.repo_name = ?
+            {before_clause}
+            order by s.started_at desc, p.id desc
+            limit 1
+            """,
+            params,
+        ).fetchone()
+        return _public_platform_posture_snapshot(row) if row else None
+
+    def dashboard_payload(self) -> dict[str, Any]:
+        retention_days = self.honey_event_retention_days()
+        self.prune_honey_key_events(retention_days=retention_days)
+        case_decisions = self.case_decisions_map()
+        latest = self.conn.execute(
+            """
+            select s.*
+            from scans s
+            join (
+              select repo_name, max(started_at) as started_at
+              from scans
+              group by repo_name
+            ) last on last.repo_name = s.repo_name and last.started_at = s.started_at
+            order by s.health_score asc, s.repo_name asc
+            """
+        ).fetchall()
+        repos = []
+        repo_indexes: dict[str, int] = {}
+        latest_scan_ids = []
+        case_change_by_scan: dict[str, dict[str, str]] = {}
+        dependency_movement_by_scan: dict[str, dict[str, dict[str, Any]]] = {}
+        resolved_cases_by_scan: dict[str, list[dict[str, Any]]] = {}
+        scan_payloads: dict[str, dict[str, Any]] = {}
+        for row in latest:
+            latest_scan_ids.append(row["id"])
+            previous = self._previous_scan(row["repo_name"], row["started_at"])
+            delta = _scan_delta(row, previous)
+            dependency_delta = self._dependency_delta(row, previous)
+            case_change_by_scan[row["id"]] = delta["case_changes"]
+            dependency_movement_by_scan[row["id"]] = _dependency_risk_movements(row, previous, delta, dependency_delta)
+            dependency_delta["risk_counts"] = _dependency_risk_counts(dependency_movement_by_scan[row["id"]])
+            resolved_cases_by_scan[row["id"]] = delta["resolved_cases"]
+            current_cases = []
+            for item in json.loads(row["cases_json"]):
+                if not isinstance(item, dict):
+                    continue
+                case = {"scan_id": row["id"], "repo": row["repo_name"], "repo_name": row["repo_name"], **item}
+                case_id = str(case.get("case_id") or case.get("id") or "")
+                case["change_status"] = case_change_by_scan.get(row["id"], {}).get(case_id, "new")
+                _attach_dependency_risk_movement(case, dependency_movement_by_scan.get(row["id"], {}).get(case_id))
+                _attach_case_decision(case, case_decisions)
+                current_cases.append(case)
+            current_findings = [
+                dict(item)
+                for item in self.conn.execute(
+                    "select * from findings where scan_id = ? order by severity desc, id asc",
+                    (row["id"],),
+                ).fetchall()
+            ]
+            assembled = assemble_suppression(current_cases, current_findings, case_decisions)
+            scan_payloads[row["id"]] = assembled
+            active_cases = assembled["active_cases"]
+            active_findings = assembled["active_findings"]
+            repo_indexes[row["repo_name"]] = len(repos)
+            repos.append(
+                {
+                    "scan_id": row["id"],
+                    "repo": row["repo_name"],
+                    "path": row["repo_path"],
+                    "health": row["health_score"],
+                    "last_scan": row["finished_at"],
+                    "status": row["status"],
+                    "profile": row["profile"],
+                    "report_path": row["report_path"],
+                    "counts": _counts_by(active_findings, "severity"),
+                    "categories": _counts_by(active_findings, "category"),
+                    "raw_counts": _counts_by(assembled["findings"], "severity"),
+                    "raw_categories": _counts_by(assembled["findings"], "category"),
+                    "scanners": json.loads(row["scanner_status_json"]),
+                    "cases": active_cases,
+                    "active_cases": active_cases,
+                    "suppressed_cases": assembled["suppressed_cases"],
+                    "case_counts": _case_counts(active_cases),
+                    "suppressed_counts": assembled["suppressed_counts"],
+                    "suppression_reasons": assembled["suppressed_counts"]["reasons"],
+                    "previous_scan_id": delta["previous_scan_id"],
+                    "previous_health": delta["previous_health"],
+                    "health_delta": delta["health_delta"],
+                    "case_delta": {
+                        "new": sum(1 for case in active_cases if case.get("change_status") == "new"),
+                        "recurring": sum(1 for case in active_cases if case.get("change_status") == "recurring"),
+                        "resolved": delta["resolved_count"],
+                    },
+                    "dependency_delta": dependency_delta,
+                    "dependency_trust": self.list_dependency_trust_enrichments(scan_id=row["id"], repo_name=row["repo_name"]),
+                    "platform_posture": self.latest_platform_posture_snapshot(repo_name=row["repo_name"], scan_id=row["id"]),
+                }
+            )
+        findings = []
+        active_findings = []
+        suppressed_findings = []
+        cases = []
+        active_cases = []
+        suppressed_cases = []
+        honey_keys = self.list_honey_keys()
+        honey_events = self.list_honey_key_events(limit=100)
+        project_statuses = self.project_statuses()
+        active_honey_events = [event for event in honey_events if not (event.get("incident") or {}).get("closed_at")]
+        latest_events_by_project = _latest_honey_events_by_project(active_honey_events)
+        keys_by_project: dict[str, list[dict[str, Any]]] = {}
+        for key in honey_keys:
+            keys_by_project.setdefault(str(key["project_id"]), []).append(key)
+        for project_id, status in project_statuses.items():
+            if status.get("status") == "red":
+                event = latest_events_by_project.get(project_id)
+                if not event:
+                    continue
+                if project_id in repo_indexes:
+                    repo = repos[repo_indexes[project_id]]
+                    repo["health"] = 0
+                    repo["status"] = "critical"
+                    repo["counts"]["critical"] = int(repo["counts"].get("critical", 0)) + 1
+                    repo["categories"]["honeytokens"] = int(repo["categories"].get("honeytokens", 0)) + 1
+                else:
+                    first_key = (keys_by_project.get(project_id) or [{}])[0]
+                    repos.append(
+                        {
+                            "scan_id": None,
+                            "repo": project_id,
+                            "path": first_key.get("repo_id") or project_id,
+                            "health": 0,
+                            "last_scan": status.get("last_event_at"),
+                            "status": "critical",
+                            "profile": "honey-keys",
+                            "report_path": None,
+                            "counts": {"critical": 1},
+                            "categories": {"honeytokens": 1},
+                            "scanners": [],
+                            "cases": [],
+                            "active_cases": [],
+                            "suppressed_cases": [],
+                            "case_counts": {"action_level": {"fix_now": 1}, "severity": {"critical": 1}, "category": {"honeytokens": 1}},
+                            "suppressed_counts": {"cases": 0, "findings": 0, "reasons": []},
+                            "suppression_reasons": [],
+                        }
+                    )
+                    repo_indexes[project_id] = len(repos) - 1
+                case = _honey_event_case(event)
+                _attach_case_decision(case, case_decisions)
+                cases.append(case)
+                active_cases.append(case)
+        history = [
+            dict(row)
+            for row in self.conn.execute(
+                "select id, repo_name, started_at, finished_at, health_score, status, profile from scans order by started_at desc limit 200"
+            ).fetchall()
+        ]
+        if latest_scan_ids:
+            for row in latest:
+                assembled = scan_payloads.get(row["id"], {})
+                findings.extend(assembled.get("findings", []))
+                active_findings.extend(assembled.get("active_findings", []))
+                suppressed_findings.extend(assembled.get("suppressed_findings", []))
+                cases.extend(assembled.get("cases", []))
+                active_cases.extend(assembled.get("active_cases", []))
+                suppressed_cases.extend(assembled.get("suppressed_cases", []))
+                for resolved_case in resolved_cases_by_scan.get(row["id"], []):
+                    resolved_case_id = str(resolved_case.get("case_id") or resolved_case.get("id") or "")
+                    _attach_dependency_risk_movement(resolved_case, dependency_movement_by_scan.get(row["id"], {}).get(resolved_case_id))
+                    _attach_case_decision(resolved_case, case_decisions)
+                    cases.append(resolved_case)
+            findings = findings[:500]
+            active_findings = active_findings[:500]
+            suppressed_findings = suppressed_findings[:500]
+        aggregate_suppressed_counts = suppression_counts(suppressed_cases, suppressed_findings)
+        return {
+            "repos": repos,
+            "history": history,
+            "findings": findings,
+            "active_findings": active_findings,
+            "suppressed_findings": suppressed_findings,
+            "cases": cases,
+            "active_cases": active_cases,
+            "suppressed_cases": suppressed_cases,
+            "suppressed_counts": aggregate_suppressed_counts,
+            "suppression_reasons": aggregate_suppressed_counts["reasons"],
+            "case_decisions": list(case_decisions.values()),
+            "honey_keys": honey_keys,
+            "honey_key_events": honey_events,
+            "project_statuses": list(project_statuses.values()),
+            "honey_event_retention_days": retention_days,
+            "scanner_catalog": scanner_catalog(),
+        }
+
+    def scan_export(self, scan_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute("select * from scans where id = ?", (scan_id,)).fetchone()
+        if not row:
+            return None
+        findings = [
+            dict(item)
+            for item in self.conn.execute(
+                "select * from findings where scan_id = ? order by severity desc, id asc",
+                (scan_id,),
+            ).fetchall()
+        ]
+        scan = dict(row)
+        cases = json.loads(scan["cases_json"])
+        case_decisions = self.case_decisions_map()
+        for case in cases:
+            if isinstance(case, dict):
+                case["scan_id"] = scan["id"]
+                case["repo"] = scan["repo_name"]
+                case["repo_name"] = scan["repo_name"]
+                _attach_case_decision(case, case_decisions)
+        assembled = assemble_suppression(
+            [case for case in cases if isinstance(case, dict)],
+            findings,
+            case_decisions,
+        )
+        return {
+            "scan_id": scan["id"],
+            "repo": scan["repo_name"],
+            "repo_path": scan["repo_path"],
+            "report_path": scan["report_path"],
+            "started_at": scan["started_at"],
+            "finished_at": scan["finished_at"],
+            "profile": scan["profile"],
+            "health_score": scan["health_score"],
+            "status": scan["status"],
+            "scanners": json.loads(scan["scanner_status_json"]),
+            "cases": assembled["cases"],
+            "active_cases": assembled["active_cases"],
+            "suppressed_cases": assembled["suppressed_cases"],
+            "findings": assembled["findings"],
+            "active_findings": assembled["active_findings"],
+            "suppressed_findings": assembled["suppressed_findings"],
+            "suppressed_counts": assembled["suppressed_counts"],
+            "suppression_reasons": assembled["suppressed_counts"]["reasons"],
+            "dependency_trust": self.list_dependency_trust_enrichments(scan_id=scan_id, repo_name=scan["repo_name"]),
+            "platform_posture": self.latest_platform_posture_snapshot(repo_name=scan["repo_name"], scan_id=scan_id),
+        }
+
+    def _previous_scan(self, repo_name: str, started_at: str) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            """
+            select *
+            from scans
+            where repo_name = ? and started_at < ?
+            order by started_at desc
+            limit 1
+            """,
+            (repo_name, started_at),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def previous_scan_for_repo(self, repo_name: str, before_started_at: str) -> dict[str, Any] | None:
+        return self._previous_scan(repo_name, before_started_at)
+
+    def latest_scan_for_repo(self, repo_name: str) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            """
+            select *
+            from scans
+            where repo_name = ?
+            order by started_at desc
+            limit 1
+            """,
+            (repo_name,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def _dependency_delta(self, latest: sqlite3.Row, previous: dict[str, Any] | None) -> dict[str, Any]:
+        current_components = self.list_sbom_components(scan_id=latest["id"], repo_name=latest["repo_name"])
+        previous_components = (
+            self.list_sbom_components(scan_id=str(previous["id"]), repo_name=str(previous["repo_name"]))
+            if previous
+            else []
+        )
+        current_manifest_entries = self.list_dependency_manifest_entries(scan_id=latest["id"], repo_name=latest["repo_name"])
+        previous_manifest_entries = (
+            self.list_dependency_manifest_entries(scan_id=str(previous["id"]), repo_name=str(previous["repo_name"]))
+            if previous
+            else []
+        )
+        current_dependency_findings = [
+            dict(row)
+            for row in self.conn.execute(
+                "select * from findings where scan_id = ? and category = 'dependencies'",
+                (latest["id"],),
+            ).fetchall()
+        ]
+        return _dependency_delta(
+            latest,
+            previous,
+            current_components,
+            previous_components,
+            current_dependency_findings,
+            current_manifest_entries,
+            previous_manifest_entries,
+        )
+
+    def case_decisions_map(self) -> dict[str, dict[str, Any]]:
+        rows = self.conn.execute("select * from case_decisions order by updated_at desc").fetchall()
+        return {str(row["case_id"]): normalize_case_decision(dict(row)) for row in rows}
+
+    def export_vex_decisions(self, *, repo_name: str | None = None, tool_version: str = "0.1.0") -> dict[str, Any]:
+        return build_vex_document(
+            self.case_decisions_map().values(),
+            repo_name=repo_name.strip() if repo_name else None,
+            tool_version=tool_version,
+        )
+
+    def import_vex_decisions(self, document: dict[str, Any], *, repo_name: str | None = None) -> dict[str, Any]:
+        parsed = parse_vex_document(document, repo_name=repo_name.strip() if repo_name else None)
+        imported = 0
+        warnings = list(parsed["warnings"])
+        imported_case_ids = []
+        for decision in parsed["decisions"]:
+            try:
+                saved = self.set_case_decision(
+                    case_id=decision["case_id"],
+                    repo_name=decision["repo_name"],
+                    status=decision["status"],
+                    note=decision.get("note"),
+                    vex_status=decision.get("vex_status"),
+                    vex_justification=decision.get("vex_justification"),
+                    vulnerability_id=decision.get("vulnerability_id"),
+                    package_name=decision.get("package_name"),
+                    package_version=decision.get("package_version"),
+                    package_ecosystem=decision.get("package_ecosystem"),
+                    package_url=decision.get("package_url"),
+                    component_package_key=decision.get("component_package_key"),
+                    fixed_version=decision.get("fixed_version"),
+                )
+            except ValueError as exc:
+                warnings.append(f"{decision.get('case_id') or 'decision'}: {exc}")
+                continue
+            if saved:
+                imported += 1
+                imported_case_ids.append(saved["case_id"])
+        return {
+            "imported": imported,
+            "skipped": int(parsed["skipped"]) + max(0, len(parsed["decisions"]) - imported),
+            "case_ids": imported_case_ids,
+            "warnings": _dedupe_text(warnings),
+        }
+
+    def set_case_decision(
+        self,
+        *,
+        case_id: str,
+        repo_name: str,
+        status: str | None,
+        note: str | None = None,
+        vex_status: str | None = None,
+        vex_justification: str | None = None,
+        vulnerability_id: str | None = None,
+        package_name: str | None = None,
+        package_version: str | None = None,
+        package_ecosystem: str | None = None,
+        package_url: str | None = None,
+        component_package_key: str | None = None,
+        fixed_version: str | None = None,
+    ) -> dict[str, Any] | None:
+        clean_case_id = case_id.strip()
+        clean_repo_name = repo_name.strip() or "repository"
+        clean_status = (status or "").strip()
+        clean_note = redact_text((note or "").strip())[:1000] or None
+        if not clean_case_id:
+            raise ValueError("case_id is required")
+        if clean_status in {"", "open"}:
+            with self.conn:
+                self.conn.execute("delete from case_decisions where case_id = ?", (clean_case_id,))
+            return None
+        if clean_status not in CASE_DECISION_STATUSES:
+            raise ValueError("Unsupported case decision")
+        inferred_case = self._latest_case_for_decision(clean_case_id, clean_repo_name)
+        inferred_fields = dependency_fields_from_case(inferred_case) if inferred_case else {}
+        dependency_fields = {
+            "vulnerability_id": vulnerability_id,
+            "package_name": package_name,
+            "package_version": package_version,
+            "package_ecosystem": package_ecosystem,
+            "package_url": package_url,
+            "component_package_key": component_package_key,
+            "fixed_version": fixed_version,
+        }
+        for key, value in inferred_fields.items():
+            if not dependency_fields.get(key):
+                dependency_fields[key] = value
+        dependency_fields = {key: _decision_text(value) for key, value in dependency_fields.items()}
+        if vex_status and str(vex_status).strip().casefold().replace("-", "_").replace(" ", "_") not in VEX_STATUSES:
+            raise ValueError("Unsupported VEX status")
+        clean_vex_status = normalize_vex_status(vex_status, clean_status)
+        if clean_vex_status not in VEX_STATUSES:
+            raise ValueError("Unsupported VEX status")
+        clean_vex_justification = redact_text((vex_justification or clean_note or "").strip())[:1000] or None
+        is_dependency_decision = bool(dependency_fields.get("vulnerability_id") and dependency_fields.get("package_name"))
+        if is_dependency_decision and clean_status in SUPPRESSING_DECISION_STATUSES and not clean_vex_justification:
+            raise ValueError("Dependency suppressions need a human-readable justification.")
+        now = utc_now()
+        with self.conn:
+            self.conn.execute(
+                """
+                insert into case_decisions
+                (case_id, repo_name, status, note, vex_status, vex_justification, vulnerability_id, package_name, package_version, package_ecosystem, package_url, component_package_key, fixed_version, created_at, updated_at)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                on conflict(case_id) do update set
+                  repo_name = excluded.repo_name,
+                  status = excluded.status,
+                  note = excluded.note,
+                  vex_status = excluded.vex_status,
+                  vex_justification = excluded.vex_justification,
+                  vulnerability_id = excluded.vulnerability_id,
+                  package_name = excluded.package_name,
+                  package_version = excluded.package_version,
+                  package_ecosystem = excluded.package_ecosystem,
+                  package_url = excluded.package_url,
+                  component_package_key = excluded.component_package_key,
+                  fixed_version = excluded.fixed_version,
+                  updated_at = excluded.updated_at
+                """,
+                (
+                    clean_case_id,
+                    clean_repo_name,
+                    clean_status,
+                    clean_note,
+                    clean_vex_status,
+                    clean_vex_justification,
+                    dependency_fields.get("vulnerability_id"),
+                    dependency_fields.get("package_name"),
+                    dependency_fields.get("package_version"),
+                    dependency_fields.get("package_ecosystem"),
+                    dependency_fields.get("package_url"),
+                    dependency_fields.get("component_package_key"),
+                    dependency_fields.get("fixed_version"),
+                    now,
+                    now,
+                ),
+            )
+        row = self.conn.execute("select * from case_decisions where case_id = ?", (clean_case_id,)).fetchone()
+        return normalize_case_decision(dict(row)) if row else None
+
+    def _latest_case_for_decision(self, case_id: str, repo_name: str) -> dict[str, Any] | None:
+        rows = self.conn.execute(
+            """
+            select cases_json
+            from scans
+            where repo_name = ?
+            order by started_at desc
+            """,
+            (repo_name,),
+        ).fetchall()
+        for row in rows:
+            try:
+                cases = json.loads(row["cases_json"])
+            except (TypeError, json.JSONDecodeError):
+                continue
+            for case in cases:
+                if isinstance(case, dict) and _case_identity(case) == case_id:
+                    return case
+        return None
+
+    def honey_signing_secret(self) -> str:
+        row = self.conn.execute("select value from observatory_settings where key = 'honey_signing_secret'").fetchone()
+        if row:
+            return str(row["value"])
+        value = secrets.token_urlsafe(32)
+        with self.conn:
+            self.conn.execute(
+                "insert into observatory_settings (key, value) values ('honey_signing_secret', ?)",
+                (value,),
+            )
+        return value
+
+    def honey_event_retention_days(self) -> int:
+        row = self.conn.execute("select value from observatory_settings where key = 'honey_event_retention_days'").fetchone()
+        if row:
+            try:
+                return max(1, min(3650, int(row["value"])))
+            except (TypeError, ValueError):
+                return 90
+        with self.conn:
+            self.conn.execute(
+                "insert or ignore into observatory_settings (key, value) values ('honey_event_retention_days', '90')",
+            )
+        return 90
+
+    def prune_honey_key_events(self, *, retention_days: int) -> None:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat()
+        with self.conn:
+            self.conn.execute("delete from honey_key_events where triggered_at < ?", (cutoff,))
+
+    def create_honey_key(
+        self,
+        *,
+        key_id: str,
+        project_id: str,
+        repo_id: str | None,
+        name: str,
+        token_hash: str,
+        placement_path: str | None,
+        note: str | None = None,
+        created_by: str | None = None,
+    ) -> dict[str, Any]:
+        now = utc_now()
+        with self.conn:
+            self.conn.execute(
+                """
+                insert into honey_keys
+                (id, project_id, repo_id, name, token_prefix, token_hash, status, placement_path, note, created_at, created_by, trigger_count)
+                values (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 0)
+                """,
+                (key_id, project_id, repo_id, name, HONEY_KEY_PREFIX, token_hash, placement_path, note, now, created_by),
+            )
+            self.conn.execute(
+                """
+                insert into security_project_status (project_id, status, reason, last_event_at)
+                values (?, 'green', 'No Honey Key has been triggered.', null)
+                on conflict(project_id) do nothing
+                """,
+                (project_id,),
+            )
+        return self.get_honey_key(key_id) or {}
+
+    def get_honey_key(self, key_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute("select * from honey_keys where id = ?", (key_id,)).fetchone()
+        return _public_honey_key(row) if row else None
+
+    def find_honey_key_by_hash(self, token_hash: str) -> dict[str, Any] | None:
+        row = self.conn.execute("select * from honey_keys where token_hash = ?", (token_hash,)).fetchone()
+        return dict(row) if row else None
+
+    def list_honey_keys(self, project_id: str | None = None) -> list[dict[str, Any]]:
+        if project_id:
+            rows = self.conn.execute(
+                "select * from honey_keys where project_id = ? order by created_at desc",
+                (project_id,),
+            ).fetchall()
+        else:
+            rows = self.conn.execute("select * from honey_keys order by created_at desc").fetchall()
+        return [_public_honey_key(row) for row in rows]
+
+    def archive_honey_key(self, key_id: str) -> dict[str, Any] | None:
+        now = utc_now()
+        with self.conn:
+            self.conn.execute(
+                "update honey_keys set status = 'archived', archived_at = ? where id = ?",
+                (now, key_id),
+            )
+            self.conn.execute(
+                """
+                update honey_incidents
+                set archived_reset = 1, updated_at = ?
+                where event_id in (select id from honey_key_events where honey_key_id = ?)
+                """,
+                (now, key_id),
+            )
+        return self.get_honey_key(key_id)
+
+    def record_honey_key_trigger(
+        self,
+        *,
+        honey_key: dict[str, Any],
+        ip_address: str | None,
+        user_agent: str | None,
+        method: str,
+        path: str,
+        headers: dict[str, Any],
+        body_summary: str | None,
+        confidence: float,
+        source_type: str,
+        approximate_geo: str | None = None,
+    ) -> dict[str, Any]:
+        now = utc_now()
+        event_id = secrets.token_hex(12)
+        project_id = str(honey_key["project_id"])
+        key_id = str(honey_key["id"])
+        status = str(honey_key["status"])
+        with self.conn:
+            self.conn.execute(
+                """
+                insert into honey_key_events
+                (id, honey_key_id, project_id, repo_id, triggered_at, ip_address, user_agent, method, path, headers_json, body_summary, confidence, source_type, reason, approximate_geo, created_at)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event_id,
+                    key_id,
+                    project_id,
+                    honey_key.get("repo_id"),
+                    now,
+                    ip_address,
+                    user_agent,
+                    method,
+                    path,
+                    json.dumps(headers, sort_keys=True),
+                    body_summary,
+                    confidence,
+                    source_type if source_type in {"api_call", "url_open", "unknown"} else "unknown",
+                    "Honey Key was accessed or used",
+                    approximate_geo,
+                    now,
+                ),
+            )
+            self.conn.execute(
+                """
+                insert into honey_incidents (event_id, created_at, updated_at)
+                values (?, ?, ?)
+                on conflict(event_id) do nothing
+                """,
+                (event_id, now, now),
+            )
+            if status != "archived":
+                self.conn.execute(
+                    """
+                    update honey_keys
+                    set status = 'triggered', last_triggered_at = ?, trigger_count = trigger_count + 1
+                    where id = ?
+                    """,
+                    (now, key_id),
+                )
+                self.conn.execute(
+                    """
+                    insert into security_project_status (project_id, status, reason, last_event_at)
+                    values (?, 'red', 'Honey Key was accessed or used', ?)
+                    on conflict(project_id) do update set status = excluded.status, reason = excluded.reason, last_event_at = excluded.last_event_at
+                    """,
+                    (project_id, now),
+                )
+            else:
+                self.conn.execute(
+                    "update honey_keys set last_triggered_at = ?, trigger_count = trigger_count + 1 where id = ?",
+                    (now, key_id),
+                )
+        return self.get_honey_key_event(event_id) or {}
+
+    def get_honey_key_event(self, event_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute("select * from honey_key_events where id = ?", (event_id,)).fetchone()
+        return _public_honey_event(row) if row else None
+
+    def list_honey_key_events(self, project_id: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+        if project_id:
+            rows = self.conn.execute(
+                "select * from honey_key_events where project_id = ? order by triggered_at desc limit ?",
+                (project_id, limit),
+            ).fetchall()
+        else:
+            rows = self.conn.execute("select * from honey_key_events order by triggered_at desc limit ?", (limit,)).fetchall()
+        incidents = self.honey_incident_map()
+        return [_public_honey_event(row, incidents.get(str(row["id"]))) for row in rows]
+
+    def honey_incident_map(self) -> dict[str, dict[str, Any]]:
+        return {
+            str(row["event_id"]): _public_honey_incident(row)
+            for row in self.conn.execute("select * from honey_incidents").fetchall()
+        }
+
+    def set_honey_incident_step(self, event_id: str, step: str, complete: bool) -> dict[str, Any]:
+        clean_event_id = event_id.strip()
+        if step not in {"investigating", "secrets_rotated", "logs_reviewed", "archived_reset"}:
+            raise ValueError("Unsupported Honey Key incident step")
+        event = self.get_honey_key_event(clean_event_id)
+        if not event:
+            raise ValueError("Honey Key event not found")
+        now = utc_now()
+        with self.conn:
+            self.conn.execute(
+                """
+                insert into honey_incidents (event_id, created_at, updated_at)
+                values (?, ?, ?)
+                on conflict(event_id) do nothing
+                """,
+                (clean_event_id, now, now),
+            )
+            self.conn.execute(
+                f"update honey_incidents set {step} = ?, updated_at = ? where event_id = ?",
+                (1 if complete else 0, now, clean_event_id),
+            )
+        return self.honey_incident_map()[clean_event_id]
+
+    def close_honey_incident(self, event_id: str, accepted_risk_note: str | None = None) -> dict[str, Any]:
+        clean_event_id = event_id.strip()
+        event = self.get_honey_key_event(clean_event_id)
+        if not event:
+            raise ValueError("Honey Key event not found")
+        note = redact_text((accepted_risk_note or "").strip())[:1000] or None
+        now = utc_now()
+        with self.conn:
+            self.conn.execute(
+                """
+                insert into honey_incidents (event_id, created_at, updated_at)
+                values (?, ?, ?)
+                on conflict(event_id) do nothing
+                """,
+                (clean_event_id, now, now),
+            )
+            row = self.conn.execute("select * from honey_incidents where event_id = ?", (clean_event_id,)).fetchone()
+            if not row:
+                raise ValueError("Honey Key incident not found")
+            if not row["archived_reset"] and not note:
+                raise ValueError("Archive/reset the Honey Key or add an accepted-risk note before closing the incident.")
+            self.conn.execute(
+                """
+                update honey_incidents
+                set accepted_risk_note = ?, closed_at = ?, updated_at = ?
+                where event_id = ?
+                """,
+                (note, now, now, clean_event_id),
+            )
+            project_id = str(event["project_id"])
+            open_count = self.conn.execute(
+                """
+                select count(*) as count
+                from honey_key_events e
+                left join honey_incidents i on i.event_id = e.id
+                where e.project_id = ? and i.closed_at is null
+                """,
+                (project_id,),
+            ).fetchone()["count"]
+            if int(open_count) == 0:
+                self.conn.execute(
+                    """
+                    insert into security_project_status (project_id, status, reason, last_event_at)
+                    values (?, 'green', 'Honey Key incident closed.', ?)
+                    on conflict(project_id) do update set status = excluded.status, reason = excluded.reason, last_event_at = excluded.last_event_at
+                    """,
+                    (project_id, now),
+                )
+        return self.honey_incident_map()[clean_event_id]
+
+    def project_statuses(self) -> dict[str, dict[str, Any]]:
+        return {row["project_id"]: dict(row) for row in self.conn.execute("select * from security_project_status").fetchall()}
+
+
+def _sbom_component_row(component: dict[str, Any], scan_id: str, repo_name: str) -> dict[str, Any]:
+    row = {
+        "scan_id": scan_id,
+        "repo_name": repo_name,
+        "source_format": _optional_text(component.get("source_format")) or "unknown",
+        "source_file": _optional_text(component.get("source_file")),
+        "bom_ref": _optional_text(component.get("bom_ref")),
+        "name": _optional_text(component.get("name")),
+        "version": _optional_text(component.get("version")),
+        "ecosystem": _optional_text(component.get("ecosystem")),
+        "component_type": _optional_text(component.get("component_type")),
+        "package_url": _optional_text(component.get("package_url")),
+        "license": _optional_text(component.get("license")),
+        "supplier": _optional_text(component.get("supplier")),
+        "source_path": _optional_text(component.get("source_path")),
+        "component_fingerprint": _optional_text(component.get("component_fingerprint")),
+    }
+    if not row["component_fingerprint"]:
+        row["component_fingerprint"] = component_fingerprint(
+            package_url=row["package_url"],
+            ecosystem=row["ecosystem"],
+            component_type=row["component_type"],
+            name=row["name"],
+            version=row["version"],
+            bom_ref=row["bom_ref"],
+        )
+    return row
+
+
+def _dependency_manifest_row(record: dict[str, Any], scan_id: str, repo_name: str) -> dict[str, Any]:
+    declaration = _optional_text(record.get("declaration")) or ""
+    normalized_declaration = _optional_text(record.get("normalized_declaration")) or declaration.strip().casefold()
+    return {
+        "scan_id": scan_id,
+        "repo_name": repo_name,
+        "manifest_path": _optional_text(record.get("manifest_path")) or "manifest",
+        "ecosystem": _optional_text(record.get("ecosystem")) or "other",
+        "name": _optional_text(record.get("name")) or "unknown",
+        "declaration": declaration,
+        "normalized_declaration": normalized_declaration,
+        "scope": _optional_text(record.get("scope")) or "dependencies",
+        "manifest_fingerprint": _optional_text(record.get("manifest_fingerprint")) or "",
+    }
+
+
+def _dependency_trust_row(record: dict[str, Any], scan_id: str, repo_name: str) -> dict[str, Any]:
+    return {
+        "scan_id": scan_id,
+        "repo_name": repo_name,
+        "component_fingerprint": _optional_text(record.get("component_fingerprint")),
+        "component_package_key": _optional_text(record.get("component_package_key")),
+        "package_name": _optional_text(record.get("package_name")),
+        "package_version": _optional_text(record.get("package_version")),
+        "package_ecosystem": _optional_text(record.get("package_ecosystem")),
+        "package_url": _optional_text(record.get("package_url")),
+        "source_repo": _optional_text(record.get("source_repo")),
+        "source_repo_url": _optional_text(record.get("source_repo_url")),
+        "source_repo_confidence": _optional_text(record.get("source_repo_confidence")) or "unknown",
+        "source_repo_reason": _optional_text(record.get("source_repo_reason")) or "No source repository resolution was recorded.",
+        "scorecard_score": _optional_float(record.get("scorecard_score")),
+        "scorecard_status": _optional_text(record.get("scorecard_status")) or "not_checked",
+        "criticality_score": _optional_float(record.get("criticality_score")),
+        "criticality_status": _optional_text(record.get("criticality_status")) or "not_checked",
+        "checked_at": _optional_text(record.get("checked_at")),
+        "freshness": _optional_text(record.get("freshness")) or "unknown",
+        "status": _optional_text(record.get("status")) or "unknown",
+        "cache_key": _optional_text(record.get("cache_key")),
+        "error": redact_text(_optional_text(record.get("error")) or "") or None,
+    }
+
+
+def _platform_posture_snapshot_row(snapshot: dict[str, Any], scan_id: str, repo_name: str) -> dict[str, Any]:
+    clean_snapshot = dict(snapshot) if isinstance(snapshot, dict) else {}
+    if clean_snapshot.get("reason"):
+        clean_snapshot["reason"] = redact_text(str(clean_snapshot["reason"]))
+    summary = clean_snapshot.get("summary") if isinstance(clean_snapshot.get("summary"), dict) else {}
+    fingerprint = _optional_text(clean_snapshot.get("snapshot_fingerprint")) or platform_posture_snapshot_fingerprint(clean_snapshot)
+    return {
+        "scan_id": scan_id,
+        "repo_name": repo_name,
+        "scanner": _optional_text(clean_snapshot.get("scanner")) or "legitify",
+        "source": _optional_text(clean_snapshot.get("source")) or "legitify",
+        "target": _optional_text(clean_snapshot.get("target")) or "repository",
+        "status": _optional_text(clean_snapshot.get("status")) or "unknown",
+        "summary_json": json.dumps(summary, sort_keys=True),
+        "snapshot_json": json.dumps(clean_snapshot, sort_keys=True),
+        "snapshot_fingerprint": fingerprint,
+    }
+
+
+def _public_platform_posture_snapshot(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+    data = dict(row)
+    try:
+        summary = json.loads(data.get("summary_json") or "{}")
+    except (TypeError, json.JSONDecodeError):
+        summary = {}
+    try:
+        snapshot = json.loads(data.get("snapshot_json") or "{}")
+    except (TypeError, json.JSONDecodeError):
+        snapshot = {}
+    records = snapshot.get("records") if isinstance(snapshot, dict) else []
+    reason = snapshot.get("reason") if isinstance(snapshot, dict) else None
+    return {
+        "id": data.get("id"),
+        "scan_id": data.get("scan_id"),
+        "repo_name": data.get("repo_name"),
+        "scanner": data.get("scanner"),
+        "source": data.get("source"),
+        "target": data.get("target"),
+        "status": data.get("status"),
+        "reason": reason,
+        "summary": summary if isinstance(summary, dict) else {},
+        "records": records if isinstance(records, list) else [],
+        "snapshot_fingerprint": data.get("snapshot_fingerprint"),
+        "created_at": data.get("created_at"),
+    }
+
+
+def _public_ioc_indicator(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+    data = dict(row)
+    try:
+        versions = json.loads(data.get("versions_json") or "[]")
+    except (TypeError, json.JSONDecodeError):
+        versions = []
+    return {
+        "ecosystem": data.get("ecosystem"),
+        "name": data.get("name"),
+        "versions": versions if isinstance(versions, list) else [],
+        "namespace_prefix": data.get("namespace_prefix"),
+        "domain": data.get("domain"),
+        "confidence": data.get("confidence"),
+        "source_file": data.get("source_file"),
+        "source_line": data.get("source_line"),
+    }
+
+
+def _optional_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _optional_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _list_text(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, tuple):
+        return [str(item).strip() for item in value if str(item).strip()]
+    text = _optional_text(value)
+    return [text] if text else []
+
+
+def _optional_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _decision_text(value: Any) -> str | None:
+    text = _optional_text(value)
+    return redact_text(text)[:1000] if text else None
+
+
+def _dedupe_text(values: list[str]) -> list[str]:
+    seen = set()
+    result = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
+
+
+def _counts_by(items: list[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in items:
+        value = str(item.get(key) or "unknown")
+        counts[value] = counts.get(value, 0) + 1
+    return counts
+
+
+def _case_counts(cases: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    counts = {
+        "action_level": {},
+        "severity": {},
+        "category": {},
+    }
+    for case in cases:
+        for key in counts:
+            value = str(case.get(key) or "unknown")
+            counts[key][value] = counts[key].get(value, 0) + 1
+    return counts
+
+
+def _scan_delta(latest: sqlite3.Row, previous: dict[str, Any] | None) -> dict[str, Any]:
+    latest_cases = [item for item in json.loads(latest["cases_json"]) if isinstance(item, dict)]
+    latest_ids = {_case_identity(item) for item in latest_cases}
+    if not previous:
+        return {
+            "previous_scan_id": None,
+            "previous_health": None,
+            "health_delta": None,
+            "case_changes": {case_id: "new" for case_id in latest_ids if case_id},
+            "new_cases": len([case_id for case_id in latest_ids if case_id]),
+            "recurring_cases": 0,
+            "resolved_count": 0,
+            "resolved_cases": [],
+        }
+
+    previous_cases = [item for item in json.loads(previous["cases_json"]) if isinstance(item, dict)]
+    previous_by_id = {_case_identity(item): item for item in previous_cases if _case_identity(item)}
+    previous_ids = set(previous_by_id)
+    case_changes = {
+        case_id: "recurring" if case_id in previous_ids else "new"
+        for case_id in latest_ids
+        if case_id
+    }
+    resolved_ids = sorted(previous_ids - latest_ids)
+    resolved_cases = []
+    for case_id in resolved_ids:
+        case = dict(previous_by_id[case_id])
+        case["scan_id"] = previous["id"]
+        case["repo"] = previous["repo_name"]
+        case["repo_name"] = previous["repo_name"]
+        case["change_status"] = "resolved"
+        case["previous_scan_id"] = previous["id"]
+        case["resolved_by_scan_id"] = latest["id"]
+        case["resolved_at"] = latest["finished_at"] or latest["started_at"]
+        case["next_step"] = "This case was not found in the latest scan. Keep an eye on future scans for recurrence."
+        resolved_cases.append(case)
+
+    return {
+        "previous_scan_id": previous["id"],
+        "previous_health": previous["health_score"],
+        "health_delta": int(latest["health_score"]) - int(previous["health_score"]),
+        "case_changes": case_changes,
+        "new_cases": sum(1 for value in case_changes.values() if value == "new"),
+        "recurring_cases": sum(1 for value in case_changes.values() if value == "recurring"),
+        "resolved_count": len(resolved_cases),
+        "resolved_cases": resolved_cases,
+    }
+
+
+DEPENDENCY_RISK_MOVEMENTS = (
+    "vulnerability-introduced",
+    "vulnerability-fixed",
+    "recurring-risk",
+    "unknown",
+)
+
+
+def _dependency_risk_movements(
+    latest: sqlite3.Row,
+    previous: dict[str, Any] | None,
+    delta: dict[str, Any],
+    dependency_delta: dict[str, Any],
+) -> dict[str, dict[str, Any]]:
+    latest_cases = [item for item in json.loads(latest["cases_json"]) if isinstance(item, dict)]
+    previous_cases = [item for item in json.loads(previous["cases_json"]) if isinstance(item, dict)] if previous else []
+    previous_dependency_keys = {
+        key
+        for key in (_dependency_case_key(case) for case in previous_cases)
+        if key
+    }
+    changes_by_package_key = {
+        str(change.get("package_key")): change
+        for change in dependency_delta.get("changes", [])
+        if isinstance(change, dict) and change.get("package_key")
+    }
+    movements: dict[str, dict[str, Any]] = {}
+
+    for case in latest_cases:
+        case_id = _case_identity(case)
+        if not case_id or case.get("category") != "dependencies":
+            continue
+        case_key = _dependency_case_key(case)
+        dependency_change = _case_dependency_change(case, changes_by_package_key)
+        if case_key and case_key in previous_dependency_keys:
+            movements[case_id] = _risk_movement(
+                "recurring-risk",
+                "This issue was also present in the previous scan.",
+                dependency_change,
+            )
+        elif previous and dependency_change:
+            movements[case_id] = _risk_movement(
+                "vulnerability-introduced",
+                _introduced_reason(dependency_change),
+                dependency_change,
+            )
+        else:
+            movements[case_id] = _risk_movement(
+                "unknown",
+                "This issue is present now, but there is not enough package history to say what changed.",
+                dependency_change,
+            )
+
+    for case in delta.get("resolved_cases", []):
+        if not isinstance(case, dict) or case.get("category") != "dependencies":
+            continue
+        case_id = _case_identity(case)
+        if not case_id:
+            continue
+        dependency_change = _case_dependency_change(case, changes_by_package_key)
+        if dependency_change:
+            movements[case_id] = _risk_movement(
+                "vulnerability-fixed",
+                _fixed_reason(dependency_change),
+                dependency_change,
+            )
+        else:
+            movements[case_id] = _risk_movement(
+                "unknown",
+                "The latest scan no longer finds this issue, but the package change that removed it is not clear.",
+                None,
+            )
+    return movements
+
+
+def _dependency_risk_counts(movements: dict[str, dict[str, Any]]) -> dict[str, int]:
+    counts = {movement: 0 for movement in DEPENDENCY_RISK_MOVEMENTS}
+    for movement in movements.values():
+        key = str(movement.get("risk_movement") or "unknown")
+        counts[key if key in counts else "unknown"] += 1
+    return counts
+
+
+def _attach_dependency_risk_movement(case: dict[str, Any], movement: dict[str, Any] | None) -> None:
+    if not movement:
+        return
+    case.update(movement)
+    reason = str(movement.get("risk_movement_reason") or "")
+    if reason:
+        existing = str(case.get("plain_english_risk") or "")
+        if reason not in existing:
+            case["plain_english_risk"] = f"{existing} {reason}".strip()
+    if movement.get("risk_movement") == "vulnerability-fixed":
+        case["next_step"] = "This issue was not found in the latest scan. Keep the package change and watch future scans."
+
+
+def _risk_movement(label: str, reason: str, dependency_change: dict[str, Any] | None) -> dict[str, Any]:
+    movement = label if label in DEPENDENCY_RISK_MOVEMENTS else "unknown"
+    return {
+        "risk_movement": movement,
+        "risk_movement_label": {
+            "vulnerability-introduced": "Vulnerability introduced",
+            "vulnerability-fixed": "Vulnerability fixed",
+            "recurring-risk": "Recurring risk",
+            "unknown": "Unknown",
+        }[movement],
+        "risk_movement_reason": reason,
+        "dependency_change": dependency_change,
+    }
+
+
+def _introduced_reason(change: dict[str, Any]) -> str:
+    name = str(change.get("name") or "this package")
+    previous_version = change.get("previous_version")
+    current_version = change.get("current_version")
+    change_type = str(change.get("change_type") or "")
+    if change_type == "added":
+        return f"This looks new because {name} was added in this scan."
+    if previous_version and current_version:
+        return f"This looks new after {name} changed from {previous_version} to {current_version}."
+    return f"This looks new after {name} changed."
+
+
+def _fixed_reason(change: dict[str, Any]) -> str:
+    name = str(change.get("name") or "this package")
+    previous_version = change.get("previous_version")
+    current_version = change.get("current_version")
+    change_type = str(change.get("change_type") or "")
+    if change_type == "removed":
+        return f"The latest scan no longer finds this issue after {name} was removed."
+    if previous_version and current_version:
+        return f"The latest scan no longer finds this issue after {name} changed from {previous_version} to {current_version}."
+    return f"The latest scan no longer finds this issue after {name} changed."
+
+
+def _case_dependency_change(case: dict[str, Any], changes_by_package_key: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    for package_key in _case_package_keys(case):
+        change = changes_by_package_key.get(package_key)
+        if change:
+            return change
+    return None
+
+
+def _case_package_keys(case: dict[str, Any]) -> list[str]:
+    keys: list[str] = []
+    for evidence in case.get("evidence", []):
+        if not isinstance(evidence, dict):
+            continue
+        direct = _optional_text(evidence.get("component_package_key"))
+        if direct and direct not in keys:
+            keys.append(direct)
+        derived = _component_package_key(evidence)
+        if derived and derived not in keys:
+            keys.append(derived)
+    return keys
+
+
+def _dependency_case_key(case: dict[str, Any]) -> str | None:
+    vulnerability = _case_vulnerability(case)
+    package = _case_package(case)
+    if vulnerability and package:
+        return f"{vulnerability}:{package}"
+    if vulnerability:
+        return vulnerability
+    return None
+
+
+def _case_vulnerability(case: dict[str, Any]) -> str | None:
+    for evidence in case.get("evidence", []):
+        if isinstance(evidence, dict) and evidence.get("vulnerability_id"):
+            return str(evidence["vulnerability_id"]).upper()
+    title = str(case.get("title") or "")
+    match = re.search(r"\b(?:CVE-\d{4}-\d+|GHSA-[A-Za-z0-9-]+|PYSEC-\d{4}-\d+|OSV-\d+)\b", title, re.IGNORECASE)
+    return match.group(0).upper() if match else None
+
+
+def _case_package(case: dict[str, Any]) -> str | None:
+    for evidence in case.get("evidence", []):
+        if isinstance(evidence, dict) and evidence.get("package_name"):
+            return str(evidence["package_name"]).casefold()
+    title = str(case.get("title") or "")
+    match = re.match(r"(.+?) dependency vulnerability", title, re.IGNORECASE)
+    return match.group(1).casefold() if match else None
+
+
+DEPENDENCY_DELTA_TYPES = ("added", "removed", "upgraded", "downgraded", "version-changed", "license-changed")
+DEPENDENCY_VULNERABILITY_SCANNERS = {"trivy", "osv-scanner", "grype"}
+
+
+def _dependency_delta(
+    latest: sqlite3.Row,
+    previous: dict[str, Any] | None,
+    current_components: list[dict[str, Any]],
+    previous_components: list[dict[str, Any]],
+    current_dependency_findings: list[dict[str, Any]],
+    current_manifest_entries: list[dict[str, Any]] | None = None,
+    previous_manifest_entries: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    counts = {change_type: 0 for change_type in DEPENDENCY_DELTA_TYPES}
+    base = {
+        "repo_name": latest["repo_name"],
+        "scan_id": latest["id"],
+        "previous_scan_id": previous["id"] if previous else None,
+        "has_previous_scan": bool(previous),
+        "current_count": len(current_components),
+        "previous_count": len(previous_components) if previous else 0,
+        "counts": counts,
+        "changes": [],
+        "cve_counts": {"has-cve": 0, "no-cve": 0, "not-checked": 0, "unknown": 0},
+        "comparison_explanation": "",
+    }
+
+    if not current_components:
+        return {
+            **base,
+            "status": "no-sbom",
+            "comparison_explanation": "The latest scan did not save an SBOM, so package changes could not be compared.",
+        }
+    if not previous:
+        return {
+            **base,
+            "status": "first-scan",
+            "comparison_explanation": "This scan saved a package inventory. A second scan of the same repo is needed for change comparison.",
+        }
+
+    current_by_key = _component_snapshot(current_components)
+    previous_by_key = _component_snapshot(previous_components)
+    changes: list[dict[str, Any]] = []
+
+    for package_key in sorted(current_by_key.keys() - previous_by_key.keys()):
+        _append_dependency_change(
+            changes,
+            counts,
+            package_key=package_key,
+            change_types=["added"],
+            current=current_by_key[package_key],
+            previous=None,
+            latest=latest,
+            previous_scan=previous,
+        )
+
+    for package_key in sorted(previous_by_key.keys() - current_by_key.keys()):
+        _append_dependency_change(
+            changes,
+            counts,
+            package_key=package_key,
+            change_types=["removed"],
+            current=None,
+            previous=previous_by_key[package_key],
+            latest=latest,
+            previous_scan=previous,
+        )
+
+    for package_key in sorted(current_by_key.keys() & previous_by_key.keys()):
+        current = current_by_key[package_key]
+        previous_component = previous_by_key[package_key]
+        change_types: list[str] = []
+        if _component_value(current.get("version")) != _component_value(previous_component.get("version")):
+            change_types.append("version-changed")
+            comparison = _compare_versions(previous_component.get("version"), current.get("version"))
+            if comparison is not None and comparison < 0:
+                change_types.append("upgraded")
+            elif comparison is not None and comparison > 0:
+                change_types.append("downgraded")
+        if _component_value(current.get("license")) != _component_value(previous_component.get("license")):
+            change_types.append("license-changed")
+        if change_types:
+            _append_dependency_change(
+                changes,
+                counts,
+                package_key=package_key,
+                change_types=change_types,
+                current=current,
+                previous=previous_component,
+                latest=latest,
+                previous_scan=previous,
+            )
+
+    vulnerability_check = _dependency_vulnerability_check(latest)
+    finding_keys = _dependency_finding_package_keys(current_dependency_findings)
+    finding_names = _dependency_finding_package_names(current_dependency_findings)
+    annotate_dependency_changes(changes, current_manifest_entries or [], previous_manifest_entries or [])
+    for change in changes:
+        _annotate_dependency_change(change, vulnerability_check, finding_keys, finding_names)
+
+    cve_counts = {"has-cve": 0, "no-cve": 0, "not-checked": 0, "unknown": 0}
+    for change in changes:
+        status = str(change.get("cve_status") or "unknown")
+        cve_counts[status if status in cve_counts else "unknown"] += 1
+
+    return {
+        **base,
+        "status": "changed" if changes else "unchanged",
+        "counts": counts,
+        "cve_counts": cve_counts,
+        "comparison_explanation": (
+            "Dependency changes were compared with the previous SBOM."
+            if changes
+            else "The latest SBOM matches the previous saved package inventory."
+        ),
+        "changes": sorted(changes, key=_dependency_change_sort_key),
+    }
+
+
+def _component_snapshot(components: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    snapshot: dict[str, dict[str, Any]] = {}
+    for component in components:
+        public_component = _public_component(component)
+        package_key = str(public_component["package_key"])
+        existing = snapshot.get(package_key)
+        if not existing or _component_sort_key(public_component) < _component_sort_key(existing):
+            snapshot[package_key] = public_component
+    return snapshot
+
+
+def _public_component(component: dict[str, Any]) -> dict[str, Any]:
+    package_key = _component_package_key(component)
+    return {
+        "package_key": package_key,
+        "name": component.get("name"),
+        "version": component.get("version"),
+        "ecosystem": component.get("ecosystem"),
+        "component_type": component.get("component_type"),
+        "package_url": component.get("package_url"),
+        "license": component.get("license"),
+        "supplier": component.get("supplier"),
+        "source_path": component.get("source_path"),
+        "source_format": component.get("source_format"),
+        "source_file": component.get("source_file"),
+        "bom_ref": component.get("bom_ref"),
+        "component_fingerprint": component.get("component_fingerprint"),
+    }
+
+
+def _append_dependency_change(
+    changes: list[dict[str, Any]],
+    counts: dict[str, int],
+    *,
+    package_key: str,
+    change_types: list[str],
+    current: dict[str, Any] | None,
+    previous: dict[str, Any] | None,
+    latest: sqlite3.Row,
+    previous_scan: dict[str, Any],
+) -> None:
+    unique_types = [change_type for change_type in DEPENDENCY_DELTA_TYPES if change_type in set(change_types)]
+    for change_type in unique_types:
+        counts[change_type] += 1
+    changes.append(
+        {
+            "repo_name": latest["repo_name"],
+            "scan_id": latest["id"],
+            "previous_scan_id": previous_scan["id"],
+            "package_key": package_key,
+            "change_type": _primary_dependency_change_type(unique_types),
+            "change_types": unique_types,
+            "name": (current or previous or {}).get("name"),
+            "ecosystem": (current or previous or {}).get("ecosystem"),
+            "component_type": (current or previous or {}).get("component_type"),
+            "package_url": (current or previous or {}).get("package_url"),
+            "source_path": (current or previous or {}).get("source_path"),
+            "previous_version": previous.get("version") if previous else None,
+            "current_version": current.get("version") if current else None,
+            "previous_license": previous.get("license") if previous else None,
+            "current_license": current.get("license") if current else None,
+            "version_changed": "version-changed" in unique_types,
+            "license_changed": "license-changed" in unique_types,
+            "version_direction": _version_direction(unique_types),
+            "previous_component": previous,
+            "current_component": current,
+        }
+    )
+
+
+def _annotate_dependency_change(
+    change: dict[str, Any],
+    vulnerability_check: dict[str, Any],
+    finding_keys: set[str],
+    finding_names: set[str],
+) -> None:
+    match_confidence = _dependency_change_match_confidence(change)
+    metadata_warnings = _dependency_change_metadata_warnings(change)
+    has_matching_finding = str(change.get("package_key") or "") in finding_keys
+    name = _component_value(change.get("name"))
+    if name and name in finding_names:
+        has_matching_finding = True
+
+    if has_matching_finding:
+        cve_status = "has-cve"
+        cve_reason = "A dependency vulnerability finding matched this package change."
+    elif vulnerability_check["status"] != "checked":
+        cve_status = "not-checked"
+        cve_reason = "No dependency vulnerability scanner completed for this scan."
+    elif match_confidence == "unknown":
+        cve_status = "unknown"
+        cve_reason = "Package metadata is too incomplete to compare confidently with vulnerability findings."
+    else:
+        cve_status = "no-cve"
+        cve_reason = "Dependency vulnerability scanners ran and did not report a matching CVE for this package change."
+
+    change["match_confidence"] = match_confidence
+    change["match_label"] = {
+        "strong": "Strong match",
+        "weak-match": "Weak match",
+        "unknown": "Unknown",
+    }[match_confidence]
+    change["metadata_warnings"] = metadata_warnings
+    change["cve_status"] = cve_status
+    change["cve_label"] = {
+        "has-cve": "Known CVE",
+        "no-cve": "No CVE found",
+        "not-checked": "Not checked",
+        "unknown": "Unknown",
+    }[cve_status]
+    change["cve_reason"] = cve_reason
+    change["checked_by"] = vulnerability_check["scanners"]
+
+
+def _dependency_vulnerability_check(scan: sqlite3.Row) -> dict[str, Any]:
+    try:
+        scanner_statuses = json.loads(scan["scanner_status_json"])
+    except (KeyError, TypeError, json.JSONDecodeError):
+        scanner_statuses = []
+    checked_by = []
+    for scanner in scanner_statuses:
+        if not isinstance(scanner, dict):
+            continue
+        name = str(scanner.get("scanner") or "").casefold()
+        if name not in DEPENDENCY_VULNERABILITY_SCANNERS:
+            continue
+        status = str(scanner.get("status") or "").casefold()
+        skipped = any(token in status for token in ("skip", "missing", "unavailable", "error"))
+        if scanner.get("available") and not scanner.get("error") and not skipped:
+            checked_by.append(str(scanner.get("scanner") or name))
+    return {"status": "checked" if checked_by else "not-checked", "scanners": sorted(set(checked_by))}
+
+
+def _dependency_finding_package_keys(findings: list[dict[str, Any]]) -> set[str]:
+    keys: set[str] = set()
+    for finding in findings:
+        direct = _optional_text(finding.get("component_package_key"))
+        if direct:
+            keys.add(direct)
+        if not any((finding.get("package_url"), finding.get("package_ecosystem"), finding.get("package_name"), finding.get("component_fingerprint"))):
+            continue
+        package_key = _component_package_key(
+            {
+                "package_url": finding.get("package_url"),
+                "ecosystem": finding.get("package_ecosystem"),
+                "component_type": None,
+                "name": finding.get("package_name"),
+                "bom_ref": None,
+                "component_fingerprint": finding.get("component_fingerprint"),
+            }
+        )
+        if package_key:
+            keys.add(package_key)
+    return keys
+
+
+def _dependency_finding_package_names(findings: list[dict[str, Any]]) -> set[str]:
+    return {
+        name
+        for name in (_component_value(finding.get("package_name")) for finding in findings)
+        if name
+    }
+
+
+def _dependency_change_match_confidence(change: dict[str, Any]) -> str:
+    component = change.get("current_component") or change.get("previous_component") or {}
+    if not isinstance(component, dict):
+        return "unknown"
+    if component.get("package_url"):
+        return "strong"
+    if component.get("name"):
+        return "weak-match"
+    return "unknown"
+
+
+def _dependency_change_metadata_warnings(change: dict[str, Any]) -> list[str]:
+    component = change.get("current_component") or change.get("previous_component") or {}
+    if not isinstance(component, dict):
+        return ["Unknown metadata"]
+    warnings: list[str] = []
+    if not component.get("name"):
+        warnings.append("Unknown package")
+    if not (change.get("current_version") or change.get("previous_version")):
+        warnings.append("Missing version")
+    if not component.get("package_url"):
+        warnings.append("Missing purl")
+    if not (component.get("ecosystem") or _ecosystem_from_package_url(component.get("package_url"))):
+        warnings.append("Unknown ecosystem")
+    return warnings
+
+
+def _primary_dependency_change_type(change_types: list[str]) -> str:
+    for change_type in ("added", "removed", "upgraded", "downgraded", "version-changed", "license-changed"):
+        if change_type in change_types:
+            return change_type
+    return "version-changed"
+
+
+def _version_direction(change_types: list[str]) -> str | None:
+    if "upgraded" in change_types:
+        return "upgraded"
+    if "downgraded" in change_types:
+        return "downgraded"
+    if "version-changed" in change_types:
+        return "changed"
+    return None
+
+
+def _dependency_change_sort_key(change: dict[str, Any]) -> tuple[int, str, str]:
+    rank = {
+        "added": 0,
+        "upgraded": 1,
+        "downgraded": 2,
+        "version-changed": 3,
+        "license-changed": 4,
+        "removed": 5,
+    }
+    return (
+        rank.get(str(change.get("change_type")), 99),
+        str(change.get("ecosystem") or ""),
+        str(change.get("name") or change.get("package_key") or "").casefold(),
+    )
+
+
+def _component_sort_key(component: dict[str, Any]) -> tuple[str, str, str, str]:
+    return (
+        str(component.get("name") or "").casefold(),
+        str(component.get("version") or "").casefold(),
+        str(component.get("source_path") or "").casefold(),
+        str(component.get("package_url") or "").casefold(),
+    )
+
+
+def _component_package_key(component: dict[str, Any]) -> str:
+    package_url = _optional_text(component.get("package_url"))
+    if package_url:
+        return f"purl|{_package_url_without_version(package_url).casefold()}"
+    ecosystem = _component_value(component.get("ecosystem"))
+    component_type = _component_value(component.get("component_type"))
+    name = _component_value(component.get("name"))
+    if any((ecosystem, component_type, name)):
+        return "|".join(["component", ecosystem, component_type, name])
+    bom_ref = _component_value(component.get("bom_ref"))
+    if bom_ref:
+        return f"bom-ref|{bom_ref}"
+    return f"fingerprint|{_component_value(component.get('component_fingerprint'))}"
+
+
+def _package_url_without_version(package_url: str) -> str:
+    base = package_url.split("?", 1)[0].split("#", 1)[0]
+    if "@" not in base:
+        return base
+    head, tail = base.rsplit("@", 1)
+    return head if "/" not in tail else base
+
+
+def _ecosystem_from_package_url(package_url: Any) -> str | None:
+    text = _optional_text(package_url)
+    if not text or not text.startswith("pkg:"):
+        return None
+    return text[4:].split("/", 1)[0].split("?", 1)[0].split("#", 1)[0] or None
+
+
+def _component_value(value: Any) -> str:
+    return str(value or "").strip().casefold()
+
+
+def _compare_versions(previous: Any, current: Any) -> int | None:
+    previous_tokens = _version_tokens(previous)
+    current_tokens = _version_tokens(current)
+    if previous_tokens is None or current_tokens is None:
+        return None
+    max_length = max(len(previous_tokens), len(current_tokens))
+    padded_previous = [*previous_tokens, *([0] * (max_length - len(previous_tokens)))]
+    padded_current = [*current_tokens, *([0] * (max_length - len(current_tokens)))]
+    for previous_token, current_token in zip(padded_previous, padded_current):
+        if previous_token == current_token:
+            continue
+        if isinstance(previous_token, int) and isinstance(current_token, int):
+            return -1 if previous_token < current_token else 1
+        if isinstance(previous_token, int):
+            return 1
+        if isinstance(current_token, int):
+            return -1
+        return -1 if str(previous_token) < str(current_token) else 1
+    return 0
+
+
+def _version_tokens(value: Any) -> list[int | str] | None:
+    text = str(value or "").strip().lower()
+    if not text:
+        return None
+    raw_tokens = re.findall(r"\d+|[a-z]+", text.lstrip("v"))
+    if not raw_tokens or not any(token.isdigit() for token in raw_tokens):
+        return None
+    return [int(token) if token.isdigit() else token for token in raw_tokens]
+
+
+def _case_identity(case: dict[str, Any]) -> str:
+    return str(case.get("case_id") or case.get("id") or "").strip()
+
+
+def _attach_case_decision(case: dict[str, Any], decisions: dict[str, dict[str, Any]]) -> None:
+    case_id = _case_identity(case)
+    decision = decisions.get(case_id)
+    if decision:
+        case["decision"] = decision
+
+
+def _public_honey_key(row: sqlite3.Row) -> dict[str, Any]:
+    data = dict(row)
+    data.pop("token_hash", None)
+    return data
+
+
+def _public_honey_incident(row: sqlite3.Row) -> dict[str, Any]:
+    data = dict(row)
+    for key in ("investigating", "secrets_rotated", "logs_reviewed", "archived_reset"):
+        data[key] = bool(data[key])
+    return data
+
+
+def _public_honey_event(row: sqlite3.Row, incident: dict[str, Any] | None = None) -> dict[str, Any]:
+    data = dict(row)
+    data["headers"] = json.loads(data.pop("headers_json") or "{}")
+    data["incident"] = incident
+    return data
+
+
+def _latest_honey_events_by_project(events: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    latest: dict[str, dict[str, Any]] = {}
+    for event in events:
+        project_id = str(event.get("project_id"))
+        if project_id and project_id not in latest:
+            latest[project_id] = event
+    return latest
+
+
+def _honey_event_case(event: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "case_id": f"honey-key-{event.get('id')}",
+        "repo": event.get("project_id"),
+        "repo_name": event.get("project_id"),
+        "title": "Honey Key triggered",
+        "plain_english_risk": "A decoy secret was touched, which means a sensitive location in the codebase may have been accessed.",
+        "action_level": "fix_now",
+        "confidence": "high",
+        "category": "honeytokens",
+        "severity": "critical",
+        "affected_files": [],
+        "evidence": [
+            {
+                "scanner": "Honey Keys",
+                "title": "Decoy secret touched",
+                "location": event.get("path") or "Honey Key trigger endpoint",
+            }
+        ],
+        "scanners": ["Honey Keys"],
+        "fix_steps": [
+            "Check whether this repo was public, leaked, cloned, scraped, or accessed unexpectedly.",
+            "Review recent commits, CI logs, deploy logs, dependency activity, and access logs.",
+            "Rotate real secrets in this repo if exposure is plausible.",
+            "Review third-party integrations and AI-agent activity.",
+            "Archive or reset the Honey Key after investigation.",
+        ],
+        "agent_prompt": "Investigate possible unauthorized access after a Honey Key was accessed or used.",
+        "source_fingerprints": [str(event.get("id"))],
+        "next_step": "Investigate possible unauthorized access and rotate real secrets if exposure is plausible.",
+        "created_at": event.get("triggered_at"),
+        "honey_key_id": event.get("honey_key_id"),
+        "honey_event_id": event.get("id"),
+        "incident": event.get("incident"),
+    }

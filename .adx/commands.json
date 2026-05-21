@@ -1,0 +1,167 @@
+{
+  "version": 1,
+  "commands": [
+    {
+      "id": "python-import-cli",
+      "intent": "fast Python import smoke check",
+      "command": [
+        "python3",
+        "-c",
+        "import sys; sys.path.insert(0, 'src'); import security_observatory.cli; print('ok')"
+      ],
+      "cwd": ".",
+      "safety": "read_only",
+      "timeout_seconds": 30,
+      "when_to_run": "After Python module edits, before heavier scans or tests.",
+      "success_signal": "Prints ok and exits 0.",
+      "recovery_hint": "If this fails, inspect the import traceback and confirm the command is run from the repo root."
+    },
+    {
+      "id": "python-pytest",
+      "intent": "run Python unit tests",
+      "command": [
+        "python3",
+        "-m",
+        "pytest"
+      ],
+      "cwd": ".",
+      "safety": "local_mutation",
+      "timeout_seconds": 120,
+      "when_to_run": "After Python logic changes when pytest is installed.",
+      "success_signal": "Pytest exits 0.",
+      "recovery_hint": "If pytest is missing, install a proper dev/test environment first; the checked .venv currently lacks pip and pytest."
+    },
+    {
+      "id": "python-editable-install",
+      "intent": "install the Python package in editable mode",
+      "command": [
+        "python3",
+        "-m",
+        "pip",
+        "install",
+        "-e",
+        "."
+      ],
+      "cwd": ".",
+      "safety": "network",
+      "timeout_seconds": 180,
+      "when_to_run": "Only when the CLI entrypoint or test environment needs local package installation.",
+      "success_signal": "pip installs security-observatory and exposes the package to the selected Python.",
+      "recovery_hint": "If pip is missing, use a Python environment with pip or recreate the virtual environment."
+    },
+    {
+      "id": "dashboard-install",
+      "intent": "install dashboard UI dependencies",
+      "command": [
+        "make",
+        "dashboard-install"
+      ],
+      "cwd": ".",
+      "safety": "network",
+      "timeout_seconds": 300,
+      "when_to_run": "Before dashboard UI development when node_modules is absent or stale.",
+      "success_signal": "npm install completes in dashboard-ui.",
+      "recovery_hint": "If npm fails, check Node/npm availability and dashboard-ui/package-lock.json."
+    },
+    {
+      "id": "dashboard-lint",
+      "intent": "typecheck dashboard UI",
+      "command": [
+        "npm",
+        "run",
+        "lint"
+      ],
+      "cwd": "dashboard-ui",
+      "safety": "read_only",
+      "timeout_seconds": 120,
+      "when_to_run": "After TypeScript or React dashboard edits.",
+      "success_signal": "tsc exits 0.",
+      "recovery_hint": "If dependencies are missing, run dashboard-install first."
+    },
+    {
+      "id": "dashboard-build",
+      "intent": "build dashboard static assets",
+      "command": [
+        "make",
+        "dashboard-build"
+      ],
+      "cwd": ".",
+      "safety": "local_mutation",
+      "timeout_seconds": 180,
+      "when_to_run": "After dashboard UI edits that should update bundled static assets.",
+      "success_signal": "Vite build succeeds and updates built dashboard assets.",
+      "recovery_hint": "If build fails, run dashboard-lint and inspect dashboard-ui/vite.config.ts and package scripts."
+    },
+    {
+      "id": "cli-doctor",
+      "intent": "inspect local scanner/tool availability",
+      "command": [
+        "python3",
+        "-c",
+        "import sys; sys.path.insert(0, 'src'); from security_observatory.cli import main; raise SystemExit(main(['doctor']))"
+      ],
+      "cwd": ".",
+      "safety": "local_mutation",
+      "timeout_seconds": 30,
+      "when_to_run": "When scanner availability or local setup is uncertain.",
+      "success_signal": "Prints tool availability and exits 0.",
+      "recovery_hint": "This creates the local observatory layout before printing doctor output; if tools are missing, consult docs/setup.md."
+    },
+    {
+      "id": "security-scan-quick",
+      "intent": "run the local quick security scan",
+      "command": [
+        "security-scan",
+        "--quick"
+      ],
+      "cwd": ".",
+      "safety": "local_mutation",
+      "timeout_seconds": 900,
+      "when_to_run": "Only when the task explicitly requires validating scanner behavior or producing a local security report.",
+      "success_signal": "Scan completes and writes a normalized report under ~/.security-observatory.",
+      "recovery_hint": "If security-scan is unavailable, run the Python entrypoint or install the wrapper with the installer after confirming that is appropriate."
+    },
+    {
+      "id": "desktop-build",
+      "intent": "build macOS desktop app bundle",
+      "command": [
+        "make",
+        "desktop-build"
+      ],
+      "cwd": ".",
+      "safety": "local_mutation",
+      "timeout_seconds": 300,
+      "when_to_run": "Only after desktop launcher, icon, or bundle metadata changes.",
+      "success_signal": "desktop/Security Observatory.app is rebuilt.",
+      "recovery_hint": "If swiftc is missing, the script may fall back to Chrome launcher; read docs/desktop-launcher.md."
+    },
+    {
+      "id": "desktop-install",
+      "intent": "install rebuilt macOS app bundle",
+      "command": [
+        "make",
+        "desktop-install"
+      ],
+      "cwd": ".",
+      "safety": "local_mutation",
+      "timeout_seconds": 120,
+      "when_to_run": "Only after desktop-build when the user wants the installed app refreshed.",
+      "success_signal": "App bundle is copied to ~/Desktop/MyApps/.",
+      "recovery_hint": "If install target is missing, the script creates ~/Desktop/MyApps or exits for custom targets."
+    },
+    {
+      "id": "desktop-quit",
+      "intent": "stop warm desktop launcher servers and wrapper windows",
+      "command": [
+        "make",
+        "desktop-quit"
+      ],
+      "cwd": ".",
+      "safety": "destructive",
+      "timeout_seconds": 60,
+      "when_to_run": "After desktop launcher work or before rebuilding/reinstalling if a warm server is running.",
+      "success_signal": "Prints that servers/windows were stopped, or that nothing was running.",
+      "recovery_hint": "This intentionally terminates matching local processes; verify the target app before running."
+    }
+  ]
+}
