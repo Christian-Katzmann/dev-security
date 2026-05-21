@@ -1,0 +1,54 @@
+{
+  "version": 1,
+  "campaign": {
+    "slug": "managed-security-packs",
+    "title": "Managed Security Packs",
+    "repo_path": "/Users/christiankatzmann/Dev/Projects/dëv-security",
+    "campaign_path": "/Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/managed-security-packs.md",
+    "run_dir": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/managed-security-packs",
+    "created_at": "2026-05-21T18:53:37+00:00",
+    "updated_at": "2026-05-21T18:54:15+00:00",
+    "status": "active",
+    "model": "gpt-5.5",
+    "reasoning_effort": "xhigh",
+    "execution_environment": "worktree",
+    "rrule": "FREQ=HOURLY;INTERVAL=1",
+    "schedule_mode": "fast-chain",
+    "fast_chain_delay_minutes": 2
+  },
+  "phase": "step",
+  "cursor": {
+    "step_id": null,
+    "phase": null,
+    "attempt": 0
+  },
+  "policy": {
+    "one_step_per_run": true,
+    "create_fresh_automation_each_step": true,
+    "pause_current_automation_after_chaining": true,
+    "campaign_markdown_is_progress_source": true,
+    "run_step_reviews": false,
+    "run_phase_reviews": false,
+    "require_final_review": true,
+    "final_review": {
+      "mode": "whole-campaign",
+      "verdict_path": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/managed-security-packs/final-review.md",
+      "rework_receipt_path": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/managed-security-packs/final-rework.md"
+    },
+    "auto_commit": false,
+    "safety_source": "campaign_prompt"
+  },
+  "automations": [
+    {
+      "id": "d-vsec-managed-security-packs",
+      "status": "ACTIVE",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T18:54:15+00:00",
+      "expected_next": "step 1.1 Define first-party Security Packs"
+    }
+  ],
+  "blockers": []
+}
