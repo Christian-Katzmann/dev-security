@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any
 from urllib.parse import parse_qs, urlparse
 from argparse import Namespace
 from datetime import datetime, timezone
@@ -29,7 +30,13 @@ from .honey_keys import (
     sanitize_headers,
     summarize_body,
 )
-from .scanners import scanner_names_for_profile, tool_catalog
+from .managed_tools import (
+    ManagedToolInstallError,
+    install_managed_tool_files,
+    managed_tool_evidence,
+    uninstall_managed_tool_files,
+)
+from .scanners import scan_profile_catalog, scanner_names_for_profile, security_pack_catalog, tool_catalog
 from .storage import ObservatoryDB
 
 
@@ -184,7 +191,7 @@ def raw_report_fallback(scan: dict[str, object]) -> dict[str, object]:
         "raw_severity_counts": summarize_counts([finding for finding in suppression["findings"] if isinstance(finding, dict)], "severity"),
         "raw_category_counts": summarize_counts([finding for finding in suppression["findings"] if isinstance(finding, dict)], "category"),
         "scanners": scanners,
-        "evidence_gaps": scanner_evidence_gaps(scanner_dicts),
+        "evidence_gaps": scanner_evidence_gaps(scanner_dicts, profile=str(scan.get("profile") or "")),
         "cases": suppression["cases"],
         "active_cases": suppression["active_cases"],
         "suppressed_cases": suppression["suppressed_cases"],
@@ -219,7 +226,7 @@ def raw_report_export(scan: dict[str, object]) -> bytes:
                 "suppressed_counts",
             ):
                 report[key] = fallback[key]
-            report.setdefault("evidence_gaps", fallback["evidence_gaps"])
+            report["evidence_gaps"] = fallback["evidence_gaps"]
             return (json.dumps(report, indent=2, sort_keys=True) + "\n").encode("utf-8")
     return (json.dumps(fallback, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
@@ -611,11 +618,7 @@ def build_ai_prompt(scan: dict[str, object]) -> str:
     severity_counts = summarize_counts(findings, "severity")
     category_counts = summarize_counts(findings, "category")
     suppressed_counts = scan.get("suppressed_counts") if isinstance(scan.get("suppressed_counts"), dict) else {}
-    incomplete = [
-        item
-        for item in scanner_dicts
-        if not item.get("available") or item.get("error")
-    ]
+    evidence_gaps = scanner_evidence_gaps(scanner_dicts, profile=str(scan.get("profile") or ""))
     lines = [
         "# Security Scan Follow-Up Prompt",
         "",
@@ -645,7 +648,7 @@ def build_ai_prompt(scan: dict[str, object]) -> str:
         f"- Suppressed findings: {suppressed_counts.get('findings', 0)}",
         f"- By severity: {json.dumps(severity_counts, sort_keys=True)}",
         f"- By category: {json.dumps({category_label(key): value for key, value in category_counts.items()}, sort_keys=True)}",
-        f"- Incomplete local tools: {len(incomplete)}",
+        f"- Incomplete local tools: {len(evidence_gaps)}",
         "",
         "Cases to verify and fix:",
     ]
@@ -700,11 +703,23 @@ def build_ai_prompt(scan: dict[str, object]) -> str:
             lines.append(f"   - Source fingerprints: {', '.join(case.get('source_fingerprints') or []) or 'none'}")
     else:
         lines.append("- No cases were saved for this scan. Verify that the selected checks ran successfully before treating the repo as clean.")
-    if incomplete:
+    if evidence_gaps:
         lines.extend(["", "Incomplete local tool evidence:"])
-        for item in incomplete:
-            reason = item.get("error") or "tool was not available"
-            lines.append(f"- {item.get('scanner')}: {reason}")
+        for item in evidence_gaps:
+            reason = item.get("reason") or "tool was not available"
+            pack_pages = item.get("pack_pages") if isinstance(item.get("pack_pages"), list) else []
+            pack_text = ", ".join(str(pack.get("label") or pack.get("id")) for pack in pack_pages if isinstance(pack, dict))
+            tool_label = item.get("tool_label") or item.get("scanner")
+            profile_hint = item.get("recommended_profile_id")
+            recommendation = []
+            if pack_text:
+                recommendation.append(f"open {pack_text}")
+            if tool_label:
+                recommendation.append(f"check the {tool_label} tool page")
+            if profile_hint:
+                recommendation.append(f"rerun the {profile_hint} profile after setup")
+            suffix = f" Recommended: {'; '.join(recommendation)}." if recommendation else ""
+            lines.append(f"- {item.get('scanner')}: {reason}.{suffix}")
     lines.extend(
         [
             "",
@@ -844,7 +859,55 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json(payload)
             return
         if parsed.path == "/api/tool-catalog":
-            self.send_json({"items": tool_catalog(detect_install_state=True)})
+            db = ObservatoryDB(self.db_path)
+            try:
+                managed_tool_records = db.list_managed_tools()
+            finally:
+                db.close()
+            self.send_json({"items": tool_catalog(detect_install_state=True, managed_tool_records=managed_tool_records)})
+            return
+        if parsed.path == "/api/security-packs":
+            db = ObservatoryDB(self.db_path)
+            try:
+                managed_tool_records = db.list_managed_tools()
+            finally:
+                db.close()
+            self.send_json({"items": security_pack_catalog(detect_install_state=True, managed_tool_records=managed_tool_records)})
+            return
+        if parsed.path == "/api/scan-profiles":
+            db = ObservatoryDB(self.db_path)
+            try:
+                managed_tool_records = db.list_managed_tools()
+            finally:
+                db.close()
+            self.send_json({"items": scan_profile_catalog(detect_install_state=True, managed_tool_records=managed_tool_records)})
+            return
+        if parsed.path == "/api/install-preview":
+            query = parse_qs(parsed.query)
+            tool_id = query.get("toolId", query.get("tool_id", [""]))[0]
+            pack_id = query.get("packId", query.get("pack_id", [""]))[0]
+            db = ObservatoryDB(self.db_path)
+            try:
+                managed_tool_records = db.list_managed_tools()
+            finally:
+                db.close()
+            if tool_id:
+                catalog = tool_catalog(detect_install_state=True, managed_tool_records=managed_tool_records)
+                item = next((tool for tool in catalog if tool.get("id") == tool_id), None)
+                if not item:
+                    self.send_error(404, "Tool not found.")
+                    return
+                self.send_json({"preview": item.get("install_preview"), "tool": item})
+                return
+            if pack_id:
+                packs = security_pack_catalog(detect_install_state=True, managed_tool_records=managed_tool_records)
+                item = next((pack for pack in packs if pack.get("id") == pack_id), None)
+                if not item:
+                    self.send_error(404, "Security Pack not found.")
+                    return
+                self.send_json({"preview": item.get("install_preview"), "pack": item})
+                return
+            self.send_error(400, "toolId or packId is required.")
             return
         if parsed.path == "/api/honey/keys":
             query = parse_qs(parsed.query)
@@ -962,6 +1025,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/honey/trigger":
             self.trigger_honey_key(parsed, method="POST")
             return
+        if parsed.path == "/api/managed-tools/install":
+            self.install_managed_tool()
+            return
+        if parsed.path == "/api/managed-tools/uninstall":
+            self.uninstall_managed_tool()
+            return
         if parsed.path != "/api/run-check":
             self.send_error(404)
             return
@@ -997,6 +1066,83 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             thread = threading.Thread(target=run_check_job, args=(job_id, self.db_path, repo_path, args), daemon=True)
             thread.start()
             self.send_json({"job": job_snapshot(job_id)})
+        except Exception as exc:
+            self.send_error(500, str(exc))
+
+    def install_managed_tool(self) -> None:
+        try:
+            payload = self.read_json_body()
+            tool_id = str(payload.get("toolId") or payload.get("tool_id") or "").strip()
+            if not payload.get("confirmManagedInstall"):
+                self.send_error(400, "Confirm managed install before downloading a DëvSec-owned tool.")
+                return
+            install_record = install_managed_tool_files(tool_id)
+            db = ObservatoryDB(self.db_path)
+            try:
+                record = db.record_managed_tool(
+                    tool_id=str(install_record["tool_id"]),
+                    version=str(install_record["version"]),
+                    install_root=str(install_record["install_root"]),
+                    binary_path=str(install_record["binary_path"]),
+                    source=str(install_record["source"]),
+                    checksum=str(install_record["checksum"]),
+                    installer_version=str(install_record["installer_version"]),
+                    ownership_id=str(install_record["ownership_id"]),
+                    installed_at=str(install_record["installed_at"]),
+                    active=True,
+                    version_check_status=str(install_record["version_check_status"]),
+                    version_check_output=str(install_record.get("version_check_output") or ""),
+                    version_checked_at=str(install_record["version_checked_at"]),
+                    metadata=dict(install_record.get("metadata") or {}),
+                )
+                managed_tool_records = db.list_managed_tools()
+            finally:
+                db.close()
+            tool = _catalog_tool(tool_id, managed_tool_records)
+            self.send_json(
+                {
+                    "managed_tool": record,
+                    "tool": tool,
+                    "preview": (tool or {}).get("install_preview"),
+                }
+            )
+        except ManagedToolInstallError as exc:
+            self.send_error(400, str(exc))
+        except Exception as exc:
+            self.send_error(500, str(exc))
+
+    def uninstall_managed_tool(self) -> None:
+        try:
+            payload = self.read_json_body()
+            tool_id = str(payload.get("toolId") or payload.get("tool_id") or "gitleaks").strip()
+            ownership_id = str(payload.get("ownershipId") or payload.get("ownership_id") or "").strip()
+            if not payload.get("confirmManagedUninstall"):
+                self.send_error(400, "Confirm managed uninstall before removing a DëvSec-owned tool.")
+                return
+
+            db = ObservatoryDB(self.db_path)
+            try:
+                managed_tool_records = db.list_managed_tools()
+                record = _managed_record_for_uninstall(managed_tool_records, tool_id=tool_id, ownership_id=ownership_id)
+                if record is None:
+                    self.send_error(404, "DëvSec-owned managed tool not found.")
+                    return
+                removal = uninstall_managed_tool_files(record)
+                deactivated = db.deactivate_managed_tool(str(record["ownership_id"]))
+                managed_tool_records = db.list_managed_tools()
+            finally:
+                db.close()
+            tool = _catalog_tool(tool_id, managed_tool_records)
+            self.send_json(
+                {
+                    "removed": removal,
+                    "managed_tool": deactivated,
+                    "tool": tool,
+                    "preview": (tool or {}).get("install_preview"),
+                }
+            )
+        except ManagedToolInstallError as exc:
+            self.send_error(400, str(exc))
         except Exception as exc:
             self.send_error(500, str(exc))
 
@@ -1254,6 +1400,37 @@ def _is_safe_honeykeys_path(path: str) -> bool:
     clean = Path(path)
     parts = clean.parts
     return len(parts) >= 3 and parts[0] == ".devsec" and parts[1] == "honeykeys"
+
+
+def _catalog_tool(tool_id: str, managed_tool_records: list[dict[str, Any]]) -> dict[str, Any] | None:
+    return next(
+        (
+            tool
+            for tool in tool_catalog(detect_install_state=True, managed_tool_records=managed_tool_records)
+            if tool.get("id") == tool_id
+        ),
+        None,
+    )
+
+
+def _managed_record_for_uninstall(
+    records: list[dict[str, Any]],
+    *,
+    tool_id: str,
+    ownership_id: str,
+) -> dict[str, Any] | None:
+    candidates = [
+        record
+        for record in records
+        if str(record.get("tool_id") or "") == tool_id
+        and (not ownership_id or str(record.get("ownership_id") or "") == ownership_id)
+    ]
+    verified = [record for record in candidates if managed_tool_evidence(record).verified]
+    if len(verified) == 1:
+        return verified[0]
+    if ownership_id and candidates:
+        return candidates[0]
+    return None
 
 
 def serve_dashboard(db_path: Path, assets_dir: Path, port: int, open_browser: bool) -> None:

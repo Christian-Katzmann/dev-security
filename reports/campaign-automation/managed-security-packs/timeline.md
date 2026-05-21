@@ -14,3 +14,98 @@
 - `2026-05-21T18:57:24+00:00` Verified automation `d-vsec-managed-security-packs` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
 - `2026-05-21T18:59:46+00:00` Automation `d-vsec-managed-security-packs` has no scheduler run since `1779389851000` in the Codex app registry.
 - `2026-05-21T19:00:04+00:00` Verified automation `d-vsec-managed-security-packs` launched thread `019e4be8-975f-7ce1-bd87-dd5bb8ac9320` with status `IN_PROGRESS`.
+- `2026-05-21T19:03:30+00:00` Completed Step 1.1 documentation and advanced cursor to Step 1.2.
+- `2026-05-21T19:04:51+00:00` Registered fallback automation `d-vsec-managed-security-packs-1-2-20260521-2105` for Step 1.2 at 2026-05-21T21:06:00+02:00.
+- `2026-05-21T19:04:59+00:00` Verified fallback automation d-vsec-managed-security-packs-1-2-20260521-2105 is ACTIVE with gpt-5.5/xhigh.
+- `2026-05-21T19:05:04+00:00` Recorded fallback automation d-vsec-managed-security-packs-1-2-20260521-2105 for parser next step 1.2.
+- `2026-05-21T19:05:19+00:00` Released Step 1.1 lock before fallback launch proof so Step 1.2 automation can acquire it.
+- `2026-05-21T19:06:51+00:00` Verified fallback automation d-vsec-managed-security-packs-1-2-20260521-2105 launched from scheduler.
+- `2026-05-21T19:06:57+00:00` Paused completed automation d-vsec-managed-security-packs after verified fallback launch.
+- `2026-05-21T19:07:01+00:00` Verified completed automation d-vsec-managed-security-packs is PAUSED in registry.
+- `2026-05-21T19:10:04+00:00` Completed step 1.2; parser next is step 2.1 Add install preview and ownership tracking.
+- `2026-05-21T19:10:57+00:00` Registered fallback automation `d-vsec-managed-security-packs-2-1-20260521-2112` for step 2.1; awaiting scheduler-run proof.
+- `2026-05-21T19:11:07+00:00` Verified fallback automation d-vsec-managed-security-packs-2-1-20260521-2112 is ACTIVE in the Codex app registry.
+- `2026-05-21T19:12:45+00:00` Verified fallback automation d-vsec-managed-security-packs-2-1-20260521-2112 launched a scheduler run for step 2.1.
+- `2026-05-21T19:12:50+00:00` Recorded verified automation d-vsec-managed-security-packs-2-1-20260521-2112 for step 2.1 Add install preview and ownership tracking.
+- `2026-05-21T19:12:57+00:00` Paused completed automation d-vsec-managed-security-packs-1-2-20260521-2105 after verified step 2.1 chain.
+- `2026-05-21T19:13:07+00:00` Verified completed automation d-vsec-managed-security-packs-1-2-20260521-2105 is PAUSED in the Codex app registry.
+- `2026-05-21T19:24:08+00:00` Completed step 2.1; parser now points to step 2.2 Implement one safe managed install path.
+- `2026-05-21T19:24:46+00:00` Registered fallback automation `d-vsec-managed-security-packs-2-2-20260521-2124` for step 2.2 at 2026-05-21T21:26:00+02:00.
+- `2026-05-21T19:24:54+00:00` Verified fallback automation d-vsec-managed-security-packs-2-2-20260521-2124 is ACTIVE in the Codex app registry.
+- `2026-05-21T19:25:02+00:00` Recorded verified automation d-vsec-managed-security-packs-2-2-20260521-2124 for step 2.2.
+- `2026-05-21T19:26:39+00:00` Verified fallback automation d-vsec-managed-security-packs-2-2-20260521-2124 launched a scheduler run.
+- `2026-05-21T19:26:51+00:00` Paused current automation d-vsec-managed-security-packs-2-1-20260521-2112 after verified step 2.2 launch.
+- `2026-05-21T19:26:57+00:00` Verified current automation d-vsec-managed-security-packs-2-1-20260521-2112 is PAUSED in the Codex app registry.
+- `2026-05-21T19:27:04+00:00` Recorded current automation d-vsec-managed-security-packs-2-1-20260521-2112 as PAUSED after registry verification.
+- `2026-05-21T19:27:42+00:00` Released step 2.1 automation lock and stopped after one bounded unit.
+- `2026-05-21T19:36:41+00:00` Step 2.2 completed: safe Gitleaks managed install/uninstall API proof implemented; cursor advanced to Step 2.3.
+- `2026-05-21T19:37:27+00:00` Registered next automation `d-vsec-managed-security-packs-2-3-20260521-2139` for Step 2.3 at 2026-05-21T21:39:00+02:00.
+- `2026-05-21T19:37:36+00:00` Verified next automation `d-vsec-managed-security-packs-2-3-20260521-2139` is ACTIVE in the Codex registry with GPT-5.5/xhigh.
+- `2026-05-21T19:37:43+00:00` Recorded next automation `d-vsec-managed-security-packs-2-3-20260521-2139` for Step 2.3 after registry verification.
+- `2026-05-21T19:39:22+00:00` Verified fallback-created next automation `d-vsec-managed-security-packs-2-3-20260521-2139` launched a scheduler run.
+- `2026-05-21T19:39:55+00:00` Paused current automation `d-vsec-managed-security-packs-2-2-20260521-2124` after verified Step 2.3 launch.
+- `2026-05-21T19:40:06+00:00` Verified current automation `d-vsec-managed-security-packs-2-2-20260521-2124` is PAUSED in the Codex registry.
+- `2026-05-21T19:40:27+00:00` Recorded current automation `d-vsec-managed-security-packs-2-2-20260521-2124` as PAUSED after registry verification.
+- `2026-05-21T19:40:27+00:00` Released Step 2.2 automation lock and stopped after one bounded unit.
+- `2026-05-21T19:50:44+00:00` Completed Step 2.3: scan profiles now point to packs, evidence gaps recommend pack/tool pages, and scanner doctor messaging uses pack readiness. Next unit: step 3.1 Build pack pages and preview flows.
+- `2026-05-21T19:51:39+00:00` Registered next automation d-vsec-managed-security-packs-3-1-20260521-2152 for step 3.1 Build pack pages and preview flows.
+- `2026-05-21T19:51:45+00:00` Verified next automation d-vsec-managed-security-packs-3-1-20260521-2152 is ACTIVE in the Codex app registry with gpt-5.5/xhigh.
+- `2026-05-21T19:51:52+00:00` Recorded next automation d-vsec-managed-security-packs-3-1-20260521-2152 for parser next step 3.1.
+- `2026-05-21T19:52:33+00:00` Verified registry-fallback automation d-vsec-managed-security-packs-3-1-20260521-2152 produced a scheduler run after its scheduled time.
+- `2026-05-21T19:52:41+00:00` Paused current automation d-vsec-managed-security-packs-2-3-20260521-2139 after verified Step 3.1 chain launch.
+- `2026-05-21T19:52:46+00:00` Verified current automation d-vsec-managed-security-packs-2-3-20260521-2139 is PAUSED in the Codex app registry.
+- `2026-05-21T20:06:26+00:00` Completed Step 3.1: dashboard now has Security Pack pages, Coming Soon pack pages/cards, pack install previews, and bounded Gitleaks managed install/uninstall controls; parser now points to Step 3.2.
+- `2026-05-21T20:07:21+00:00` Registered next automation d-vsec-managed-security-packs-3-2-20260521-2209 for Step 3.2 at 2026-05-21T22:09:00+02:00.
+- `2026-05-21T20:07:29+00:00` Verified next automation d-vsec-managed-security-packs-3-2-20260521-2209 is ACTIVE in the Codex app registry with gpt-5.5/xhigh.
+- `2026-05-21T20:07:36+00:00` Recorded next automation d-vsec-managed-security-packs-3-2-20260521-2209 for parser next step 3.2 after registry verification.
+- `2026-05-21T20:09:32+00:00` Verified registry-fallback automation d-vsec-managed-security-packs-3-2-20260521-2209 produced a scheduler run after its scheduled time.
+- `2026-05-21T20:09:40+00:00` Paused current automation d-vsec-managed-security-packs-3-1-20260521-2152 after verified Step 3.2 chain launch.
+- `2026-05-21T20:09:49+00:00` Verified current automation d-vsec-managed-security-packs-3-1-20260521-2152 is PAUSED in the Codex app registry.
+- `2026-05-21T20:10:03+00:00` Recorded current automation d-vsec-managed-security-packs-3-1-20260521-2152 as PAUSED after registry verification.
+- `2026-05-21T20:10:13+00:00` Released Step 3.1 automation lock and stopped after one bounded unit.
+- `2026-05-21T20:13:08+00:00` Completed step 3.2 validation; parser now points to final_review.
+- `2026-05-21T20:13:32+00:00` Registered fallback final-review automation in Codex app registry.
+- `2026-05-21T20:13:40+00:00` Verified final-review automation is ACTIVE in the Codex app registry.
+- `2026-05-21T20:13:49+00:00` Recorded final-review automation after registry verification.
+- `2026-05-21T20:15:32+00:00` Verified fallback final-review automation produced a scheduler run.
+- `2026-05-21T20:15:42+00:00` Paused current step 3.2 automation after verified final-review chain.
+- `2026-05-21T20:15:49+00:00` Verified current automation is PAUSED in the Codex app registry.
+- `2026-05-21T20:15:49+00:00` Recorded current automation as PAUSED after registry verification.
+- `2026-05-21T20:16:17+00:00` Released Step 3.2 automation lock and stopped after one bounded unit.
+- `2026-05-21T20:19:46+00:00` Final review verdict: NEEDS WORK. Managed Gitleaks install is not wired into scanner execution; next unit should repair managed-binary command resolution.
+- `2026-05-21T20:20:32+00:00` Registered fallback automation d-vsec-managed-security-packs-final-rework-20260521-2222 for final_rework at 2026-05-21T22:22:00+02:00.
+- `2026-05-21T20:20:39+00:00` Verified fallback final-rework automation d-vsec-managed-security-packs-final-rework-20260521-2222 is ACTIVE in the Codex app registry with gpt-5.5/xhigh.
+- `2026-05-21T20:20:45+00:00` Recorded final-rework automation d-vsec-managed-security-packs-final-rework-20260521-2222 for parser next final_rework after registry verification.
+- `2026-05-21T20:22:15+00:00` Verified fallback final-rework automation d-vsec-managed-security-packs-final-rework-20260521-2222 produced a scheduler run after its scheduled time.
+- `2026-05-21T20:23:43+00:00` Verified fallback final-rework automation d-vsec-managed-security-packs-final-rework-20260521-2222 produced a scheduler run after its scheduled time.
+- `2026-05-21T20:23:56+00:00` Paused current final-review automation d-vsec-managed-security-packs-final-review-20260521-2215 after verified final-rework chain launch.
+- `2026-05-21T20:23:56+00:00` Verified current final-review automation d-vsec-managed-security-packs-final-review-20260521-2215 is PAUSED in the Codex app registry.
+- `2026-05-21T20:23:56+00:00` Recorded current final-review automation d-vsec-managed-security-packs-final-review-20260521-2215 as PAUSED after registry verification.
+- `2026-05-21T20:24:04+00:00` Released final-review automation lock and stopped after one bounded unit.
+- `2026-05-21T20:24:12+00:00` Skipped final_rework automation d-vsec-managed-security-packs-final-rework-20260521-2222 because lock from d-vsec-managed-security-packs-final-review-20260521-2215 is younger than 6 hours.
+- `2026-05-21T20:24:52+00:00` Paused skipped final-rework automation d-vsec-managed-security-packs-final-rework-20260521-2222 after it launched before the final-review lock was released.
+- `2026-05-21T20:24:52+00:00` Verified skipped final-rework automation d-vsec-managed-security-packs-final-rework-20260521-2222 is PAUSED in the Codex app registry.
+- `2026-05-21T20:25:01+00:00` Lock released before final_rework work began; proceeding after re-checking parser next and acquiring a fresh final_rework lock.
+- `2026-05-21T20:25:14+00:00` Registered replacement fallback automation d-vsec-managed-security-packs-final-rework-20260521-2226 for final_rework at 2026-05-21T22:26:00+02:00 after the previous rework launch hit the old lock.
+- `2026-05-21T20:25:14+00:00` Verified replacement final-rework automation d-vsec-managed-security-packs-final-rework-20260521-2226 is ACTIVE in the Codex app registry with gpt-5.5/xhigh.
+- `2026-05-21T20:25:14+00:00` Recorded replacement final-rework automation d-vsec-managed-security-packs-final-rework-20260521-2226 for parser next final_rework after registry verification.
+- `2026-05-21T20:26:58+00:00` Verified replacement final-rework automation d-vsec-managed-security-packs-final-rework-20260521-2226 produced a scheduler run after its scheduled time.
+
+- 2026-05-21T20:27:52.936564+00:00 skipped final_rework: lock exists and is 2.7 minutes old.
+- `2026-05-21T20:27:54+00:00` Paused replacement final-rework automation d-vsec-managed-security-packs-final-rework-20260521-2226 after the earlier final-rework run acquired the fresh lock and became the active owner.
+- `2026-05-21T20:27:54+00:00` Verified replacement final-rework automation d-vsec-managed-security-packs-final-rework-20260521-2226 is PAUSED in the Codex app registry to avoid duplicate rework runs.
+- `2026-05-21T20:31:12+00:00` Final rework completed: managed Gitleaks scanner execution now resolves verified DëvSec-owned binary and receipt was written.
+- `2026-05-21T20:31:59+00:00` Registered fallback automation d-vsec-managed-security-packs-final-review-rerun-20260521-2233 for final_review rerun at 2026-05-21T22:33:00+02:00.
+- `2026-05-21T20:32:05+00:00` Verified final-review rerun automation d-vsec-managed-security-packs-final-review-rerun-20260521-2233 is ACTIVE in the Codex app registry with gpt-5.5/xhigh.
+- `2026-05-21T20:32:21+00:00` Recorded final-review rerun automation d-vsec-managed-security-packs-final-review-rerun-20260521-2233 for parser next final_review after registry verification.
+- `2026-05-21T20:33:28+00:00` Verified fallback final-review rerun automation d-vsec-managed-security-packs-final-review-rerun-20260521-2233 produced a scheduler run after its scheduled time.
+- `2026-05-21T20:33:37+00:00` Paused current final-rework automation d-vsec-managed-security-packs-final-rework-20260521-2222 after verified final-review rerun launch.
+- `2026-05-21T20:33:47+00:00` Verified current final-rework automation d-vsec-managed-security-packs-final-rework-20260521-2222 is PAUSED in the Codex app registry.
+- `2026-05-21T20:33:53+00:00` Recorded current final-rework automation d-vsec-managed-security-packs-final-rework-20260521-2222 as PAUSED after registry verification.
+- `2026-05-21T20:34:07+00:00` Released final-rework automation lock and stopped after one bounded final rework unit.
+- `2026-05-21T20:34:20+00:00` Verified automation `d-vsec-managed-security-packs-final-review-rerun-20260521-2233` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T20:38:36+00:00` Final review approved; campaign marked complete.
+- `2026-05-21T20:39:25+00:00` Paused final-review rerun automation after campaign approval.
+- `2026-05-21T20:39:35+00:00` Verified final-review rerun automation is PAUSED after campaign completion.
+- `2026-05-21T20:39:35+00:00` Verified automation `d-vsec-managed-security-packs-final-review-rerun-20260521-2233` in Codex app registry as PAUSED with model gpt-5.5/xhigh.
+- `2026-05-21T20:39:49+00:00` Released final-review rerun lock and stopped after campaign completion.

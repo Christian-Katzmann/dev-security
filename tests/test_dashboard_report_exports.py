@@ -58,7 +58,12 @@ def test_dashboard_payload_exposes_detection_backed_tool_catalog(tmp_path, monke
         db.close()
 
     catalog = {item["id"]: item for item in summary["tool_catalog"]}
+    packs = {item["id"]: item for item in summary["security_packs"]}
+    profiles = {item["id"]: item for item in summary["scan_profiles"]}
     assert summary["scanner_catalog"]
+    assert packs["starter"]["primary_profile"] == "quick"
+    assert profiles["quick"]["recommended_pack_ids"] == ["starter"]
+    assert profiles["quick"]["recommended_packs"][0]["id"] == "starter"
     assert catalog["semgrep"]["install_state"] == "detected"
     assert "Detected locally" in catalog["semgrep"]["derived_labels"]["install"]
     assert catalog["semgrep"]["policy"]["allowed_for_agent_lab"] is True

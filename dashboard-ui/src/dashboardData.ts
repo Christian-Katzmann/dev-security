@@ -22,6 +22,11 @@ export type ScannerCatalogItem = {
   install: string;
   next_step: string;
   built_in?: boolean;
+  tool_id?: string;
+  category?: string;
+  profile_ids?: string[];
+  recommended_pack_ids?: ToolPackId[];
+  install_state?: ToolInstallState;
 };
 
 export type ToolKind = 'scanner' | 'plugin' | 'app' | 'mcp-connector' | 'workflow';
@@ -108,6 +113,54 @@ export type ToolDerivedLabels = {
   agent_lab: string;
 };
 
+export type ToolInstallPreview = {
+  tool_id?: string;
+  pack_id?: string;
+  install_state?: ToolInstallState | string;
+  action: string;
+  preview_available: boolean;
+  execution_available: boolean;
+  execution_reason?: string;
+  managed?: boolean;
+  approved_managed_proof?: boolean;
+  target_version?: string;
+  target_version_label?: string;
+  install_method?: string;
+  install_root?: string;
+  binary_path?: string;
+  shim_path?: string;
+  owned_paths?: string[];
+  network_access?: boolean;
+  version_check?: {
+    status?: string;
+    command?: string[];
+    output?: string;
+    timeout_seconds?: number;
+  };
+  uninstall_boundary?: string;
+  detected_user_binary?: string | null;
+  ownership?: ManagedToolOwnership;
+  pack_install_supported?: boolean;
+  status_counts?: Record<string, number>;
+  notes?: string[];
+  tool_previews?: ToolInstallPreview[];
+  leaves_detected_tools_alone?: boolean;
+};
+
+export type ManagedToolOwnership = {
+  tool_id: string;
+  ownership_id: string | null;
+  verified: boolean;
+  status: string;
+  install_root: string | null;
+  binary_path: string | null;
+  version: string | null;
+  source: string | null;
+  installed_at: string | null;
+  evidence: string[];
+  problems: string[];
+};
+
 export type ToolCatalogItem = {
   id: string;
   kind: ToolKind;
@@ -125,6 +178,8 @@ export type ToolCatalogItem = {
   derived_labels: ToolDerivedLabels;
   packs: ToolPackMembership[];
   profiles: string[];
+  managed_ownership?: ManagedToolOwnership;
+  install_preview?: ToolInstallPreview;
   docs_path?: string;
   homepage_url?: string;
 };
@@ -133,7 +188,70 @@ export type ToolCatalogPayload = {
   items: ToolCatalogItem[];
 };
 
+export type SecurityPackTool = {
+  id: string;
+  label: string;
+  summary: string;
+  role: ToolPackRole;
+  default_enabled: boolean;
+  install_state: ToolInstallState;
+  lifecycle: ToolLifecycle;
+  derived_labels?: ToolDerivedLabels;
+  install_preview?: ToolInstallPreview;
+};
+
+export type SecurityPackCatalogItem = {
+  id: ToolPackId;
+  label: string;
+  summary: string;
+  mvp_state: 'real' | 'coming-soon' | string;
+  visibility: string;
+  primary_profile: string | null;
+  secondary_profiles: string[];
+  status_counts: Record<string, number>;
+  ready_count: number;
+  missing_count: number;
+  display_only_count: number;
+  tools: SecurityPackTool[];
+  install_preview: ToolInstallPreview;
+};
+
+export type ScanProfilePackReference = {
+  id: ToolPackId;
+  label: string;
+  mvp_state: string;
+  visibility: string;
+  ready_count: number;
+  missing_count: number;
+  display_only_count: number;
+  status_counts: Record<string, number>;
+};
+
+export type ScanProfileCatalogItem = {
+  id: string;
+  label: string;
+  command: string;
+  summary: string;
+  scanner_keys: string[];
+  primary_pack_ids: ToolPackId[];
+  supporting_pack_ids: ToolPackId[];
+  recommended_pack_ids: ToolPackId[];
+  recommended_packs: ScanProfilePackReference[];
+  notes: string[];
+};
+
 export type ScannerDoctorStatus = 'ran' | 'missing' | 'error' | 'not-run';
+
+export type ScannerRecommendedPack = {
+  id: ToolPackId;
+  label: string;
+  mvp_state: string;
+  visibility: string;
+  ready_count: number;
+  missing_count: number;
+  display_only_count: number;
+  status_counts: Record<string, number>;
+};
 
 export type ScannerDoctorItem = ScannerCatalogItem & {
   status: ScannerDoctorStatus;
@@ -142,6 +260,8 @@ export type ScannerDoctorItem = ScannerCatalogItem & {
   command?: string[];
   error?: string | null;
   action: string;
+  tool?: ToolCatalogItem;
+  recommendedPacks: ScannerRecommendedPack[];
 };
 
 export type ScannerDoctorGroup = {
@@ -571,6 +691,9 @@ export type DashboardSummary = {
   honey_event_retention_days?: number;
   scanner_catalog?: ScannerCatalogItem[];
   tool_catalog?: ToolCatalogItem[];
+  security_packs?: SecurityPackCatalogItem[];
+  scan_profiles?: ScanProfileCatalogItem[];
+  managed_tools?: unknown[];
   completeness?: {
     checks_ran?: string[];
     checks_skipped?: string[];
@@ -1108,6 +1231,10 @@ export function toolCatalogItems(summary: DashboardSummary): ToolCatalogItem[] {
   return summary.tool_catalog ?? [];
 }
 
+export function securityPackItems(summary: DashboardSummary): SecurityPackCatalogItem[] {
+  return summary.security_packs ?? [];
+}
+
 function scannerCatalogForSummary(summary: DashboardSummary): ScannerCatalogItem[] {
   if (summary.scanner_catalog?.length) return summary.scanner_catalog;
   const legacyItems = (summary.tool_catalog ?? [])
@@ -1129,12 +1256,53 @@ function scannerCatalogForSummary(summary: DashboardSummary): ScannerCatalogItem
   return legacyItems.length ? legacyItems : defaultScannerCatalog;
 }
 
+function toolByScanner(summary: DashboardSummary): Map<string, ToolCatalogItem> {
+  const tools = new Map<string, ToolCatalogItem>();
+  for (const item of summary.tool_catalog ?? []) {
+    if (item.scanner_key) tools.set(item.scanner_key, item);
+  }
+  return tools;
+}
+
+function packById(summary: DashboardSummary): Map<ToolPackId, SecurityPackCatalogItem> {
+  return new Map((summary.security_packs ?? []).map((pack) => [pack.id, pack]));
+}
+
+function recommendedPacksForScanner(item: ScannerCatalogItem, tool: ToolCatalogItem | undefined, packs: Map<ToolPackId, SecurityPackCatalogItem>): ScannerRecommendedPack[] {
+  const packIds = item.recommended_pack_ids?.length
+    ? item.recommended_pack_ids
+    : tool?.packs.map((pack) => pack.pack_id) ?? [];
+  const seen = new Set<ToolPackId>();
+  return packIds
+    .filter((packId) => {
+      if (seen.has(packId)) return false;
+      seen.add(packId);
+      return true;
+    })
+    .map((packId) => packs.get(packId))
+    .filter((pack): pack is SecurityPackCatalogItem => Boolean(pack))
+    .map((pack) => ({
+      id: pack.id,
+      label: pack.label,
+      mvp_state: pack.mvp_state,
+      visibility: pack.visibility,
+      ready_count: pack.ready_count,
+      missing_count: pack.missing_count,
+      display_only_count: pack.display_only_count,
+      status_counts: pack.status_counts,
+    }));
+}
+
 export function scannerDoctorGroups(summary: DashboardSummary): ScannerDoctorGroup[] {
   const catalog = scannerCatalogForSummary(summary);
   const statuses = latestScannerStatuses(summary);
+  const tools = toolByScanner(summary);
+  const packs = packById(summary);
   const groups = new Map<string, ScannerDoctorItem[]>();
 
   for (const item of catalog) {
+    const tool = tools.get(item.scanner);
+    const recommendedPacks = recommendedPacksForScanner(item, tool, packs);
     const records = statuses.get(item.scanner) ?? [];
     const failed = records.find((record) => !record.status.available || record.status.error);
     const successful = records.find((record) => record.status.available && !record.status.error);
@@ -1143,7 +1311,7 @@ export function scannerDoctorGroups(summary: DashboardSummary): ScannerDoctorGro
       : successful ? 'ran' : 'not-run';
     const findings = records.reduce((sum, record) => sum + (record.status.findings ?? 0), 0);
     const repoNames = [...new Set(records.map((record) => record.repoName))].sort((a, b) => a.localeCompare(b));
-    const action = scannerAction(item, status, failed?.status.error);
+    const action = scannerAction(item, status, failed?.status.error, tool, recommendedPacks);
     const doctorItem: ScannerDoctorItem = {
       ...item,
       status,
@@ -1152,6 +1320,8 @@ export function scannerDoctorGroups(summary: DashboardSummary): ScannerDoctorGro
       command: failed?.status.command ?? successful?.status.command,
       error: failed?.status.error ?? null,
       action,
+      tool,
+      recommendedPacks,
     };
     const group = groups.get(item.area) ?? [];
     group.push(doctorItem);
@@ -1192,11 +1362,41 @@ function latestScannerStatuses(summary: DashboardSummary): Map<string, {repoName
   return records;
 }
 
-function scannerAction(item: ScannerCatalogItem, status: ScannerDoctorStatus, error?: string | null): string {
-  if (status === 'ran') return `Covered by ${item.profile}. Findings: review the cases above.`;
-  if (status === 'not-run') return item.next_step;
-  if (status === 'missing') return item.install;
+function scannerAction(
+  item: ScannerCatalogItem,
+  status: ScannerDoctorStatus,
+  error?: string | null,
+  tool?: ToolCatalogItem,
+  recommendedPacks: ScannerRecommendedPack[] = [],
+): string {
+  const packText = recommendedPacks.length ? ` via ${recommendedPacks.map((pack) => pack.label).join(', ')}` : '';
+  const profileHint = tool?.capabilities.scan_profiles[0] ?? item.profile_ids?.[0] ?? item.profile.split(',')[0]?.trim();
+  const profileText = profileHint ? `the ${profileHint} profile` : 'the matching scan profile';
+  const installState = tool?.install_state ?? item.install_state;
+  const readyNow = installState === 'built-in' || installState === 'managed' || installState === 'detected';
+  const packReadiness = recommendedPacks.length
+    ? ` Pack readiness: ${recommendedPacks.map((pack) => `${pack.label} ${pack.ready_count} ready/${pack.missing_count} missing`).join('; ')}.`
+    : '';
+  if (status === 'ran') return `Covered by ${item.profile}.${packReadiness} Findings: review the cases above.`;
+  if (status === 'not-run') {
+    if (readyNow) return `${tool?.label ?? item.label} is ${installStateLabel(installState)}${packText}; run ${profileText} when you need this evidence.`;
+    return `${item.next_step}${packText ? ` Pack context: open ${recommendedPacks.map((pack) => pack.label).join(', ')} before trusting a clean result.` : ''}`;
+  }
+  if (status === 'missing') {
+    if (readyNow) return `${tool?.label ?? item.label} is now ${installStateLabel(installState)}${packText}; rerun ${profileText} to replace this old evidence gap.`;
+    return `${item.install}${packText ? ` Recommended: open ${recommendedPacks.map((pack) => pack.label).join(', ')} or the ${tool?.label ?? item.label} tool page, then rerun ${profileText}.` : ''}`;
+  }
   return error ? `Fix this scanner error, then rerun: ${error}` : `Run security-scan doctor, fix ${item.label}, then rerun the scan.`;
+}
+
+function installStateLabel(state?: ToolInstallState | string): string {
+  if (state === 'built-in') return 'built in';
+  if (state === 'managed') return 'DëvSec-managed';
+  if (state === 'detected') return 'detected locally';
+  if (state === 'not-configured') return 'installed but not configured';
+  if (state === 'coming-soon') return 'display-only';
+  if (state === 'unavailable') return 'unavailable';
+  return 'missing';
 }
 
 function scannerStatusRank(status: ScannerDoctorStatus): number {
@@ -1397,6 +1597,11 @@ export function filterSummaryByTarget(summary: DashboardSummary, target: TargetS
     honey_key_events: summary.honey_key_events?.filter((event) => targetProjectIds.has(event.project_id)),
     project_statuses: summary.project_statuses?.filter((status) => targetProjectIds.has(status.project_id)),
     honey_event_retention_days: summary.honey_event_retention_days,
+    scanner_catalog: summary.scanner_catalog,
+    tool_catalog: summary.tool_catalog,
+    security_packs: summary.security_packs,
+    scan_profiles: summary.scan_profiles,
+    managed_tools: summary.managed_tools,
     completeness: summary.completeness,
     scan_completeness: summary.scan_completeness,
   };

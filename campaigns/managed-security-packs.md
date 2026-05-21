@@ -45,20 +45,20 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 1 — Pack strategy
 
-- [ ] Step 1.1 — Define first-party Security Packs
-- [ ] Step 1.2 — Design install ownership and uninstall rules
+- [x] Step 1.1 — Define first-party Security Packs
+- [x] Step 1.2 — Design install ownership and uninstall rules
 
 ### Phase 2 — Managed install proof
 
-- [ ] Step 2.1 — Add install preview and ownership tracking
-- [ ] Step 2.2 — Implement one safe managed install path
-- [ ] Step 2.3 — Wire pack install status into scans
+- [x] Step 2.1 — Add install preview and ownership tracking
+- [x] Step 2.2 — Implement one safe managed install path
+- [x] Step 2.3 — Wire pack install status into scans
 
 ### Phase 3 — Pack UX and verification
 
-- [ ] Step 3.1 — Build pack pages and preview flows
-- [ ] Step 3.2 — Validate installs without overheating the machine
-- [ ] Final review
+- [x] Step 3.1 — Build pack pages and preview flows
+- [x] Step 3.2 — Validate installs without overheating the machine
+- [x] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
 

@@ -298,7 +298,7 @@ def scan_repo(
         "severity_counts": counts,
         "category_counts": category_counts,
         "scanners": statuses,
-        "evidence_gaps": scanner_evidence_gaps(statuses),
+        "evidence_gaps": scanner_evidence_gaps(statuses, profile=profile_name(args)),
         "cases": [case.to_dict() for case in cases],
         "findings": [finding.to_dict() for finding in unique_findings],
         "ioc_matches": [ioc_match_payload(finding) for finding in unique_findings if finding.category == "supply-chain-ioc"],

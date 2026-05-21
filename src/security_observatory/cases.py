@@ -5,6 +5,7 @@ from typing import Any, Iterable
 import hashlib
 import re
 
+from .catalog import SECURITY_PACK_DEFINITIONS, current_scan_profiles, scanner_catalog_compat
 from .model import Finding, SEVERITY_ORDER, SecurityCase, normalize_severity
 from .priority import decide_action_level
 from .recency import rotation_surfaces_from_json
@@ -41,7 +42,11 @@ def build_security_cases(
     )
 
 
-def scanner_evidence_gaps(scanners: Iterable[dict[str, Any]]) -> list[dict[str, str]]:
+def scanner_evidence_gaps(scanners: Iterable[dict[str, Any]], profile: str | None = None) -> list[dict[str, Any]]:
+    scanner_index = {str(item.get("scanner")): item for item in scanner_catalog_compat()}
+    profile_index = {str(item.get("id")): item for item in current_scan_profiles()}
+    pack_labels = {definition.id.value: definition.label for definition in SECURITY_PACK_DEFINITIONS}
+    active_profile = profile_index.get(str(profile or ""))
     gaps = []
     for scanner in scanners:
         if not isinstance(scanner, dict):
@@ -50,8 +55,45 @@ def scanner_evidence_gaps(scanners: Iterable[dict[str, Any]]) -> list[dict[str, 
             continue
         name = str(scanner.get("scanner") or "unknown scanner")
         reason = scanner.get("error") or "tool was not available"
-        gaps.append({"scanner": name, "reason": str(reason)})
+        metadata = scanner_index.get(name, {})
+        profile_ids = [str(item) for item in metadata.get("profile_ids", []) if str(item).strip()]
+        recommended_pack_ids = _ordered_gap_pack_ids(metadata, active_profile)
+        recommended_profile_id = _recommended_profile_id(profile_ids, active_profile)
+        gap: dict[str, Any] = {
+            "scanner": name,
+            "reason": str(reason),
+        }
+        if metadata.get("tool_id"):
+            gap["tool_id"] = metadata["tool_id"]
+            gap["tool_label"] = metadata.get("label") or name
+            gap["tool_page"] = {"id": metadata["tool_id"], "label": metadata.get("label") or name}
+        if profile_ids:
+            gap["profile_ids"] = profile_ids
+        if recommended_profile_id:
+            gap["recommended_profile_id"] = recommended_profile_id
+        if recommended_pack_ids:
+            gap["recommended_pack_ids"] = recommended_pack_ids
+            gap["pack_pages"] = [{"id": pack_id, "label": pack_labels.get(pack_id, pack_id)} for pack_id in recommended_pack_ids]
+        if metadata.get("next_step"):
+            gap["next_step"] = metadata["next_step"]
+        gaps.append(gap)
     return gaps
+
+
+def _ordered_gap_pack_ids(metadata: dict[str, Any], active_profile: dict[str, Any] | None) -> list[str]:
+    pack_ids = [str(item) for item in metadata.get("recommended_pack_ids", []) if str(item).strip()]
+    if not pack_ids:
+        return []
+    active_pack_ids = [str(item) for item in (active_profile or {}).get("recommended_pack_ids", []) if str(item).strip()]
+    ordered = [pack_id for pack_id in active_pack_ids if pack_id in pack_ids]
+    ordered.extend(pack_id for pack_id in pack_ids if pack_id not in ordered)
+    return ordered
+
+
+def _recommended_profile_id(profile_ids: list[str], active_profile: dict[str, Any] | None) -> str | None:
+    if active_profile and active_profile.get("id") in profile_ids:
+        return str(active_profile["id"])
+    return profile_ids[0] if profile_ids else None
 
 
 def _finding_dict(finding: Finding | dict[str, Any]) -> dict[str, Any]:

@@ -146,6 +146,15 @@ function ScannerDoctorRow({item}: {item: ScannerDoctorItem}) {
       <div className="mt-3 border border-black/10 bg-white/60 p-2 font-mono text-[10px] leading-relaxed text-black/60 break-words">
         {item.action}
       </div>
+      {!!item.recommendedPacks.length && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {item.recommendedPacks.slice(0, 3).map((pack) => (
+            <span key={pack.id} className="border border-black/10 bg-[#fbfbfb] px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-black/45">
+              {pack.label} · {pack.ready_count} ready · {pack.missing_count} missing
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

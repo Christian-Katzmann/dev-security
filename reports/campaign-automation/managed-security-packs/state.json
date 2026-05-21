@@ -7,8 +7,8 @@
     "campaign_path": "/Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/managed-security-packs.md",
     "run_dir": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/managed-security-packs",
     "created_at": "2026-05-21T18:53:37+00:00",
-    "updated_at": "2026-05-21T18:54:15+00:00",
-    "status": "active",
+    "updated_at": "2026-05-21T20:39:35+00:00",
+    "status": "complete",
     "model": "gpt-5.5",
     "reasoning_effort": "xhigh",
     "execution_environment": "worktree",
@@ -16,10 +16,10 @@
     "schedule_mode": "fast-chain",
     "fast_chain_delay_minutes": 2
   },
-  "phase": "step",
+  "phase": "complete",
   "cursor": {
     "step_id": null,
-    "phase": null,
+    "phase": "3",
     "attempt": 0
   },
   "policy": {
@@ -41,13 +41,124 @@
   "automations": [
     {
       "id": "d-vsec-managed-security-packs",
-      "status": "ACTIVE",
+      "status": "PAUSED",
       "kind": "cron",
       "execution_environment": "worktree",
       "model": "gpt-5.5",
       "reasoning_effort": "xhigh",
       "created_at": "2026-05-21T18:54:15+00:00",
-      "expected_next": "step 1.1 Define first-party Security Packs"
+      "expected_next": "step 1.1 Define first-party Security Packs",
+      "updated_at": "2026-05-21T19:06:57+00:00"
+    },
+    {
+      "id": "d-vsec-managed-security-packs-1-2-20260521-2105",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T19:05:04+00:00",
+      "expected_next": "step 1.2 Design install ownership and uninstall rules",
+      "updated_at": "2026-05-21T19:12:57+00:00"
+    },
+    {
+      "id": "d-vsec-managed-security-packs-2-1-20260521-2112",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T19:12:50+00:00",
+      "expected_next": "step 2.1 Add install preview and ownership tracking",
+      "updated_at": "2026-05-21T19:27:04+00:00"
+    },
+    {
+      "id": "d-vsec-managed-security-packs-2-2-20260521-2124",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T19:25:02+00:00",
+      "expected_next": "step 2.2 Implement one safe managed install path",
+      "updated_at": "2026-05-21T19:40:27+00:00"
+    },
+    {
+      "id": "d-vsec-managed-security-packs-2-3-20260521-2139",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T19:37:43+00:00",
+      "expected_next": "step 2.3 Wire pack install status into scans",
+      "updated_at": "2026-05-21T19:52:41+00:00"
+    },
+    {
+      "id": "d-vsec-managed-security-packs-3-1-20260521-2152",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T19:51:52+00:00",
+      "expected_next": "step 3.1 Build pack pages and preview flows",
+      "updated_at": "2026-05-21T20:10:03+00:00"
+    },
+    {
+      "id": "d-vsec-managed-security-packs-3-2-20260521-2209",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T20:07:36+00:00",
+      "expected_next": "step 3.2 Validate installs without overheating the machine",
+      "updated_at": "2026-05-21T20:15:49+00:00"
+    },
+    {
+      "id": "d-vsec-managed-security-packs-final-review-20260521-2215",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T20:13:49+00:00",
+      "expected_next": "final_review Managed Security Packs",
+      "updated_at": "2026-05-21T20:23:56+00:00"
+    },
+    {
+      "id": "d-vsec-managed-security-packs-final-rework-20260521-2222",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T20:20:45+00:00",
+      "expected_next": "final_rework Managed Security Packs",
+      "updated_at": "2026-05-21T20:33:53+00:00"
+    },
+    {
+      "id": "d-vsec-managed-security-packs-final-rework-20260521-2226",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T20:25:14+00:00",
+      "expected_next": "final_rework Managed Security Packs",
+      "updated_at": "2026-05-21T20:27:54+00:00"
+    },
+    {
+      "id": "d-vsec-managed-security-packs-final-review-rerun-20260521-2233",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T20:32:21+00:00",
+      "expected_next": "final_review Managed Security Packs",
+      "updated_at": "2026-05-21T20:39:35+00:00"
     }
   ],
   "blockers": []

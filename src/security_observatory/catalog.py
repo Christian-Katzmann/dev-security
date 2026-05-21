@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, replace
 from enum import StrEnum
-from typing import Any
+from typing import Any, Iterable
 import shutil
+
+from .managed_tools import ManagedToolEvidence, build_tool_install_preview, managed_tool_evidence_by_tool
 
 
 class ToolKind(StrEnum):
@@ -205,6 +207,24 @@ class ToolCatalogEntry:
     def with_install_state(self, install_state: ToolInstallState) -> ToolCatalogEntry:
         return replace(self, install_state=install_state)
 
+    def with_runtime_install(
+        self,
+        install_state: ToolInstallState,
+        *,
+        owner: ToolInstallOwner | None = None,
+        method: ToolInstallMethod | None = None,
+        uninstall_posture: ToolUninstallPosture | None = None,
+        managed_package: str | None = None,
+    ) -> ToolCatalogEntry:
+        install = replace(
+            self.install,
+            owner=owner or self.install.owner,
+            method=method or self.install.method,
+            uninstall_posture=uninstall_posture or self.install.uninstall_posture,
+            managed_package=managed_package or self.install.managed_package,
+        )
+        return replace(self, install_state=install_state, install=install)
+
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         if self.scanner_key and isinstance(data.get("legacy_scanner"), dict):
@@ -213,41 +233,325 @@ class ToolCatalogEntry:
         return _plain(data)
 
 
+@dataclass(frozen=True, slots=True)
+class SecurityPackDefinition:
+    id: ToolPackId
+    label: str
+    summary: str
+    mvp_state: str
+    visibility: str
+    primary_profile: str | None
+    secondary_profiles: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ScanProfileDefinition:
+    id: str
+    label: str
+    command: str
+    summary: str
+    scanner_keys: tuple[str, ...]
+    primary_pack_ids: tuple[ToolPackId, ...] = ()
+    supporting_pack_ids: tuple[ToolPackId, ...] = ()
+    notes: tuple[str, ...] = ()
+
+
 RUNNABLE_LIFECYCLES = {ToolLifecycle.AVAILABLE, ToolLifecycle.BETA, ToolLifecycle.ADVANCED}
 RUNNABLE_INSTALL_STATES = {ToolInstallState.BUILT_IN, ToolInstallState.MANAGED, ToolInstallState.DETECTED}
+SECURITY_PACK_DEFINITIONS: tuple[SecurityPackDefinition, ...] = (
+    SecurityPackDefinition(
+        id=ToolPackId.STARTER,
+        label="Starter Pack",
+        summary="Fast honest baseline across code, secrets, workflow, install-hook, and AI-agent risk.",
+        mvp_state="real",
+        visibility="default",
+        primary_profile="quick",
+        secondary_profiles=("default", "code", "secrets"),
+    ),
+    SecurityPackDefinition(
+        id=ToolPackId.SECRETS,
+        label="Secrets Pack",
+        summary="Focused checks for exposed keys, tokens, passwords, and secret-like evidence.",
+        mvp_state="real",
+        visibility="default",
+        primary_profile="secrets",
+        secondary_profiles=("quick", "secrets+deps"),
+    ),
+    SecurityPackDefinition(
+        id=ToolPackId.DEPENDENCIES,
+        label="Dependencies Pack",
+        summary="SBOM inventory, dependency advisory evidence, and named-campaign IOC context.",
+        mvp_state="real",
+        visibility="default",
+        primary_profile="deps",
+        secondary_profiles=("deps+trust-cache-only", "deps+trust"),
+    ),
+    SecurityPackDefinition(
+        id=ToolPackId.AI_AGENT,
+        label="AI Agent Pack",
+        summary="Agent-readable files, MCP configuration, prompt-injection surfaces, and AI editor setup.",
+        mvp_state="real",
+        visibility="default",
+        primary_profile="ai",
+        secondary_profiles=("quick", "full"),
+    ),
+    SecurityPackDefinition(
+        id=ToolPackId.IAC,
+        label="IaC Pack",
+        summary="Coming Soon bundle for Terraform, Kubernetes, GitHub Actions, and configuration-policy checks.",
+        mvp_state="coming-soon",
+        visibility="default-coming-soon",
+        primary_profile=None,
+    ),
+    SecurityPackDefinition(
+        id=ToolPackId.EXTERNAL_SURFACE,
+        label="External Surface Pack",
+        summary="Display-only Coming Soon placeholder for future approval-gated checks of external targets.",
+        mvp_state="coming-soon",
+        visibility="default-coming-soon",
+        primary_profile=None,
+    ),
+    SecurityPackDefinition(
+        id=ToolPackId.PLATFORM_POSTURE,
+        label="Platform Posture Pack",
+        summary="Advanced Coming Soon bundle for token-backed SCM and hosting posture checks.",
+        mvp_state="coming-soon",
+        visibility="advanced",
+        primary_profile=None,
+    ),
+    SecurityPackDefinition(
+        id=ToolPackId.ADVANCED_DEPENDENCY,
+        label="Advanced Dependency Pack",
+        summary="Advanced Coming Soon package-behavior investigation for suspicious dependency version changes.",
+        mvp_state="coming-soon",
+        visibility="advanced",
+        primary_profile=None,
+    ),
+)
+SCAN_PROFILE_DEFINITIONS: tuple[ScanProfileDefinition, ...] = (
+    ScanProfileDefinition(
+        id="quick",
+        label="Quick scan",
+        command="security-scan --quick",
+        summary="Fast baseline across built-in checks, code patterns, secrets, workflow surfaces, and one dependency advisory pass.",
+        scanner_keys=("ai-static", "install-hooks", "workflow-audit", "semgrep", "gitleaks", "osv-scanner"),
+        primary_pack_ids=(ToolPackId.STARTER,),
+        notes=("Use the Starter Pack page to see which optional helpers are missing before trusting a clean quick scan.",),
+    ),
+    ScanProfileDefinition(
+        id="default",
+        label="Default scan",
+        command="security-scan .",
+        summary="Balanced local scan when no specific profile is selected.",
+        scanner_keys=("ai-static", "install-hooks", "workflow-audit", "semgrep", "gitleaks", "trivy", "osv-scanner", "syft", "grype", "checkov"),
+        primary_pack_ids=(ToolPackId.STARTER,),
+        supporting_pack_ids=(ToolPackId.SECRETS, ToolPackId.DEPENDENCIES, ToolPackId.IAC),
+        notes=("This is still a scan profile, not a pack run mode.",),
+    ),
+    ScanProfileDefinition(
+        id="code",
+        label="Code scan",
+        command="security-scan --code",
+        summary="Code vulnerability pattern checks.",
+        scanner_keys=("semgrep",),
+        supporting_pack_ids=(ToolPackId.STARTER,),
+    ),
+    ScanProfileDefinition(
+        id="secrets",
+        label="Secrets scan",
+        command="security-scan --secrets",
+        summary="Focused secret evidence using the local secret scanners that are available.",
+        scanner_keys=("gitleaks", "trufflehog", "trivy"),
+        primary_pack_ids=(ToolPackId.SECRETS,),
+        supporting_pack_ids=(ToolPackId.STARTER,),
+    ),
+    ScanProfileDefinition(
+        id="deps",
+        label="Dependency scan",
+        command="security-scan --deps",
+        summary="SBOM inventory, dependency advisories, and local supply-chain context.",
+        scanner_keys=("install-hooks", "trivy", "osv-scanner", "syft", "grype"),
+        primary_pack_ids=(ToolPackId.DEPENDENCIES,),
+    ),
+    ScanProfileDefinition(
+        id="deps+trust-cache-only",
+        label="Dependency trust from cache",
+        command="security-scan --deps --trust-cache-only",
+        summary="Dependency scan with locally cached trust context only.",
+        scanner_keys=("install-hooks", "trivy", "osv-scanner", "syft", "grype"),
+        primary_pack_ids=(ToolPackId.DEPENDENCIES,),
+        notes=("No network trust enrichment is requested in this profile.",),
+    ),
+    ScanProfileDefinition(
+        id="deps+trust",
+        label="Dependency trust online",
+        command="security-scan --deps --trust",
+        summary="Dependency scan with network-backed trust enrichment.",
+        scanner_keys=("install-hooks", "trivy", "osv-scanner", "syft", "grype"),
+        primary_pack_ids=(ToolPackId.DEPENDENCIES,),
+        notes=("This profile can contact upstream trust sources after the user opts in.",),
+    ),
+    ScanProfileDefinition(
+        id="ai",
+        label="AI agent scan",
+        command="security-scan --ai",
+        summary="AI-agent, MCP, editor, and repo-poisoning checks.",
+        scanner_keys=("ai-static", "medusa"),
+        primary_pack_ids=(ToolPackId.AI_AGENT,),
+    ),
+    ScanProfileDefinition(
+        id="iac",
+        label="IaC scan",
+        command="security-scan --iac",
+        summary="Workflow and infrastructure configuration checks; pack UX remains Coming Soon.",
+        scanner_keys=("workflow-audit", "trivy", "checkov"),
+        primary_pack_ids=(ToolPackId.IAC,),
+    ),
+    ScanProfileDefinition(
+        id="platform-posture",
+        label="Platform posture scan",
+        command="security-scan --platform-posture",
+        summary="Token-backed SCM posture checks for branch protection, Actions, and repository settings.",
+        scanner_keys=("legitify",),
+        primary_pack_ids=(ToolPackId.PLATFORM_POSTURE,),
+        notes=("Requires explicit credential setup; this is never part of a pack run.",),
+    ),
+    ScanProfileDefinition(
+        id="behavioral-drift",
+        label="Behavioral drift scan",
+        command="security-scan --behavioral-drift",
+        summary="Advanced local artifact comparison for suspicious dependency behavior changes.",
+        scanner_keys=("syft", "malcontent"),
+        primary_pack_ids=(ToolPackId.ADVANCED_DEPENDENCY,),
+        notes=("Requires previous SBOMs and local package artifacts.",),
+    ),
+    ScanProfileDefinition(
+        id="ioc",
+        label="IOC scan",
+        command="security-scan ioc .",
+        summary="Named-campaign IOC matching against saved local dependency and domain evidence.",
+        scanner_keys=("ioc-watch",),
+        supporting_pack_ids=(ToolPackId.DEPENDENCIES,),
+    ),
+    ScanProfileDefinition(
+        id="full",
+        label="Full scan",
+        command="security-scan --full",
+        summary="Every configured local scanner path; high-risk or credential-backed tools still require their own setup.",
+        scanner_keys=("ai-static", "install-hooks", "workflow-audit", "semgrep", "gitleaks", "trufflehog", "trivy", "osv-scanner", "syft", "grype", "checkov", "medusa"),
+        primary_pack_ids=(ToolPackId.STARTER, ToolPackId.SECRETS, ToolPackId.DEPENDENCIES, ToolPackId.AI_AGENT),
+        supporting_pack_ids=(ToolPackId.IAC, ToolPackId.PLATFORM_POSTURE, ToolPackId.ADVANCED_DEPENDENCY),
+        notes=("Full is still a scan profile; packs only explain and prepare capability.",),
+    ),
+)
 
 
-def tool_catalog_entries(*, detect_install_state: bool = False) -> list[ToolCatalogEntry]:
+def tool_catalog_entries(
+    *,
+    detect_install_state: bool = False,
+    managed_tool_records: Iterable[dict[str, Any]] | None = None,
+) -> list[ToolCatalogEntry]:
     entries = list(CURRENT_TOOL_CATALOG)
     if not detect_install_state:
         return entries
-    return [entry.with_install_state(detect_install_state_for_tool(entry)) for entry in entries]
+    managed_evidence = _managed_evidence_by_tool(managed_tool_records)
+    resolved: list[ToolCatalogEntry] = []
+    for entry in entries:
+        install_state = detect_install_state_for_tool(entry, managed_evidence.get(entry.id))
+        if install_state == ToolInstallState.MANAGED:
+            resolved.append(
+                entry.with_runtime_install(
+                    ToolInstallState.MANAGED,
+                    owner=ToolInstallOwner.DEVSEC,
+                    method=ToolInstallMethod.MANAGED_FUTURE,
+                    uninstall_posture=ToolUninstallPosture.DEVSEC_MANAGED,
+                    managed_package=entry.install.managed_package or entry.id,
+                )
+            )
+        else:
+            resolved.append(entry.with_install_state(install_state))
+    return resolved
 
 
-def current_tool_catalog(*, detect_install_state: bool = False) -> list[dict[str, Any]]:
-    return [entry.to_dict() for entry in tool_catalog_entries(detect_install_state=detect_install_state)]
+def current_tool_catalog(
+    *,
+    detect_install_state: bool = False,
+    managed_tool_records: Iterable[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    managed_evidence = _managed_evidence_by_tool(managed_tool_records)
+    items: list[dict[str, Any]] = []
+    for entry in tool_catalog_entries(
+        detect_install_state=detect_install_state,
+        managed_tool_records=managed_tool_records,
+    ):
+        item = entry.to_dict()
+        evidence = managed_evidence.get(entry.id)
+        if evidence:
+            item["managed_ownership"] = evidence.to_dict()
+        item["install_preview"] = build_tool_install_preview(item, evidence)
+        items.append(item)
+    return items
 
 
-def scanner_catalog_compat() -> list[dict[str, str | bool]]:
+def current_security_packs(
+    *,
+    detect_install_state: bool = False,
+    managed_tool_records: Iterable[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    tools = current_tool_catalog(
+        detect_install_state=detect_install_state,
+        managed_tool_records=managed_tool_records,
+    )
+    return [_security_pack_payload(definition, tools) for definition in SECURITY_PACK_DEFINITIONS]
+
+
+def current_scan_profiles(
+    *,
+    detect_install_state: bool = False,
+    managed_tool_records: Iterable[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    packs = {
+        pack["id"]: pack
+        for pack in current_security_packs(
+            detect_install_state=detect_install_state,
+            managed_tool_records=managed_tool_records,
+        )
+    }
+    return [_scan_profile_payload(definition, packs) for definition in SCAN_PROFILE_DEFINITIONS]
+
+
+def scanner_catalog_compat() -> list[dict[str, Any]]:
     return [{"scanner": scanner, **metadata} for scanner, metadata in legacy_scanner_catalog_map().items()]
 
 
-def legacy_scanner_catalog_map() -> dict[str, dict[str, str | bool]]:
-    catalog: dict[str, dict[str, str | bool]] = {}
+def legacy_scanner_catalog_map() -> dict[str, dict[str, Any]]:
+    catalog: dict[str, dict[str, Any]] = {}
     for entry in CURRENT_SCANNER_CATALOG:
         if not entry.scanner_key or not entry.legacy_scanner:
             continue
-        catalog[entry.scanner_key] = dict(entry.legacy_scanner)
+        catalog[entry.scanner_key] = {
+            **dict(entry.legacy_scanner),
+            "tool_id": entry.id,
+            "category": entry.category.value,
+            "profile_ids": list(entry.capabilities.scan_profiles),
+            "recommended_pack_ids": _pack_ids_for_entry(entry),
+            "install_state": entry.install_state.value,
+        }
     return catalog
 
 
-def detect_install_state_for_tool(entry: ToolCatalogEntry) -> ToolInstallState:
+def detect_install_state_for_tool(
+    entry: ToolCatalogEntry,
+    managed_evidence: ManagedToolEvidence | None = None,
+) -> ToolInstallState:
     if entry.lifecycle == ToolLifecycle.COMING_SOON:
         return ToolInstallState.COMING_SOON
     if entry.install.detection == ToolInstallDetection.BUILT_IN:
         return ToolInstallState.BUILT_IN
     if entry.install.detection == ToolInstallDetection.NONE:
         return entry.install_state
+    if managed_evidence and managed_evidence.verified:
+        return ToolInstallState.MANAGED
 
     candidates = tuple(item for item in (entry.install.binary, *entry.install.alternate_binaries) if item)
     if entry.install.detection == ToolInstallDetection.PATH_BINARY and candidates:
@@ -259,6 +563,136 @@ def detect_install_state_for_tool(entry: ToolCatalogEntry) -> ToolInstallState:
         return ToolInstallState.DETECTED
 
     return entry.install_state
+
+
+def _managed_evidence_by_tool(managed_tool_records: Iterable[dict[str, Any]] | None) -> dict[str, ManagedToolEvidence]:
+    if not managed_tool_records:
+        return {}
+    return managed_tool_evidence_by_tool(managed_tool_records)
+
+
+def _security_pack_payload(definition: SecurityPackDefinition, tools: list[dict[str, Any]]) -> dict[str, Any]:
+    included: list[dict[str, Any]] = []
+    for tool in tools:
+        membership = next(
+            (
+                pack
+                for pack in tool.get("packs", [])
+                if isinstance(pack, dict) and pack.get("pack_id") == definition.id.value
+            ),
+            None,
+        )
+        if not membership:
+            continue
+        included.append(
+            {
+                "id": tool["id"],
+                "label": tool["label"],
+                "summary": tool["summary"],
+                "role": membership.get("role"),
+                "default_enabled": bool(membership.get("default_enabled")),
+                "install_state": tool.get("install_state"),
+                "lifecycle": tool.get("lifecycle"),
+                "derived_labels": tool.get("derived_labels"),
+                "install_preview": tool.get("install_preview"),
+            }
+        )
+    status_counts = _counts_by(included, "install_state")
+    ready_count = sum(status_counts.get(state, 0) for state in ("built-in", "managed", "detected"))
+    return {
+        "id": definition.id.value,
+        "label": definition.label,
+        "summary": definition.summary,
+        "mvp_state": definition.mvp_state,
+        "visibility": definition.visibility,
+        "primary_profile": definition.primary_profile,
+        "secondary_profiles": list(definition.secondary_profiles),
+        "status_counts": status_counts,
+        "ready_count": ready_count,
+        "missing_count": status_counts.get("missing", 0),
+        "display_only_count": status_counts.get("coming-soon", 0),
+        "tools": included,
+        "install_preview": _pack_install_preview(definition, included, status_counts),
+    }
+
+
+def _scan_profile_payload(definition: ScanProfileDefinition, packs: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    primary_pack_ids = [pack_id.value for pack_id in definition.primary_pack_ids]
+    supporting_pack_ids = [pack_id.value for pack_id in definition.supporting_pack_ids]
+    recommended_pack_ids = [*primary_pack_ids, *[pack_id for pack_id in supporting_pack_ids if pack_id not in primary_pack_ids]]
+    return {
+        "id": definition.id,
+        "label": definition.label,
+        "command": definition.command,
+        "summary": definition.summary,
+        "scanner_keys": list(definition.scanner_keys),
+        "primary_pack_ids": primary_pack_ids,
+        "supporting_pack_ids": supporting_pack_ids,
+        "recommended_pack_ids": recommended_pack_ids,
+        "recommended_packs": [_pack_reference(packs[pack_id]) for pack_id in recommended_pack_ids if pack_id in packs],
+        "notes": list(definition.notes),
+    }
+
+
+def _pack_reference(pack: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": pack.get("id"),
+        "label": pack.get("label"),
+        "mvp_state": pack.get("mvp_state"),
+        "visibility": pack.get("visibility"),
+        "ready_count": pack.get("ready_count", 0),
+        "missing_count": pack.get("missing_count", 0),
+        "display_only_count": pack.get("display_only_count", 0),
+        "status_counts": pack.get("status_counts") or {},
+    }
+
+
+def _pack_ids_for_entry(entry: ToolCatalogEntry) -> list[str]:
+    return [membership.pack_id.value for membership in entry.packs]
+
+
+def _pack_install_preview(
+    definition: SecurityPackDefinition,
+    included: list[dict[str, Any]],
+    status_counts: dict[str, int],
+) -> dict[str, Any]:
+    tool_previews = [
+        preview
+        for item in included
+        for preview in [item.get("install_preview")]
+        if isinstance(preview, dict) and preview.get("preview_available")
+    ]
+    if definition.mvp_state != "real":
+        return {
+            "pack_id": definition.id.value,
+            "action": "none",
+            "preview_available": False,
+            "execution_available": False,
+            "execution_reason": "Coming Soon packs are display-only in the MVP.",
+            "pack_install_supported": False,
+            "tool_previews": [],
+            "status_counts": status_counts,
+            "notes": ["No install, uninstall, run, target input, or Agent Lab action is available for this pack."],
+        }
+    return {
+        "pack_id": definition.id.value,
+        "action": "pack-install-preview",
+        "preview_available": True,
+        "execution_available": False,
+        "execution_reason": "Broad pack install is deferred; the MVP only previews individual approved managed-tool actions.",
+        "pack_install_supported": False,
+        "tool_previews": tool_previews,
+        "status_counts": status_counts,
+        "notes": ["Packs remain curated guidance and do not create a second scan execution mode."],
+    }
+
+
+def _counts_by(items: list[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in items:
+        value = str(item.get(key) or "unknown")
+        counts[value] = counts.get(value, 0) + 1
+    return counts
 
 
 def derive_tool_labels(entry: ToolCatalogEntry) -> ToolDerivedLabels:

@@ -14,7 +14,13 @@ import time
 
 from .ai_static import scan_ai_static
 from .behavioral import MAX_BEHAVIORAL_ARTIFACT_BYTES, MAX_BEHAVIORAL_FILES, MAX_BEHAVIORAL_PACKAGES, BehavioralDriftTarget
-from .catalog import current_tool_catalog, legacy_scanner_catalog_map, scanner_catalog_compat
+from .catalog import current_scan_profiles, current_security_packs, current_tool_catalog, legacy_scanner_catalog_map, scanner_catalog_compat
+from .managed_tools import (
+    MANAGED_INSTALL_PROOF_TARGETS,
+    load_active_managed_tool_records,
+    load_managed_tools_manifest,
+    managed_tool_evidence_by_tool,
+)
 from .model import DEFAULT_EXCLUDES, Finding, ScannerStatus, read_json_safely, sanitize_json, write_json
 from .normalize import normalize
 from .platform_posture import sanitize_legitify_payload
@@ -33,7 +39,7 @@ EXIT_CODES_WITH_FINDINGS = {
     "legitify": {1},
 }
 
-SCANNER_CATALOG: dict[str, dict[str, str | bool]] = legacy_scanner_catalog_map()
+SCANNER_CATALOG: dict[str, dict[str, Any]] = legacy_scanner_catalog_map()
 
 
 @dataclass(frozen=True)
@@ -43,12 +49,41 @@ class ScannerResult:
     sbom_created: bool = False
 
 
-def scanner_catalog() -> list[dict[str, str | bool]]:
+def scanner_catalog() -> list[dict[str, Any]]:
     return scanner_catalog_compat()
 
 
-def tool_catalog(*, detect_install_state: bool = False) -> list[dict[str, Any]]:
-    return current_tool_catalog(detect_install_state=detect_install_state)
+def tool_catalog(
+    *,
+    detect_install_state: bool = False,
+    managed_tool_records: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    return current_tool_catalog(
+        detect_install_state=detect_install_state,
+        managed_tool_records=managed_tool_records,
+    )
+
+
+def security_pack_catalog(
+    *,
+    detect_install_state: bool = False,
+    managed_tool_records: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    return current_security_packs(
+        detect_install_state=detect_install_state,
+        managed_tool_records=managed_tool_records,
+    )
+
+
+def scan_profile_catalog(
+    *,
+    detect_install_state: bool = False,
+    managed_tool_records: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    return current_scan_profiles(
+        detect_install_state=detect_install_state,
+        managed_tool_records=managed_tool_records,
+    )
 
 
 def scanner_names_for_profile(args: Any) -> list[str]:
@@ -121,9 +156,12 @@ def run_scanner(scanner: str, repo: Path, repo_name: str, scan_dir: Path, rules_
         return _run_legitify_scanner(repo, repo_name, scan_dir)
 
     command = _command(scanner, repo, scan_dir, rules_dir)
+    managed_binary = _verified_managed_binary_for_scanner(scanner)
+    if managed_binary:
+        command = [str(managed_binary), *command[1:]]
     binary = command[0]
     started = datetime.now(timezone.utc).isoformat()
-    status = ScannerStatus(scanner=scanner, available=bool(shutil.which(binary)), command=command, started_at=started)
+    status = ScannerStatus(scanner=scanner, available=bool(managed_binary) or bool(shutil.which(binary)), command=command, started_at=started)
     if not status.available:
         status.finished_at = datetime.now(timezone.utc).isoformat()
         status.error = f"{binary} is not installed or not on PATH."
@@ -382,6 +420,26 @@ def _command(scanner: str, repo: Path, scan_dir: Path, rules_dir: Path) -> list[
     if scanner == "legitify":
         return _legitify_command(repo, scan_dir, target="[repository]")
     raise ValueError(f"Unknown scanner: {scanner}")
+
+
+def _verified_managed_binary_for_scanner(scanner: str) -> Path | None:
+    if scanner not in MANAGED_INSTALL_PROOF_TARGETS:
+        return None
+    records = load_active_managed_tool_records()
+    if not records:
+        manifest = load_managed_tools_manifest()
+        records = manifest.get("tools", [])
+    evidence = managed_tool_evidence_by_tool(records)
+    managed = evidence.get(scanner)
+    if not managed or not managed.verified or not managed.binary_path:
+        return None
+    try:
+        binary_path = Path(managed.binary_path).expanduser().resolve(strict=True)
+    except OSError:
+        return None
+    if not binary_path.is_file() or not os.access(binary_path, os.X_OK):
+        return None
+    return binary_path
 
 
 def _run_legitify_scanner(repo: Path, repo_name: str, scan_dir: Path) -> ScannerResult:

@@ -21,7 +21,8 @@ from .decisions import (
 )
 from .honey_keys import HONEY_KEY_PREFIX, utc_now
 from .platform_posture import platform_posture_snapshot_fingerprint
-from .scanners import scanner_catalog, tool_catalog
+from .managed_tools import new_ownership_id, upsert_manifest_record, utc_now as managed_utc_now
+from .scanners import scan_profile_catalog, scanner_catalog, security_pack_catalog, tool_catalog
 from .sbom import SBOMComponent, component_fingerprint
 from .silent_upgrades import annotate_dependency_changes
 from .vex import build_vex_document, parse_vex_document
@@ -235,6 +236,25 @@ create table if not exists observatory_settings (
   value text not null
 );
 
+create table if not exists managed_tool_installations (
+  ownership_id text primary key,
+  tool_id text not null,
+  version text not null,
+  install_root text not null,
+  binary_path text not null,
+  source text not null,
+  checksum text,
+  installer_version text not null,
+  installed_at text not null,
+  active integer not null default 1,
+  version_check_status text not null default 'not_checked',
+  version_check_output text,
+  version_checked_at text,
+  metadata_json text not null default '{}'
+);
+
+create index if not exists idx_managed_tool_installations_tool on managed_tool_installations(tool_id, active);
+
 create table if not exists honey_keys (
   id text primary key,
   project_id text not null,
@@ -364,6 +384,110 @@ class ObservatoryDB:
         ):
             if decision_columns and column not in decision_columns:
                 self.conn.execute(f"alter table case_decisions add column {column} text")
+        managed_columns = {row["name"] for row in self.conn.execute("pragma table_info(managed_tool_installations)").fetchall()}
+        for column, definition in (
+            ("version_check_status", "text not null default 'not_checked'"),
+            ("version_check_output", "text"),
+            ("version_checked_at", "text"),
+            ("metadata_json", "text not null default '{}'"),
+        ):
+            if managed_columns and column not in managed_columns:
+                self.conn.execute(f"alter table managed_tool_installations add column {column} {definition}")
+
+    def record_managed_tool(
+        self,
+        *,
+        tool_id: str,
+        version: str,
+        install_root: str,
+        binary_path: str,
+        source: str,
+        checksum: str | None = None,
+        installer_version: str = "security-observatory",
+        ownership_id: str | None = None,
+        installed_at: str | None = None,
+        active: bool = True,
+        version_check_status: str = "not_checked",
+        version_check_output: str | None = None,
+        version_checked_at: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        sync_manifest: bool = True,
+    ) -> dict[str, Any]:
+        ownership = ownership_id or new_ownership_id(tool_id)
+        installed = installed_at or managed_utc_now()
+        with self.conn:
+            self.conn.execute(
+                """
+                insert into managed_tool_installations
+                (ownership_id, tool_id, version, install_root, binary_path, source, checksum, installer_version,
+                 installed_at, active, version_check_status, version_check_output, version_checked_at, metadata_json)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                on conflict(ownership_id) do update set
+                  tool_id = excluded.tool_id,
+                  version = excluded.version,
+                  install_root = excluded.install_root,
+                  binary_path = excluded.binary_path,
+                  source = excluded.source,
+                  checksum = excluded.checksum,
+                  installer_version = excluded.installer_version,
+                  installed_at = excluded.installed_at,
+                  active = excluded.active,
+                  version_check_status = excluded.version_check_status,
+                  version_check_output = excluded.version_check_output,
+                  version_checked_at = excluded.version_checked_at,
+                  metadata_json = excluded.metadata_json
+                """,
+                (
+                    ownership,
+                    tool_id,
+                    version,
+                    install_root,
+                    binary_path,
+                    source,
+                    checksum,
+                    installer_version,
+                    installed,
+                    1 if active else 0,
+                    version_check_status,
+                    version_check_output,
+                    version_checked_at,
+                    json.dumps(metadata or {}, sort_keys=True),
+                ),
+            )
+        record = self.get_managed_tool(ownership)
+        if record and sync_manifest:
+            upsert_manifest_record(record)
+        return record or {}
+
+    def get_managed_tool(self, ownership_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "select * from managed_tool_installations where ownership_id = ?",
+            (ownership_id,),
+        ).fetchone()
+        return _public_managed_tool(row) if row else None
+
+    def list_managed_tools(self, *, active_only: bool = True) -> list[dict[str, Any]]:
+        where = "where active = 1" if active_only else ""
+        rows = self.conn.execute(
+            f"""
+            select *
+            from managed_tool_installations
+            {where}
+            order by tool_id asc, installed_at desc, ownership_id asc
+            """
+        ).fetchall()
+        return [_public_managed_tool(row) for row in rows]
+
+    def deactivate_managed_tool(self, ownership_id: str) -> dict[str, Any] | None:
+        with self.conn:
+            self.conn.execute(
+                "update managed_tool_installations set active = 0 where ownership_id = ?",
+                (ownership_id,),
+            )
+        record = self.get_managed_tool(ownership_id)
+        if record:
+            upsert_manifest_record(record)
+        return record
 
     def save_scan(
         self,
@@ -821,6 +945,7 @@ class ObservatoryDB:
         retention_days = self.honey_event_retention_days()
         self.prune_honey_key_events(retention_days=retention_days)
         case_decisions = self.case_decisions_map()
+        managed_tool_records = self.list_managed_tools()
         latest = self.conn.execute(
             """
             select s.*
@@ -999,7 +1124,10 @@ class ObservatoryDB:
             "project_statuses": list(project_statuses.values()),
             "honey_event_retention_days": retention_days,
             "scanner_catalog": scanner_catalog(),
-            "tool_catalog": tool_catalog(detect_install_state=True),
+            "tool_catalog": tool_catalog(detect_install_state=True, managed_tool_records=managed_tool_records),
+            "security_packs": security_pack_catalog(detect_install_state=True, managed_tool_records=managed_tool_records),
+            "scan_profiles": scan_profile_catalog(detect_install_state=True, managed_tool_records=managed_tool_records),
+            "managed_tools": managed_tool_records,
         }
 
     def scan_export(self, scan_id: str) -> dict[str, Any] | None:
@@ -2406,6 +2534,16 @@ def _attach_case_decision(case: dict[str, Any], decisions: dict[str, dict[str, A
     decision = decisions.get(case_id)
     if decision:
         case["decision"] = decision
+
+
+def _public_managed_tool(row: sqlite3.Row) -> dict[str, Any]:
+    data = dict(row)
+    data["active"] = bool(data.get("active"))
+    try:
+        data["metadata"] = json.loads(data.pop("metadata_json") or "{}")
+    except json.JSONDecodeError:
+        data["metadata"] = {}
+    return data
 
 
 def _public_honey_key(row: sqlite3.Row) -> dict[str, Any]:

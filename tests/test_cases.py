@@ -65,7 +65,11 @@ def test_missing_scanner_evidence_is_reflected_in_report():
         }
     )
 
-    assert report["evidence_gaps"] == [{"scanner": "grype", "reason": "not installed"}]
+    assert report["evidence_gaps"][0]["scanner"] == "grype"
+    assert report["evidence_gaps"][0]["reason"] == "not installed"
+    assert report["evidence_gaps"][0]["tool_id"] == "grype"
+    assert report["evidence_gaps"][0]["recommended_pack_ids"] == ["dependencies"]
+    assert report["evidence_gaps"][0]["recommended_profile_id"] == "deps"
     assert report["cases"] == []
     assert report["findings"] == []
 

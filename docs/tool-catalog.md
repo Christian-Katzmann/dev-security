@@ -165,6 +165,92 @@ type ToolInstallContract = {
 
 Docker may appear as an optional install method, but it should not be the foundation for the MVP because the product is local-first and should stay light on Christian's machine.
 
+## Managed Install Ownership And Uninstall Rules
+
+DëvSec must never confuse "I found this on your Mac" with "I installed this for you." Managed install state is an ownership claim, not just a binary detection result.
+
+### Managed Copy Layout
+
+- DëvSec-managed external tools live under `${SECURITY_OBSERVATORY_HOME:-~/.security-observatory}/tools/<tool-id>/<version>/`.
+- The executable DëvSec runs must be inside that managed tool root, normally at `bin/<binary>`.
+- A managed helper symlink or shim may live under `${SECURITY_OBSERVATORY_HOME:-~/.security-observatory}/tools/bin/`, but only when the ownership manifest records it.
+- DëvSec must not install scanner binaries into `/usr/local/bin`, `/opt/homebrew`, Homebrew Cellar paths, `~/.local/bin`, `uv`'s global tool location, `pipx`, or system package-manager locations for the MVP managed proof. The existing `~/.local/bin/security-scan` wrapper is the app launcher, not scanner-tool ownership.
+- Docker is optional only for future tools that benefit from isolation or are painful to install natively. Docker is not the default managed-install foundation.
+
+### Ownership Evidence
+
+A tool can be labelled `managed` only when all ownership evidence agrees:
+
+1. A local SQLite ownership row exists for the tool id, version, binary path, install root, source, checksum when available, install time, installer version, and active status.
+2. A manifest record under `${SECURITY_OBSERVATORY_HOME:-~/.security-observatory}/tools/managed-tools.json` has the same tool id, version, install root, binary path, and ownership id.
+3. The binary path resolves inside the recorded managed install root.
+4. The install root contains an ownership marker written by DëvSec, such as `.devsec-managed-tool.json`, with the same ownership id.
+5. The binary exists and passes the tool's local version check within a short timeout.
+
+If those records disagree, the UI must not call the tool managed. It should fall back to `detected`, `missing`, or `unavailable` based on runtime detection, and uninstall/update controls must be disabled until ownership is repaired.
+
+SQLite is the queryable product source of truth for API and dashboard state. The JSON manifest and per-install marker are recovery evidence close to the files, so a future repair flow can tell a real DëvSec install from a user-owned path even if one store is stale.
+
+### Detected System Tools
+
+`detected` means DëvSec found a usable binary through `PATH` or another supported local detection check, but does not own it. A detected system tool can satisfy scanner availability, but DëvSec must not:
+
+- uninstall it
+- upgrade it
+- relink it
+- overwrite it with a managed copy
+- assume Homebrew, `uv`, `pipx`, or another package manager may remove it
+
+If a detected tool and a managed copy both exist, DëvSec should prefer the managed binary for managed actions and still show the detected copy as user-owned context. If the managed copy is missing or broken, DëvSec may fall back to detected execution only as a normal detected scanner, not as a managed install.
+
+### Install Preview Requirement
+
+Every managed install or uninstall needs a preview before execution. The preview must show:
+
+- the exact tool, version, and install method
+- the install root and binary path
+- any shim or symlink DëvSec will create
+- whether the action needs network access
+- the files/directories DëvSec expects to own afterward
+- the local version check DëvSec will run
+- the uninstall boundary DëvSec will enforce later
+- the fact that user-owned detected tools will be left alone
+
+Pack pages may aggregate these previews, but broad pack install/uninstall remains deferred. MVP controls should preview individual tool actions and the one approved proof path only.
+
+### Uninstall Boundary
+
+Uninstall may remove only files that are all of these:
+
+1. Under `${SECURITY_OBSERVATORY_HOME:-~/.security-observatory}/tools/`.
+2. Inside the install root recorded in both SQLite and the manifest.
+3. Marked with the matching DëvSec ownership id.
+4. Not a symlink escape, parent directory, package-manager directory, or arbitrary path from user input.
+
+Uninstall must refuse to run when ownership evidence is missing, mismatched, or points outside the managed root. It must never call `brew uninstall`, `uv tool uninstall`, `pipx uninstall`, `sudo`, or a broad package-manager removal for a detected system tool. It also must not delete scan reports, caches, the app database, or the `security-scan` wrapper.
+
+### Version And Update Checks
+
+Version checks are local readiness checks. They may run commands such as `<binary> version` or `<binary> --version` with a short timeout, captured output, and no shell interpolation. Version check failure can make a managed copy `unavailable` or `needs repair`, but it does not grant permission to delete user-owned binaries.
+
+Update checks are not background package-manager actions. For the MVP proof, DëvSec should compare the managed version against pinned product metadata or a user-triggered network check that is labelled in the preview. A newer upstream release can produce an "update available" state, but updating still requires a managed install preview and the same ownership evidence.
+
+### First Allowed Managed Install Proof
+
+The first managed install/uninstall proof target is `gitleaks`, pinned to Gitleaks `v8.30.1` release artifacts for the managed proof path.
+
+Why it is safe enough for the proof:
+
+- It already exists as a supported scanner and participates in the Quick, Secrets, and default profiles.
+- Its normal scan behavior is local, read-only, and does not require credentials.
+- It has a bounded scanner timeout in DëvSec's adapter.
+- It provides high-value coverage that a user can understand: exposed secrets.
+- A DëvSec-managed copy can be isolated under the managed tools directory without taking over Homebrew, `uv`, `pipx`, or global `PATH`.
+
+Only `gitleaks` is approved for the first managed install/uninstall implementation. Broad pack install, high-risk installers, Docker-backed installs, package-manager uninstall, and management of detected system tools remain out of scope until a later campaign explicitly expands the policy.
+
+The backend exposes the proof through `POST /api/managed-tools/install` and `POST /api/managed-tools/uninstall`. Both endpoints require explicit confirmation fields, operate only on `gitleaks`, and refresh the Tool Catalog status after the action.
+
 ## Enforceable Policy Fields
 
 Policy fields are rules. They are the source of truth for UI affordances, pack eligibility, Agent Lab permissions, and future install/run controls.

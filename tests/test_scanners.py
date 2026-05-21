@@ -1,8 +1,15 @@
+import json
 from pathlib import Path
 
 from security_observatory import catalog as catalog_model
+from security_observatory.managed_tools import (
+    managed_install_root,
+    marker_payload_from_record,
+    ownership_marker_path,
+)
 from security_observatory.model import DEFAULT_EXCLUDES
-from security_observatory.scanners import _command, run_scanner, scanner_catalog, tool_catalog
+from security_observatory.scanners import _command, run_scanner, scan_profile_catalog, scanner_catalog, tool_catalog
+from security_observatory.storage import ObservatoryDB
 
 
 def test_trufflehog_uses_local_friendly_exclusions(tmp_path: Path):
@@ -24,6 +31,20 @@ def test_scanner_catalog_includes_fixable_doctor_steps():
     assert "brew install semgrep" in catalog["semgrep"]["install"]
     assert "uv tool install checkov" in catalog["checkov"]["install"]
     assert catalog["gitleaks"]["area"] == "Secrets"
+    assert catalog["gitleaks"]["recommended_pack_ids"] == ["starter", "secrets"]
+    assert catalog["gitleaks"]["tool_id"] == "gitleaks"
+
+
+def test_scan_profile_catalog_points_profiles_to_security_packs():
+    profiles = {item["id"]: item for item in scan_profile_catalog()}
+
+    assert profiles["quick"]["primary_pack_ids"] == ["starter"]
+    assert profiles["quick"]["recommended_pack_ids"] == ["starter"]
+    assert "gitleaks" in profiles["quick"]["scanner_keys"]
+    assert profiles["secrets"]["primary_pack_ids"] == ["secrets"]
+    assert profiles["deps"]["primary_pack_ids"] == ["dependencies"]
+    assert profiles["full"]["primary_pack_ids"] == ["starter", "secrets", "dependencies", "ai-agent"]
+    assert profiles["iac"]["recommended_pack_ids"] == ["iac"]
 
 
 def test_tool_catalog_preserves_legacy_scanner_contract():
@@ -148,6 +169,44 @@ def test_run_scanner_uses_runtime_binary_detection_not_catalog_metadata(tmp_path
     assert result.status.error == "semgrep is not installed or not on PATH."
 
 
+def test_run_scanner_uses_verified_managed_gitleaks_when_path_is_empty(tmp_path: Path, monkeypatch):
+    home = tmp_path / "observatory"
+    monkeypatch.setenv("SECURITY_OBSERVATORY_HOME", str(home))
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.setattr("security_observatory.scanners.shutil.which", lambda binary: None)
+    seed = _managed_gitleaks_record(home)
+    db = ObservatoryDB(home / "db" / "observatory.sqlite")
+    try:
+        record = db.record_managed_tool(
+            tool_id=str(seed["tool_id"]),
+            version=str(seed["version"]),
+            install_root=str(seed["install_root"]),
+            binary_path=str(seed["binary_path"]),
+            source=str(seed["source"]),
+            checksum=str(seed["checksum"]),
+            installer_version=str(seed["installer_version"]),
+            ownership_id=str(seed["ownership_id"]),
+            installed_at=str(seed["installed_at"]),
+            version_check_status=str(seed["version_check_status"]),
+            version_check_output="gitleaks 1.0.0",
+            version_checked_at="2026-05-21T00:00:00+00:00",
+        )
+    finally:
+        db.close()
+    binary_path = Path(str(record["binary_path"]))
+    binary_path.parent.mkdir(parents=True, exist_ok=True)
+    binary_path.write_text("#!/bin/sh\nprintf '[]\\n'\n", encoding="utf-8")
+    binary_path.chmod(0o755)
+    marker = ownership_marker_path(str(record["install_root"]))
+    marker.write_text(json.dumps(marker_payload_from_record(record), indent=2) + "\n", encoding="utf-8")
+
+    result = run_scanner("gitleaks", tmp_path, "repo", tmp_path / "scan", tmp_path / "rules")
+
+    assert result.status.available is True
+    assert result.status.command[0] == str(binary_path.resolve())
+    assert result.status.error is None
+
+
 def _contract_entry(
     install_state: catalog_model.ToolInstallState,
     *,
@@ -198,3 +257,20 @@ def _contract_entry(
         ),
         profiles=("contract",),
     )
+
+
+def _managed_gitleaks_record(home: Path) -> dict[str, object]:
+    root = managed_install_root("gitleaks", "1.0.0", home)
+    return {
+        "ownership_id": "devsec-gitleaks-test",
+        "tool_id": "gitleaks",
+        "version": "1.0.0",
+        "install_root": str(root),
+        "binary_path": str(root / "bin" / "gitleaks"),
+        "source": "unit-test",
+        "checksum": "sha256:test",
+        "installer_version": "test",
+        "installed_at": "2026-05-21T00:00:00+00:00",
+        "active": True,
+        "version_check_status": "passed",
+    }
