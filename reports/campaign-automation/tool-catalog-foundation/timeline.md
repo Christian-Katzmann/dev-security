@@ -10,3 +10,100 @@
 
 - `2026-05-21T15:32:18+00:00` Verified automation `d-vsec-tool-catalog-foundation` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
 - `2026-05-21T15:32:23+00:00` Created automation `d-vsec-tool-catalog-foundation` for step 1.1 Define the catalog contract and policy matrix.
+- `2026-05-21T15:35:11+00:00` Automation `d-vsec-tool-catalog-foundation` has no scheduler run since `1779374105280` in the Codex app registry.
+- `2026-05-21T15:35:41+00:00` Verified automation `d-vsec-tool-catalog-foundation` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T15:37:31+00:00` Automation `d-vsec-tool-catalog-foundation` has no scheduler run since `1779377741764` in the Codex app registry.
+- `2026-05-21T15:39:00+00:00` Step 1.1 completed; state cursor moved to step 1.2 Map current scanners into catalog metadata.
+- `2026-05-21T15:39:20+00:00` Registered next fallback automation `d-vsec-tool-catalog-foundation-step-1-2-20260521-153920` for step 1.2 at 2026-05-21T17:41:00+02:00.
+- `2026-05-21T15:39:20+00:00` Verified automation `d-vsec-tool-catalog-foundation-step-1-2-20260521-153920` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T15:39:20+00:00` Created automation `d-vsec-tool-catalog-foundation-step-1-2-20260521-153920` for step 1.2 Map current scanners into catalog metadata.
+- `2026-05-21T15:39:43+00:00` Automation `d-vsec-tool-catalog-foundation-step-1-2-20260521-153920` has no scheduler run since `1779377940000` in the Codex app registry.
+- `2026-05-21T15:39:53+00:00` Automation `d-vsec-tool-catalog-foundation-step-1-2-20260521-153920` has no scheduler run since `1779377940000` in the Codex app registry.
+- `2026-05-21T15:40:03+00:00` Automation `d-vsec-tool-catalog-foundation-step-1-2-20260521-153920` has no scheduler run since `1779377940000` in the Codex app registry.
+- `2026-05-21T15:40:13+00:00` Automation `d-vsec-tool-catalog-foundation-step-1-2-20260521-153920` has no scheduler run since `1779377940000` in the Codex app registry.
+- `2026-05-21T15:40:23+00:00` Automation `d-vsec-tool-catalog-foundation-step-1-2-20260521-153920` has no scheduler run since `1779377940000` in the Codex app registry.
+- `2026-05-21T15:40:33+00:00` Automation `d-vsec-tool-catalog-foundation-step-1-2-20260521-153920` has no scheduler run since `1779377940000` in the Codex app registry.
+- `2026-05-21T15:40:43+00:00` Automation `d-vsec-tool-catalog-foundation-step-1-2-20260521-153920` has no scheduler run since `1779377940000` in the Codex app registry.
+- `2026-05-21T15:40:53+00:00` Automation `d-vsec-tool-catalog-foundation-step-1-2-20260521-153920` has no scheduler run since `1779377940000` in the Codex app registry.
+- `2026-05-21T15:41:04+00:00` Automation `d-vsec-tool-catalog-foundation-step-1-2-20260521-153920` has no scheduler run since `1779377940000` in the Codex app registry.
+- `2026-05-21T15:41:14+00:00` Automation `d-vsec-tool-catalog-foundation-step-1-2-20260521-153920` has no scheduler run since `1779377940000` in the Codex app registry.
+- `2026-05-21T15:41:24+00:00` Verified automation `d-vsec-tool-catalog-foundation-step-1-2-20260521-153920` launched thread `019e4b32-b60c-7e21-bdb4-b07281943d36` with status `IN_PROGRESS`.
+- `2026-05-21T15:41:36+00:00` Paused current automation `d-vsec-tool-catalog-foundation` after verified fallback launch for step 1.2.
+- `2026-05-21T15:41:49+00:00` Verified automation `d-vsec-tool-catalog-foundation` in Codex app registry as PAUSED with model gpt-5.5/xhigh.
+- `2026-05-21T15:41:57+00:00` Recorded current automation `d-vsec-tool-catalog-foundation` as PAUSED after registry verification.
+- `2026-05-21T15:42:11+00:00` Step 1.2 completed; state cursor moved to step 2.1 Add catalog types and registry helpers.
+- `2026-05-21T15:43:51+00:00` Registered next fallback automation `d-vsec-tool-catalog-foundation-step-2-1-20260521-154351` for step 2.1 at 2026-05-21T17:45:00+02:00.
+- `2026-05-21T15:43:51+00:00` Verified automation `d-vsec-tool-catalog-foundation-step-2-1-20260521-154351` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T15:43:51+00:00` Created automation `d-vsec-tool-catalog-foundation-step-2-1-20260521-154351` for step 2.1 Add catalog types and registry helpers.
+- `2026-05-21T15:44:06+00:00` Released current run lock before observing fallback scheduler launch for step 2.1.
+- `2026-05-21T15:45:20+00:00` Verified automation `d-vsec-tool-catalog-foundation-step-2-1-20260521-154351` launched thread `019e4b36-5f72-7260-ac2d-cb133e9194a7` with status `IN_PROGRESS`.
+- `2026-05-21T15:45:57+00:00` Paused current automation d-vsec-tool-catalog-foundation after verified fallback launch for step 2.1.
+- `2026-05-21T15:45:57+00:00` Verified current automation d-vsec-tool-catalog-foundation is PAUSED in the Codex app registry.
+- `2026-05-21T15:45:57+00:00` Recorded current automation d-vsec-tool-catalog-foundation as PAUSED after step 2.1 handoff.
+- `2026-05-21T15:45:57+00:00` Paused stale step 1.2 automation after verified step 2.1 handoff.
+- `2026-05-21T15:45:57+00:00` Verified stale step 1.2 automation is PAUSED in the Codex app registry.
+- `2026-05-21T15:45:57+00:00` Recorded stale step 1.2 automation as PAUSED after step 2.1 handoff.
+- `2026-05-21T15:51:44+00:00` Completed Step 2.1: added typed catalog metadata, registry helpers, derived labels, and scanner_catalog compatibility. Parser now points to Step 2.2.
+- `2026-05-21T15:52:47+00:00` Registered next fallback automation `d-vsec-tool-catalog-foundation-step-2-2-20260521-155247` for step 2.2 at 2026-05-21T17:54:00+02:00.
+- `2026-05-21T15:52:55+00:00` Verified automation `d-vsec-tool-catalog-foundation-step-2-2-20260521-155247` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T15:52:59+00:00` Created automation d-vsec-tool-catalog-foundation-step-2-2-20260521-155247 for step 2.2 Expose catalog and install-state API data.
+- `2026-05-21T15:53:10+00:00` Released current run lock before observing fallback scheduler launch for step 2.2.
+- `2026-05-21T15:54:22+00:00` Verified automation `d-vsec-tool-catalog-foundation-step-2-2-20260521-155247` launched thread `019e4b3e-9d09-7f30-b07e-4488e954a0e2` with status `IN_PROGRESS`.
+- `2026-05-21T15:54:30+00:00` Paused current automation d-vsec-tool-catalog-foundation-step-2-1-20260521-154351 after verified fallback launch for step 2.2.
+- `2026-05-21T15:54:38+00:00` Verified current automation d-vsec-tool-catalog-foundation-step-2-1-20260521-154351 is PAUSED in the Codex app registry.
+- `2026-05-21T15:54:43+00:00` Recorded current automation d-vsec-tool-catalog-foundation-step-2-1-20260521-154351 as PAUSED after step 2.2 handoff.
+- `2026-05-21T15:59:00+00:00` Completed Step 2.2: exposed detection-backed tool catalog data through /api/summary and /api/tool-catalog, added TypeScript catalog shapes and legacy summary fallback. Parser now points to Step 3.1.
+- `2026-05-21T15:59:13+00:00` Registered next fallback automation `d-vsec-tool-catalog-foundation-step-3-1-20260521-155913` for step 3.1 at 2026-05-21T18:00:00+02:00.
+- `2026-05-21T15:59:17+00:00` Verified automation `d-vsec-tool-catalog-foundation-step-3-1-20260521-155913` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T15:59:22+00:00` Created automation d-vsec-tool-catalog-foundation-step-3-1-20260521-155913 for step 3.1 Document Tool Catalog and Security Packs.
+- `2026-05-21T15:59:33+00:00` Released current run lock before observing fallback scheduler launch for step 3.1.
+- `2026-05-21T16:00:29+00:00` Verified automation `d-vsec-tool-catalog-foundation-step-3-1-20260521-155913` launched thread `019e4b44-1b5a-79c1-8694-8a30f249ab55` with status `IN_PROGRESS`.
+- `2026-05-21T16:00:43+00:00` Paused current automation d-vsec-tool-catalog-foundation-step-2-2-20260521-155247 after verified fallback launch for step 3.1.
+- `2026-05-21T16:00:43+00:00` Verified automation `d-vsec-tool-catalog-foundation-step-2-2-20260521-155247` in Codex app registry as PAUSED with model gpt-5.5/xhigh.
+- `2026-05-21T16:00:43+00:00` Recorded current automation d-vsec-tool-catalog-foundation-step-2-2-20260521-155247 as PAUSED after step 3.1 handoff.
+- `2026-05-21T16:00:51+00:00` Verified automation `d-vsec-tool-catalog-foundation-step-3-1-20260521-155913` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T16:02:34+00:00` Completed step 3.1 documentation; parser next is step 3.2 verification.
+- `2026-05-21T16:04:02+00:00` Registered next fallback automation `d-vsec-tool-catalog-foundation-step-3-2-20260521-160402` for step 3.2 at 2026-05-21T18:06:00+02:00.
+- `2026-05-21T16:04:06+00:00` Verified automation `d-vsec-tool-catalog-foundation-step-3-2-20260521-160402` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T16:04:10+00:00` Created automation d-vsec-tool-catalog-foundation-step-3-2-20260521-160402 for step 3.2 Verify import, API shape, and stale metadata risks.
+- `2026-05-21T16:04:20+00:00` Released current run lock before observing fallback scheduler launch for step 3.2.
+- `2026-05-21T16:06:06+00:00` Automation `d-vsec-tool-catalog-foundation-step-3-2-20260521-160402` has no scheduler run since `1779379560000` in the Codex app registry.
+- `2026-05-21T16:06:18+00:00` Verified automation `d-vsec-tool-catalog-foundation-step-3-2-20260521-160402` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T16:06:24+00:00` Verified automation `d-vsec-tool-catalog-foundation-step-3-2-20260521-160402` launched thread `019e4b49-99f5-7951-90eb-d649dd0b1bf9` with status `IN_PROGRESS`.
+- `2026-05-21T16:06:29+00:00` Paused current automation d-vsec-tool-catalog-foundation-step-3-1-20260521-155913 after verified fallback launch for step 3.2.
+- `2026-05-21T16:06:32+00:00` Verified automation `d-vsec-tool-catalog-foundation-step-3-1-20260521-155913` in Codex app registry as PAUSED with model gpt-5.5/xhigh.
+- `2026-05-21T16:06:37+00:00` Recorded current automation d-vsec-tool-catalog-foundation-step-3-1-20260521-155913 as PAUSED after step 3.2 handoff.
+- `2026-05-21T16:10:38+00:00` Completed step 3.2 validation; parser now points at whole-campaign final review.
+- `2026-05-21T16:11:08+00:00` Registered final-review automation `d-vsec-tool-catalog-foundation-final-review-20260521-181200` for parser next `final_review DëvSec Tool Catalog Foundation`.
+- `2026-05-21T16:11:14+00:00` Verified final-review automation d-vsec-tool-catalog-foundation-final-review-20260521-181200 is ACTIVE with GPT-5.5 xhigh in the Codex registry.
+- `2026-05-21T16:13:38+00:00` Verified fallback final-review automation d-vsec-tool-catalog-foundation-final-review-20260521-181200 launched a scheduler run.
+- `2026-05-21T16:13:44+00:00` Recorded verified final-review automation d-vsec-tool-catalog-foundation-final-review-20260521-181200 after registry and run proof.
+- `2026-05-21T16:13:49+00:00` Paused completed step 3.2 automation after final-review successor was verified.
+- `2026-05-21T16:13:55+00:00` Verified current step 3.2 automation is PAUSED in the Codex registry.
+- `2026-05-21T16:14:00+00:00` Recorded current automation status as PAUSED in campaign state.
+- `2026-05-21T16:16:23+00:00` Final review found one bounded gap: live catalog/API lacks the External Surface display-only coming-soon placeholder required by locked MVP decisions.
+- `2026-05-21T16:16:48+00:00` Registered final-rework fallback automation d-vsec-tool-catalog-foundation-final-rework-20260521-181800 for parser next final_rework DëvSec Tool Catalog Foundation at 2026-05-21T18:18:00+02:00.
+- `2026-05-21T16:16:54+00:00` Verified final-rework automation d-vsec-tool-catalog-foundation-final-rework-20260521-181800 in Codex registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T16:17:08+00:00` Created automation d-vsec-tool-catalog-foundation-final-rework-20260521-181800 for final_rework DëvSec Tool Catalog Foundation after registry verification.
+- `2026-05-21T16:18:24+00:00` Verified fallback final-rework automation d-vsec-tool-catalog-foundation-final-rework-20260521-181800 launched a scheduler run.
+- `2026-05-21T16:18:33+00:00` Paused current final-review automation d-vsec-tool-catalog-foundation-final-review-20260521-181200 after verified fallback launch for final rework.
+- `2026-05-21T16:18:38+00:00` Verified current final-review automation d-vsec-tool-catalog-foundation-final-review-20260521-181200 is PAUSED in the Codex registry.
+- `2026-05-21T16:18:42+00:00` Recorded current automation status as PAUSED after final-review handoff to final rework.
+- `2026-05-21T16:19:10+00:00` Released current run lock after final-review handoff to final rework.
+- `2026-05-21T16:19:55+00:00` Verified automation `d-vsec-tool-catalog-foundation-final-rework-20260521-181800` launched thread `019e4b54-969f-7921-9b14-17750bf6df9f` with status `IN_PROGRESS`.
+- `2026-05-21T16:22:06+00:00` Final rework added External Surface display-only placeholder and contract coverage; rerun whole-campaign final review.
+- `2026-05-21T16:22:53+00:00` Registered next final-review rerun automation via registry fallback.
+- `2026-05-21T16:23:01+00:00` Verified next final-review rerun automation is ACTIVE in app registry.
+- `2026-05-21T16:23:06+00:00` Recorded next automation after parser confirmed next unit is final_review.
+- `2026-05-21T16:24:29+00:00` Verified registry-created final-review automation produced a scheduler run.
+- `2026-05-21T16:24:46+00:00` Paused current final-rework automation after next final-review rerun launch was proven.
+- `2026-05-21T16:24:49+00:00` Verified current automation is PAUSED in app registry.
+- `2026-05-21T16:24:54+00:00` Recorded current automation PAUSED after registry verification.
+- `2026-05-21T16:25:26+00:00` Verified automation `d-vsec-tool-catalog-foundation-final-review-rerun-20260521-182400` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T16:25:33+00:00` Verified automation `d-vsec-tool-catalog-foundation-final-review-rerun-20260521-182400` launched thread `019e4b5a-1516-7fb1-95e5-f646e3589594` with status `IN_PROGRESS`.
+- `2026-05-21T16:28:00+00:00` Final review rerun approved the campaign; External Surface placeholder rework verified and final review checkbox marked complete.
+- `2026-05-21T16:28:34+00:00` Paused current final-review rerun automation after campaign completion.
+- `2026-05-21T16:28:34+00:00` Pre-pause registry check for current final-review rerun automation.
+- `2026-05-21T16:28:41+00:00` Verified current final-review rerun automation is PAUSED after campaign completion.
+- `2026-05-21T16:28:41+00:00` Recorded current final-review rerun automation as PAUSED after registry verification.
+- `2026-05-21T16:29:24+00:00` Released current run lock after campaign completion and paused automation verification.

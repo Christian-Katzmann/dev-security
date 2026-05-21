@@ -14,6 +14,7 @@ import time
 
 from .ai_static import scan_ai_static
 from .behavioral import MAX_BEHAVIORAL_ARTIFACT_BYTES, MAX_BEHAVIORAL_FILES, MAX_BEHAVIORAL_PACKAGES, BehavioralDriftTarget
+from .catalog import current_tool_catalog, legacy_scanner_catalog_map, scanner_catalog_compat
 from .model import DEFAULT_EXCLUDES, Finding, ScannerStatus, read_json_safely, sanitize_json, write_json
 from .normalize import normalize
 from .platform_posture import sanitize_legitify_payload
@@ -32,143 +33,7 @@ EXIT_CODES_WITH_FINDINGS = {
     "legitify": {1},
 }
 
-SCANNER_CATALOG: dict[str, dict[str, str | bool]] = {
-    "ioc-watch": {
-        "label": "IOC Watch",
-        "area": "Named-campaign defense",
-        "covers": "Local IOC packs matched against saved SBOM components, namespace watches, and known campaign domains.",
-        "profile": "default, deps, full, ioc",
-        "install": "Built in. No install needed.",
-        "next_step": "Run security-scan ioc after an SBOM-backed dependency scan.",
-        "built_in": True,
-    },
-    "install-hooks": {
-        "label": "Install hook classifier",
-        "area": "Supply-chain surfaces",
-        "covers": "Package install scripts and Python build hooks classified by install-time execution risk.",
-        "profile": "default, quick, deps, full",
-        "install": "Built in. No install needed.",
-        "next_step": "Run a default, quick, dependency, or full scan to include install-hook classification.",
-        "built_in": True,
-    },
-    "workflow-audit": {
-        "label": "Workflow surface audit",
-        "area": "Supply-chain surfaces",
-        "covers": "GitHub Actions pins, fetch-and-exec patterns, secret handling, token permissions, and pull_request_target risk.",
-        "profile": "default, quick, iac, full",
-        "install": "Built in. No install needed.",
-        "next_step": "Run a default, quick, IaC, or full scan to include workflow surface findings.",
-        "built_in": True,
-    },
-    "ai-static": {
-        "label": "Built-in AI static checks",
-        "area": "AI agent/MCP",
-        "covers": "Prompt files, MCP configs, agent-readable instructions, and risky local tool setup.",
-        "profile": "quick, ai, full",
-        "install": "Built in. No install needed.",
-        "next_step": "Run a quick or AI scan to include this check.",
-        "built_in": True,
-    },
-    "semgrep": {
-        "label": "Semgrep",
-        "area": "Code security",
-        "covers": "Code vulnerability patterns such as injection, unsafe parsing, and insecure defaults.",
-        "profile": "quick, code, full",
-        "install": "./install-security-observatory.sh or brew install semgrep",
-        "next_step": "Install Semgrep, then rerun the code or quick scan.",
-        "built_in": False,
-    },
-    "gitleaks": {
-        "label": "Gitleaks",
-        "area": "Secrets",
-        "covers": "Fast detection of exposed API keys, tokens, passwords, and private keys.",
-        "profile": "quick, secrets, full",
-        "install": "./install-security-observatory.sh or brew install gitleaks",
-        "next_step": "Install Gitleaks, then rerun the secrets or quick scan.",
-        "built_in": False,
-    },
-    "trufflehog": {
-        "label": "TruffleHog",
-        "area": "Secrets",
-        "covers": "Deeper second-opinion secret detection.",
-        "profile": "secrets, full",
-        "install": "./install-security-observatory.sh or brew install trufflehog",
-        "next_step": "Install TruffleHog, then rerun the secrets or full scan.",
-        "built_in": False,
-    },
-    "trivy": {
-        "label": "Trivy",
-        "area": "Dependencies / IaC",
-        "covers": "Filesystem, dependency, secret, and infrastructure misconfiguration checks.",
-        "profile": "deps, secrets, iac, full",
-        "install": "./install-security-observatory.sh or brew install trivy",
-        "next_step": "Install Trivy, then rerun the dependency, secrets, IaC, or full scan.",
-        "built_in": False,
-    },
-    "osv-scanner": {
-        "label": "OSV-Scanner",
-        "area": "Dependencies / SBOM",
-        "covers": "Open-source dependency vulnerabilities from OSV advisories.",
-        "profile": "quick, deps, full",
-        "install": "./install-security-observatory.sh or brew install osv-scanner",
-        "next_step": "Install OSV-Scanner, then rerun the dependency or quick scan.",
-        "built_in": False,
-    },
-    "syft": {
-        "label": "Syft",
-        "area": "Dependencies / SBOM",
-        "covers": "Software bill of materials generation.",
-        "profile": "deps, full",
-        "install": "./install-security-observatory.sh or brew install syft",
-        "next_step": "Install Syft, then rerun the dependency or full scan.",
-        "built_in": False,
-    },
-    "grype": {
-        "label": "Grype",
-        "area": "Dependencies / SBOM",
-        "covers": "Dependency vulnerability scanning from an SBOM or repository filesystem.",
-        "profile": "deps, full",
-        "install": "./install-security-observatory.sh or brew install grype",
-        "next_step": "Install Grype, then rerun the dependency or full scan.",
-        "built_in": False,
-    },
-    "checkov": {
-        "label": "Checkov",
-        "area": "Infrastructure",
-        "covers": "Terraform, Kubernetes, and cloud configuration policy checks.",
-        "profile": "iac, full",
-        "install": "./install-security-observatory.sh or uv tool install checkov",
-        "next_step": "Install Checkov, then rerun the IaC or full scan.",
-        "built_in": False,
-    },
-    "medusa": {
-        "label": "Medusa",
-        "area": "AI agent/MCP",
-        "covers": "MCP, prompt injection, AI editor config, and repo-poisoning checks.",
-        "profile": "ai, full",
-        "install": "./install-security-observatory.sh or uv tool install medusa-security",
-        "next_step": "Install Medusa, then rerun the AI or full scan.",
-        "built_in": False,
-    },
-    "malcontent": {
-        "label": "malcontent",
-        "area": "Behavioral drift",
-        "covers": "Advanced diffing of old and new dependency artifacts for suspicious behavior changes.",
-        "profile": "behavioral-drift",
-        "install": "Install malcontent separately, then provide local package artifacts under the behavioral artifact cache.",
-        "next_step": "Run security-scan --behavioral-drift after at least two SBOM-backed dependency scans.",
-        "built_in": False,
-    },
-    "legitify": {
-        "label": "legitify",
-        "area": "Platform posture",
-        "covers": "Optional connected checks for repository branch protection, Actions permissions, webhooks, and SCM settings.",
-        "profile": "platform-posture",
-        "install": "brew install legitify, then set SCM_TOKEN for the platform posture profile.",
-        "next_step": "Run security-scan --platform-posture only when you want a token-backed platform check.",
-        "built_in": False,
-    },
-}
+SCANNER_CATALOG: dict[str, dict[str, str | bool]] = legacy_scanner_catalog_map()
 
 
 @dataclass(frozen=True)
@@ -179,7 +44,11 @@ class ScannerResult:
 
 
 def scanner_catalog() -> list[dict[str, str | bool]]:
-    return [{"scanner": scanner, **metadata} for scanner, metadata in SCANNER_CATALOG.items()]
+    return scanner_catalog_compat()
+
+
+def tool_catalog(*, detect_install_state: bool = False) -> list[dict[str, Any]]:
+    return current_tool_catalog(detect_install_state=detect_install_state)
 
 
 def scanner_names_for_profile(args: Any) -> list[str]:

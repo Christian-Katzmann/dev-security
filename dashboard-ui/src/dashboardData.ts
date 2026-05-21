@@ -24,6 +24,115 @@ export type ScannerCatalogItem = {
   built_in?: boolean;
 };
 
+export type ToolKind = 'scanner' | 'plugin' | 'app' | 'mcp-connector' | 'workflow';
+export type ToolCategory =
+  | 'code-security'
+  | 'secrets'
+  | 'dependencies'
+  | 'supply-chain'
+  | 'infrastructure'
+  | 'ai-agent'
+  | 'platform-posture'
+  | 'external-surface'
+  | 'defense-intel';
+export type ToolLifecycle = 'available' | 'beta' | 'advanced' | 'coming-soon' | 'deprecated' | 'hidden';
+export type ToolInstallState = 'built-in' | 'managed' | 'detected' | 'missing' | 'unavailable' | 'not-configured' | 'coming-soon';
+export type ToolInstallMethod = 'built-in' | 'homebrew' | 'uv-tool' | 'manual' | 'docker-optional' | 'managed-future' | 'none';
+export type ToolInstallOwner = 'devsec' | 'external' | 'user' | 'not-applicable';
+export type ToolInstallDetection = 'built-in' | 'path-binary' | 'config-preflight' | 'cache-preflight' | 'registry-future' | 'none';
+export type ToolUninstallPosture = 'not-needed' | 'devsec-managed' | 'user-owned' | 'manual-only' | 'not-supported';
+export type ToolNetworkAccess = 'none' | 'optional' | 'required';
+export type ToolExternalTargets = 'none' | 'repo-derived' | 'user-provided';
+export type ToolCredentialUse = 'none' | 'optional' | 'required';
+export type ToolEvidenceType =
+  | 'source-pattern'
+  | 'secret-match'
+  | 'dependency-advisory'
+  | 'sbom'
+  | 'iac-policy'
+  | 'workflow-policy'
+  | 'install-hook'
+  | 'ai-config'
+  | 'platform-posture'
+  | 'behavior-diff'
+  | 'ioc-match'
+  | 'external-observation';
+export type ToolPackId = 'starter' | 'secrets' | 'dependencies' | 'ai-agent' | 'iac' | 'platform-posture' | 'advanced-dependency' | 'external-surface';
+export type ToolPackRole = 'included' | 'optional' | 'coming-soon';
+
+export type ToolInstallContract = {
+  method: ToolInstallMethod;
+  owner: ToolInstallOwner;
+  detection: ToolInstallDetection;
+  binary?: string;
+  alternate_binaries?: string[];
+  managed_package?: string;
+  instructions?: string;
+  next_step?: string;
+  uninstall_posture: ToolUninstallPosture;
+};
+
+export type ToolPolicy = {
+  local_only: boolean;
+  writes_files: boolean;
+  network_access: ToolNetworkAccess;
+  external_targets: ToolExternalTargets;
+  uses_credentials: ToolCredentialUse;
+  destructive_action: boolean;
+  needs_approval: boolean;
+  allowed_for_agent_lab: boolean;
+  stores_results_locally: boolean;
+  sends_source_off_machine: boolean;
+  requires_human_setup: boolean;
+  default_enabled: boolean;
+};
+
+export type ToolCapabilities = {
+  finding_categories: string[];
+  evidence_types: ToolEvidenceType[];
+  scan_profiles: string[];
+  requires_previous_scan: boolean;
+  requires_artifacts: boolean;
+  requires_repo_remote: boolean;
+};
+
+export type ToolPackMembership = {
+  pack_id: ToolPackId;
+  role: ToolPackRole;
+  default_enabled: boolean;
+};
+
+export type ToolDerivedLabels = {
+  safety: string[];
+  install: string[];
+  agent_lab: string;
+};
+
+export type ToolCatalogItem = {
+  id: string;
+  kind: ToolKind;
+  label: string;
+  summary: string;
+  description?: string;
+  category: ToolCategory;
+  scanner_key?: string;
+  legacy_scanner?: ScannerCatalogItem;
+  lifecycle: ToolLifecycle;
+  install_state: ToolInstallState;
+  install: ToolInstallContract;
+  policy: ToolPolicy;
+  capabilities: ToolCapabilities;
+  derived_labels: ToolDerivedLabels;
+  packs: ToolPackMembership[];
+  profiles: string[];
+  docs_path?: string;
+  homepage_url?: string;
+};
+
+export type ToolCatalogPayload = {
+  items: ToolCatalogItem[];
+};
+
 export type ScannerDoctorStatus = 'ran' | 'missing' | 'error' | 'not-run';
 
 export type ScannerDoctorItem = ScannerCatalogItem & {
@@ -461,6 +570,7 @@ export type DashboardSummary = {
   project_statuses?: SecurityProjectStatus[];
   honey_event_retention_days?: number;
   scanner_catalog?: ScannerCatalogItem[];
+  tool_catalog?: ToolCatalogItem[];
   completeness?: {
     checks_ran?: string[];
     checks_skipped?: string[];
@@ -994,8 +1104,33 @@ export function staleRepoCount(summary: DashboardSummary, maxAgeDays = 7): numbe
   return summary.repos.filter((repo) => !repo.last_scan || new Date(repo.last_scan).getTime() < cutoff).length;
 }
 
+export function toolCatalogItems(summary: DashboardSummary): ToolCatalogItem[] {
+  return summary.tool_catalog ?? [];
+}
+
+function scannerCatalogForSummary(summary: DashboardSummary): ScannerCatalogItem[] {
+  if (summary.scanner_catalog?.length) return summary.scanner_catalog;
+  const legacyItems = (summary.tool_catalog ?? [])
+    .map((item): ScannerCatalogItem | null => {
+      if (item.legacy_scanner) return item.legacy_scanner;
+      if (!item.scanner_key) return null;
+      return {
+        scanner: item.scanner_key,
+        label: item.label,
+        area: item.category,
+        covers: item.summary,
+        profile: item.profiles.join(', '),
+        install: item.install.instructions ?? '',
+        next_step: item.install.next_step ?? '',
+        built_in: item.install_state === 'built-in' || item.install.method === 'built-in',
+      };
+    })
+    .filter((item): item is ScannerCatalogItem => item !== null);
+  return legacyItems.length ? legacyItems : defaultScannerCatalog;
+}
+
 export function scannerDoctorGroups(summary: DashboardSummary): ScannerDoctorGroup[] {
-  const catalog = summary.scanner_catalog?.length ? summary.scanner_catalog : defaultScannerCatalog;
+  const catalog = scannerCatalogForSummary(summary);
   const statuses = latestScannerStatuses(summary);
   const groups = new Map<string, ScannerDoctorItem[]>();
 

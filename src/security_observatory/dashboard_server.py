@@ -29,7 +29,7 @@ from .honey_keys import (
     sanitize_headers,
     summarize_body,
 )
-from .scanners import scanner_names_for_profile
+from .scanners import scanner_names_for_profile, tool_catalog
 from .storage import ObservatoryDB
 
 
@@ -842,6 +842,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             finally:
                 db.close()
             self.send_json(payload)
+            return
+        if parsed.path == "/api/tool-catalog":
+            self.send_json({"items": tool_catalog(detect_install_state=True)})
             return
         if parsed.path == "/api/honey/keys":
             query = parse_qs(parsed.query)

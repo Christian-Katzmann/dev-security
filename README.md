@@ -24,6 +24,16 @@ Security Observatory, also used in the app as DëvSec, runs a practical security
 
 ## Current Features
 
+### Tool Catalog and Security Packs
+
+DëvSec has a read-only Tool Catalog contract that explains what each scanner/tool does, whether it is built in, detected locally, DëvSec-managed, unavailable, or only coming soon, and which safety policy applies before any action can run.
+
+Security Packs are curated groups of catalog entries for a job, such as Starter, Secrets, Dependencies, and AI Agent. A pack never weakens a tool's policy: network access, credentials, file writes, destructive actions, and Agent Lab availability come from enforceable catalog fields, not from friendly card copy.
+
+Docker is optional, not the foundation. External Surface coverage is a Coming Soon placeholder in the MVP and is display-only: no target input, probing, active recon, install action, run action, or agent-triggered external scan.
+
+See [docs/tool-catalog.md](docs/tool-catalog.md).
+
 ### Local Repository Scanning
 
 Security Observatory can scan one repository, every discovered repository under a development root, or a selected repo from the dashboard.
@@ -413,6 +423,8 @@ scripts/                        Dashboard and desktop launcher scripts
 
 - [Setup guide](docs/setup.md)
 - [Architecture](docs/architecture.md)
+- [Tool Catalog and Security Packs](docs/tool-catalog.md)
+- [Current scanner catalog mapping](docs/tool-catalog-current-scanners.md)
 - [Scanner explanations](docs/scanners.md)
 - [IOC packs](docs/iocs.md)
 - [Adding scanners](docs/adding-scanners.md)

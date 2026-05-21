@@ -45,6 +45,30 @@ def test_scan_export_reconstructs_report_data(tmp_path):
     assert report["cases"][0]["title"] == "Unsafe parser"
 
 
+def test_dashboard_payload_exposes_detection_backed_tool_catalog(tmp_path, monkeypatch):
+    def fake_which(binary: str) -> str | None:
+        return f"/usr/local/bin/{binary}" if binary == "semgrep" else None
+
+    monkeypatch.setattr("security_observatory.catalog.shutil.which", fake_which)
+
+    db = ObservatoryDB(tmp_path / "observatory.sqlite")
+    try:
+        summary = db.dashboard_payload()
+    finally:
+        db.close()
+
+    catalog = {item["id"]: item for item in summary["tool_catalog"]}
+    assert summary["scanner_catalog"]
+    assert catalog["semgrep"]["install_state"] == "detected"
+    assert "Detected locally" in catalog["semgrep"]["derived_labels"]["install"]
+    assert catalog["semgrep"]["policy"]["allowed_for_agent_lab"] is True
+    assert catalog["semgrep"]["legacy_scanner"]["scanner"] == "semgrep"
+    assert catalog["external-surface"]["install_state"] == "coming-soon"
+    assert "Display only" in catalog["external-surface"]["derived_labels"]["safety"]
+    assert "Coming soon" in catalog["external-surface"]["derived_labels"]["install"]
+    assert catalog["external-surface"]["derived_labels"]["agent_lab"] == "Agent Lab blocked"
+
+
 def test_ai_prompt_instructs_verification_before_fixes():
     prompt = build_ai_prompt(
         {

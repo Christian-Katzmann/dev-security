@@ -37,19 +37,19 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 1 — Product contract
 
-- [ ] Step 1.1 — Define the catalog contract and policy matrix
-- [ ] Step 1.2 — Map current scanners into catalog metadata
+- [x] Step 1.1 — Define the catalog contract and policy matrix
+- [x] Step 1.2 — Map current scanners into catalog metadata
 
 ### Phase 2 — Backend foundation
 
-- [ ] Step 2.1 — Add catalog types and registry helpers
-- [ ] Step 2.2 — Expose catalog and install-state API data
+- [x] Step 2.1 — Add catalog types and registry helpers
+- [x] Step 2.2 — Expose catalog and install-state API data
 
 ### Phase 3 — Documentation and guardrails
 
-- [ ] Step 3.1 — Document Tool Catalog and Security Packs
-- [ ] Step 3.2 — Verify import, API shape, and stale metadata risks
-- [ ] Final review
+- [x] Step 3.1 — Document Tool Catalog and Security Packs
+- [x] Step 3.2 — Verify import, API shape, and stale metadata risks
+- [x] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
 

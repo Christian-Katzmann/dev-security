@@ -21,7 +21,7 @@ from .decisions import (
 )
 from .honey_keys import HONEY_KEY_PREFIX, utc_now
 from .platform_posture import platform_posture_snapshot_fingerprint
-from .scanners import scanner_catalog
+from .scanners import scanner_catalog, tool_catalog
 from .sbom import SBOMComponent, component_fingerprint
 from .silent_upgrades import annotate_dependency_changes
 from .vex import build_vex_document, parse_vex_document
@@ -999,6 +999,7 @@ class ObservatoryDB:
             "project_statuses": list(project_statuses.values()),
             "honey_event_retention_days": retention_days,
             "scanner_catalog": scanner_catalog(),
+            "tool_catalog": tool_catalog(detect_install_state=True),
         }
 
     def scan_export(self, scan_id: str) -> dict[str, Any] | None:
