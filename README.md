@@ -403,7 +403,7 @@ make desktop-quit
 Run tests:
 
 ```bash
-python3 -m pytest
+uv run pytest
 ```
 
 ## Project Structure

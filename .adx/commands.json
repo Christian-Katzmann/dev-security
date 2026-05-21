@@ -20,16 +20,31 @@
       "id": "python-pytest",
       "intent": "run Python unit tests",
       "command": [
-        "python3",
-        "-m",
+        "uv",
+        "run",
         "pytest"
       ],
       "cwd": ".",
       "safety": "local_mutation",
       "timeout_seconds": 120,
-      "when_to_run": "After Python logic changes when pytest is installed.",
+      "when_to_run": "After Python logic changes.",
       "success_signal": "Pytest exits 0.",
-      "recovery_hint": "If pytest is missing, install a proper dev/test environment first; the checked .venv currently lacks pip and pytest."
+      "recovery_hint": "If pytest is missing or the virtualenv is stale, run uv sync --dev from the repo root."
+    },
+    {
+      "id": "python-dev-sync",
+      "intent": "sync the Python dev/test environment",
+      "command": [
+        "uv",
+        "sync",
+        "--dev"
+      ],
+      "cwd": ".",
+      "safety": "network",
+      "timeout_seconds": 180,
+      "when_to_run": "When the Python virtualenv is missing, stale, or lacks test dependencies.",
+      "success_signal": "uv resolves dependencies and the repo virtualenv can run pytest.",
+      "recovery_hint": "If uv is unavailable, install or repair uv before running Python tests."
     },
     {
       "id": "python-editable-install",

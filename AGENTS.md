@@ -41,12 +41,12 @@
 
 ## Verification
 
-- For Python changes, prefer `python3 -c "import sys; sys.path.insert(0, 'src'); import security_observatory.cli; print('ok')"` as a very fast import check, then run `python3 -m pytest` only after pytest is available.
+- For Python changes, prefer `python3 -c "import sys; sys.path.insert(0, 'src'); import security_observatory.cli; print('ok')"` as a very fast import check, then run `uv run pytest` for the Python test suite.
 - For dashboard UI changes, use `cd dashboard-ui && npm run lint` and `cd dashboard-ui && npm run build`.
 - For desktop launcher changes, use the Makefile targets only when the task specifically concerns the app bundle, and stop any warm server with `make desktop-quit` when finished.
 
 ## Known Gaps
 
-- This directory is not currently a git checkout, so git-based status, diff, and history commands may fail.
-- The local `.venv` exists but currently lacks `pip` and `pytest`; do not claim tests passed unless you actually installed or used a working test environment.
+- This directory is a local git checkout. It may not have a remote; check before assuming push/PR workflows exist.
+- The local `.venv` is managed by `uv`; use `uv sync --dev` if test dependencies are stale, then `uv run pytest`.
 - There is no repo-local ADX command runner installed; use the JSON contracts directly or the shared ADX kit when available.
