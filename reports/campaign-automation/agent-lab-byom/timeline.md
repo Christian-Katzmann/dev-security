@@ -12,3 +12,31 @@
 - `2026-05-21T21:50:12+00:00` Created automation `d-vsec-agent-lab-byo-ai` for step 1.1 Define the Agent Lab trust model.
 - `2026-05-21T21:52:26+00:00` Verified automation `d-vsec-agent-lab-byo-ai` launched thread `019e4c86-111f-74b1-af76-d3ddfaf1dfa5` with status `IN_PROGRESS`.
 - `2026-05-21T21:52:38+00:00` Verified automation `d-vsec-agent-lab-byo-ai` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T21:55:06+00:00` Completed Step 1.1 trust model; next parser unit is step 1.2 Design user-mediated adapters for Codex and Claude.
+- `2026-05-21T21:56:04+00:00` Registered fallback automation `d-vsec-agent-lab-byo-ai-step-1-2-20260521-2358` for step 1.2 Design user-mediated adapters for Codex and Claude at 2026-05-21T23:58:00+02:00.
+- `2026-05-21T21:56:15+00:00` Verified automation `d-vsec-agent-lab-byo-ai-step-1-2-20260521-2358` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T21:56:23+00:00` Recorded automation d-vsec-agent-lab-byo-ai-step-1-2-20260521-2358 for step 1.2 after registry verification.
+- `2026-05-21T21:58:30+00:00` Verified automation `d-vsec-agent-lab-byo-ai-step-1-2-20260521-2358` launched thread `019e4c8c-04dd-7c01-98fc-930f9a97e2ee` with status `IN_PROGRESS`.
+- `2026-05-21T21:58:55+00:00` Paused current automation d-vsec-agent-lab-byo-ai after verified launch of step 1.2 automation.
+- `2026-05-21T21:58:55+00:00` Verified automation `d-vsec-agent-lab-byo-ai` in Codex app registry as PAUSED with model gpt-5.5/xhigh.
+- `2026-05-21T21:58:55+00:00` Recorded d-vsec-agent-lab-byo-ai as PAUSED after registry verification.
+- `2026-05-21T21:59:06+00:00` Released campaign lock after completing step 1.1 and chaining step 1.2.
+- `2026-05-21T22:03:03+00:00` Completed Step 1.2; parser now points at Step 1.3 OAuth and token risk boundaries.
+- `2026-05-21T22:04:10+00:00` Registered fallback automation `d-vsec-agent-lab-byo-ai-step-1-3-20260522-0005` for Step 1.3 at 2026-05-22T00:05:00+02:00.
+- `2026-05-21T22:04:28+00:00` Verified Step 1.3 fallback automation is ACTIVE and pinned to gpt-5.5/xhigh.
+- `2026-05-21T22:04:38+00:00` Recorded verified Step 1.3 automation after parser advanced from Step 1.2.
+- `2026-05-21T22:05:52+00:00` Verified scheduler launched the Step 1.3 fallback automation after registration.
+- `2026-05-21T22:06:09+00:00` Paused current Step 1.2 automation after verified Step 1.3 scheduler launch.
+- `2026-05-21T22:06:23+00:00` Verified current Step 1.2 automation is PAUSED in the Codex app registry.
+- `2026-05-21T22:06:32+00:00` Recorded current Step 1.2 automation as PAUSED after registry verification.
+- `2026-05-21T22:06:41+00:00` Released campaign lock after completing Step 1.2 and chaining Step 1.3.
+- `2026-05-21T22:08:28+00:00` Completed Step 1.3 OAuth/token boundary note; parser now points at Step 2.1 Add exportable agent context.
+- `2026-05-21T22:09:06+00:00` Automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` is missing from the Codex app registry or is not ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-21T22:09:24+00:00` Registered fallback automation d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010 for Step 2.1 at 2026-05-22T00:10:00+02:00.
+- `2026-05-21T22:09:33+00:00` Verified Step 2.1 fallback automation is ACTIVE and pinned to gpt-5.5/xhigh.
+- `2026-05-21T22:09:43+00:00` Recorded verified Step 2.1 automation after parser advanced from Step 1.3.
+- `2026-05-21T22:10:30+00:00` Verified scheduler launched the Step 2.1 fallback automation after registration.
+- `2026-05-21T22:10:50+00:00` Paused current Step 1.3 automation after verified Step 2.1 scheduler launch.
+- `2026-05-21T22:10:57+00:00` Verified current Step 1.3 automation is PAUSED in the Codex app registry.
+- `2026-05-21T22:11:01+00:00` Recorded current Step 1.3 automation as PAUSED after registry verification.
+- `2026-05-21T22:11:19+00:00` Released campaign lock after completing Step 1.3 and chaining Step 2.1.

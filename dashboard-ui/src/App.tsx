@@ -1479,31 +1479,16 @@ function ToolCatalogBrowse({
   onChooseChecks: () => void;
   onRefresh: () => Promise<void>;
 }) {
-  const {catalog, packs, runtime, mutation, installManagedTool, uninstallManagedTool} = useCatalogData(summary, onRefresh);
+  // Suppress unused: rebuild routes in Phase 3 own install/uninstall plumbing.
+  void onChooseChecks;
+  const {catalog, packs, runtime} = useCatalogData(summary, onRefresh);
   const [categoryFilter, setCategoryFilter] = useState<ToolCategory | 'all'>('all');
-  const [packFilter, setPackFilter] = useState<ToolPackId | 'all'>('all');
-  const [statusFilter, setStatusFilter] = useState<CatalogStatusFilter>('all');
   const [activeId, setActiveId] = useState<string | null>(catalog[0]?.id ?? null);
   const [activePackId, setActivePackId] = useState<ToolPackId | null>(packs[0]?.id ?? null);
   const query = search.trim().toLowerCase();
 
   const categories = useMemo(
     () => catalogCategoryOrder.filter((category) => catalog.some((item) => item.category === category && item.lifecycle !== 'hidden')),
-    [catalog],
-  );
-  const packSummaries = useMemo(
-    () => catalogPackOrder
-      .map((packId) => {
-        const matching = catalog.filter((item) => item.packs.some((pack) => pack.pack_id === packId));
-        return {
-          id: packId,
-          label: catalogPackLabels[packId],
-          count: matching.length,
-          ready: matching.filter((item) => catalogStatusBucket(item) === 'ready').length,
-          future: matching.filter((item) => item.packs.some((pack) => pack.pack_id === packId && pack.role === 'coming-soon')).length,
-        };
-      })
-      .filter((pack) => pack.count > 0),
     [catalog],
   );
   const packCards = useMemo(
@@ -1513,45 +1498,26 @@ function ToolCatalogBrowse({
     [packs],
   );
   const filteredPacks = useMemo(
-    () => packCards.filter((pack) => {
-      return !query || securityPackSearchText(pack).includes(query);
-    }),
+    () => packCards.filter((pack) => !query || securityPackSearchText(pack).includes(query)),
     [packCards, query],
   );
-
   const activeCatalog = useMemo(
     () => catalog.filter((item) => item.lifecycle !== 'hidden' && catalogStatusBucket(item) !== 'coming-soon'),
     [catalog],
   );
-  const futureCatalog = useMemo(
-    () => catalog.filter((item) => item.lifecycle !== 'hidden' && catalogStatusBucket(item) === 'coming-soon'),
-    [catalog],
-  );
-  const browseCatalog = statusFilter === 'coming-soon' ? futureCatalog : activeCatalog;
   const filteredCatalog = useMemo(
-    () => browseCatalog.filter((item) => {
-      if (!shouldShowAdvancedCatalogItem(item, search, categoryFilter, packFilter, statusFilter)) return false;
+    () => activeCatalog.filter((item) => {
+      if (!shouldShowAdvancedCatalogItem(item, search, categoryFilter, 'all', 'all')) return false;
       if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
-      if (packFilter !== 'all' && !item.packs.some((pack) => pack.pack_id === packFilter)) return false;
-      if (statusFilter !== 'all' && catalogStatusBucket(item) !== statusFilter) return false;
       return !query || catalogSearchText(item).includes(query);
     }),
-    [browseCatalog, categoryFilter, packFilter, query, search, statusFilter],
-  );
-  const futureMatches = useMemo(
-    () => statusFilter === 'coming-soon' ? [] : futureCatalog.filter((item) => {
-      if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
-      if (packFilter !== 'all' && !item.packs.some((pack) => pack.pack_id === packFilter)) return false;
-      return !query || catalogSearchText(item).includes(query);
-    }),
-    [categoryFilter, futureCatalog, packFilter, query, statusFilter],
+    [activeCatalog, categoryFilter, query, search],
   );
 
   useEffect(() => {
-    const visible = [...filteredCatalog, ...futureMatches];
-    if (activeId && visible.some((item) => item.id === activeId)) return;
-    setActiveId(visible[0]?.id ?? catalog[0]?.id ?? null);
-  }, [activeId, catalog, filteredCatalog, futureMatches]);
+    if (activeId && filteredCatalog.some((item) => item.id === activeId)) return;
+    setActiveId(filteredCatalog[0]?.id ?? catalog[0]?.id ?? null);
+  }, [activeId, catalog, filteredCatalog]);
 
   useEffect(() => {
     if (!packCards.length) return;
@@ -1559,15 +1525,8 @@ function ToolCatalogBrowse({
     setActivePackId(packCards[0].id);
   }, [activePackId, packCards]);
 
-  const active = catalog.find((item) => item.id === activeId) ?? filteredCatalog[0] ?? futureMatches[0] ?? catalog[0] ?? null;
+  const active = catalog.find((item) => item.id === activeId) ?? filteredCatalog[0] ?? catalog[0] ?? null;
   const activePack = packCards.find((pack) => pack.id === activePackId) ?? filteredPacks[0] ?? packCards[0] ?? null;
-  const readyCount = activeCatalog.filter((item) => catalogStatusBucket(item) === 'ready').length;
-  const setupCount = activeCatalog.filter((item) => catalogStatusBucket(item) === 'setup' || catalogStatusBucket(item) === 'missing').length;
-  const riskyCount = catalog.filter((item) => item.derived_labels.safety.some((label) => safetyLabelTone(label) === 'warn' || safetyLabelTone(label) === 'crit')).length;
-  const stateCounts = catalog.reduce<Record<ToolInstallState, number>>((counts, item) => {
-    counts[item.install_state] += 1;
-    return counts;
-  }, {'built-in': 0, managed: 0, detected: 0, missing: 0, unavailable: 0, 'not-configured': 0, 'coming-soon': 0});
 
   return (
     <div className="view-stack catalog-view">
@@ -1577,29 +1536,6 @@ function ToolCatalogBrowse({
           <h1>Security capability, with the safety rules visible.</h1>
           <p>Browse tools by job, local readiness, pack membership, and safety boundary before choosing a scan profile.</p>
         </div>
-        <div className="catalog-hero-metrics">
-          <MetricBlock label="Tools" value={String(catalog.length)} detail="catalog entries" />
-          <MetricBlock label="Ready" value={String(readyCount)} detail="built in or detected" tone="low" />
-          <MetricBlock label="Setup gaps" value={String(setupCount)} detail="missing or needs setup" tone={setupCount ? 'info' : 'low'} />
-          <MetricBlock label="Bounded" value={String(riskyCount)} detail="network, credentials, approval" tone={riskyCount ? 'warn' : 'low'} />
-        </div>
-      </section>
-
-      <section className="catalog-state-strip" aria-label="Catalog install states">
-        {([
-          ['built-in', 'Built in'],
-          ['managed', 'DëvSec managed'],
-          ['detected', 'Detected locally'],
-          ['missing', 'Missing'],
-          ['not-configured', 'Needs setup'],
-          ['unavailable', 'Unavailable'],
-          ['coming-soon', 'Display only'],
-        ] as [ToolInstallState, string][]).map(([state, label]) => (
-          <span key={state} className="catalog-state-chip">
-            <strong>{stateCounts[state]}</strong>
-            <span>{label}</span>
-          </span>
-        ))}
       </section>
 
       {!!packCards.length && (
@@ -1618,21 +1554,6 @@ function ToolCatalogBrowse({
               {!filteredPacks.length && <PaperCard className="catalog-empty"><EmptyLine title="No packs match this view" detail="Adjust search or clear the pack filter to see the pack pages." /></PaperCard>}
             </div>
           </div>
-          <PaperCard className="catalog-pack-side">
-            {activePack ? (
-              <CatalogSelectedPack
-                pack={activePack}
-                catalog={catalog}
-                mutation={mutation}
-                onChooseChecks={onChooseChecks}
-                onSelectTool={(toolId) => setActiveId(toolId)}
-                onInstallTool={installManagedTool}
-                onUninstallTool={uninstallManagedTool}
-              />
-            ) : (
-              <EmptyLine title="No pack selected" detail="Security Pack pages appear here when the API publishes them." />
-            )}
-          </PaperCard>
         </section>
       )}
 
@@ -1640,48 +1561,13 @@ function ToolCatalogBrowse({
         <div className="catalog-filter-row">
           <span>Category</span>
           <Chip active={categoryFilter === 'all'} onClick={() => setCategoryFilter('all')}>All</Chip>
-          {categories.map((category) => (
+          {categories.slice(0, 5).map((category) => (
             <Chip key={category} active={categoryFilter === category} onClick={() => setCategoryFilter(category)}>
               {catalogCategoryLabels[category]}
             </Chip>
           ))}
         </div>
-        <div className="catalog-filter-row">
-          <span>Status</span>
-          {catalogStatusFilters.map((status) => (
-            <Chip key={status.id} active={statusFilter === status.id} onClick={() => setStatusFilter(status.id)}>
-              {status.label}
-            </Chip>
-          ))}
-        </div>
-        <div className="catalog-filter-row">
-          <span>Pack</span>
-          <Chip active={packFilter === 'all'} onClick={() => setPackFilter('all')}>All</Chip>
-          {catalogPackOrder.filter((packId) => packCards.length ? packCards.some((pack) => pack.id === packId) : packSummaries.some((pack) => pack.id === packId)).map((packId) => (
-            <Chip key={packId} active={packFilter === packId} onClick={() => {
-              setPackFilter(packId);
-              setActivePackId(packId);
-            }}>
-              {catalogPackLabels[packId]}
-            </Chip>
-          ))}
-        </div>
       </section>
-
-      {!packCards.length && !!packSummaries.length && (
-        <section className="catalog-pack-strip">
-          {packSummaries.map((pack) => (
-            <button key={pack.id} type="button" className={`catalog-pack-card ${packFilter === pack.id ? 'selected' : ''}`} onClick={() => setPackFilter(pack.id === packFilter ? 'all' : pack.id)}>
-              <span>{catalogIcon(catalogPackIconCategory(pack.id))}</span>
-              <strong>{pack.label}</strong>
-              <div className="catalog-pack-meta">
-                <em>{pack.ready ? `${pack.ready} ready` : `${pack.count} entries`}</em>
-                {!!pack.future && <em>{pack.future} display only</em>}
-              </div>
-            </button>
-          ))}
-        </section>
-      )}
 
       <section className="catalog-layout">
         <div className="catalog-grid">
@@ -1689,38 +1575,11 @@ function ToolCatalogBrowse({
             <CatalogToolCard key={item.id} item={item} runtime={item.scanner_key ? runtime.get(item.scanner_key) : undefined} selected={active?.id === item.id} onClick={() => setActiveId(item.id)} />
           )) : (
             <PaperCard className="catalog-empty">
-              <EmptyLine title={statusFilter === 'coming-soon' ? 'No display-only entries match this view' : 'No tools match this view'} detail="Adjust category, status, pack, or search to widen the catalog." />
+              <EmptyLine title="No tools match this view" detail="Adjust category or search to widen the catalog." />
             </PaperCard>
           )}
         </div>
-        <PaperCard className="catalog-side">
-          {active ? (
-            <CatalogSelectedTool
-              summary={summary}
-              item={active}
-              runtime={active.scanner_key ? runtime.get(active.scanner_key) : undefined}
-              mutation={mutation}
-              onChooseChecks={onChooseChecks}
-              onInstallTool={installManagedTool}
-              onUninstallTool={uninstallManagedTool}
-            />
-          ) : (
-            <EmptyLine title="No catalog entry selected" detail="Choose a tool card to see readiness and safety context." />
-          )}
-        </PaperCard>
       </section>
-
-      {!!futureMatches.length && (
-        <section className="catalog-future">
-          <SectionHeader title="Future coverage" right={<span>{futureMatches.length} display-only</span>} />
-          <p className="catalog-future-note">Display-only entries stay educational until DëvSec has the approval controls to run them safely.</p>
-          <div className="catalog-future-grid">
-            {futureMatches.map((item) => (
-              <CatalogFutureCard key={item.id} item={item} selected={active?.id === item.id} onClick={() => setActiveId(item.id)} />
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }

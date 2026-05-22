@@ -7,7 +7,7 @@
     "campaign_path": "/Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/agent-lab-byom.md",
     "run_dir": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/agent-lab-byom",
     "created_at": "2026-05-21T21:49:23+00:00",
-    "updated_at": "2026-05-21T21:50:12+00:00",
+    "updated_at": "2026-05-21T22:11:01+00:00",
     "status": "active",
     "model": "gpt-5.5",
     "reasoning_effort": "xhigh",
@@ -18,8 +18,8 @@
   },
   "phase": "step",
   "cursor": {
-    "step_id": null,
-    "phase": null,
+    "step_id": "2.1",
+    "phase": "2",
     "attempt": 0
   },
   "policy": {
@@ -41,13 +41,46 @@
   "automations": [
     {
       "id": "d-vsec-agent-lab-byo-ai",
-      "status": "ACTIVE",
+      "status": "PAUSED",
       "kind": "cron",
       "execution_environment": "worktree",
       "model": "gpt-5.5",
       "reasoning_effort": "xhigh",
       "created_at": "2026-05-21T21:50:12+00:00",
-      "expected_next": "step 1.1 Define the Agent Lab trust model"
+      "expected_next": "step 1.1 Define the Agent Lab trust model",
+      "updated_at": "2026-05-21T21:58:55+00:00"
+    },
+    {
+      "id": "d-vsec-agent-lab-byo-ai-step-1-2-20260521-2358",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T21:56:23+00:00",
+      "expected_next": "step 1.2 Design user-mediated adapters for Codex and Claude",
+      "updated_at": "2026-05-21T22:06:32+00:00"
+    },
+    {
+      "id": "d-vsec-agent-lab-byo-ai-step-1-3-20260522-0005",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T22:04:38+00:00",
+      "expected_next": "step 1.3 Grill: OAuth and token risk boundaries for later",
+      "updated_at": "2026-05-21T22:11:01+00:00"
+    },
+    {
+      "id": "d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010",
+      "status": "ACTIVE",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-21T22:09:43+00:00",
+      "expected_next": "step 2.1 Add exportable agent context"
     }
   ],
   "blockers": []

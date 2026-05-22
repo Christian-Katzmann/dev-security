@@ -34,8 +34,8 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 1 — IA and scaffolding
 
-- [ ] Step 1.1 — Decide routing and split CatalogView into four route shells
-- [ ] Step 1.2 — Extract catalog data hooks and types
+- [x] Step 1.1 — Decide routing and split CatalogView into four route shells
+- [x] Step 1.2 — Extract catalog data hooks and types
 
 ### Phase 2 — Demolition
 
