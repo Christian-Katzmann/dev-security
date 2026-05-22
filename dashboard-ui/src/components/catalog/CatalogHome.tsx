@@ -67,8 +67,8 @@ export default function CatalogHome({summary, onRefresh, onOpenBrowse, onOpenToo
       <section className="catalog-home-hero">
         <div className="catalog-home-hero-copy">
           <div className="eyebrow">Tool catalog</div>
-          <h1>Secure your stack with one click.</h1>
-          <p>Browse curated security packs and standalone plugins. Install what you need, when you need it — DëvSec leaves your other tooling alone.</p>
+          <h1>Here's the catalog.</h1>
+          <p>Curated security packs and standalone plugins. Install what you need, when you need it — DëvSec leaves your other tooling alone.</p>
           <button type="button" className="catalog-home-cta" onClick={onOpenBrowse}>
             Browse all tools
             <ArrowRight size={16} />
@@ -131,7 +131,7 @@ export default function CatalogHome({summary, onRefresh, onOpenBrowse, onOpenToo
               </header>
               <p>{tool.summary}</p>
               <button type="button" className="catalog-home-card-action primary" onClick={() => onOpenTool(tool.id)}>
-                One-click install
+                Install plugin
               </button>
             </article>
           ))}

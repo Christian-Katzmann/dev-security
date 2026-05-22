@@ -24,6 +24,28 @@
   --sev-warn: #c98a3f;
   --sev-high: #b56b4a;
   --sev-crit: #9c3b3b;
+  --on-surface-strong: #ffffff;
+  --on-surface: rgba(255, 255, 255, 0.92);
+  --on-surface-muted: rgba(255, 255, 255, 0.70);
+  --on-surface-faint: rgba(255, 255, 255, 0.48);
+  --surface-card: #ffffff;
+  --sev-low-soft: #dfe7e3;
+  --sev-info-soft: #cfdbe9;
+  --sev-info-ink: #36506e;
+  --sev-warn-soft: #f1dcbe;
+  --sev-warn-ink: #7d4d10;
+  --sev-high-soft: #ecc9b7;
+  --sev-high-ink: #6e3a1c;
+  --sev-crit-soft: #e8c6c0;
+  --sev-crit-ink: #6c1f1f;
+  --sev-low-tint-12: rgba(138, 163, 154, 0.12);
+  --sev-low-tint-16: rgba(138, 163, 154, 0.16);
+  --sev-low-tint-18: rgba(138, 163, 154, 0.18);
+  --sev-low-tint-20: rgba(138, 163, 154, 0.20);
+  --sev-info-tint-16: rgba(107, 141, 181, 0.16);
+  --ink-tint-3: rgba(28, 36, 34, 0.03);
+  --ink-tint-4: rgba(28, 36, 34, 0.04);
+  --ink-tint-6: rgba(28, 36, 34, 0.06);
   --border-hair: rgba(28, 36, 34, 0.08);
   --border-soft: rgba(28, 36, 34, 0.12);
   --toolbar-bg: rgba(232, 236, 234, 0.82);
@@ -2878,7 +2900,7 @@ a.button,
   gap: 40px;
   align-items: center;
   padding: 40px 44px;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-1);
@@ -2917,7 +2939,7 @@ a.button,
   border: 1px solid var(--ink-strong);
   border-radius: var(--r-lg);
   background: var(--ink-strong);
-  color: #fff;
+  color: var(--on-surface-strong);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -2997,7 +3019,7 @@ a.button,
   flex-direction: column;
   gap: 14px;
   padding: 24px;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-1);
@@ -3061,7 +3083,7 @@ a.button,
   justify-content: center;
   gap: 8px;
   padding: 0 14px;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-soft);
   border-radius: var(--r-lg);
   color: var(--ink-strong);
@@ -3082,7 +3104,7 @@ a.button,
 .catalog-home-card-action.primary {
   background: var(--ink-strong);
   border-color: var(--ink-strong);
-  color: #fff;
+  color: var(--on-surface-strong);
 }
 
 .catalog-home-card-action.primary:hover {
@@ -3101,7 +3123,7 @@ a.button,
   flex-direction: column;
   gap: 14px;
   padding: 20px;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-1);
@@ -3232,7 +3254,7 @@ a.button,
   gap: 32px;
   align-items: center;
   padding: 32px 36px;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-1);
@@ -3277,7 +3299,7 @@ a.button,
   border: 1px solid var(--ink-strong);
   border-radius: var(--r-lg);
   background: var(--ink-strong);
-  color: #fff;
+  color: var(--on-surface-strong);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -3328,12 +3350,15 @@ a.button,
   line-height: 1.45;
 }
 
+/* Install failures use the elevated ink (not crit) — per DESIGN.md §3.4 a
+ * failed install is "should review", not a live threat. Critical stays
+ * reserved for true emergencies. */
 .catalog-browse-featured-message.error {
-  color: #6c1f1f;
+  color: var(--sev-high-ink);
 }
 
 .catalog-browse-featured-message.complete {
-  color: #3c4b48;
+  color: var(--mist-surface-700);
 }
 
 .catalog-browse-featured-art {
@@ -3386,7 +3411,7 @@ a.button,
   align-items: center;
   padding: 0 14px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
   color: var(--ink-muted);
   font-size: 12px;
@@ -3403,7 +3428,7 @@ a.button,
 .catalog-browse-chip.active {
   background: var(--ink-strong);
   border-color: var(--ink-strong);
-  color: #fff;
+  color: var(--on-surface-strong);
 }
 
 .catalog-browse-grid {
@@ -3423,7 +3448,7 @@ a.button,
 
 .catalog-browse-card {
   position: relative;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-1);
@@ -3477,7 +3502,7 @@ a.button,
 }
 
 .catalog-browse-card.muted .catalog-browse-card-icon {
-  background: #fff;
+  background: var(--surface-card);
 }
 
 .catalog-browse-pill {
@@ -3501,23 +3526,23 @@ a.button,
 }
 
 .catalog-browse-pill.elevated {
-  color: #6e3a1c;
-  background: #ecc9b7;
+  color: var(--sev-high-ink);
+  background: var(--sev-high-soft);
 }
 
 .catalog-browse-pill.warn {
-  color: #7d4d10;
-  background: #f1dcbe;
+  color: var(--sev-warn-ink);
+  background: var(--sev-warn-soft);
 }
 
 .catalog-browse-pill.low {
-  color: #3c4b48;
-  background: #dfe7e3;
+  color: var(--mist-surface-700);
+  background: var(--sev-low-soft);
 }
 
 .catalog-browse-pill.neutral {
   color: var(--ink-muted);
-  background: rgba(28, 36, 34, 0.06);
+  background: var(--ink-tint-6);
 }
 
 .catalog-browse-card h3 {
@@ -3546,7 +3571,8 @@ a.button,
   gap: 8px;
   border-top: 1px solid var(--border-hair);
   color: var(--ink-faint);
-  font: 500 11px/1.2 var(--font-mono);
+  font: 500 11px/1.2 var(--font-sans);
+  letter-spacing: 0.02em;
 }
 
 .catalog-browse-card-foot span {
@@ -3646,7 +3672,7 @@ a.button,
   flex-direction: column;
   gap: 12px;
   padding: 28px 32px;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-1);
@@ -3692,8 +3718,8 @@ a.button,
   gap: 4px;
   padding: 4px 8px;
   border-radius: 999px;
-  background: rgba(138, 163, 154, 0.20);
-  color: #3c4b48;
+  background: var(--sev-low-tint-20);
+  color: var(--mist-surface-700);
   font: 600 10px/1 var(--font-sans);
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -3731,7 +3757,7 @@ a.button,
   border: 1px solid var(--ink-strong);
   border-radius: var(--r-lg);
   background: var(--ink-strong);
-  color: #fff;
+  color: var(--on-surface-strong);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -3802,11 +3828,11 @@ a.button,
 }
 
 .catalog-tool-hero-message.error {
-  color: #6c1f1f;
+  color: var(--sev-high-ink);
 }
 
 .catalog-tool-hero-message.complete {
-  color: #3c4b48;
+  color: var(--mist-surface-700);
 }
 
 .catalog-tool-body {
@@ -3834,7 +3860,7 @@ a.button,
 .catalog-tool-specs,
 .catalog-tool-extras-section {
   padding: 24px;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-1);
@@ -3890,7 +3916,7 @@ a.button,
   padding: 12px 14px;
   border: 1px solid var(--border-hair);
   border-radius: var(--r-md);
-  background: rgba(28, 36, 34, 0.03);
+  background: var(--ink-tint-3);
   color: var(--ink-strong);
   font-size: 14px;
   font-weight: 500;
@@ -3944,7 +3970,7 @@ a.button,
   align-items: center;
   gap: 12px;
   padding: 16px 18px;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-1);
@@ -4031,7 +4057,7 @@ a.button,
   margin: 16px 0 0;
   padding: 12px 14px;
   border-radius: var(--r-md);
-  background: rgba(28, 36, 34, 0.04);
+  background: var(--ink-tint-4);
   color: var(--ink);
   font-size: 13px;
   line-height: 1.5;
@@ -4064,8 +4090,8 @@ a.button,
   min-height: 26px;
   padding: 0 10px;
   border-radius: 999px;
-  background: rgba(138, 163, 154, 0.16);
-  color: #3c4b48;
+  background: var(--sev-low-tint-16);
+  color: var(--mist-surface-700);
   font-size: 12px;
 }
 
@@ -4086,7 +4112,7 @@ a.button,
   min-height: 26px;
   padding: 0 10px;
   border-radius: 999px;
-  background: rgba(28, 36, 34, 0.06);
+  background: var(--ink-tint-6);
   color: var(--ink-muted);
   font-size: 12px;
   font-weight: 500;
@@ -4350,7 +4376,7 @@ a.button,
   flex-direction: column;
   gap: 14px;
   padding: 40px 44px;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
   border-radius: var(--r-xl);
   box-shadow: var(--shadow-1);
@@ -4368,8 +4394,8 @@ a.button,
   gap: 6px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: rgba(138, 163, 154, 0.18);
-  color: #3c4b48;
+  background: var(--sev-low-tint-18);
+  color: var(--mist-surface-700);
   font: 600 10px/1 var(--font-sans);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -4386,7 +4412,7 @@ a.button,
 .catalog-pack-hero[data-category="external-surface"] .catalog-pack-eyebrow-label,
 .catalog-pack-hero[data-category="platform-posture"] .catalog-pack-eyebrow-label,
 .catalog-pack-hero[data-category="infrastructure"] .catalog-pack-eyebrow-label {
-  background: rgba(28, 36, 34, 0.06);
+  background: var(--ink-tint-6);
   color: var(--ink-muted);
 }
 
@@ -4436,7 +4462,7 @@ a.button,
   border: 1px solid var(--ink-strong);
   border-radius: var(--r-lg);
   background: var(--ink-strong);
-  color: #fff;
+  color: var(--on-surface-strong);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -4507,7 +4533,7 @@ a.button,
 .catalog-pack-profile-copy code {
   font-family: var(--font-mono);
   font-size: 13px;
-  background: rgba(28, 36, 34, 0.06);
+  background: var(--ink-tint-6);
   color: var(--ink-strong);
   padding: 1px 6px;
   border-radius: 4px;
@@ -4519,7 +4545,7 @@ a.button,
   align-items: center;
   gap: 8px;
   padding: 0 16px;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-soft);
   border-radius: var(--r-lg);
   color: var(--ink-strong);
@@ -4587,7 +4613,7 @@ a.button,
   flex-direction: column;
   gap: 12px;
   padding: 24px;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-1);
@@ -4637,17 +4663,17 @@ a.button,
 }
 
 .catalog-pack-utility-role.low {
-  background: rgba(138, 163, 154, 0.20);
-  color: #3c4b48;
+  background: var(--sev-low-tint-20);
+  color: var(--mist-surface-700);
 }
 
 .catalog-pack-utility-role.info {
-  background: rgba(107, 141, 181, 0.16);
-  color: #36506e;
+  background: var(--sev-info-tint-16);
+  color: var(--sev-info-ink);
 }
 
 .catalog-pack-utility-role.neutral {
-  background: rgba(28, 36, 34, 0.06);
+  background: var(--ink-tint-6);
   color: var(--ink-faint);
 }
 
@@ -4681,8 +4707,8 @@ a.button,
 
 .catalog-pack-utility-status {
   color: var(--ink-muted);
-  font-family: var(--font-mono);
   font-size: 12px;
+  font-weight: 500;
 }
 
 .catalog-pack-utility-action {
