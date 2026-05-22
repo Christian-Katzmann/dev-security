@@ -45,7 +45,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 - [x] Step 3.1 — Build the Catalog Home route (sets the tone)
 - [x] Step 3.2 — Build the Catalog Browse route
-- [ ] Step 3.3 — Build the Tool Detail route
+- [x] Step 3.3 — Build the Tool Detail route
 - [ ] Step 3.4 — Build the Pack Detail route
 
 ### Phase 4 — Tone sweep and validation

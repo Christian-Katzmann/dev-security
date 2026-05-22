@@ -777,7 +777,12 @@ export default function App() {
               catalogRoute={catalogRoute}
               onCatalogRouteChange={setCatalogRoute}
               onOpenTab={setActiveTab}
-              onChooseChecks={() => setIsCheckOpen(true)}
+              onChooseChecks={(profile) => {
+                if (profile && (auditOptions.some((option) => option.id === profile))) {
+                  setSelectedAudits([profile as AuditId]);
+                }
+                setIsCheckOpen(true);
+              }}
               onRunQuick={() => {
                 setSelectedAudits(['quick']);
                 setIsCheckOpen(true);
@@ -823,7 +828,7 @@ function ActiveView({
   catalogRoute: CatalogRoute;
   onCatalogRouteChange: (route: CatalogRoute) => void;
   onOpenTab: (tab: TabId) => void;
-  onChooseChecks: () => void;
+  onChooseChecks: (profile?: string) => void;
   onRunQuick: () => void;
   onCaseDecision: (caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) => Promise<void>;
   onRefresh: () => Promise<void>;
@@ -835,7 +840,7 @@ function ActiveView({
   if (tab === 'overview') return <OverviewView summary={summary} posture={posture} error={error} onOpenTab={onOpenTab} />;
   if (tab === 'findings') return <FindingsView summary={summary} search={search} onCaseDecision={onCaseDecision} />;
   if (tab === 'honey-keys') return <HoneyKeysView summary={summary} target={target} onRefresh={onRefresh} />;
-  if (tab === 'scanners') return <CatalogRouter route={catalogRoute} summary={summary} onRouteChange={onCatalogRouteChange} onRefresh={onRefresh} />;
+  if (tab === 'scanners') return <CatalogRouter route={catalogRoute} summary={summary} onRouteChange={onCatalogRouteChange} onRefresh={onRefresh} onChooseChecks={onChooseChecks} />;
   if (tab === 'playbooks') return <PlaybooksView summary={summary} onChooseChecks={onChooseChecks} />;
   if (tab === 'verification') return <VerificationView summary={summary} onChooseChecks={onChooseChecks} />;
   if (tab === 'activity') return <ActivityView summary={summary} search={search} />;
@@ -855,11 +860,13 @@ function CatalogRouter({
   summary,
   onRouteChange,
   onRefresh,
+  onChooseChecks,
 }: {
   route: CatalogRoute;
   summary: DashboardSummary;
   onRouteChange: (route: CatalogRoute) => void;
   onRefresh: () => Promise<void>;
+  onChooseChecks: (profile?: string) => void;
 }) {
   const originOf = (kind: CatalogRoute['kind']): 'home' | 'browse' => (kind === 'browse' ? 'browse' : 'home');
   if (route.kind === 'browse') {
@@ -890,6 +897,7 @@ function CatalogRouter({
         packId={route.id}
         onBack={() => onRouteChange(route.from === 'browse' ? {kind: 'browse'} : {kind: 'home'})}
         onOpenTool={(id) => onRouteChange({kind: 'tool', id, from: originOf(route.kind)})}
+        onOpenProfile={(profile) => onChooseChecks(profile)}
       />
     );
   }
