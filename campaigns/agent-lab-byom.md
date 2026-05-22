@@ -44,9 +44,9 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 1 — Trust and user-mediated adapter design
 
-- [ ] Step 1.1 — Define the Agent Lab trust model
-- [ ] Step 1.2 — Design user-mediated adapters for Codex and Claude
-- [ ] Step 1.3 — Grill: OAuth and token risk boundaries for later
+- [x] Step 1.1 — Define the Agent Lab trust model
+- [x] Step 1.2 — Design user-mediated adapters for Codex and Claude
+- [x] Step 1.3 — Grill: OAuth and token risk boundaries for later
 
 ### Phase 2 — Planner and approval loop
 
