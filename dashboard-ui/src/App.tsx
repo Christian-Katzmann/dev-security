@@ -4,6 +4,53 @@ import CatalogBrowse from './components/catalog/CatalogBrowse';
 import CatalogToolPage from './components/catalog/CatalogToolPage';
 import CatalogPackPage from './components/catalog/CatalogPackPage';
 import {
+  CatalogMutationState,
+  CatalogStatusFilter,
+  catalogCapabilityLabels,
+  catalogCategoryLabels,
+  catalogCategoryOrder,
+  catalogCredentialLabels,
+  catalogDisplayLabels,
+  catalogEvidenceLabels,
+  catalogIcon,
+  catalogInstallDetectionLabels,
+  catalogInstallLabels,
+  catalogInstallMethodLabels,
+  catalogInstallOwnerLabels,
+  catalogLifecycleLabels,
+  catalogNetworkLabels,
+  catalogPackIconCategory,
+  catalogPackLabels,
+  catalogPackOrder,
+  catalogPolicySummary,
+  catalogProfileRole,
+  catalogProfileTone,
+  catalogRunReady,
+  catalogRuntimeCopy,
+  catalogRuntimeLabel,
+  catalogRuntimeTone,
+  catalogSearchText,
+  catalogStateCopy,
+  catalogStatusBucket,
+  catalogStatusFilters,
+  catalogStatusLabel,
+  catalogStatusTone,
+  catalogTargetLabels,
+  catalogUninstallLabels,
+  previewActionLabel,
+  previewCanInstall,
+  previewCanUninstall,
+  previewOwnedPaths,
+  previewTone,
+  securityPackSearchText,
+  securityPackStateLabel,
+  securityPackTone,
+  shouldShowAdvancedCatalogItem,
+} from './components/catalog/catalogHelpers';
+import {useCatalogData} from './components/catalog/useCatalogData';
+import {humanizeKey, responseErrorMessage, safetyLabelTone, scannerStatusTone, topScannerItems} from './uiHelpers';
+import {Tone} from './uiTypes';
+import {
   Activity,
   AlertTriangle,
   Archive,
@@ -111,14 +158,6 @@ type CatalogRoute =
   | {kind: 'tool'; id: string; from: 'home' | 'browse'}
   | {kind: 'pack'; id: string; from: 'home' | 'browse'};
 type AuditId = 'quick' | 'secrets' | 'code' | 'deps' | 'iac' | 'platform-posture' | 'ai' | 'full';
-type Tone = 'low' | 'warn' | 'high' | 'crit' | 'info' | 'neutral';
-type CatalogStatusFilter = 'all' | 'ready' | 'setup' | 'missing' | 'advanced' | 'coming-soon';
-type CatalogMutationState = {
-  toolId: string;
-  kind: 'install' | 'uninstall';
-  status: 'running' | 'complete' | 'error';
-  message: string;
-} | null;
 
 type CompletedScan = {
   scan_id: string;
@@ -224,147 +263,6 @@ const auditOptions: {id: AuditId; label: string; estimate: string; description: 
   {id: 'ai', label: 'AI agent risks', estimate: '1-4 min', description: 'Checks prompts, MCP setup, tool permissions, and agent instructions.'},
   {id: 'full', label: 'Full repo audit', estimate: '5-20 min', description: 'Runs the deepest available scan across all categories.'},
 ];
-
-const catalogCategoryLabels: Record<ToolCategory, string> = {
-  'code-security': 'Code security',
-  secrets: 'Secrets',
-  dependencies: 'Dependencies',
-  'supply-chain': 'Supply chain',
-  infrastructure: 'Infrastructure',
-  'ai-agent': 'AI agent',
-  'platform-posture': 'Platform posture',
-  'external-surface': 'External surface',
-  'defense-intel': 'Defense intel',
-};
-
-const catalogCategoryOrder: ToolCategory[] = [
-  'code-security',
-  'secrets',
-  'dependencies',
-  'supply-chain',
-  'ai-agent',
-  'defense-intel',
-  'infrastructure',
-  'platform-posture',
-  'external-surface',
-];
-
-const catalogPackLabels: Record<ToolPackId, string> = {
-  starter: 'Starter',
-  secrets: 'Secrets',
-  dependencies: 'Dependencies',
-  'ai-agent': 'AI Agent',
-  iac: 'IaC',
-  'platform-posture': 'Platform Posture',
-  'advanced-dependency': 'Advanced Dependency',
-  'external-surface': 'External Surface',
-};
-
-const catalogPackOrder: ToolPackId[] = [
-  'starter',
-  'secrets',
-  'dependencies',
-  'ai-agent',
-  'iac',
-  'platform-posture',
-  'advanced-dependency',
-  'external-surface',
-];
-
-const catalogStatusFilters: {id: CatalogStatusFilter; label: string}[] = [
-  {id: 'all', label: 'All'},
-  {id: 'ready', label: 'Ready'},
-  {id: 'setup', label: 'Needs setup'},
-  {id: 'missing', label: 'Missing'},
-  {id: 'advanced', label: 'Advanced'},
-  {id: 'coming-soon', label: 'Coming soon'},
-];
-
-const catalogInstallLabels: Record<ToolInstallState, string> = {
-  'built-in': 'Built in',
-  managed: 'DëvSec managed',
-  detected: 'Detected locally',
-  missing: 'Missing',
-  unavailable: 'Unavailable',
-  'not-configured': 'Needs setup',
-  'coming-soon': 'Display only',
-};
-
-const catalogLifecycleLabels: Record<ToolLifecycle, string> = {
-  available: 'Available',
-  beta: 'Beta',
-  advanced: 'Advanced',
-  'coming-soon': 'Coming soon',
-  deprecated: 'Deprecated',
-  hidden: 'Hidden',
-};
-
-const catalogInstallMethodLabels: Record<ToolCatalogItem['install']['method'], string> = {
-  'built-in': 'Built in',
-  homebrew: 'Homebrew',
-  'uv-tool': 'uv tool',
-  manual: 'Manual setup',
-  'docker-optional': 'Docker optional',
-  'managed-future': 'DëvSec managed future',
-  none: 'None',
-};
-
-const catalogInstallOwnerLabels: Record<ToolCatalogItem['install']['owner'], string> = {
-  devsec: 'DëvSec',
-  external: 'External project',
-  user: 'User-owned local install',
-  'not-applicable': 'Not applicable',
-};
-
-const catalogInstallDetectionLabels: Record<ToolCatalogItem['install']['detection'], string> = {
-  'built-in': 'Built in',
-  'path-binary': 'Binary on PATH',
-  'config-preflight': 'Config preflight',
-  'cache-preflight': 'Cache preflight',
-  'registry-future': 'Managed registry future',
-  none: 'None',
-};
-
-const catalogUninstallLabels: Record<ToolCatalogItem['install']['uninstall_posture'], string> = {
-  'not-needed': 'No uninstall needed',
-  'devsec-managed': 'DëvSec-managed cleanup',
-  'user-owned': 'User-owned; DëvSec will not remove it',
-  'manual-only': 'Manual cleanup only',
-  'not-supported': 'No uninstall action',
-};
-
-const catalogNetworkLabels: Record<ToolCatalogItem['policy']['network_access'], string> = {
-  none: 'No network required',
-  optional: 'Optional network',
-  required: 'Network required',
-};
-
-const catalogTargetLabels: Record<ToolCatalogItem['policy']['external_targets'], string> = {
-  none: 'No external target',
-  'repo-derived': 'Repository-derived target',
-  'user-provided': 'User-provided target',
-};
-
-const catalogCredentialLabels: Record<ToolCatalogItem['policy']['uses_credentials'], string> = {
-  none: 'No credentials',
-  optional: 'Optional credentials',
-  required: 'Needs credentials',
-};
-
-const catalogEvidenceLabels: Record<ToolCatalogItem['capabilities']['evidence_types'][number], string> = {
-  'source-pattern': 'Source code patterns',
-  'secret-match': 'Secret matches',
-  'dependency-advisory': 'Dependency advisories',
-  sbom: 'SBOM inventory',
-  'iac-policy': 'Infrastructure policy',
-  'workflow-policy': 'Workflow policy',
-  'install-hook': 'Install hooks',
-  'ai-config': 'AI-agent config',
-  'platform-posture': 'Platform posture',
-  'behavior-diff': 'Behavior changes',
-  'ioc-match': 'IOC matches',
-  'external-observation': 'External observation',
-};
 
 const severityMeta: Record<Tone, {label: string; dot: string; bg: string; fg: string}> = {
   low: {label: 'LOW', dot: 'var(--sev-low)', bg: 'rgba(138,163,154,0.20)', fg: '#3c4b48'},
@@ -601,335 +499,6 @@ function playbookSteps(item: DisplayCase): string[] {
     'Rerun the matching DëvSec check',
     'Record the case decision when verified',
   ];
-}
-
-function topScannerItems(summary: DashboardSummary): ScannerDoctorItem[] {
-  return scannerDoctorGroups(summary).flatMap((group) => group.items);
-}
-
-function scannerStatusTone(status: ScannerDoctorItem['status']): Tone {
-  if (status === 'ran') return 'low';
-  if (status === 'not-run') return 'info';
-  if (status === 'missing') return 'warn';
-  return 'crit';
-}
-
-function catalogRuntimeMap(summary: DashboardSummary): Map<string, ScannerDoctorItem> {
-  return new Map(topScannerItems(summary).map((item) => [item.scanner, item]));
-}
-
-function catalogStatusBucket(item: ToolCatalogItem): CatalogStatusFilter {
-  if (item.lifecycle === 'coming-soon' || item.install_state === 'coming-soon') return 'coming-soon';
-  if (item.lifecycle === 'advanced') return 'advanced';
-  if (item.install_state === 'missing') return 'missing';
-  if (item.install_state === 'not-configured' || item.install_state === 'unavailable') return 'setup';
-  if (item.install_state === 'built-in' || item.install_state === 'managed' || item.install_state === 'detected') return 'ready';
-  return 'all';
-}
-
-function catalogStatusTone(item: ToolCatalogItem, runtime?: ScannerDoctorItem): Tone {
-  if (runtime?.status === 'error') return 'crit';
-  if (item.lifecycle === 'coming-soon' || item.install_state === 'coming-soon') return 'neutral';
-  if (item.install_state === 'missing' || item.install_state === 'not-configured') return 'info';
-  if (item.install_state === 'unavailable') return 'warn';
-  if (item.lifecycle === 'advanced') return 'info';
-  if (item.install_state === 'built-in' || item.install_state === 'managed' || item.install_state === 'detected') return 'low';
-  return 'neutral';
-}
-
-function safetyLabelTone(label: string): Tone {
-  const normalized = label.toLowerCase();
-  if (normalized.includes('sends source') || normalized.includes('destructive')) return 'crit';
-  if (normalized.includes('network required') || normalized.includes('needs credentials') || normalized.includes('approval required') || normalized.includes('writes files')) return 'warn';
-  if (normalized.includes('optional network') || normalized.includes('blocked')) return 'info';
-  return normalized.includes('display only') ? 'neutral' : 'low';
-}
-
-function catalogIcon(category: ToolCategory): ReactNode {
-  if (category === 'code-security') return <FileCode2 size={18} />;
-  if (category === 'secrets') return <KeyRound size={18} />;
-  if (category === 'dependencies') return <Database size={18} />;
-  if (category === 'supply-chain') return <GitBranch size={18} />;
-  if (category === 'infrastructure') return <Layers3 size={18} />;
-  if (category === 'ai-agent') return <TerminalSquare size={18} />;
-  if (category === 'platform-posture') return <ShieldCheck size={18} />;
-  if (category === 'external-surface') return <Gauge size={18} />;
-  return <Shield size={18} />;
-}
-
-function catalogPackIconCategory(pack: ToolPackId): ToolCategory {
-  if (pack === 'external-surface') return 'external-surface';
-  if (pack === 'ai-agent') return 'ai-agent';
-  if (pack === 'iac') return 'infrastructure';
-  if (pack === 'platform-posture') return 'platform-posture';
-  if (pack === 'secrets') return 'secrets';
-  if (pack === 'dependencies' || pack === 'advanced-dependency') return 'dependencies';
-  return 'code-security';
-}
-
-function securityPackTone(pack: SecurityPackCatalogItem): Tone {
-  if (pack.mvp_state !== 'real') return 'neutral';
-  if (pack.missing_count > 0) return 'info';
-  return 'low';
-}
-
-function securityPackStateLabel(pack: SecurityPackCatalogItem): string {
-  if (pack.mvp_state !== 'real') return 'Display only';
-  if (pack.missing_count > 0) return 'Setup gaps';
-  return 'Ready';
-}
-
-function securityPackSearchText(pack: SecurityPackCatalogItem): string {
-  return [
-    pack.id,
-    pack.label,
-    pack.summary,
-    pack.mvp_state,
-    pack.visibility,
-    pack.primary_profile,
-    ...pack.secondary_profiles,
-    ...pack.tools.flatMap((tool) => [tool.id, tool.label, tool.summary, tool.install_state, tool.lifecycle, tool.role]),
-  ].filter(Boolean).join(' ').toLowerCase();
-}
-
-function catalogSearchText(item: ToolCatalogItem): string {
-  return [
-    item.id,
-    item.label,
-    item.summary,
-    item.description,
-    catalogCategoryLabels[item.category],
-    item.scanner_key,
-    item.lifecycle,
-    item.install_state,
-    ...item.profiles,
-    ...item.derived_labels.safety,
-    ...item.derived_labels.install,
-    item.derived_labels.agent_lab,
-    ...item.packs.map((pack) => catalogPackLabels[pack.pack_id]),
-  ].filter(Boolean).join(' ').toLowerCase();
-}
-
-function isAdvancedCatalogItem(item: ToolCatalogItem): boolean {
-  return item.lifecycle === 'advanced' || item.packs.some((pack) => pack.pack_id === 'advanced-dependency' || pack.pack_id === 'platform-posture');
-}
-
-function shouldShowAdvancedCatalogItem(item: ToolCatalogItem, search: string, category: ToolCategory | 'all', pack: ToolPackId | 'all', status: CatalogStatusFilter): boolean {
-  if (!isAdvancedCatalogItem(item)) return true;
-  if (search.trim()) return true;
-  if (status === 'advanced') return true;
-  if (category === 'infrastructure' || category === 'platform-posture') return true;
-  return pack === 'advanced-dependency' || pack === 'platform-posture' || pack === 'iac';
-}
-
-function catalogStatusLabel(item: ToolCatalogItem, runtime?: ScannerDoctorItem): string {
-  return runtime?.status === 'error' ? 'Error' : catalogInstallLabels[item.install_state];
-}
-
-function catalogRuntimeTone(runtime?: ScannerDoctorItem): Tone {
-  if (!runtime) return 'info';
-  return scannerStatusTone(runtime.status);
-}
-
-function catalogRuntimeLabel(item: ToolCatalogItem, runtime?: ScannerDoctorItem): string {
-  if (runtime) return runtime.status.replace('-', ' ');
-  if (item.scanner_key) return 'Not run';
-  return catalogLifecycleLabels[item.lifecycle];
-}
-
-function catalogRuntimeCopy(item: ToolCatalogItem, runtime?: ScannerDoctorItem): string {
-  if (!item.scanner_key) {
-    return item.lifecycle === 'coming-soon'
-      ? 'This entry is product education only. It has no runtime path in this version.'
-      : 'This entry is not joined to a scanner runtime yet.';
-  }
-  if (!runtime) return 'No scan has reported runtime status for this tool in the selected scope.';
-  if (runtime.status === 'ran') {
-    const repoCopy = runtime.repoNames.length ? ` across ${runtime.repoNames.join(', ')}` : '';
-    return `${runtime.findings} finding${runtime.findings === 1 ? '' : 's'} reported${repoCopy}.`;
-  }
-  return runtime.action;
-}
-
-function catalogStateCopy(item: ToolCatalogItem, runtime?: ScannerDoctorItem): {title: string; detail: string; action: string; tone: Tone} {
-  if (runtime?.status === 'error') {
-    return {
-      title: 'Runtime error from last scan',
-      detail: runtime.error ?? 'The scanner reported an error in the selected scope.',
-      action: 'Fix the scanner error, then rerun the matching profile before trusting this coverage.',
-      tone: 'crit',
-    };
-  }
-  if (item.lifecycle === 'coming-soon' || item.install_state === 'coming-soon') {
-    return {
-      title: 'Display-only future coverage',
-      detail: 'This placeholder explains future coverage. It cannot collect targets, install tooling, run scans, or trigger Agent Lab.',
-      action: item.category === 'external-surface'
-        ? 'External Surface stays idle until target approval controls exist.'
-        : 'Wait for a future release before treating this as active coverage.',
-      tone: 'neutral',
-    };
-  }
-  if (item.install_state === 'built-in') {
-    return {
-      title: 'Built into DëvSec',
-      detail: 'No external binary or install step is needed. DëvSec owns the scanner logic.',
-      action: 'Use the existing profile picker when you want this check included in a scan.',
-      tone: 'low',
-    };
-  }
-  if (item.install_state === 'managed') {
-    return {
-      title: 'DëvSec-managed install',
-      detail: 'DëvSec owns this install path, so future update and cleanup controls can be tied to a managed-tool record.',
-      action: 'Install and uninstall controls remain disabled here until backend ownership proof is wired.',
-      tone: 'low',
-    };
-  }
-  if (item.install_state === 'detected') {
-    return {
-      title: 'Detected locally',
-      detail: 'The tool was found on this Mac, but it was installed outside DëvSec.',
-      action: 'DëvSec may use it in scans, but will not claim it can upgrade or remove the tool.',
-      tone: 'low',
-    };
-  }
-  if (item.install_state === 'missing') {
-    return {
-      title: 'Supported, not installed',
-      detail: 'This is a setup gap, not evidence that the repository is unsafe.',
-      action: item.install.instructions ?? item.install.next_step ?? 'Install the tool outside the catalog, then rerun the matching scan.',
-      tone: 'info',
-    };
-  }
-  if (item.install_state === 'unavailable') {
-    return {
-      title: 'Unavailable in this context',
-      detail: 'Installation alone is not enough for this check right now.',
-      action: item.install.next_step ?? 'Resolve the environment or prerequisite blocker before expecting this tool to run.',
-      tone: 'warn',
-    };
-  }
-  if (item.install_state === 'not-configured') {
-    return {
-      title: 'Needs setup',
-      detail: 'The tool needs credentials, local artifacts, cache data, or repository context before it can produce useful evidence.',
-      action: item.install.next_step ?? 'Complete the setup requirement, then rerun the matching profile.',
-      tone: 'info',
-    };
-  }
-  return {
-    title: catalogLifecycleLabels[item.lifecycle],
-    detail: 'No extra availability detail has been published for this state yet.',
-    action: item.install.next_step ?? 'Review setup and safety details before running checks.',
-    tone: 'neutral',
-  };
-}
-
-function catalogPolicySummary(item: ToolCatalogItem): string {
-  if (catalogStatusBucket(item) === 'coming-soon') {
-    return 'Display-only future coverage. It cannot collect targets, install tooling, run scans, or trigger Agent Lab in this version.';
-  }
-  const notes = [
-    item.policy.local_only && item.policy.network_access === 'none' ? 'Runs locally' : catalogNetworkLabels[item.policy.network_access],
-    catalogCredentialLabels[item.policy.uses_credentials],
-    item.policy.writes_files ? 'writes files' : 'read-only',
-  ];
-  if (item.policy.needs_approval) notes.push('approval required');
-  if (!item.policy.allowed_for_agent_lab) notes.push('Agent Lab blocked');
-  return `${notes.join(', ')}.`;
-}
-
-function catalogCapabilityLabels(item: ToolCatalogItem): string[] {
-  const categories = item.capabilities.finding_categories.map((category) => humanizeKey(category));
-  const evidence = item.capabilities.evidence_types.map((type) => catalogEvidenceLabels[type] ?? humanizeKey(type));
-  return [...new Set([...categories, ...evidence])];
-}
-
-function catalogProfileRole(item: ToolCatalogItem, profile: string): string {
-  const normalized = profile.toLowerCase();
-  if (item.lifecycle === 'coming-soon') return 'Future';
-  if (item.lifecycle === 'advanced' || normalized.includes('iac') || normalized.includes('platform') || normalized.includes('full')) return 'Advanced';
-  if (item.policy.default_enabled && (normalized === 'default' || normalized === 'quick')) return 'Default';
-  return 'Opt-in';
-}
-
-function catalogProfileTone(item: ToolCatalogItem, profile: string): Tone {
-  const role = catalogProfileRole(item, profile);
-  if (role === 'Default') return 'low';
-  if (role === 'Future') return 'neutral';
-  return role === 'Advanced' ? 'info' : 'neutral';
-}
-
-function catalogRunReady(item: ToolCatalogItem): boolean {
-  if (item.lifecycle === 'coming-soon' || item.lifecycle === 'deprecated' || item.lifecycle === 'hidden') return false;
-  return item.install_state === 'built-in' || item.install_state === 'managed' || item.install_state === 'detected';
-}
-
-function catalogDisplayLabels(item: ToolCatalogItem): string[] {
-  const labels = [
-    ...item.derived_labels.safety,
-    ...item.derived_labels.install,
-    item.derived_labels.agent_lab,
-  ]
-    .filter(Boolean)
-    .map((label) => label === 'DevSec managed' || label === 'Managed' ? 'DëvSec managed' : label);
-  return [...new Set(labels)];
-}
-
-function previewCanInstall(preview?: ToolInstallPreview): boolean {
-  return Boolean(preview?.tool_id && preview.action === 'managed-install-preview' && preview.execution_available);
-}
-
-function previewCanUninstall(preview?: ToolInstallPreview): boolean {
-  return Boolean(preview?.tool_id && preview.action === 'managed-uninstall-preview' && preview.execution_available && preview.ownership?.ownership_id);
-}
-
-function previewTone(preview?: ToolInstallPreview): Tone {
-  if (!preview?.preview_available) return 'neutral';
-  if (preview.action === 'managed-uninstall-preview') return 'warn';
-  if (preview.execution_available) return 'low';
-  return 'info';
-}
-
-function previewActionLabel(preview?: ToolInstallPreview): string {
-  if (!preview?.preview_available) return 'No managed action';
-  if (preview.action === 'managed-install-preview') return 'Managed install preview';
-  if (preview.action === 'managed-uninstall-preview') return 'Managed uninstall preview';
-  if (preview.action === 'pack-install-preview') return 'Pack install preview';
-  return humanizeKey(preview.action);
-}
-
-function previewOwnedPaths(preview: ToolInstallPreview): string[] {
-  return (preview.owned_paths ?? [preview.install_root, preview.binary_path, preview.shim_path])
-    .filter((path): path is string => Boolean(path));
-}
-
-async function responseErrorMessage(response: Response, fallback: string): Promise<string> {
-  const text = await response.text();
-  const cleanText = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-  return cleanText || fallback;
-}
-
-function humanizeKey(value: string): string {
-  const acronyms: Record<string, string> = {
-    ai: 'AI',
-    api: 'API',
-    cve: 'CVE',
-    iac: 'IaC',
-    ioc: 'IOC',
-    mcp: 'MCP',
-    osv: 'OSV',
-    sbom: 'SBOM',
-    scm: 'SCM',
-    ssl: 'SSL',
-    tls: 'TLS',
-  };
-  return value
-    .split(/[-_]/g)
-    .filter(Boolean)
-    .map((part) => acronyms[part.toLowerCase()] ?? `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
-    .join(' ');
 }
 
 function countRecord(record?: Record<string, number>): number {
@@ -1266,7 +835,7 @@ function ActiveView({
   if (tab === 'overview') return <OverviewView summary={summary} posture={posture} error={error} onOpenTab={onOpenTab} />;
   if (tab === 'findings') return <FindingsView summary={summary} search={search} onCaseDecision={onCaseDecision} />;
   if (tab === 'honey-keys') return <HoneyKeysView summary={summary} target={target} onRefresh={onRefresh} />;
-  if (tab === 'scanners') return <CatalogRouter route={catalogRoute} onRouteChange={onCatalogRouteChange} />;
+  if (tab === 'scanners') return <CatalogRouter route={catalogRoute} summary={summary} onRouteChange={onCatalogRouteChange} onRefresh={onRefresh} />;
   if (tab === 'playbooks') return <PlaybooksView summary={summary} onChooseChecks={onChooseChecks} />;
   if (tab === 'verification') return <VerificationView summary={summary} onChooseChecks={onChooseChecks} />;
   if (tab === 'activity') return <ActivityView summary={summary} search={search} />;
@@ -1276,14 +845,28 @@ function ActiveView({
 
 // CatalogRouter — dispatches the Tool Catalog substate to the four route
 // shells. Navigation between catalog routes uses callbacks (onOpenTool /
-// onOpenPack / onOpenBrowse / onBack); no URL routing yet. The legacy
-// CatalogView function below stays exported in this file for Step 1.2 to lift
-// data hooks out of, but the tab no longer renders it during the rebuild.
-function CatalogRouter({route, onRouteChange}: {route: CatalogRoute; onRouteChange: (route: CatalogRoute) => void}) {
+// onOpenPack / onOpenBrowse / onBack); no URL routing yet. summary +
+// onRefresh flow through to every shell so each one can call useCatalogData
+// without re-deriving the same plumbing. The legacy CatalogView function
+// below stays in this file as the bones for the Step 2.1 demolition pass,
+// but the tab no longer renders it during the rebuild.
+function CatalogRouter({
+  route,
+  summary,
+  onRouteChange,
+  onRefresh,
+}: {
+  route: CatalogRoute;
+  summary: DashboardSummary;
+  onRouteChange: (route: CatalogRoute) => void;
+  onRefresh: () => Promise<void>;
+}) {
   const originOf = (kind: CatalogRoute['kind']): 'home' | 'browse' => (kind === 'browse' ? 'browse' : 'home');
   if (route.kind === 'browse') {
     return (
       <CatalogBrowse
+        summary={summary}
+        onRefresh={onRefresh}
         onOpenTool={(id) => onRouteChange({kind: 'tool', id, from: 'browse'})}
         onBack={() => onRouteChange({kind: 'home'})}
       />
@@ -1292,6 +875,8 @@ function CatalogRouter({route, onRouteChange}: {route: CatalogRoute; onRouteChan
   if (route.kind === 'tool') {
     return (
       <CatalogToolPage
+        summary={summary}
+        onRefresh={onRefresh}
         toolId={route.id}
         onBack={() => onRouteChange(route.from === 'browse' ? {kind: 'browse'} : {kind: 'home'})}
       />
@@ -1300,6 +885,8 @@ function CatalogRouter({route, onRouteChange}: {route: CatalogRoute; onRouteChan
   if (route.kind === 'pack') {
     return (
       <CatalogPackPage
+        summary={summary}
+        onRefresh={onRefresh}
         packId={route.id}
         onBack={() => onRouteChange(route.from === 'browse' ? {kind: 'browse'} : {kind: 'home'})}
         onOpenTool={(id) => onRouteChange({kind: 'tool', id, from: originOf(route.kind)})}
@@ -1308,6 +895,8 @@ function CatalogRouter({route, onRouteChange}: {route: CatalogRoute; onRouteChan
   }
   return (
     <CatalogHome
+      summary={summary}
+      onRefresh={onRefresh}
       onOpenBrowse={() => onRouteChange({kind: 'browse'})}
       onOpenTool={(id) => onRouteChange({kind: 'tool', id, from: 'home'})}
       onOpenPack={(id) => onRouteChange({kind: 'pack', id, from: 'home'})}
@@ -1870,70 +1459,33 @@ function HoneyKeysView({summary, target, onRefresh}: {summary: DashboardSummary;
   );
 }
 
+// Legacy catalog view, retained for Step 2.1's demolition pass. Not rendered
+// by CatalogRouter anymore — it threads the same data through useCatalogData
+// so deletions in 2.1 only touch chrome, not the plumbing.
 function CatalogView({summary, search, onChooseChecks, onRefresh}: {summary: DashboardSummary; search: string; onChooseChecks: () => void; onRefresh: () => Promise<void>}) {
   const catalog = toolCatalogItems(summary);
   if (!catalog.length) return <ScannerDoctorFallback summary={summary} onChooseChecks={onChooseChecks} />;
-  return <ToolCatalogBrowse summary={summary} catalog={catalog} search={search} onChooseChecks={onChooseChecks} onRefresh={onRefresh} />;
+  return <ToolCatalogBrowse summary={summary} search={search} onChooseChecks={onChooseChecks} onRefresh={onRefresh} />;
 }
 
 function ToolCatalogBrowse({
   summary,
-  catalog,
   search,
   onChooseChecks,
   onRefresh,
 }: {
   summary: DashboardSummary;
-  catalog: ToolCatalogItem[];
   search: string;
   onChooseChecks: () => void;
   onRefresh: () => Promise<void>;
 }) {
-  const runtime = catalogRuntimeMap(summary);
-  const packs = securityPackItems(summary);
+  const {catalog, packs, runtime, mutation, installManagedTool, uninstallManagedTool} = useCatalogData(summary, onRefresh);
   const [categoryFilter, setCategoryFilter] = useState<ToolCategory | 'all'>('all');
   const [packFilter, setPackFilter] = useState<ToolPackId | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<CatalogStatusFilter>('all');
   const [activeId, setActiveId] = useState<string | null>(catalog[0]?.id ?? null);
   const [activePackId, setActivePackId] = useState<ToolPackId | null>(packs[0]?.id ?? null);
-  const [mutation, setMutation] = useState<CatalogMutationState>(null);
   const query = search.trim().toLowerCase();
-
-  const installManagedTool = useCallback(async (toolId: string) => {
-    setMutation({toolId, kind: 'install', status: 'running', message: 'Installing managed copy...'});
-    try {
-      const response = await fetch('/api/managed-tools/install', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({toolId, confirmManagedInstall: true}),
-      });
-      if (!response.ok) throw new Error(await responseErrorMessage(response, 'Managed install failed.'));
-      await onRefresh();
-      setMutation({toolId, kind: 'install', status: 'complete', message: 'Managed copy installed and catalog refreshed.'});
-    } catch (err) {
-      setMutation({toolId, kind: 'install', status: 'error', message: err instanceof Error ? err.message : 'Managed install failed.'});
-    }
-  }, [onRefresh]);
-
-  const uninstallManagedTool = useCallback(async (toolId: string, ownershipId?: string | null) => {
-    if (!ownershipId) {
-      setMutation({toolId, kind: 'uninstall', status: 'error', message: 'DëvSec ownership evidence is missing, so uninstall is blocked.'});
-      return;
-    }
-    setMutation({toolId, kind: 'uninstall', status: 'running', message: 'Removing managed copy...'});
-    try {
-      const response = await fetch('/api/managed-tools/uninstall', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({toolId, ownershipId, confirmManagedUninstall: true}),
-      });
-      if (!response.ok) throw new Error(await responseErrorMessage(response, 'Managed uninstall failed.'));
-      await onRefresh();
-      setMutation({toolId, kind: 'uninstall', status: 'complete', message: 'Managed copy removed; detected user-owned tools were left alone.'});
-    } catch (err) {
-      setMutation({toolId, kind: 'uninstall', status: 'error', message: err instanceof Error ? err.message : 'Managed uninstall failed.'});
-    }
-  }, [onRefresh]);
 
   const categories = useMemo(
     () => catalogCategoryOrder.filter((category) => catalog.some((item) => item.category === category && item.lifecycle !== 'hidden')),
