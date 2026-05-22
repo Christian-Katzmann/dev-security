@@ -34,11 +34,11 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 ### Phase 1 — Honesty pass (no lies in the existing surface)
 
 - [x] Step 1.1 — UI cleanup: remove Snooze, rename "View docs" → "View tool", collapse pack-page disabled CTAs
-- [ ] Step 1.2 — Wire the "Read documentation" link to real homepage URLs
+- [x] Step 1.2 — Wire the "Read documentation" link to real homepage URLs
 
 ### Phase 2 — Widen the managed install set
 
-- [ ] Step 2.1 — Add 2–3 new installable tools (research release manifests, implement, test)
+- [x] Step 2.1 — Add 2–3 new installable tools (research release manifests, implement, test)
 - [ ] Step 2.2 — End-to-end install verification on a real Mac
 
 ### Phase 3 — Validation

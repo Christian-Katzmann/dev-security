@@ -21,10 +21,25 @@ import uuid
 
 MANIFEST_VERSION = 1
 INSTALLER_VERSION = "security-observatory-managed-tools-v1"
+
 GITLEAKS_VERSION = "8.30.1"
-GITLEAKS_RELEASE_BASE_URL = f"https://github.com/gitleaks/gitleaks/releases/download/v{GITLEAKS_VERSION}"
-APPROVED_MANAGED_INSTALL_TOOL_IDS = frozenset({"gitleaks"})
+TRIVY_VERSION = "0.70.0"
+SYFT_VERSION = "1.44.0"
+GRYPE_VERSION = "0.112.0"
+
+APPROVED_MANAGED_INSTALL_TOOL_IDS = frozenset({"gitleaks", "trivy", "syft", "grype"})
+
+# Each entry below is a vetted release manifest. release_base_url, asset_name,
+# and sha256 are pinned against the official upstream release page; bump them
+# together when raising target_version. All sha256s vetted on 2026-05-22.
+#
+# Two near-candidates intentionally excluded:
+#   - semgrep: no binary release artifacts on GitHub (pip/Homebrew only).
+#   - osv-scanner: ships plain per-arch binaries, not tarballs, so the
+#     _extract_binary_from_tarball path cannot install them as-is.
+# Re-evaluate when those upstream release shapes change.
 MANAGED_INSTALL_PROOF_TARGETS: dict[str, dict[str, Any]] = {
+    # Source: https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1
     "gitleaks": {
         "tool_id": "gitleaks",
         "label": "Gitleaks",
@@ -33,6 +48,7 @@ MANAGED_INSTALL_PROOF_TARGETS: dict[str, dict[str, Any]] = {
         "target_version": GITLEAKS_VERSION,
         "target_version_label": f"Gitleaks v{GITLEAKS_VERSION}",
         "source": "devsec-managed-proof",
+        "release_base_url": f"https://github.com/gitleaks/gitleaks/releases/download/v{GITLEAKS_VERSION}",
         "network_access": True,
         "version_check_args": ("version",),
         "version_check_timeout_seconds": 5,
@@ -56,7 +72,112 @@ MANAGED_INSTALL_PROOF_TARGETS: dict[str, dict[str, Any]] = {
                 "sha256": "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
             },
         },
-    }
+    },
+    # Source: https://github.com/aquasecurity/trivy/releases/tag/v0.70.0
+    # sha256s pulled from the upstream trivy_0.70.0_checksums.txt.
+    "trivy": {
+        "tool_id": "trivy",
+        "label": "Trivy",
+        "binary": "trivy",
+        "managed_package": "trivy",
+        "target_version": TRIVY_VERSION,
+        "target_version_label": f"Trivy v{TRIVY_VERSION}",
+        "source": "devsec-managed-proof",
+        "release_base_url": f"https://github.com/aquasecurity/trivy/releases/download/v{TRIVY_VERSION}",
+        "network_access": True,
+        "version_check_args": ("--version",),
+        "version_check_timeout_seconds": 5,
+        "download_timeout_seconds": 60,
+        "max_download_bytes": 60_000_000,
+        "assets": {
+            "darwin-arm64": {
+                "asset_name": f"trivy_{TRIVY_VERSION}_macOS-ARM64.tar.gz",
+                "sha256": "68e543c51dcc96e1c344053a4fde9660cf602c25565d9f09dc17dd41e13b838a",
+            },
+            "darwin-x64": {
+                "asset_name": f"trivy_{TRIVY_VERSION}_macOS-64bit.tar.gz",
+                "sha256": "52d531452b19e7593da29366007d02a810e1e0080d02f9cf6a1afb46c35aaa93",
+            },
+            "linux-arm64": {
+                "asset_name": f"trivy_{TRIVY_VERSION}_Linux-ARM64.tar.gz",
+                "sha256": "2f6bb988b553a1bbac6bdd1ce890f5e412439564e17522b88a4541b4f364fc8d",
+            },
+            "linux-x64": {
+                "asset_name": f"trivy_{TRIVY_VERSION}_Linux-64bit.tar.gz",
+                "sha256": "8b4376d5d6befe5c24d503f10ff136d9e0c49f9127a4279fd110b727929a5aa9",
+            },
+        },
+    },
+    # Source: https://github.com/anchore/syft/releases/tag/v1.44.0
+    # sha256s pulled from the upstream syft_1.44.0_checksums.txt.
+    "syft": {
+        "tool_id": "syft",
+        "label": "Syft",
+        "binary": "syft",
+        "managed_package": "syft",
+        "target_version": SYFT_VERSION,
+        "target_version_label": f"Syft v{SYFT_VERSION}",
+        "source": "devsec-managed-proof",
+        "release_base_url": f"https://github.com/anchore/syft/releases/download/v{SYFT_VERSION}",
+        "network_access": True,
+        "version_check_args": ("version",),
+        "version_check_timeout_seconds": 5,
+        "download_timeout_seconds": 45,
+        "max_download_bytes": 40_000_000,
+        "assets": {
+            "darwin-arm64": {
+                "asset_name": f"syft_{SYFT_VERSION}_darwin_arm64.tar.gz",
+                "sha256": "24e4d34078ae81da7c82539616f0ccac3e226cf4f74a38ce6fb3463619e50a55",
+            },
+            "darwin-x64": {
+                "asset_name": f"syft_{SYFT_VERSION}_darwin_amd64.tar.gz",
+                "sha256": "c40ece5407927327f94f35901727dbc604b46857e04f04ec94a310845fb71bde",
+            },
+            "linux-arm64": {
+                "asset_name": f"syft_{SYFT_VERSION}_linux_arm64.tar.gz",
+                "sha256": "6f6cdcdc695721d91ce756e3b5bc3e3416599c464101f5e32e9c3f33054ee6d9",
+            },
+            "linux-x64": {
+                "asset_name": f"syft_{SYFT_VERSION}_linux_amd64.tar.gz",
+                "sha256": "0e91737aee2b5baf1d255b959630194a302335d848ff97bb07921eb6205b5f5a",
+            },
+        },
+    },
+    # Source: https://github.com/anchore/grype/releases/tag/v0.112.0
+    # sha256s pulled from the upstream grype_0.112.0_checksums.txt.
+    "grype": {
+        "tool_id": "grype",
+        "label": "Grype",
+        "binary": "grype",
+        "managed_package": "grype",
+        "target_version": GRYPE_VERSION,
+        "target_version_label": f"Grype v{GRYPE_VERSION}",
+        "source": "devsec-managed-proof",
+        "release_base_url": f"https://github.com/anchore/grype/releases/download/v{GRYPE_VERSION}",
+        "network_access": True,
+        "version_check_args": ("version",),
+        "version_check_timeout_seconds": 5,
+        "download_timeout_seconds": 45,
+        "max_download_bytes": 40_000_000,
+        "assets": {
+            "darwin-arm64": {
+                "asset_name": f"grype_{GRYPE_VERSION}_darwin_arm64.tar.gz",
+                "sha256": "58c3c372e334c27e5bd5031cfb5ae85dbe5e782478d52fb5515ea413b6d47da4",
+            },
+            "darwin-x64": {
+                "asset_name": f"grype_{GRYPE_VERSION}_darwin_amd64.tar.gz",
+                "sha256": "2fd7862e20ba43589b84919f05a5e6dd3a5b12d3860aed467bc4dc427926f6eb",
+            },
+            "linux-arm64": {
+                "asset_name": f"grype_{GRYPE_VERSION}_linux_arm64.tar.gz",
+                "sha256": "7fdeccf065965cc59386c656e5fcc1eb1bdf820e2433000bca7f010b8e6da155",
+            },
+            "linux-x64": {
+                "asset_name": f"grype_{GRYPE_VERSION}_linux_amd64.tar.gz",
+                "sha256": "acb14a030010fe9bdb9594b4ae108d9d14ef2f926d936aa0916dc62c89c058ea",
+            },
+        },
+    },
 }
 
 
@@ -154,7 +275,10 @@ def install_managed_tool_files(
     binary = str(target["binary"])
     asset = _asset_for_platform(target, system=system, machine=machine)
     asset_name = str(asset["asset_name"])
-    asset_url = f"{GITLEAKS_RELEASE_BASE_URL}/{asset_name}"
+    release_base_url = str(target.get("release_base_url") or "").rstrip("/")
+    if not release_base_url:
+        raise ManagedToolInstallError(f"{tool_id} managed install target is missing its release base URL.")
+    asset_url = f"{release_base_url}/{asset_name}"
     expected_sha256 = str(asset["sha256"])
     download_timeout = int(target.get("download_timeout_seconds") or 30)
     max_bytes = int(target.get("max_download_bytes") or 40_000_000)
@@ -611,7 +735,7 @@ def build_tool_install_preview(tool: dict[str, Any], managed_evidence: ManagedTo
             "action": "managed-install-preview",
             "preview_available": True,
             "execution_available": True,
-            "execution_reason": "Available only for the approved Gitleaks managed-install proof path.",
+            "execution_reason": "Available only for approved DëvSec managed-install proof tools.",
             "managed": False,
             "approved_managed_proof": True,
             "target_version": version,
