@@ -89,6 +89,17 @@ select {
   font: inherit;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 button {
   border: 0;
 }
@@ -2874,6 +2885,17 @@ a.button,
   color: var(--ink-muted);
 }
 
+/* --- Catalog icon stroke (DESIGN.md §15) --- */
+/* Lucide defaults to stroke 2; the build checklist wants 1.75 across catalog
+ * routes. Specific hero illustrations keep their thinner overrides for visual
+ * weight at large sizes. */
+.catalog-home svg.lucide,
+.catalog-browse svg.lucide,
+.catalog-tool svg.lucide,
+.catalog-pack svg.lucide {
+  stroke-width: 1.75;
+}
+
 /* --- CatalogHome --- */
 /*
  * The catalog root. Three sections: hero, featured packs (3-up), popular
@@ -2995,7 +3017,8 @@ a.button,
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 0;
+  min-height: 44px;
+  padding: 12px 0;
   background: transparent;
   color: var(--ink-muted);
   font-size: 13px;
@@ -3077,7 +3100,7 @@ a.button,
 
 .catalog-home-card-action {
   margin-top: 4px;
-  min-height: 40px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3235,7 +3258,8 @@ a.button,
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 0;
+  min-height: 44px;
+  padding: 8px 0;
   background: transparent;
   color: var(--ink-muted);
   font-size: 13px;
@@ -3291,7 +3315,7 @@ a.button,
 }
 
 .catalog-browse-cta {
-  min-height: 42px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -3320,7 +3344,7 @@ a.button,
 }
 
 .catalog-browse-cta-secondary {
-  min-height: 42px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -3406,10 +3430,10 @@ a.button,
 }
 
 .catalog-browse-chip {
-  min-height: 30px;
+  min-height: 36px;
   display: inline-flex;
   align-items: center;
-  padding: 0 14px;
+  padding: 8px 14px;
   border-radius: 999px;
   background: var(--surface-card);
   border: 1px solid var(--border-hair);
@@ -3643,7 +3667,8 @@ a.button,
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 0;
+  min-height: 44px;
+  padding: 8px 0;
   background: transparent;
   color: var(--ink-muted);
   font-size: 13px;
@@ -3749,7 +3774,7 @@ a.button,
 }
 
 .catalog-tool-cta {
-  min-height: 40px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -3784,7 +3809,7 @@ a.button,
 }
 
 .catalog-tool-cta-secondary {
-  min-height: 40px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -4347,7 +4372,8 @@ a.button,
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 0;
+  min-height: 44px;
+  padding: 8px 0;
   background: transparent;
   color: var(--ink-muted);
   font-size: 13px;
@@ -4540,7 +4566,7 @@ a.button,
 }
 
 .catalog-pack-profile-cta {
-  min-height: 40px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -4715,7 +4741,8 @@ a.button,
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 0;
+  min-height: 44px;
+  padding: 12px 0;
   background: transparent;
   color: var(--ink-strong);
   font-size: 13px;
