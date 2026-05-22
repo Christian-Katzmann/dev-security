@@ -44,7 +44,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 ### Phase 3 — Rebuild each route against its mockup
 
 - [x] Step 3.1 — Build the Catalog Home route (sets the tone)
-- [ ] Step 3.2 — Build the Catalog Browse route
+- [x] Step 3.2 — Build the Catalog Browse route
 - [ ] Step 3.3 — Build the Tool Detail route
 - [ ] Step 3.4 — Build the Pack Detail route
 
