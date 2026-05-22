@@ -6,23 +6,21 @@
 // when broad pack install is disabled.
 //
 // Open questions resolved here:
-//   1. Install Bundle copy (MVP gap). Two options were considered:
-//        A. "Pack-level install is still on the roadmap. Open each tool below
-//           to install it individually." (calm, explicit handoff)
-//        B. "Pack install is coming. For now, install tools one at a time."
-//        A wins — it is calmer and explicitly says where the action lives.
+//   1. Install Bundle copy (MVP gap). No pack-level install exists yet, so
+//      the hero never offered a disabled "Install bundle" / "View contents"
+//      pair pretending to be buttons. Instead the slot holds one calm note
+//      that names the gap and points at the utility grid below, where each
+//      tool installs individually.
 //   2. Display-only packs (External Surface, IaC, Platform Posture, Advanced
-//      Dependency) keep the same hero shape — calmer wins. The Install Bundle
-//      button is dropped entirely (no fake disabled affordance) and the copy
-//      shifts to a Coming Soon framing. The View Contents button stays as a
-//      disabled secondary so the structural rhythm matches MVP packs.
+//      Dependency) share the same hero shape — the note shifts to a coming-
+//      soon framing.
 //   3. Mockup's ENTERPRISE / FREE / PRO tier badges don't map to DëvSec data.
 //      They are replaced with the pack-role chip (Included / Optional /
 //      Coming soon) on every utility card — the role is real catalog data and
 //      it is what a user actually needs to know about a tool inside a pack.
 
 import {useCallback, useMemo} from 'react';
-import {ArrowLeft, ArrowRight, Download, Package, SlidersHorizontal} from 'lucide-react';
+import {ArrowLeft, ArrowRight, Package, SlidersHorizontal} from 'lucide-react';
 import {
   DashboardSummary,
   SecurityPackCatalogItem,
@@ -114,9 +112,9 @@ export default function CatalogPackPage({
   const comingSoon = isComingSoonPack(pack);
   const toolCount = pack.tools.length;
   const heroCategory = catalogPackIconCategory(pack.id);
-  const installCopy = comingSoon
-    ? 'This bundle is on the roadmap — no install action runs in this version. The included tools below still install individually when they are available.'
-    : 'Pack-level install is still on the roadmap. Open each tool below to install it individually.';
+  const installNote = comingSoon
+    ? 'This bundle is on the roadmap. The included tools below install individually once each one ships.'
+    : 'Pack-level install is on the roadmap. Each utility in the grid below installs on its own.';
 
   return (
     <div className="catalog-pack">
@@ -135,18 +133,7 @@ export default function CatalogPackPage({
         </div>
         <h1>{pack.label}.</h1>
         <p>{pack.summary}</p>
-        <div className="catalog-pack-hero-actions">
-          {!comingSoon && (
-            <button type="button" className="catalog-pack-cta" disabled title={installCopy}>
-              <Download size={15} />
-              Install bundle
-            </button>
-          )}
-          <button type="button" className="catalog-pack-cta-secondary" disabled title={installCopy}>
-            View contents
-          </button>
-        </div>
-        <p className="catalog-pack-hero-help">{installCopy}</p>
+        <p className="catalog-pack-hero-note">{installNote}</p>
       </section>
 
       {pack.primary_profile && (

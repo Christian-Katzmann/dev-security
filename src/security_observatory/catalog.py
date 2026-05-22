@@ -201,7 +201,7 @@ class ToolCatalogEntry:
     scanner_key: str | None = None
     legacy_scanner: dict[str, str | bool] | None = None
     description: str | None = None
-    docs_path: str | None = "docs/scanners.md"
+    docs_path: str | None = None
     homepage_url: str | None = None
 
     def with_install_state(self, install_state: ToolInstallState) -> ToolCatalogEntry:
@@ -863,6 +863,8 @@ def _scanner_entry(
     policy: ToolPolicy,
     capabilities: ToolCapabilities,
     packs: tuple[ToolPackMembership, ...],
+    docs_path: str | None = None,
+    homepage_url: str | None = None,
 ) -> ToolCatalogEntry:
     legacy = _legacy(
         label=label,
@@ -888,6 +890,8 @@ def _scanner_entry(
         profiles=_profiles(profile),
         scanner_key=scanner,
         legacy_scanner=legacy,
+        docs_path=docs_path,
+        homepage_url=homepage_url,
     )
 
 
@@ -932,7 +936,7 @@ EXTERNAL_SURFACE_PLACEHOLDER = ToolCatalogEntry(
     ),
     packs=(_pack(ToolPackId.EXTERNAL_SURFACE, ToolPackRole.COMING_SOON, False),),
     profiles=(),
-    docs_path="docs/tool-catalog.md",
+    docs_path="/docs/tool-catalog.md",
 )
 
 
@@ -969,6 +973,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.STARTER, ToolPackRole.OPTIONAL, False),
             _pack(ToolPackId.DEPENDENCIES, ToolPackRole.OPTIONAL, False),
         ),
+        docs_path="/docs/iocs.md",
     ),
     _scanner_entry(
         scanner="install-hooks",
@@ -1000,6 +1005,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.STARTER, ToolPackRole.INCLUDED, True),
             _pack(ToolPackId.DEPENDENCIES, ToolPackRole.OPTIONAL, False),
         ),
+        docs_path="/docs/install-hooks.md",
     ),
     _scanner_entry(
         scanner="workflow-audit",
@@ -1031,6 +1037,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.STARTER, ToolPackRole.INCLUDED, True),
             _pack(ToolPackId.IAC, ToolPackRole.COMING_SOON, False),
         ),
+        docs_path="/docs/workflow-audit.md",
     ),
     _scanner_entry(
         scanner="ai-static",
@@ -1062,6 +1069,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.STARTER, ToolPackRole.INCLUDED, True),
             _pack(ToolPackId.AI_AGENT, ToolPackRole.INCLUDED, True),
         ),
+        docs_path="/docs/agent-lab.md",
     ),
     _scanner_entry(
         scanner="semgrep",
@@ -1095,6 +1103,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             scan_profiles=("quick", "code", "full"),
         ),
         packs=(_pack(ToolPackId.STARTER, ToolPackRole.INCLUDED, True),),
+        homepage_url="https://semgrep.dev/docs/",
     ),
     _scanner_entry(
         scanner="gitleaks",
@@ -1102,7 +1111,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         area="Secrets",
         covers="Fast detection of exposed API keys, tokens, passwords, and private keys.",
         profile="quick, secrets, full",
-        install_text="./install-security-observatory.sh or brew install gitleaks",
+        install_text="DëvSec can install this for you, or run ./install-security-observatory.sh or brew install gitleaks.",
         next_step="Install Gitleaks, then rerun the secrets or quick scan.",
         built_in=False,
         category=ToolCategory.SECRETS,
@@ -1111,7 +1120,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         install=_path_install(
             method=ToolInstallMethod.HOMEBREW,
             binary="gitleaks",
-            instructions="./install-security-observatory.sh or brew install gitleaks",
+            instructions="DëvSec can install this for you, or run ./install-security-observatory.sh or brew install gitleaks.",
             next_step="Install Gitleaks, then rerun the secrets or quick scan.",
         ),
         policy=_policy(
@@ -1131,6 +1140,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.STARTER, ToolPackRole.INCLUDED, True),
             _pack(ToolPackId.SECRETS, ToolPackRole.INCLUDED, True),
         ),
+        homepage_url="https://github.com/gitleaks/gitleaks#readme",
     ),
     _scanner_entry(
         scanner="trufflehog",
@@ -1164,6 +1174,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             scan_profiles=("secrets", "full"),
         ),
         packs=(_pack(ToolPackId.SECRETS, ToolPackRole.INCLUDED, False),),
+        homepage_url="https://github.com/trufflesecurity/trufflehog#readme",
     ),
     _scanner_entry(
         scanner="trivy",
@@ -1171,7 +1182,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         area="Dependencies / IaC",
         covers="Filesystem, dependency, secret, and infrastructure misconfiguration checks.",
         profile="deps, secrets, iac, full",
-        install_text="./install-security-observatory.sh or brew install trivy",
+        install_text="DëvSec can install this for you, or run ./install-security-observatory.sh or brew install trivy.",
         next_step="Install Trivy, then rerun the dependency, secrets, IaC, or full scan.",
         built_in=False,
         category=ToolCategory.DEPENDENCIES,
@@ -1180,7 +1191,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         install=_path_install(
             method=ToolInstallMethod.HOMEBREW,
             binary="trivy",
-            instructions="./install-security-observatory.sh or brew install trivy",
+            instructions="DëvSec can install this for you, or run ./install-security-observatory.sh or brew install trivy.",
             next_step="Install Trivy, then rerun the dependency, secrets, IaC, or full scan.",
         ),
         policy=_policy(
@@ -1201,6 +1212,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.SECRETS, ToolPackRole.OPTIONAL, False),
             _pack(ToolPackId.IAC, ToolPackRole.COMING_SOON, False),
         ),
+        homepage_url="https://trivy.dev/",
     ),
     _scanner_entry(
         scanner="osv-scanner",
@@ -1237,6 +1249,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.DEPENDENCIES, ToolPackRole.INCLUDED, True),
             _pack(ToolPackId.STARTER, ToolPackRole.OPTIONAL, False),
         ),
+        homepage_url="https://google.github.io/osv-scanner/",
     ),
     _scanner_entry(
         scanner="syft",
@@ -1244,7 +1257,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         area="Dependencies / SBOM",
         covers="Software bill of materials generation.",
         profile="deps, full",
-        install_text="./install-security-observatory.sh or brew install syft",
+        install_text="DëvSec can install this for you, or run ./install-security-observatory.sh or brew install syft.",
         next_step="Install Syft, then rerun the dependency or full scan.",
         built_in=False,
         category=ToolCategory.DEPENDENCIES,
@@ -1253,7 +1266,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         install=_path_install(
             method=ToolInstallMethod.HOMEBREW,
             binary="syft",
-            instructions="./install-security-observatory.sh or brew install syft",
+            instructions="DëvSec can install this for you, or run ./install-security-observatory.sh or brew install syft.",
             next_step="Install Syft, then rerun the dependency or full scan.",
         ),
         policy=_policy(
@@ -1270,6 +1283,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             scan_profiles=("deps", "full"),
         ),
         packs=(_pack(ToolPackId.DEPENDENCIES, ToolPackRole.INCLUDED, True),),
+        homepage_url="https://github.com/anchore/syft#readme",
     ),
     _scanner_entry(
         scanner="grype",
@@ -1277,7 +1291,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         area="Dependencies / SBOM",
         covers="Dependency vulnerability scanning from an SBOM or repository filesystem.",
         profile="deps, full",
-        install_text="./install-security-observatory.sh or brew install grype",
+        install_text="DëvSec can install this for you, or run ./install-security-observatory.sh or brew install grype.",
         next_step="Install Grype, then rerun the dependency or full scan.",
         built_in=False,
         category=ToolCategory.DEPENDENCIES,
@@ -1286,7 +1300,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         install=_path_install(
             method=ToolInstallMethod.HOMEBREW,
             binary="grype",
-            instructions="./install-security-observatory.sh or brew install grype",
+            instructions="DëvSec can install this for you, or run ./install-security-observatory.sh or brew install grype.",
             next_step="Install Grype, then rerun the dependency or full scan.",
         ),
         policy=_policy(
@@ -1304,6 +1318,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             requires_previous_scan=True,
         ),
         packs=(_pack(ToolPackId.DEPENDENCIES, ToolPackRole.INCLUDED, True),),
+        homepage_url="https://github.com/anchore/grype#readme",
     ),
     _scanner_entry(
         scanner="checkov",
@@ -1337,6 +1352,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             scan_profiles=("iac", "full"),
         ),
         packs=(_pack(ToolPackId.IAC, ToolPackRole.COMING_SOON, False),),
+        homepage_url="https://www.checkov.io/",
     ),
     _scanner_entry(
         scanner="medusa",
@@ -1370,6 +1386,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             scan_profiles=("ai", "full"),
         ),
         packs=(_pack(ToolPackId.AI_AGENT, ToolPackRole.INCLUDED, False),),
+        homepage_url="https://github.com/Pantheon-Security/medusa#readme",
     ),
     _scanner_entry(
         scanner="malcontent",
@@ -1407,6 +1424,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             requires_artifacts=True,
         ),
         packs=(_pack(ToolPackId.ADVANCED_DEPENDENCY, ToolPackRole.COMING_SOON, False),),
+        homepage_url="https://github.com/chainguard-dev/malcontent#readme",
     ),
     _scanner_entry(
         scanner="legitify",
@@ -1444,6 +1462,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             requires_repo_remote=True,
         ),
         packs=(_pack(ToolPackId.PLATFORM_POSTURE, ToolPackRole.COMING_SOON, False),),
+        homepage_url="https://github.com/Legit-Labs/legitify#readme",
     ),
 )
 

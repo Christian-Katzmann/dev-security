@@ -3035,30 +3035,6 @@ a.button,
   opacity: 1;
 }
 
-.catalog-tool-cta-secondary {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 14px;
-  background: transparent;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--r-lg);
-  color: var(--ink-strong);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 140ms ease, transform 140ms ease;
-}
-
-.catalog-tool-cta-secondary:hover {
-  background: var(--paper-soft);
-}
-
-.catalog-tool-cta-secondary:active {
-  transform: scale(0.98);
-}
-
 .catalog-tool-display-note {
   display: inline-flex;
   align-items: center;
@@ -3422,8 +3398,7 @@ a.button,
     align-items: stretch;
   }
 
-  .catalog-tool-cta,
-  .catalog-tool-cta-secondary {
+  .catalog-tool-cta {
     justify-content: center;
   }
 
@@ -3698,60 +3673,8 @@ a.button,
   line-height: 1.45;
 }
 
-.catalog-pack-hero-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 8px;
-}
-
-.catalog-pack-cta {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 18px;
-  border: 1px solid var(--ink-strong);
-  border-radius: var(--r-lg);
-  background: var(--ink-strong);
-  color: var(--on-surface-strong);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: transform 140ms ease, opacity 140ms ease;
-}
-
-.catalog-pack-cta:disabled {
-  background: var(--paper-soft);
-  border-color: var(--border-soft);
-  color: var(--ink-muted);
-  cursor: not-allowed;
-}
-
-.catalog-pack-cta-secondary {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 16px;
-  background: transparent;
-  border: 1px solid var(--border-soft);
-  border-radius: var(--r-lg);
-  color: var(--ink-strong);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 140ms ease, transform 140ms ease;
-}
-
-.catalog-pack-cta-secondary:disabled {
-  color: var(--ink-faint);
-  cursor: not-allowed;
-}
-
-.catalog-pack-hero-help {
-  margin: 4px 0 0;
+.catalog-pack-hero-note {
+  margin: 0;
   max-width: 640px;
   color: var(--ink-muted);
   font-size: 13px;
@@ -4003,16 +3926,6 @@ a.button,
 
   .catalog-pack-hero h1 {
     font-size: 26px;
-  }
-
-  .catalog-pack-hero-actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .catalog-pack-cta,
-  .catalog-pack-cta-secondary {
-    justify-content: center;
   }
 
   .catalog-pack-profile {

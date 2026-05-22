@@ -8,8 +8,10 @@ import platform
 import tarfile
 
 from security_observatory.managed_tools import (
+    APPROVED_MANAGED_INSTALL_TOOL_IDS,
     MANAGED_INSTALL_PROOF_TARGETS,
     ManagedToolInstallError,
+    build_tool_install_preview,
     install_managed_tool_files,
     managed_install_root,
     managed_tool_evidence,
@@ -20,6 +22,65 @@ from security_observatory.managed_tools import (
 )
 from security_observatory.scanners import security_pack_catalog, tool_catalog
 from security_observatory.storage import ObservatoryDB
+
+
+EXPECTED_PLATFORM_KEYS = frozenset({"darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64"})
+
+
+def test_every_approved_managed_tool_has_full_proof_target():
+    assert APPROVED_MANAGED_INSTALL_TOOL_IDS, "Approved managed-install set must not be empty."
+    for tool_id in APPROVED_MANAGED_INSTALL_TOOL_IDS:
+        target = MANAGED_INSTALL_PROOF_TARGETS.get(tool_id)
+        assert target is not None, f"{tool_id} is approved but has no proof target."
+        for key in (
+            "tool_id",
+            "label",
+            "binary",
+            "managed_package",
+            "target_version",
+            "target_version_label",
+            "source",
+            "release_base_url",
+            "network_access",
+            "version_check_args",
+            "version_check_timeout_seconds",
+            "download_timeout_seconds",
+            "max_download_bytes",
+            "assets",
+        ):
+            assert key in target, f"{tool_id} proof target is missing {key}."
+        assert target["tool_id"] == tool_id
+        assert str(target["release_base_url"]).startswith("https://github.com/"), (
+            f"{tool_id} release_base_url must point at an official GitHub release."
+        )
+        assets = target["assets"]
+        assert isinstance(assets, dict)
+        assert set(assets) == EXPECTED_PLATFORM_KEYS, (
+            f"{tool_id} must publish assets for {sorted(EXPECTED_PLATFORM_KEYS)}, got {sorted(assets)}."
+        )
+        for platform_key, asset in assets.items():
+            assert "asset_name" in asset and asset["asset_name"], f"{tool_id}/{platform_key} missing asset_name."
+            sha = asset.get("sha256", "")
+            assert len(sha) == 64 and all(ch in "0123456789abcdef" for ch in sha.lower()), (
+                f"{tool_id}/{platform_key} sha256 must be 64 lowercase hex chars."
+            )
+
+
+def test_build_tool_install_preview_offers_execution_for_every_approved_tool():
+    for tool_id in APPROVED_MANAGED_INSTALL_TOOL_IDS:
+        target = MANAGED_INSTALL_PROOF_TARGETS[tool_id]
+        tool = {
+            "id": tool_id,
+            "install_state": "missing",
+            "lifecycle": "available",
+            "install": {"binary": target["binary"]},
+        }
+        preview = build_tool_install_preview(tool)
+        assert preview["action"] == "managed-install-preview", f"{tool_id} preview must offer install."
+        assert preview["execution_available"] is True, f"{tool_id} must be executable from preview."
+        assert preview["approved_managed_proof"] is True
+        assert preview["target_version"] == target["target_version"]
+        assert preview["target_version_label"] == target["target_version_label"]
 
 
 def test_tool_catalog_marks_verified_devsec_managed_tool(tmp_path: Path, monkeypatch):

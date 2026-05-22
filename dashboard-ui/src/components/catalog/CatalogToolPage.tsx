@@ -5,15 +5,15 @@
 // safety, and setup detail live below the fold so the first screen stays calm.
 //
 // Routing decisions (consistent with DESIGN.md §0 and §4):
-//   - One primary action on the page (Install). Snooze is a quiet ghost button
-//     that returns to the catalog — "come back later" is the most honest
-//     behaviour we can wire, given DëvSec doesn't have a snooze concept.
+//   - One primary action on the page (Install). No secondary "snooze" /
+//     "later" affordance — DëvSec doesn't have a snooze concept and a button
+//     that just goes Back is a lie.
 //   - Install is enabled only when the install_preview is a real managed
 //     install path with execution_available. For everything else the button
 //     keeps the next-step copy and is visually quieter (no fake affordance).
 //   - Display-only tools (External Surface, lifecycle/install_state =
-//     coming-soon) get no Install and no Snooze — the action region is a
-//     single calm note instead.
+//     coming-soon) get no Install — the action region is a single calm note
+//     instead.
 //
 // Honesty about specs (open question from the campaign): the mockup shows
 // Version / Size / Last Updated / License / Requirements. DëvSec only
@@ -161,21 +161,16 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
                 Display only — no install or scan action in this version.
               </span>
             ) : (
-              <>
-                <button type="button" className="catalog-tool-cta-secondary" onClick={onBack}>
-                  Snooze / later
-                </button>
-                <button
-                  type="button"
-                  className={`catalog-tool-cta ${installEnabled ? '' : 'quiet'}`}
-                  onClick={onInstall}
-                  disabled={!installEnabled || Boolean(mutating)}
-                  title={installEnabled ? undefined : installHelp ?? undefined}
-                >
-                  <Download size={15} />
-                  {installLabel}
-                </button>
-              </>
+              <button
+                type="button"
+                className={`catalog-tool-cta ${installEnabled ? '' : 'quiet'}`}
+                onClick={onInstall}
+                disabled={!installEnabled || Boolean(mutating)}
+                title={installEnabled ? undefined : installHelp ?? undefined}
+              >
+                <Download size={15} />
+                {installLabel}
+              </button>
             )}
           </div>
         </div>
@@ -235,8 +230,8 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
             <a
               className="catalog-tool-docs-link"
               href={docsHref}
-              target={tool.homepage_url && docsHref === tool.homepage_url ? '_blank' : undefined}
-              rel={tool.homepage_url && docsHref === tool.homepage_url ? 'noreferrer' : undefined}
+              target="_blank"
+              rel="noreferrer"
             >
               <span className="catalog-tool-docs-label">
                 <BookOpen size={16} />

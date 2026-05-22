@@ -31,7 +31,7 @@
 //      Calmer wins. No carousel chrome at any breakpoint.
 
 import {useCallback, useMemo, useState} from 'react';
-import {BookOpen, Download} from 'lucide-react';
+import {ArrowRight, Download} from 'lucide-react';
 import {
   DashboardSummary,
   ToolCatalogItem,
@@ -145,7 +145,7 @@ export default function CatalogBrowse({summary, onRefresh, onOpenTool, onBack}: 
     void installManagedTool(featured.id);
   }, [featured, featuredInstallEnabled, installManagedTool]);
 
-  const openFeaturedDocs = useCallback(() => {
+  const openFeaturedTool = useCallback(() => {
     if (!featured) return;
     onOpenTool(featured.id);
   }, [featured, onOpenTool]);
@@ -175,10 +175,10 @@ export default function CatalogBrowse({summary, onRefresh, onOpenTool, onBack}: 
               <button
                 type="button"
                 className="catalog-browse-cta-secondary"
-                onClick={openFeaturedDocs}
+                onClick={openFeaturedTool}
               >
-                <BookOpen size={14} />
-                View docs
+                <ArrowRight size={14} />
+                View tool
               </button>
             </div>
             {mutation && featured && mutation.toolId === featured.id && mutation.status !== 'running' && (
