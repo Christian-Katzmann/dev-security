@@ -1,4 +1,8 @@
 import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useState} from 'react';
+import CatalogHome from './components/catalog/CatalogHome';
+import CatalogBrowse from './components/catalog/CatalogBrowse';
+import CatalogToolPage from './components/catalog/CatalogToolPage';
+import CatalogPackPage from './components/catalog/CatalogPackPage';
 import {
   Activity,
   AlertTriangle,
@@ -97,6 +101,15 @@ import {
 } from './dashboardData';
 
 type TabId = 'overview' | 'findings' | 'honey-keys' | 'scanners' | 'playbooks' | 'verification' | 'activity' | 'reports' | 'settings';
+// Substate for the Tool Catalog tab. Four routes total — home is the root, the
+// other three return via onBack to whichever route opened them ("from"). We
+// keep state on App so reopening the tab restores the user's place; default is
+// always 'home' on first mount.
+type CatalogRoute =
+  | {kind: 'home'}
+  | {kind: 'browse'}
+  | {kind: 'tool'; id: string; from: 'home' | 'browse'}
+  | {kind: 'pack'; id: string; from: 'home' | 'browse'};
 type AuditId = 'quick' | 'secrets' | 'code' | 'deps' | 'iac' | 'platform-posture' | 'ai' | 'full';
 type Tone = 'low' | 'warn' | 'high' | 'crit' | 'info' | 'neutral';
 type CatalogStatusFilter = 'all' | 'ready' | 'setup' | 'missing' | 'advanced' | 'coming-soon';
@@ -963,6 +976,7 @@ function suppressedFindingCount(summary: DashboardSummary): number {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [catalogRoute, setCatalogRoute] = useState<CatalogRoute>({kind: 'home'});
   const [summary, setSummary] = useState<DashboardSummary>(emptySummary);
   const [projectRepos, setProjectRepos] = useState<ProjectRepo[]>([]);
   const [customRepos, setCustomRepos] = useState<ProjectRepo[]>(() => loadCustomRepos());
@@ -1191,6 +1205,8 @@ export default function App() {
               updatedAt={updatedAt}
               error={error}
               posture={posture}
+              catalogRoute={catalogRoute}
+              onCatalogRouteChange={setCatalogRoute}
               onOpenTab={setActiveTab}
               onChooseChecks={() => setIsCheckOpen(true)}
               onRunQuick={() => {
@@ -1218,6 +1234,8 @@ function ActiveView({
   updatedAt,
   error,
   posture,
+  catalogRoute,
+  onCatalogRouteChange,
   onOpenTab,
   onChooseChecks,
   onRunQuick,
@@ -1233,6 +1251,8 @@ function ActiveView({
   updatedAt: Date | null;
   error: string | null;
   posture: {score: number; delta: number; week: {label: string; value: number}[]};
+  catalogRoute: CatalogRoute;
+  onCatalogRouteChange: (route: CatalogRoute) => void;
   onOpenTab: (tab: TabId) => void;
   onChooseChecks: () => void;
   onRunQuick: () => void;
@@ -1246,12 +1266,53 @@ function ActiveView({
   if (tab === 'overview') return <OverviewView summary={summary} posture={posture} error={error} onOpenTab={onOpenTab} />;
   if (tab === 'findings') return <FindingsView summary={summary} search={search} onCaseDecision={onCaseDecision} />;
   if (tab === 'honey-keys') return <HoneyKeysView summary={summary} target={target} onRefresh={onRefresh} />;
-  if (tab === 'scanners') return <CatalogView summary={summary} search={search} onChooseChecks={onChooseChecks} onRefresh={onRefresh} />;
+  if (tab === 'scanners') return <CatalogRouter route={catalogRoute} onRouteChange={onCatalogRouteChange} />;
   if (tab === 'playbooks') return <PlaybooksView summary={summary} onChooseChecks={onChooseChecks} />;
   if (tab === 'verification') return <VerificationView summary={summary} onChooseChecks={onChooseChecks} />;
   if (tab === 'activity') return <ActivityView summary={summary} search={search} />;
   if (tab === 'reports') return <ReportsView summary={summary} />;
   return <SettingsView summary={summary} target={target} targetRepos={targetRepos} updatedAt={updatedAt} onTargetChange={onTargetChange} />;
+}
+
+// CatalogRouter — dispatches the Tool Catalog substate to the four route
+// shells. Navigation between catalog routes uses callbacks (onOpenTool /
+// onOpenPack / onOpenBrowse / onBack); no URL routing yet. The legacy
+// CatalogView function below stays exported in this file for Step 1.2 to lift
+// data hooks out of, but the tab no longer renders it during the rebuild.
+function CatalogRouter({route, onRouteChange}: {route: CatalogRoute; onRouteChange: (route: CatalogRoute) => void}) {
+  const originOf = (kind: CatalogRoute['kind']): 'home' | 'browse' => (kind === 'browse' ? 'browse' : 'home');
+  if (route.kind === 'browse') {
+    return (
+      <CatalogBrowse
+        onOpenTool={(id) => onRouteChange({kind: 'tool', id, from: 'browse'})}
+        onBack={() => onRouteChange({kind: 'home'})}
+      />
+    );
+  }
+  if (route.kind === 'tool') {
+    return (
+      <CatalogToolPage
+        toolId={route.id}
+        onBack={() => onRouteChange(route.from === 'browse' ? {kind: 'browse'} : {kind: 'home'})}
+      />
+    );
+  }
+  if (route.kind === 'pack') {
+    return (
+      <CatalogPackPage
+        packId={route.id}
+        onBack={() => onRouteChange(route.from === 'browse' ? {kind: 'browse'} : {kind: 'home'})}
+        onOpenTool={(id) => onRouteChange({kind: 'tool', id, from: originOf(route.kind)})}
+      />
+    );
+  }
+  return (
+    <CatalogHome
+      onOpenBrowse={() => onRouteChange({kind: 'browse'})}
+      onOpenTool={(id) => onRouteChange({kind: 'tool', id, from: 'home'})}
+      onOpenPack={(id) => onRouteChange({kind: 'pack', id, from: 'home'})}
+    />
+  );
 }
 
 function Sidebar({
