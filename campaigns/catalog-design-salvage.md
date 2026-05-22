@@ -39,7 +39,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 2 — Demolition
 
-- [ ] Step 2.1 — Delete violating chrome and quiet the bold labels
+- [x] Step 2.1 — Delete violating chrome and quiet the bold labels
 
 ### Phase 3 — Rebuild each route against its mockup
 
