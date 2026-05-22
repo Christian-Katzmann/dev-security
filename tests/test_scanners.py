@@ -106,6 +106,21 @@ def test_tool_catalog_includes_external_surface_display_only_placeholder():
     assert "external-surface" not in {item["scanner"] for item in scanner_catalog()}
 
 
+def test_every_catalog_entry_has_a_real_documentation_link():
+    missing: list[str] = []
+    bad_homepage: list[str] = []
+    for entry in catalog_model.CURRENT_TOOL_CATALOG:
+        if entry.id == "external-surface":
+            continue
+        if not entry.docs_path and not entry.homepage_url:
+            missing.append(entry.id)
+        if entry.homepage_url and not entry.homepage_url.startswith(("http://", "https://")):
+            bad_homepage.append(entry.id)
+
+    assert not missing, f"Catalog entries with no docs link: {missing}"
+    assert not bad_homepage, f"homepage_url must be an absolute http(s) URL: {bad_homepage}"
+
+
 def test_tool_catalog_can_resolve_detected_path_tools(monkeypatch):
     def fake_which(binary: str) -> str | None:
         return f"/usr/local/bin/{binary}" if binary in {"semgrep", "legitify"} else None

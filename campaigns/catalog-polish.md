@@ -33,7 +33,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 1 — Honesty pass (no lies in the existing surface)
 
-- [ ] Step 1.1 — UI cleanup: remove Snooze, rename "View docs" → "View tool", collapse pack-page disabled CTAs
+- [x] Step 1.1 — UI cleanup: remove Snooze, rename "View docs" → "View tool", collapse pack-page disabled CTAs
 - [ ] Step 1.2 — Wire the "Read documentation" link to real homepage URLs
 
 ### Phase 2 — Widen the managed install set
