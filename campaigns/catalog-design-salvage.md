@@ -51,7 +51,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 ### Phase 4 — Tone sweep and validation
 
 - [x] Step 4.1 — Token, weight, and copy sweep across all four routes
-- [ ] Step 4.2 — Mockup-vs-implementation screenshot review and §15 checklist
+- [x] Step 4.2 — Mockup-vs-implementation screenshot review and §15 checklist
 - [ ] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
