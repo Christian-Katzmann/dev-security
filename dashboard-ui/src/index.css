@@ -3191,6 +3191,409 @@ a.button,
   }
 }
 
+/* --- CatalogBrowse --- */
+/* Paper-card featured banner, single chip row, 4-up tool grid. Reuses the
+ * same tokens (ink-strong, paper-deep, mist-surface-700) and the same rhythm
+ * as CatalogHome so the home → browse transition feels coherent. The page is
+ * intentionally airy: one primary action (Install on the banner), the rest
+ * read as quiet typography on paper.
+ */
+
+.catalog-browse {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 12px 0 32px;
+}
+
+.catalog-browse-back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  background: transparent;
+  color: var(--ink-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 140ms ease;
+}
+
+.catalog-browse-back:hover {
+  color: var(--ink-strong);
+}
+
+.catalog-browse-featured {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
+  gap: 32px;
+  align-items: center;
+  padding: 32px 36px;
+  background: #fff;
+  border: 1px solid var(--border-hair);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-1);
+}
+
+.catalog-browse-featured-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.catalog-browse-featured-copy h1 {
+  margin: 0;
+  max-width: 640px;
+  color: var(--ink-strong);
+  font: 600 28px/1.18 var(--font-sans);
+  letter-spacing: -0.01em;
+}
+
+.catalog-browse-featured-copy p {
+  margin: 0;
+  max-width: 640px;
+  color: var(--ink-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.catalog-browse-featured-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.catalog-browse-cta {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  border: 1px solid var(--ink-strong);
+  border-radius: var(--r-lg);
+  background: var(--ink-strong);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 140ms ease, opacity 140ms ease;
+}
+
+.catalog-browse-cta:hover:not(:disabled) {
+  opacity: 0.92;
+}
+
+.catalog-browse-cta:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.catalog-browse-cta:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.catalog-browse-cta-secondary {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  background: transparent;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  color: var(--ink-strong);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 140ms ease, transform 140ms ease;
+}
+
+.catalog-browse-cta-secondary:hover {
+  background: var(--paper-soft);
+}
+
+.catalog-browse-cta-secondary:active {
+  transform: scale(0.98);
+}
+
+.catalog-browse-featured-message {
+  margin: 4px 0 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.catalog-browse-featured-message.error {
+  color: #6c1f1f;
+}
+
+.catalog-browse-featured-message.complete {
+  color: #3c4b48;
+}
+
+.catalog-browse-featured-art {
+  display: grid;
+  place-items: center;
+}
+
+.catalog-browse-featured-mark {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-width: 200px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-lg);
+  background: var(--paper-deep);
+  border: 1px solid var(--border-hair);
+  color: var(--mist-surface-700);
+}
+
+.catalog-browse-featured-mark > svg {
+  width: 56px;
+  height: 56px;
+  stroke-width: 1.5;
+}
+
+.catalog-browse-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-hair);
+  flex-wrap: wrap;
+}
+
+.catalog-browse-filter-label {
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.catalog-browse-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.catalog-browse-chip {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid var(--border-hair);
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.catalog-browse-chip:hover {
+  background: var(--paper-soft);
+  color: var(--ink);
+}
+
+.catalog-browse-chip.active {
+  background: var(--ink-strong);
+  border-color: var(--ink-strong);
+  color: #fff;
+}
+
+.catalog-browse-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.catalog-browse-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 32px 0;
+  color: var(--ink-muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.catalog-browse-card {
+  position: relative;
+  background: #fff;
+  border: 1px solid var(--border-hair);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+  transition: box-shadow 140ms ease, transform 140ms ease;
+}
+
+.catalog-browse-card:hover {
+  box-shadow: var(--shadow-2);
+  transform: translateY(-1px);
+}
+
+.catalog-browse-card.muted {
+  background: var(--paper-soft);
+  box-shadow: none;
+  opacity: 0.78;
+}
+
+.catalog-browse-card.muted:hover {
+  box-shadow: var(--shadow-1);
+}
+
+.catalog-browse-card-button {
+  width: 100%;
+  min-height: 196px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.catalog-browse-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.catalog-browse-card-icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  background: var(--paper-soft);
+  border: 1px solid var(--border-hair);
+  color: var(--mist-surface-700);
+}
+
+.catalog-browse-card.muted .catalog-browse-card-icon {
+  background: #fff;
+}
+
+.catalog-browse-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font: 600 10px/1 var(--font-sans);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.catalog-browse-pill i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.85;
+}
+
+.catalog-browse-pill.elevated {
+  color: #6e3a1c;
+  background: #ecc9b7;
+}
+
+.catalog-browse-pill.warn {
+  color: #7d4d10;
+  background: #f1dcbe;
+}
+
+.catalog-browse-pill.low {
+  color: #3c4b48;
+  background: #dfe7e3;
+}
+
+.catalog-browse-pill.neutral {
+  color: var(--ink-muted);
+  background: rgba(28, 36, 34, 0.06);
+}
+
+.catalog-browse-card h3 {
+  margin: 4px 0 0;
+  color: var(--ink-strong);
+  font: 500 17px/1.3 var(--font-sans);
+}
+
+.catalog-browse-card p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.catalog-browse-card-foot {
+  margin-top: auto;
+  padding-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid var(--border-hair);
+  color: var(--ink-faint);
+  font: 500 11px/1.2 var(--font-mono);
+}
+
+.catalog-browse-card-foot span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.catalog-browse-card-foot span + span {
+  text-align: right;
+}
+
+@media (max-width: 1180px) {
+  .catalog-browse-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .catalog-browse {
+    gap: 24px;
+  }
+
+  .catalog-browse-featured {
+    grid-template-columns: 1fr;
+    padding: 24px;
+  }
+
+  .catalog-browse-featured-art {
+    order: -1;
+    justify-self: flex-start;
+  }
+
+  .catalog-browse-featured-mark {
+    max-width: 96px;
+  }
+
+  .catalog-browse-featured-copy h1 {
+    font-size: 24px;
+  }
+
+  .catalog-browse-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 980px) {
   .mist-sidebar {
     width: 220px;
