@@ -107,8 +107,14 @@ def test_tool_catalog_includes_external_surface_display_only_placeholder():
 
 
 def test_every_catalog_entry_has_a_real_documentation_link():
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    docs_root = repo_root / "docs"
+
     missing: list[str] = []
     bad_homepage: list[str] = []
+    bad_docs_path: list[str] = []
     for entry in catalog_model.CURRENT_TOOL_CATALOG:
         if entry.id == "external-surface":
             continue
@@ -116,9 +122,22 @@ def test_every_catalog_entry_has_a_real_documentation_link():
             missing.append(entry.id)
         if entry.homepage_url and not entry.homepage_url.startswith(("http://", "https://")):
             bad_homepage.append(entry.id)
+        if entry.docs_path:
+            # docs_path must be an absolute path that the dashboard server can
+            # serve, and the corresponding file must actually exist on disk so
+            # the "Read documentation" link doesn't 404.
+            if not entry.docs_path.startswith("/docs/"):
+                bad_docs_path.append(f"{entry.id}: {entry.docs_path}")
+                continue
+            relative = entry.docs_path.removeprefix("/docs/")
+            if not (docs_root / relative).is_file():
+                bad_docs_path.append(f"{entry.id}: {entry.docs_path}")
 
     assert not missing, f"Catalog entries with no docs link: {missing}"
     assert not bad_homepage, f"homepage_url must be an absolute http(s) URL: {bad_homepage}"
+    assert not bad_docs_path, (
+        f"docs_path must start with /docs/ and resolve to a real file in docs/: {bad_docs_path}"
+    )
 
 
 def test_tool_catalog_can_resolve_detected_path_tools(monkeypatch):

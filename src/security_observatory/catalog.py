@@ -936,7 +936,7 @@ EXTERNAL_SURFACE_PLACEHOLDER = ToolCatalogEntry(
     ),
     packs=(_pack(ToolPackId.EXTERNAL_SURFACE, ToolPackRole.COMING_SOON, False),),
     profiles=(),
-    docs_path="docs/tool-catalog.md",
+    docs_path="/docs/tool-catalog.md",
 )
 
 
@@ -973,7 +973,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.STARTER, ToolPackRole.OPTIONAL, False),
             _pack(ToolPackId.DEPENDENCIES, ToolPackRole.OPTIONAL, False),
         ),
-        docs_path="docs/iocs.md",
+        docs_path="/docs/iocs.md",
     ),
     _scanner_entry(
         scanner="install-hooks",
@@ -1005,7 +1005,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.STARTER, ToolPackRole.INCLUDED, True),
             _pack(ToolPackId.DEPENDENCIES, ToolPackRole.OPTIONAL, False),
         ),
-        docs_path="docs/install-hooks.md",
+        docs_path="/docs/install-hooks.md",
     ),
     _scanner_entry(
         scanner="workflow-audit",
@@ -1037,7 +1037,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.STARTER, ToolPackRole.INCLUDED, True),
             _pack(ToolPackId.IAC, ToolPackRole.COMING_SOON, False),
         ),
-        docs_path="docs/workflow-audit.md",
+        docs_path="/docs/workflow-audit.md",
     ),
     _scanner_entry(
         scanner="ai-static",
@@ -1069,7 +1069,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.STARTER, ToolPackRole.INCLUDED, True),
             _pack(ToolPackId.AI_AGENT, ToolPackRole.INCLUDED, True),
         ),
-        docs_path="docs/agent-lab.md",
+        docs_path="/docs/agent-lab.md",
     ),
     _scanner_entry(
         scanner="semgrep",

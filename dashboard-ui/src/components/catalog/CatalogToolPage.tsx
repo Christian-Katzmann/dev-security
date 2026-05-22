@@ -230,8 +230,8 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
             <a
               className="catalog-tool-docs-link"
               href={docsHref}
-              target={tool.homepage_url && docsHref === tool.homepage_url ? '_blank' : undefined}
-              rel={tool.homepage_url && docsHref === tool.homepage_url ? 'noreferrer' : undefined}
+              target="_blank"
+              rel="noreferrer"
             >
               <span className="catalog-tool-docs-label">
                 <BookOpen size={16} />

@@ -39,11 +39,11 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 ### Phase 2 — Widen the managed install set
 
 - [x] Step 2.1 — Add 2–3 new installable tools (research release manifests, implement, test)
-- [ ] Step 2.2 — End-to-end install verification on a real Mac
+- [x] Step 2.2 — End-to-end install verification on a real Mac
 
 ### Phase 3 — Validation
 
-- [ ] Step 3.1 — Full catalog sweep: every button, every route, no lies left
+- [x] Step 3.1 — Full catalog sweep: every button, every route, no lies left
 - [ ] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).

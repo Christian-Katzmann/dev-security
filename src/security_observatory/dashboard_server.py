@@ -835,8 +835,30 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def serve_repo_doc(self, path: str) -> None:
+        # docs/ lives at the repo root; the package sits at src/security_observatory/.
+        repo_root = Path(__file__).resolve().parents[2]
+        docs_root = (repo_root / "docs").resolve()
+        candidate = (docs_root / path.removeprefix("/docs/")).resolve()
+        if not candidate.is_file() or docs_root not in candidate.parents and candidate != docs_root:
+            self.send_error(404, "Doc not found.")
+            return
+        try:
+            body = candidate.read_bytes()
+        except OSError:
+            self.send_error(404, "Doc not found.")
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "text/markdown; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path.startswith("/docs/") and parsed.path.endswith(".md"):
+            self.serve_repo_doc(parsed.path)
+            return
         if parsed.path == "/favicon.ico":
             icon_path = self.assets_dir / "favicon.png"
             if not icon_path.exists():
