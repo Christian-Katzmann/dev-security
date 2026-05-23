@@ -4,7 +4,7 @@ A practical security sweep for repos you actually work in. DëvSec runs establis
 
 *(Installed as the `security-observatory` Python package. The CLI is `security-scan`. The dashboard is branded DëvSec — same project, three names you'll meet in different places.)*
 
-**Status:** 0.1.x — early. Local scanning works well; the dashboard is honest about what's still partial.
+**Status:** 0.1.x — early. Local scanning works well; the dashboard is honest about what's still partial. The [What's real vs. what's not yet](#whats-real-vs-whats-not-yet) table below enumerates the gaps.
 
 https://github.com/user-attachments/assets/9df30c29-a9fc-40f2-83c4-3530b08c4818
 
@@ -17,7 +17,23 @@ DëvSec is the opposite shape: scanners run locally against a clone of the repo 
 Results stay under `~/.security-observatory`, nothing is uploaded, and no cloud LLM is required.
 The dashboard exists so you can read what the scanners actually found without grepping raw JSON.
 
-For the longer-form argument behind the local-first stance, see [PROVOCATION.md](PROVOCATION.md).
+For the longer-form argument behind the local-first stance, see [PROVOCATION.md](PROVOCATION.md). For the system-shape view of what stays local and what doesn't exist as a boundary, see [the trust boundary diagram](design/diagrams/trust-boundary.md).
+
+## What's real vs. what's not yet
+
+DëvSec's status line says *"the dashboard is honest about what's still partial."* Here's the inventory:
+
+| Area | What's real | What's not yet |
+|---|---|---|
+| Local scanning | Semgrep, Gitleaks, TruffleHog, Trivy, OSV-Scanner, Grype, Syft, Checkov, Medusa, IOC-watch — all run on your machine | — |
+| Built-in detection rules | `install-hooks`, `workflow-audit`, and most `ai-static` rules ship and detect | The `ai-static` "auto-approval" rule has a known regression — see [failure-modes.md §4](docs/failure-modes.md) |
+| Recovery playbooks | Dependency upgrade, secrets rotation, AI-config tightening | Long-tail finding categories show *"coming soon"* cards |
+| Connected platform-posture checks | `legitify` and OpenSSF Scorecard work when you supply a token | Off by default — opt-in only, never silent |
+| Honey Keys | Create, insert under `.devsec/honeykeys/`, store only a hash, callback fires on touch | You provide the webhook endpoint — DëvSec operates no Honey Key infrastructure |
+| Managed install | `gitleaks v8.30.1` is the first managed-install proof | Other scanners use detected / Homebrew / uv installs; broader managed installs are deferred |
+| External Surface scanning | — | Coming Soon placeholder — no probing, no target input, no recon in the MVP |
+| IaC Pack | Trivy + Checkov IaC checks run via `security-scan --iac` | The IaC Pack page itself is a Coming Soon bundle until pack-run mode ships |
+| Telemetry, cloud AI, license check-in | — | None ship — by design, not "not yet." See [PROVOCATION.md](PROVOCATION.md) |
 
 ## What It Is
 
@@ -472,6 +488,9 @@ scripts/                        Dashboard and desktop launcher scripts
 
 - [Setup guide](docs/setup.md)
 - [Architecture](docs/architecture.md)
+- [Trust boundary diagram](design/diagrams/trust-boundary.md) — what stays local and the absent paths that make the local-first stance enforceable
+- [Threat model](docs/threat-model.md) — assets, boundaries, main risks, mitigations, known gaps
+- [Failure modes](docs/failure-modes.md) — false positives, false negatives, scanner crashes, rule regressions, stale data
 - [Glossary](docs/glossary.md) — finding, case, action level, confidence, honey key, evidence gap
 - [Architectural decisions](docs/decisions/) — accepted ADRs and a `REJECTED/` folder for paths considered and turned down
 - [Tool Catalog and Security Packs](docs/tool-catalog.md)
