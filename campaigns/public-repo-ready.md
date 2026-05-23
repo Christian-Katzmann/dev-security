@@ -52,7 +52,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 3 — Half-built things, finish or hide
 
-- [ ] Step 3.1 — Real per-class recovery playbooks, or honest narrower title (F-007)
+- [x] Step 3.1 — Real per-class recovery playbooks, or honest narrower title (F-007)
 - [ ] Step 3.2 — Ship the Activity heatmap, or replace it with something that earns its space (F-011)
 
 ### Phase 4 — Repo hygiene for a public audience

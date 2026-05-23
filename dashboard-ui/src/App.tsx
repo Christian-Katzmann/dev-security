@@ -1595,8 +1595,7 @@ function ActivityView({summary, search}: {summary: DashboardSummary; search: str
       </section>
       <section className="split-grid align-start">
         <PaperCard>
-          <SectionHeader title="Audits · 24 h × 7 d" />
-          <Heatmap history={summary.history} />
+          <AuditsPerDay history={summary.history} />
         </PaperCard>
         <PaperCard>
           <SectionHeader title="Event mix · 7 d" />
@@ -2276,23 +2275,45 @@ function CoverageCard({title, icon, items, empty}: {title: string; icon: ReactNo
   );
 }
 
-function Heatmap({history}: {history: DashboardSummary['history']}) {
-  const values = Array.from({length: 7}, (_, day) => Array.from({length: 24}, (_, hour) => {
+function AuditsPerDay({history}: {history: DashboardSummary['history']}) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const days = Array.from({length: 7}, (_, i) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (6 - i));
+    return date;
+  });
+  const counts = days.map((day) => {
+    const next = new Date(day);
+    next.setDate(day.getDate() + 1);
     return history.filter((scan) => {
-      const date = new Date(scan.finished_at ?? scan.started_at);
-      return !Number.isNaN(date.getTime()) && date.getDay() === day && date.getHours() === hour;
+      const value = scan.finished_at ?? scan.started_at;
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return false;
+      return date >= day && date < next;
     }).length;
-  }));
-  const max = Math.max(1, ...values.flat());
+  });
+  const max = Math.max(1, ...counts);
+  const total = counts.reduce((sum, value) => sum + value, 0);
+  const totalLabel = total === 1 ? '1 scan this week' : `${total} scans this week`;
   return (
-    <div className="heatmap">
-      {values.map((row, rowIndex) => (
-        <div key={rowIndex}>
-          <span>{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][rowIndex]}</span>
-          {row.map((value, colIndex) => <i key={colIndex} style={{opacity: 0.18 + (value / max) * 0.75}} />)}
-        </div>
-      ))}
-    </div>
+    <>
+      <SectionHeader title="Scans · 7 d" right={<span>{totalLabel}</span>} />
+      <div className="audits-strip">
+        {counts.map((count, idx) => {
+          const isToday = days[idx].getTime() === today.getTime();
+          const height = count === 0 ? 0 : Math.max(6, (count / max) * 88);
+          return (
+            <span key={idx} className={isToday ? 'is-today' : undefined}>
+              <em>{count}</em>
+              <i style={{height: `${height}px`}} />
+              <strong>{dayLabels[days[idx].getDay()]}</strong>
+            </span>
+          );
+        })}
+      </div>
+    </>
   );
 }
 

@@ -1652,29 +1652,43 @@ a.button,
   font-style: normal;
 }
 
-.heatmap {
+.audits-strip {
+  height: 112px;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  align-items: end;
+}
+
+.audits-strip > span {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 22px;
-}
-
-.heatmap div {
-  display: grid;
-  grid-template-columns: 36px repeat(24, 1fr);
-  gap: 5px;
   align-items: center;
+  gap: 6px;
 }
 
-.heatmap span {
-  color: var(--ink-muted);
-  font: 600 12px/1 var(--font-mono);
+.audits-strip em {
+  font: 500 11px/1 var(--font-mono);
+  color: rgba(44,56,53,0.55);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
 }
 
-.heatmap i {
-  height: 18px;
-  border-radius: 5px;
+.audits-strip i {
+  width: 100%;
+  border-radius: 7px 7px 0 0;
+  background: rgba(44,56,53,0.16);
+}
+
+.audits-strip .is-today i {
   background: var(--mist-surface-500);
+}
+
+.audits-strip strong {
+  font-size: 10px;
+  color: rgba(44,56,53,0.55);
+  font-weight: 500;
 }
 
 .event-mix {
