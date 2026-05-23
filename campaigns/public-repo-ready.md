@@ -57,7 +57,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 4 — Repo hygiene for a public audience
 
-- [ ] Step 4.1 — LICENSE, SECURITY.md, CONTRIBUTING.md, CHANGELOG.md, hardened `.gitignore` *(parallel with 4.2)*
+- [x] Step 4.1 — LICENSE, SECURITY.md, CONTRIBUTING.md, CHANGELOG.md, hardened `.gitignore` *(parallel with 4.2)*
 - [ ] Step 4.2 — README polish for strangers + screenshots/GIF + brand reconciliation *(parallel with 4.1)*
 - [ ] Step 4.3 — Pre-public security sweep on dëv-security's own git history *(runs LAST in Phase 4, after 4.1+4.2)*
 

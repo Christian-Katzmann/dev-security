@@ -1,8 +1,19 @@
-# Security Observatory
+# DëvSec — local-first security observability
 
-Local-first security observability for modern repositories.
+A practical security sweep for repos you actually work in. DëvSec runs established open-source scanners on your machine, stores the history in local SQLite, and turns scanner noise into a small set of plain next actions.
 
-Security Observatory, also used in the app as DëvSec, runs a practical security sweep on local codebases, stores the history locally, and turns scanner output into a dashboard of plain next actions. It is designed for repo owners who want a clear view of code, dependency, secret, infrastructure, and AI-agent risk without sending source code to a SaaS product.
+*(Installed as the `security-observatory` Python package. The CLI is `security-scan`. The dashboard is branded DëvSec — same project, three names you'll meet in different places.)*
+
+**Status:** 0.1.x — early. Local scanning works well; the dashboard is honest about what's still partial.
+
+![DëvSec overview — local dashboard showing posture score, open findings, and recent scan activity](docs/images/overview.png)
+
+## Why this exists
+
+Most security platforms send your source code to a SaaS, charge per repo, or both.
+DëvSec is the opposite shape: scanners run locally against a clone of the repo you already have.
+Results stay under `~/.security-observatory`, nothing is uploaded, and no cloud LLM is required.
+The dashboard exists so you can read what the scanners actually found without grepping raw JSON.
 
 ## What It Is
 
