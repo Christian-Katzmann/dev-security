@@ -2091,6 +2091,72 @@ a.button,
   padding: 14px;
 }
 
+/* --- NeedsRepoTarget — shared inline helper for the "pick a repo first" gate.
+ * One line note + an optional inline picker that funnels through the existing
+ * onTargetChange handler. Used wherever a primary action is meaningful only
+ * with a real repo target (Run check sheet, Recovery playbooks, etc.). */
+.needs-repo-target {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-hair);
+  background: rgba(28,36,34,0.03);
+  padding: 10px 12px;
+}
+
+.needs-repo-target-text {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.needs-repo-target-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 6px 28px 6px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-hair);
+  background: #fff;
+  color: var(--ink-strong);
+  font: 500 12px/1 var(--font-mono);
+  cursor: pointer;
+}
+
+.needs-repo-target-picker select {
+  appearance: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+
+.needs-repo-target-picker svg {
+  position: absolute;
+  right: 10px;
+  color: var(--ink-muted);
+  pointer-events: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .notice.crit {
   border-color: rgba(156,59,59,0.34);
 }

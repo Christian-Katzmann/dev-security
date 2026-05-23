@@ -3,6 +3,7 @@ import CatalogHome from './components/catalog/CatalogHome';
 import CatalogBrowse from './components/catalog/CatalogBrowse';
 import CatalogToolPage from './components/catalog/CatalogToolPage';
 import CatalogPackPage from './components/catalog/CatalogPackPage';
+import NeedsRepoTarget from './components/NeedsRepoTarget';
 import {
   CatalogMutationState,
   CatalogStatusFilter,
@@ -606,7 +607,6 @@ export default function App() {
   useEffect(() => {
     setActiveJob(null);
     setRunError(null);
-    if (target.type === 'dashboard') setIsCheckOpen(false);
   }, [target]);
 
   useEffect(() => {
@@ -697,7 +697,7 @@ export default function App() {
   function runFullCheck() {
     setSelectedAudits(['full']);
     setIsCheckOpen(true);
-    void runCheck(['full']);
+    if (target.type === 'repo') void runCheck(['full']);
   }
 
   async function saveCaseDecision(caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) {
@@ -746,16 +746,19 @@ export default function App() {
             setAgentRunning={setAgentRunning}
             onRunAll={runFullCheck}
             canRun={target.type === 'repo'}
+            runAllHint={target.type === 'repo' ? 'Run all configured checks for the selected repo' : 'Pick a repo first'}
           />
           {isCheckOpen && (
             <RunCheckSheet
               target={target}
+              targetRepos={targetRepos}
               selectedAudits={selectedAudits}
               activeJob={activeJob}
               isRunningCheck={isRunningCheck}
               runError={runError}
               onToggleAudit={toggleAudit}
               onRun={() => void runCheck()}
+              onTargetChange={selectTarget}
               onClose={() => setIsCheckOpen(false)}
               onNewCheck={() => setActiveJob(null)}
               onViewResults={() => {
@@ -841,8 +844,8 @@ function ActiveView({
   if (tab === 'findings') return <FindingsView summary={summary} search={search} onCaseDecision={onCaseDecision} />;
   if (tab === 'honey-keys') return <HoneyKeysView summary={summary} target={target} onRefresh={onRefresh} />;
   if (tab === 'scanners') return <CatalogRouter route={catalogRoute} summary={summary} onRouteChange={onCatalogRouteChange} onRefresh={onRefresh} onChooseChecks={onChooseChecks} />;
-  if (tab === 'playbooks') return <PlaybooksView summary={summary} onChooseChecks={onChooseChecks} />;
-  if (tab === 'verification') return <VerificationView summary={summary} onChooseChecks={onChooseChecks} />;
+  if (tab === 'playbooks') return <PlaybooksView summary={summary} target={target} targetRepos={targetRepos} onChooseChecks={onChooseChecks} onTargetChange={onTargetChange} />;
+  if (tab === 'verification') return <VerificationView summary={summary} target={target} targetRepos={targetRepos} onChooseChecks={onChooseChecks} onTargetChange={onTargetChange} />;
   if (tab === 'activity') return <ActivityView summary={summary} search={search} />;
   if (tab === 'reports') return <ReportsView summary={summary} />;
   return <SettingsView summary={summary} target={target} targetRepos={targetRepos} updatedAt={updatedAt} onTargetChange={onTargetChange} />;
@@ -987,6 +990,7 @@ function Toolbar({
   setAgentRunning,
   onRunAll,
   canRun,
+  runAllHint,
 }: {
   title: string;
   targetLabel: string;
@@ -999,8 +1003,10 @@ function Toolbar({
   setAgentRunning: (value: boolean) => void;
   onRunAll: () => void;
   canRun: boolean;
+  runAllHint: string;
 }) {
   const searchPlaceholder = title === 'Tool Catalog' ? 'Search tools, packs' : 'Search findings, manifests';
+  const runAllLabel = canRun ? 'Run all' : 'Run all (pick a repo)';
   return (
     <header className="mist-toolbar">
       <div className="toolbar-title">
@@ -1022,7 +1028,14 @@ function Toolbar({
       <IconButton label={agentRunning ? 'Pause agent' : 'Resume agent'} onClick={() => setAgentRunning(!agentRunning)}>
         {agentRunning ? <Pause size={15} /> : <Play size={15} />}
       </IconButton>
-      <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />} onClick={onRunAll} disabled={!canRun}>
+      <Button
+        variant="secondary"
+        size="sm"
+        icon={<RefreshCw size={14} />}
+        onClick={onRunAll}
+        title={runAllHint}
+        ariaLabel={runAllLabel}
+      >
         Run all
       </Button>
     </header>
@@ -1031,33 +1044,39 @@ function Toolbar({
 
 function RunCheckSheet({
   target,
+  targetRepos,
   selectedAudits,
   activeJob,
   isRunningCheck,
   runError,
   onToggleAudit,
   onRun,
+  onTargetChange,
   onClose,
   onNewCheck,
   onViewResults,
 }: {
   target: TargetSelection;
+  targetRepos: ProjectRepo[];
   selectedAudits: AuditId[];
   activeJob: CheckJob | null;
   isRunningCheck: boolean;
   runError: string | null;
   onToggleAudit: (audit: AuditId) => void;
   onRun: () => void;
+  onTargetChange: (value: string) => void;
   onClose: () => void;
   onNewCheck: () => void;
   onViewResults: () => void;
 }) {
+  const needsRepo = target.type !== 'repo';
+  const startDisabled = needsRepo || isRunningCheck;
   return (
     <section className="run-sheet">
       <div className="run-sheet-head">
         <div>
           <Eyebrow>{activeJob?.status === 'complete' ? 'Security check complete' : 'Run security check'}</Eyebrow>
-          <h2>{target.type === 'repo' ? target.repo.name : 'Choose a repo target'}</h2>
+          <h2>{target.type === 'repo' ? target.repo.name : 'Run security check'}</h2>
           <p>{activeJob?.status === 'complete' ? 'Latest local scan data has been saved.' : 'Choose the scanners to run. Existing backend behavior stays unchanged.'}</p>
         </div>
         <div className="run-actions">
@@ -1069,11 +1088,18 @@ function RunCheckSheet({
           ) : (
             <>
               <Button variant="ghost" onClick={onClose} disabled={isRunningCheck}>Cancel</Button>
-              <Button onClick={onRun} disabled={target.type !== 'repo' || isRunningCheck}>{isRunningCheck ? 'Checking...' : 'Start check'}</Button>
+              <Button onClick={onRun} disabled={startDisabled} title={needsRepo ? 'Pick a repo to run checks against' : undefined}>{isRunningCheck ? 'Checking...' : 'Start check'}</Button>
             </>
           )}
         </div>
       </div>
+      {needsRepo && activeJob?.status !== 'complete' && (
+        <NeedsRepoTarget
+          targetRepos={targetRepos}
+          onTargetChange={onTargetChange}
+          message="Pick a repo to run checks against."
+        />
+      )}
       {activeJob?.status !== 'complete' && (
         <div className="audit-grid">
           {auditOptions.map((option) => (
@@ -1465,12 +1491,21 @@ function HoneyKeysView({summary, target, onRefresh}: {summary: DashboardSummary;
   );
 }
 
-function PlaybooksView({summary, onChooseChecks}: {summary: DashboardSummary; onChooseChecks: () => void}) {
+function PlaybooksView({summary, target, targetRepos, onChooseChecks, onTargetChange}: {summary: DashboardSummary; target: TargetSelection; targetRepos: ProjectRepo[]; onChooseChecks: () => void; onTargetChange: (value: string) => void}) {
   const playbooks = buildPlaybooks(summary);
   const [activeId, setActiveId] = useState(playbooks[0]?.id ?? '');
   const active = playbooks.find((item) => item.id === activeId) ?? playbooks[0];
+  const needsRepo = target.type !== 'repo';
+  const rerunHint = needsRepo ? 'Switch to the repo where the finding lives to rerun its check' : undefined;
   return (
     <div className="view-stack">
+      {needsRepo && (
+        <NeedsRepoTarget
+          targetRepos={targetRepos}
+          onTargetChange={onTargetChange}
+          message="Switch to the repo where the finding lives to rerun its check."
+        />
+      )}
       <div className="playbook-grid">
         {playbooks.map((item) => (
           <button key={item.id} type="button" className={`playbook-tile ${active.id === item.id ? 'selected' : ''}`} onClick={() => setActiveId(item.id)}>
@@ -1492,7 +1527,7 @@ function PlaybooksView({summary, onChooseChecks}: {summary: DashboardSummary; on
             <div className="button-row">
               {active.caseItem?.scanId && <a className="button primary" href={reportViewUrl(active.caseItem.scanId, 'prompt')}><Sparkles size={14} /> AI prompt</a>}
               {active.caseItem?.scanId && <a className="button secondary" href={reportViewUrl(active.caseItem.scanId, 'raw')}><FileText size={14} /> Raw report</a>}
-              <Button variant="ghost" onClick={onChooseChecks}>Rerun checks</Button>
+              <Button variant="ghost" onClick={onChooseChecks} disabled={needsRepo} title={rerunHint}>Rerun checks</Button>
             </div>
             <ol className="step-list">
               {active.steps.map((step, index) => <li key={step}><span>{index + 1}</span><strong>{step}</strong></li>)}
@@ -1509,13 +1544,21 @@ function PlaybooksView({summary, onChooseChecks}: {summary: DashboardSummary; on
   );
 }
 
-function VerificationView({summary, onChooseChecks}: {summary: DashboardSummary; onChooseChecks: () => void}) {
+function VerificationView({summary, target, targetRepos, onChooseChecks, onTargetChange}: {summary: DashboardSummary; target: TargetSelection; targetRepos: ProjectRepo[]; onChooseChecks: () => void; onTargetChange: (value: string) => void}) {
   const completeness = scanCompleteness(summary);
   const scanners = topScannerItems(summary);
   const coverage = scannerCoverageSummary(summary);
   const failed = scanners.filter((item) => item.status === 'missing' || item.status === 'error');
+  const needsRepo = target.type !== 'repo';
   return (
     <div className="view-stack">
+      {needsRepo && (
+        <NeedsRepoTarget
+          targetRepos={targetRepos}
+          onTargetChange={onTargetChange}
+          message="Pick a repo to run its checks."
+        />
+      )}
       <section className={`verification-hero ${failed.length ? 'attention' : ''}`}>
         <div>
           <Eyebrow onSurface>Verification</Eyebrow>
@@ -2351,8 +2394,8 @@ function Donut({value}: {value: number}) {
   );
 }
 
-function Button({children, variant = 'primary', size = 'md', icon, onClick, disabled}: {children: ReactNode; variant?: 'primary' | 'secondary' | 'ghost' | 'glass' | 'glassOnGlass'; size?: 'sm' | 'md'; icon?: ReactNode; onClick?: () => void; disabled?: boolean}) {
-  return <button type="button" className={`button ${variant} ${size}`} onClick={onClick} disabled={disabled}>{icon}{children}</button>;
+function Button({children, variant = 'primary', size = 'md', icon, onClick, disabled, title, ariaLabel}: {children: ReactNode; variant?: 'primary' | 'secondary' | 'ghost' | 'glass' | 'glassOnGlass'; size?: 'sm' | 'md'; icon?: ReactNode; onClick?: () => void; disabled?: boolean; title?: string; ariaLabel?: string}) {
+  return <button type="button" className={`button ${variant} ${size}`} onClick={onClick} disabled={disabled} title={title} aria-label={ariaLabel}>{icon}{children}</button>;
 }
 
 function IconButton({children, label, onClick}: {children: ReactNode; label: string; onClick: () => void}) {
