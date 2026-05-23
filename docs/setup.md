@@ -6,7 +6,7 @@
 - Homebrew
 - Python 3.11+
 - `uv` for Python CLI tools
-- Node.js/npm if rebuilding the dashboard design
+- Node.js/npm if rebuilding the dashboard
 
 ## Install
 
