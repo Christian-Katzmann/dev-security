@@ -8,14 +8,13 @@ on:
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
       - name: Install observatory CLI
@@ -26,9 +25,9 @@ jobs:
           sudo apt-get install -y wget
           pipx install checkov
           pipx install medusa-security
-          # Prefer pinned releases in production workflows.
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin
-          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sudo sh -s -- -b /usr/local/bin
-          curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/install.sh | sudo sh -s -- -b /usr/local/bin
+          # Pin install URLs to release tags; see .devsec/workflow-allowlist.yaml for justification.
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/v1.44.0/install.sh | sudo sh -s -- -b /usr/local/bin v1.44.0
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/v0.112.0/install.sh | sudo sh -s -- -b /usr/local/bin v0.112.0
+          curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/v8.30.1/install.sh | sudo sh -s -- -b /usr/local/bin v8.30.1
       - name: Run observatory scan
         run: security-scan --quick --fail-on high --json

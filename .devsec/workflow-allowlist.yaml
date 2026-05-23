@@ -1,0 +1,31 @@
+# Workflow audit allowlist for DëvSec scanning itself.
+#
+# Each entry suppresses a specific workflow-audit finding with a documented reason.
+# The scanner's source-of-truth schema lives in src/security_observatory/surface_scanners.py
+# (AllowlistEntry: rule, path, line?, reason).
+#
+# Rule reference:
+#   workflow-fetch-exec          — pattern matches `curl|wget ... | sh` (fetch-and-execute)
+#   workflow-unpinned-action     — `uses:` references a tag rather than a commit SHA
+#   workflow-permissions-write   — workflow grants a write permission scope
+#
+# Conventions:
+#   - Pin the install URL to a release tag (not main/master). The allowlist confirms
+#     this is intentional and documents the upstream we trust.
+#   - Re-justify entries when the install URL or scanner version changes.
+
+entries:
+  - rule: workflow-fetch-exec
+    path: .github/workflows/security.yml
+    line: 30
+    reason: "Anchore Syft installer, URL pinned to v1.44.0 release tag. Upstream-published install script, ephemeral CI runner only."
+
+  - rule: workflow-fetch-exec
+    path: .github/workflows/security.yml
+    line: 31
+    reason: "Anchore Grype installer, URL pinned to v0.112.0 release tag. Upstream-published install script, ephemeral CI runner only."
+
+  - rule: workflow-fetch-exec
+    path: .github/workflows/security.yml
+    line: 32
+    reason: "Gitleaks installer, URL pinned to v8.30.1 release tag. Upstream-published install script, ephemeral CI runner only."
