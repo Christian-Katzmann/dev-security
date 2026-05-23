@@ -64,7 +64,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 ### Phase 5 — Prove it
 
 - [x] Step 5.1 — Re-run the product walkthrough audit, confirm punch list is empty, fix any new findings inline
-- [ ] Final review
+- [x] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
 
