@@ -82,6 +82,18 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def dashboard_environment_signal() -> dict[str, Any]:
+    """Runtime hints the dashboard needs to surface gates honestly.
+
+    Mirrors scanners._legitify_token: any of these env vars satisfies the
+    platform-posture token requirement. Stays in the server layer because
+    storage shouldn't know about the runtime environment.
+    """
+    token_env_names = ("SCM_TOKEN", "SECURITY_OBSERVATORY_SCM_TOKEN", "LEGITIFY_TOKEN")
+    scm_token_present = any((os.environ.get(name) or "").strip() for name in token_env_names)
+    return {"scm_token_present": scm_token_present}
+
+
 def job_snapshot(job_id: str) -> dict[str, object] | None:
     with CHECK_JOBS_LOCK:
         job = CHECK_JOBS.get(job_id)
@@ -1067,6 +1079,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 payload = db.dashboard_payload()
             finally:
                 db.close()
+            payload["environment"] = dashboard_environment_signal()
             self.send_json(payload)
             return
         if parsed.path == "/api/tool-catalog":

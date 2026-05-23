@@ -353,19 +353,21 @@ __generated__
 
 ## Health Score
 
-Health scores start at 100 and subtract weighted risk:
+The engine computes a health score from 0 to 100 internally. The CLI prints it and the JSON report (`security-scan . --json`) emits it on that 0–100 scale. The dashboard divides the same value by 10 and displays it as `/ 10` (so a 33 in the JSON shows as `3.3 / 10`). The table below uses the dashboard's 0–10 scale.
 
-| Finding type | Penalty |
+Health scores start at 10.0 and subtract weighted risk:
+
+| Finding type | Penalty (display scale) |
 | --- | ---: |
-| Leaked secret | -40, capped at -80 |
-| Critical vulnerability | -25 |
-| AI-agent or repo-poisoning risk | -15, capped at -45 |
-| High vulnerability | -10, capped at -60 |
-| Medium vulnerability | -2, capped at -25 |
-| Low vulnerability | -0.5, capped at -10 |
-| Missing SBOM | -3 |
+| Leaked secret | -4.0, capped at -8.0 |
+| Critical vulnerability | -2.5 |
+| AI-agent or repo-poisoning risk | -1.5, capped at -4.5 |
+| High vulnerability | -1.0, capped at -6.0 |
+| Medium vulnerability | -0.2, capped at -2.5 |
+| Low vulnerability | -0.05, capped at -1.0 |
+| Missing SBOM | -0.3 |
 
-The final score is capped between 0 and 100.
+The final score is capped between 0.0 and 10.0 on display (0 and 100 internally).
 
 ## Development
 

@@ -707,6 +707,9 @@ export type DashboardSummary = {
     checks_missing?: string[];
     cannot_prove?: string[];
   };
+  environment?: {
+    scm_token_present?: boolean;
+  };
 };
 
 export type ProjectRepo = {

@@ -47,7 +47,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 2 — Honest docs and disclosure
 
-- [ ] Step 2.1 — Render in-app docs or relink to vendor URLs (F-003)
+- [x] Step 2.1 — Render in-app docs or relink to vendor URLs (F-003)
 - [ ] Step 2.2 — Reconcile health score scale and surface the platform-posture token gate (F-009, F-010)
 
 ### Phase 3 — Half-built things, finish or hide

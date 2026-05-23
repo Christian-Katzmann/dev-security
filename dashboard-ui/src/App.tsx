@@ -656,6 +656,9 @@ export default function App() {
   function toggleAudit(auditId: AuditId) {
     setRunError(null);
     if (activeJob?.status === 'complete') setActiveJob(null);
+    if (auditId === 'platform-posture' && !(summary.environment?.scm_token_present ?? true)) {
+      return;
+    }
     if (auditId === 'full') {
       setSelectedAudits(['full']);
       return;
@@ -673,6 +676,8 @@ export default function App() {
       setIsCheckOpen(true);
       return;
     }
+    const tokenPresent = summary.environment?.scm_token_present ?? true;
+    const audits = tokenPresent ? auditsOverride : auditsOverride.filter((id) => id !== 'platform-posture');
     setIsRunningCheck(true);
     setActiveJob(null);
     setRunError(null);
@@ -680,7 +685,7 @@ export default function App() {
       const response = await fetch('/api/run-check', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({repoPath: target.repo.path, audits: auditsOverride}),
+        body: JSON.stringify({repoPath: target.repo.path, audits}),
       });
       if (!response.ok) throw new Error(await response.text());
       const payload: {job: CheckJob} = await response.json();
@@ -750,6 +755,7 @@ export default function App() {
               activeJob={activeJob}
               isRunningCheck={isRunningCheck}
               runError={runError}
+              scmTokenPresent={summary.environment?.scm_token_present ?? true}
               onToggleAudit={toggleAudit}
               onRun={() => void runCheck()}
               onTargetChange={selectTarget}
@@ -1027,6 +1033,7 @@ function RunCheckSheet({
   activeJob,
   isRunningCheck,
   runError,
+  scmTokenPresent,
   onToggleAudit,
   onRun,
   onTargetChange,
@@ -1040,6 +1047,7 @@ function RunCheckSheet({
   activeJob: CheckJob | null;
   isRunningCheck: boolean;
   runError: string | null;
+  scmTokenPresent: boolean;
   onToggleAudit: (audit: AuditId) => void;
   onRun: () => void;
   onTargetChange: (value: string) => void;
@@ -1080,14 +1088,39 @@ function RunCheckSheet({
       )}
       {activeJob?.status !== 'complete' && (
         <div className="audit-grid">
-          {auditOptions.map((option) => (
-            <label key={option.id} className={`audit-tile ${selectedAudits.includes(option.id) ? 'selected' : ''}`}>
-              <input type="checkbox" checked={selectedAudits.includes(option.id)} onChange={() => onToggleAudit(option.id)} disabled={isRunningCheck} />
-              <span>{option.label}</span>
-              <em>{option.estimate}</em>
-              <p>{option.description}</p>
-            </label>
-          ))}
+          {auditOptions.map((option) => {
+            const tokenGate = option.id === 'platform-posture' && !scmTokenPresent;
+            const tileClass = [
+              'audit-tile',
+              selectedAudits.includes(option.id) ? 'selected' : '',
+              tokenGate ? 'gated' : '',
+            ].filter(Boolean).join(' ');
+            return (
+              <label
+                key={option.id}
+                className={tileClass}
+                title={tokenGate ? 'Set SCM_TOKEN in the environment that launches the dashboard, then reload.' : undefined}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedAudits.includes(option.id) && !tokenGate}
+                  onChange={() => onToggleAudit(option.id)}
+                  disabled={isRunningCheck || tokenGate}
+                />
+                <span>
+                  {option.label}
+                  {tokenGate && <small className="audit-tile-gate"> · Needs SCM_TOKEN</small>}
+                </span>
+                <em>{option.estimate}</em>
+                <p>{option.description}</p>
+                {tokenGate && (
+                  <p className="audit-tile-gate-note">
+                    Stop the dashboard, export <code>SCM_TOKEN=&lt;github-or-gitlab-token&gt;</code> in the same shell, then run <code>security-scan dashboard</code> again to enable this check.
+                  </p>
+                )}
+              </label>
+            );
+          })}
         </div>
       )}
       {activeJob && isRunningCheck && (
