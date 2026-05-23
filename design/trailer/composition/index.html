@@ -442,13 +442,12 @@
       const tl = gsap.timeline({ paused: true });
 
       // ===================== BEAT 1 — Cold open (0–4s) =====================
-      // Dashboard simply present. Only motion is the entrance fade.
-      tl.from(
-        "#b1-browser",
-        { opacity: 0, duration: 0.7, ease: "power2.out" },
-        0,
-      );
-      // No subtitle. No zoom. Just hold.
+      // Dashboard is present at full opacity from frame 0 — no fade-in.
+      // This is deliberate: GitHub strips the README's <video poster=…>
+      // attribute, so the very first frame of the MP4 is what visitors see
+      // before they click play. That first frame must already be the
+      // dashboard, not a cream pane.
+      // No subtitle. No zoom. Just hold for 4 seconds.
 
       // ===================== BEAT 2 — Terminal then dashboard (3.6–13s) =====================
       tl.from(
