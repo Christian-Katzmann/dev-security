@@ -46,3 +46,19 @@ def test_ai_static_detects_risky_agent_text(tmp_path):
     assert "Agent/editor config appears to enable broad auto-approval" in titles
     assert "Agent command uses a package runner without an obvious pinned version" in titles
     assert "AI/editor configuration references plaintext HTTP" in titles
+
+
+def test_ai_static_works_when_repo_lives_under_excluded_name_parent(tmp_path):
+    # Regression: on Linux CI, pytest's tmp_path lives under /tmp/, which used
+    # to make _candidate_files skip everything because "tmp" is in
+    # DEFAULT_EXCLUDES. Excludes must apply relative to the repo root, not the
+    # absolute path. Reproduce on any platform by constructing a "tmp" parent.
+    repo = tmp_path / "tmp" / "myrepo"
+    repo.mkdir(parents=True)
+    (repo / "AGENTS.md").write_text(
+        "approval_mode: never\n", encoding="utf-8"
+    )
+
+    titles = {finding.title for finding in scan_ai_static(repo, "myrepo")}
+
+    assert "Agent/editor config appears to enable broad auto-approval" in titles

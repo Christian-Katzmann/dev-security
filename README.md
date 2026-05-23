@@ -26,7 +26,7 @@ DëvSec's status line says *"the dashboard is honest about what's still partial.
 | Area | What's real | What's not yet |
 |---|---|---|
 | Local scanning | Semgrep, Gitleaks, TruffleHog, Trivy, OSV-Scanner, Grype, Syft, Checkov, Medusa, IOC-watch — all run on your machine | — |
-| Built-in detection rules | `install-hooks`, `workflow-audit`, and most `ai-static` rules ship and detect | The `ai-static` "auto-approval" rule has a known regression — see [failure-modes.md §4](docs/failure-modes.md) |
+| Built-in detection rules | `install-hooks`, `workflow-audit`, and `ai-static` ship and detect | — |
 | Recovery playbooks | Dependency upgrade, secrets rotation, AI-config tightening | Long-tail finding categories show *"coming soon"* cards |
 | Connected platform-posture checks | `legitify` and OpenSSF Scorecard work when you supply a token | Off by default — opt-in only, never silent |
 | Honey Keys | Create, insert under `.devsec/honeykeys/`, store only a hash, callback fires on touch | You provide the webhook endpoint — DëvSec operates no Honey Key infrastructure |

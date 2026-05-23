@@ -38,11 +38,11 @@ For the broader attack surface, see [threat-model.md](threat-model.md). This doc
 
 **What it is.** The built-in `ai-static` scanner uses pattern-matching heuristics over AGENTS.md, `.mcp.json`, Cursor rules, and similar agent-config files. When a rule's matcher gets rewritten and the test fixtures don't catch the regression, the rule silently stops firing.
 
-**Why it matters.** This is a class of bug we know exists *right now*: the *"Agent/editor config appears to enable broad auto-approval"* detection has regressed (the Verify CI workflow's `test_ai_static.py` tests are currently red for exactly this reason).
+**Why it matters.** A scanner that *looks* like it's checking a category but actually returns nothing is worse than no scanner at all — it builds false confidence.
 
-**Current mitigation.** The pytest suite (`tests/test_ai_static.py`) has fixtures for each rule. CI runs them on every push. The regression is **known and tracked**; the failing tests are honest CI signal, not silent decay.
+**Current mitigation.** The pytest suite (`tests/test_ai_static.py`) has per-rule fixtures and CI runs them on every push. A real instance of this class was caught and fixed: the *"auto-approval"* detection silently stopped firing on Linux CI runners because `_candidate_files` was excluding any path containing `"tmp"` as a part — including `/tmp/pytest-of-runner/...`. The fix tightened the exclusion to apply relative to the repo root rather than the absolute path; a regression test now reproduces the bug on any platform.
 
-**Remaining risk.** Until the regression is fixed, the auto-approval detection will not catch real risky agent configs. Users who depend on this specific check should read AGENTS.md files manually until it's restored. Other `ai-static` rules (risky MCP server URLs, install-script `curl | sudo` patterns) are unaffected.
+**Remaining risk.** Pattern-matching rules are inherently incomplete — novel ways to phrase a risky agent config (synonyms, structural variations, encoded values) may slip past. The CI fixtures only catch the patterns we've thought of. Treat `ai-static` as a useful early signal, not as comprehensive coverage of agent-config risk.
 
 ## 5. Honey Key misattribution
 

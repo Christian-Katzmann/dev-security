@@ -91,11 +91,19 @@ def scan_ai_static(repo: Path, repo_name: str) -> list[Finding]:
 def _candidate_files(repo: Path) -> list[Path]:
     out: list[Path] = []
     for path in repo.rglob("*"):
-        if any(part in DEFAULT_EXCLUDES for part in path.parts):
+        try:
+            rel_parts = path.relative_to(repo).parts
+        except ValueError:
+            continue
+        # Match exclude/config names against the path RELATIVE to the repo root,
+        # not the absolute path. Otherwise a repo that happens to live under
+        # /tmp/ (e.g. pytest's tmp_path on Linux CI runners) gets every file
+        # silently dropped because "tmp" is in DEFAULT_EXCLUDES.
+        if any(part in DEFAULT_EXCLUDES for part in rel_parts):
             continue
         if not path.is_file():
             continue
-        if path.name in AI_CONFIG_NAMES or any(part in AI_CONFIG_DIRS for part in path.parts):
+        if path.name in AI_CONFIG_NAMES or any(part in AI_CONFIG_DIRS for part in rel_parts):
             if path.stat().st_size <= 2_000_000:
                 out.append(path)
     return out
