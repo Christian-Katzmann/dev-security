@@ -5,12 +5,28 @@ description = "Local-first security observability for modern AI-era repositories
 requires-python = ">=3.11"
 dependencies = []
 
+[project.optional-dependencies]
+mcp = ["mcp>=1.0"]
+
 [project.scripts]
 security-scan = "security_observatory.cli:main"
+devsec-mcp = "security_observatory.mcp_server:main"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.uv]
+# Install the package itself into the uv-managed venv so the `security-scan`
+# and `devsec-mcp` script entry points work via `uv run <name>`.
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/security_observatory"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [

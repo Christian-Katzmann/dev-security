@@ -4,6 +4,9 @@
 .playwright-mcp/
 __pycache__/
 *.py[cod]
+*.egg-info/
+build/
+dist/
 
 desktop/
 assets/icons/build/
