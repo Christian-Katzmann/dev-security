@@ -177,6 +177,23 @@
       "when_to_run": "After desktop launcher work or before rebuilding/reinstalling if a warm server is running.",
       "success_signal": "Prints that servers/windows were stopped, or that nothing was running.",
       "recovery_hint": "This intentionally terminates matching local processes; verify the target app before running."
+    },
+    {
+      "id": "devsec-mcp",
+      "intent": "run the read-only MCP adapter for local agents",
+      "command": [
+        "uv",
+        "run",
+        "devsec-mcp"
+      ],
+      "cwd": ".",
+      "safety": "read_only",
+      "long_running": true,
+      "transport": "stdio",
+      "timeout_seconds": null,
+      "when_to_run": "Only when an MCP client (Claude Desktop, Cursor, Codex) needs read-only access to local scan results. Normally launched by the client per its mcpServers config, not invoked manually.",
+      "success_signal": "Holds stdio open and responds to JSON-RPC requests; logs go to stderr.",
+      "recovery_hint": "If startup fails, confirm `uv sync --extra mcp` has been run and the `mcp` Python package is installed. See mcp/README.md."
     }
   ]
 }

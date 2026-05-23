@@ -40,6 +40,7 @@ DëvSec's status line says *"the dashboard is honest about what's still partial.
 - A local CLI: `security-scan`
 - A local dashboard: `security-scan dashboard`
 - A local SQLite history store under `~/.security-observatory`
+- An MCP server for local agent access (optional install: `uv sync --extra mcp`). See [mcp/README.md](mcp/README.md).
 - A scanner orchestration layer around established open-source tools
 - A normalizer that converts scanner output into one consistent finding shape
 - A case builder that groups raw findings into human-readable remediation cases

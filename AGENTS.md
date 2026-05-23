@@ -38,6 +38,7 @@
 - Do not run `./install-security-observatory.sh`, `security-scan`, dashboard servers, or desktop launcher commands unless the task requires them.
 - Do not wire blocking hooks or CI gates without explicit user approval.
 - Generated/noisy folders include `.venv/`, `.pytest_cache/`, `.playwright-mcp/`, `dashboard-ui/node_modules/`, `src/security_observatory/dashboard/assets/`, `desktop/`, `assets/icons/build/`, and Python `__pycache__/` folders.
+- The MCP adapter (`devsec-mcp`) exposes read-only access to scan results. It is stdio-only and does not open a network port. See [mcp/README.md](mcp/README.md).
 
 ## Verification
 
