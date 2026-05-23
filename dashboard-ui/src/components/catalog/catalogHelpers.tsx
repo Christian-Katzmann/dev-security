@@ -458,6 +458,12 @@ export type CatalogCardAction = 'install' | 'view' | 'display-only';
 
 export function catalogCardAction(tool: ToolCatalogItem): CatalogCardAction {
   if (tool.lifecycle === 'coming-soon' || tool.install_state === 'coming-soon') return 'display-only';
+  // Built-in tools and tools already on the user's PATH have nothing to
+  // install — the card routes to the detail page instead. A managed-install
+  // preview can still exist for these (e.g. a Homebrew reinstall path); we
+  // ignore it here so the card label doesn't promise an install that the
+  // detail page will refuse.
+  if (tool.install_state === 'built-in' || tool.install_state === 'detected') return 'view';
   if (previewCanInstall(tool.install_preview)) return 'install';
   return 'view';
 }

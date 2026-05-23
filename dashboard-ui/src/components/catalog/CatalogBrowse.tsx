@@ -38,12 +38,12 @@ import {
   ToolCategory,
 } from '../../dashboardData';
 import {
+  catalogCardAction,
   catalogCategoryLabels,
   catalogCategoryOrder,
   catalogIcon,
   catalogInstallLabels,
   catalogInstallMethodLabels,
-  previewCanInstall,
 } from './catalogHelpers';
 import {useCatalogData} from './useCatalogData';
 
@@ -142,7 +142,7 @@ export default function CatalogBrowse({summary, onRefresh, onOpenTool, onBack}: 
   // the catalog default. A tool with a managed install path may still be
   // already detected on the user's machine — in which case there is nothing
   // to install and the button is hidden, leaving only "View tool".
-  const featuredInstallEnabled = featured ? previewCanInstall(featured.install_preview) : false;
+  const featuredInstallEnabled = featured ? catalogCardAction(featured) === 'install' : false;
   const featuredMutating = featured && mutation?.toolId === featured.id && mutation.status === 'running';
 
   const installFeatured = useCallback(() => {

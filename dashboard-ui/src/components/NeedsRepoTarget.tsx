@@ -21,6 +21,7 @@ export default function NeedsRepoTarget({
         <label className="needs-repo-target-picker">
           <span className="sr-only">Pick a repo to target</span>
           <select
+            name="needs-repo-target"
             aria-label="Pick a repo to run checks against"
             value=""
             onChange={(event) => {

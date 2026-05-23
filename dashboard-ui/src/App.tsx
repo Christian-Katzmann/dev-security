@@ -886,7 +886,13 @@ function Sidebar({
         <div className="workspace-mark"><ShieldCheck size={17} /></div>
         <div className="workspace-copy">
           <div className="workspace-title">{targetLabel(target)}</div>
-          <select className="workspace-select" value={targetValue(target)} onChange={(event) => onTargetChange(event.target.value)}>
+          <select
+            className="workspace-select"
+            name="workspace-target"
+            aria-label="Workspace target"
+            value={targetValue(target)}
+            onChange={(event) => onTargetChange(event.target.value)}
+          >
             <option value="dashboard">devsec · dashboard</option>
             {targetRepos.map((repo) => (
               <option key={repo.path} value={`repo:${repo.path}`}>devsec · {repo.name}</option>
@@ -960,7 +966,14 @@ function Toolbar({
       </div>
       <label className="toolbar-search">
         <Search size={16} />
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={searchPlaceholder} />
+        <input
+          type="search"
+          name="dashboard-search"
+          aria-label="Search the dashboard"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder={searchPlaceholder}
+        />
         <kbd>⌘K</kbd>
       </label>
       <Button
@@ -1785,7 +1798,12 @@ function SettingsView({summary, target, targetRepos, updatedAt, onTargetChange}:
         <SectionHeader title="Workspace" />
         <div className="settings-list">
           <SettingRow label="Target" sub="Controls which repo the dashboard scopes to.">
-            <select value={targetValue(target)} onChange={(event) => onTargetChange(event.target.value)}>
+            <select
+              name="settings-workspace-target"
+              aria-label="Workspace target"
+              value={targetValue(target)}
+              onChange={(event) => onTargetChange(event.target.value)}
+            >
               <option value="dashboard">Dashboard</option>
               {targetRepos.map((repo) => <option key={repo.path} value={`repo:${repo.path}`}>{repo.name}</option>)}
               <option value="add-repo">+ Add repo...</option>
