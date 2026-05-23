@@ -9,6 +9,7 @@ import {useMemo} from 'react';
 import {ArrowRight, Package, ShieldCheck} from 'lucide-react';
 import {DashboardSummary, SecurityPackCatalogItem, ToolCatalogItem} from '../../dashboardData';
 import {
+  catalogCardAction,
   catalogCategoryLabels,
   catalogIcon,
   catalogPackIconCategory,
@@ -120,21 +121,25 @@ export default function CatalogHome({summary, onRefresh, onOpenBrowse, onOpenToo
           </div>
         </header>
         <div className="catalog-home-plugin-grid">
-          {popularPlugins.map((tool) => (
-            <article key={tool.id} className="catalog-home-plugin-card" data-category={tool.category}>
-              <header className="catalog-home-plugin-head">
-                <div className="catalog-home-plugin-icon">{catalogIcon(tool.category)}</div>
-                <div className="catalog-home-plugin-title">
-                  <h3>{tool.label}</h3>
-                  <span>{catalogCategoryLabels[tool.category]}</span>
-                </div>
-              </header>
-              <p>{tool.summary}</p>
-              <button type="button" className="catalog-home-card-action primary" onClick={() => onOpenTool(tool.id)}>
-                Install plugin
-              </button>
-            </article>
-          ))}
+          {popularPlugins.map((tool) => {
+            const action = catalogCardAction(tool);
+            const label = action === 'install' ? 'Install plugin' : 'View tool';
+            return (
+              <article key={tool.id} className="catalog-home-plugin-card" data-category={tool.category}>
+                <header className="catalog-home-plugin-head">
+                  <div className="catalog-home-plugin-icon">{catalogIcon(tool.category)}</div>
+                  <div className="catalog-home-plugin-title">
+                    <h3>{tool.label}</h3>
+                    <span>{catalogCategoryLabels[tool.category]}</span>
+                  </div>
+                </header>
+                <p>{tool.summary}</p>
+                <button type="button" className="catalog-home-card-action primary" onClick={() => onOpenTool(tool.id)}>
+                  {label}
+                </button>
+              </article>
+            );
+          })}
         </div>
       </section>
     </div>

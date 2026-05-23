@@ -262,6 +262,7 @@ export type ScannerDoctorItem = ScannerCatalogItem & {
   action: string;
   tool?: ToolCatalogItem;
   recommendedPacks: ScannerRecommendedPack[];
+  last_run: string | null;
 };
 
 export type ScannerDoctorGroup = {
@@ -706,6 +707,37 @@ export type DashboardSummary = {
     checks_missing?: string[];
     cannot_prove?: string[];
   };
+  environment?: {
+    scm_token_present?: boolean;
+  };
+  recovery_playbooks?: RecoveryPlaybook[];
+};
+
+export type RecoveryPlaybookItem = {
+  case_id: string;
+  repo: string;
+  title: string;
+  severity: Severity;
+  category: string;
+  action_level: string;
+  scan_id: string | null;
+  location: string;
+  affected_files: string[];
+  scanners: string[];
+};
+
+export type RecoveryPlaybook = {
+  id: string;
+  title: string;
+  summary: string;
+  severity: Severity;
+  scanners: string[];
+  estimated_minutes: number;
+  estimate_label: string;
+  steps: string[];
+  case_count: number;
+  affected_files: string[];
+  items: RecoveryPlaybookItem[];
 };
 
 export type ProjectRepo = {
@@ -1312,6 +1344,7 @@ export function scannerDoctorGroups(summary: DashboardSummary): ScannerDoctorGro
     const findings = records.reduce((sum, record) => sum + (record.status.findings ?? 0), 0);
     const repoNames = [...new Set(records.map((record) => record.repoName))].sort((a, b) => a.localeCompare(b));
     const action = scannerAction(item, status, failed?.status.error, tool, recommendedPacks);
+    const last_run = mostRecentLastScan(records.filter((record) => record.status.available));
     const doctorItem: ScannerDoctorItem = {
       ...item,
       status,
@@ -1322,6 +1355,7 @@ export function scannerDoctorGroups(summary: DashboardSummary): ScannerDoctorGro
       action,
       tool,
       recommendedPacks,
+      last_run,
     };
     const group = groups.get(item.area) ?? [];
     group.push(doctorItem);
@@ -1350,16 +1384,31 @@ export function scannerCoverageSummary(summary: DashboardSummary): string {
   return 'All configured scanners ran without install or runtime errors.';
 }
 
-function latestScannerStatuses(summary: DashboardSummary): Map<string, {repoName: string; status: ScannerStatus}[]> {
-  const records = new Map<string, {repoName: string; status: ScannerStatus}[]>();
+function latestScannerStatuses(summary: DashboardSummary): Map<string, {repoName: string; lastScan: string | null; status: ScannerStatus}[]> {
+  const records = new Map<string, {repoName: string; lastScan: string | null; status: ScannerStatus}[]>();
   for (const repo of summary.repos) {
     for (const status of repo.scanners) {
       const list = records.get(status.scanner) ?? [];
-      list.push({repoName: repo.repo, status});
+      list.push({repoName: repo.repo, lastScan: repo.last_scan, status});
       records.set(status.scanner, list);
     }
   }
   return records;
+}
+
+function mostRecentLastScan(records: {lastScan: string | null}[]): string | null {
+  let latest: number | null = null;
+  let latestIso: string | null = null;
+  for (const record of records) {
+    if (!record.lastScan) continue;
+    const ms = Date.parse(record.lastScan);
+    if (Number.isNaN(ms)) continue;
+    if (latest === null || ms > latest) {
+      latest = ms;
+      latestIso = record.lastScan;
+    }
+  }
+  return latestIso;
 }
 
 function scannerAction(
@@ -1462,6 +1511,24 @@ export function formatDate(value: string | null | undefined): string {
     hour: '2-digit',
     minute: '2-digit',
   }).format(new Date(value));
+}
+
+export function formatRelativeTime(value: string | null | undefined, now: Date = new Date()): string | null {
+  if (!value) return null;
+  const ms = Date.parse(value);
+  if (Number.isNaN(ms)) return null;
+  const diffSec = Math.max(0, Math.round((now.getTime() - ms) / 1000));
+  if (diffSec < 60) return 'just now';
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr} h ago`;
+  const diffDay = Math.round(diffHr / 24);
+  if (diffDay < 30) return `${diffDay} d ago`;
+  const diffMo = Math.round(diffDay / 30);
+  if (diffMo < 12) return `${diffMo} mo ago`;
+  const diffYr = Math.round(diffMo / 12);
+  return `${diffYr} y ago`;
 }
 
 export function formatLocation(finding: Finding): string {

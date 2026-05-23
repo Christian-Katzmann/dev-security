@@ -293,32 +293,6 @@ kbd {
   gap: 8px;
 }
 
-.agent-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #fff;
-  border: 1px solid var(--border-hair);
-}
-
-.agent-card strong,
-.agent-card span {
-  display: block;
-}
-
-.agent-card strong {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.agent-card span:not(.status-dot) {
-  font: 400 10px/1 var(--font-mono);
-  color: var(--ink-muted);
-  margin-top: 3px;
-}
-
 .status-dot {
   width: 8px;
   height: 8px;
@@ -384,7 +358,6 @@ kbd {
 
 .posture-pill,
 .toolbar-search,
-.icon-button,
 .button {
   height: 30px;
   display: inline-flex;
@@ -448,13 +421,6 @@ kbd {
   font-size: 10px;
 }
 
-.icon-button {
-  width: 32px;
-  padding: 0;
-  border-radius: 10px;
-  cursor: pointer;
-}
-
 .button {
   gap: 8px;
   padding: 0 14px;
@@ -502,13 +468,11 @@ kbd {
 }
 
 .button:active,
-.icon-button:active,
 .nav-row:active {
   transform: scale(0.98);
 }
 
-.button:disabled,
-.icon-button:disabled {
+.button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -1585,6 +1549,59 @@ a.button,
   gap: 12px;
 }
 
+.playbook-items {
+  margin-top: 32px;
+}
+
+.playbook-item-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.playbook-item-list li {
+  border-top: 1px solid rgba(28, 36, 34, 0.10);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.playbook-item-list li strong {
+  color: var(--ink-strong);
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.playbook-item-list li em {
+  font-style: normal;
+  font: 600 11px/1.3 var(--font-mono);
+  color: var(--ink-muted);
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px 4px;
+  max-width: 640px;
+}
+
+.empty-state h2 {
+  margin: 0;
+  color: var(--ink-strong);
+  font-size: 22px;
+  line-height: 1.25;
+}
+
+.empty-state p {
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+
 .verification-hero h1,
 .report-hero h1 {
   margin-bottom: 10px;
@@ -1635,29 +1652,43 @@ a.button,
   font-style: normal;
 }
 
-.heatmap {
+.audits-strip {
+  height: 112px;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 10px;
+  align-items: end;
+}
+
+.audits-strip > span {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-top: 22px;
-}
-
-.heatmap div {
-  display: grid;
-  grid-template-columns: 36px repeat(24, 1fr);
-  gap: 5px;
   align-items: center;
+  gap: 6px;
 }
 
-.heatmap span {
-  color: var(--ink-muted);
-  font: 600 12px/1 var(--font-mono);
+.audits-strip em {
+  font: 500 11px/1 var(--font-mono);
+  color: rgba(44,56,53,0.55);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
 }
 
-.heatmap i {
-  height: 18px;
-  border-radius: 5px;
+.audits-strip i {
+  width: 100%;
+  border-radius: 7px 7px 0 0;
+  background: rgba(44,56,53,0.16);
+}
+
+.audits-strip .is-today i {
   background: var(--mist-surface-500);
+}
+
+.audits-strip strong {
+  font-size: 10px;
+  color: rgba(44,56,53,0.55);
+  font-weight: 500;
 }
 
 .event-mix {
@@ -2011,6 +2042,40 @@ a.button,
   line-height: 1.35;
 }
 
+.audit-tile.gated {
+  cursor: not-allowed;
+  background: rgba(28,36,34,0.02);
+  border-style: dashed;
+  color: var(--ink-faint);
+}
+
+.audit-tile.gated span,
+.audit-tile.gated em,
+.audit-tile.gated p {
+  color: var(--ink-faint);
+}
+
+.audit-tile-gate {
+  font: 500 10px/1 var(--font-mono);
+  color: var(--ink-faint);
+  margin-left: 6px;
+  text-transform: none;
+}
+
+.audit-tile-gate-note {
+  margin-top: 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-faint);
+}
+
+.audit-tile-gate-note code {
+  font: 500 10px/1.3 var(--font-mono);
+  background: rgba(28,36,34,0.05);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
 .job-progress,
 .complete-grid,
 .inline-error {
@@ -2089,6 +2154,72 @@ a.button,
   border: 1px solid var(--border-hair);
   background: #fff;
   padding: 14px;
+}
+
+/* --- NeedsRepoTarget — shared inline helper for the "pick a repo first" gate.
+ * One line note + an optional inline picker that funnels through the existing
+ * onTargetChange handler. Used wherever a primary action is meaningful only
+ * with a real repo target (Run check sheet, Recovery playbooks, etc.). */
+.needs-repo-target {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-hair);
+  background: rgba(28,36,34,0.03);
+  padding: 10px 12px;
+}
+
+.needs-repo-target-text {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.needs-repo-target-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 6px 28px 6px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-hair);
+  background: #fff;
+  color: var(--ink-strong);
+  font: 500 12px/1 var(--font-mono);
+  cursor: pointer;
+}
+
+.needs-repo-target-picker select {
+  appearance: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+
+.needs-repo-target-picker svg {
+  position: absolute;
+  right: 10px;
+  color: var(--ink-muted);
+  pointer-events: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .notice.crit {

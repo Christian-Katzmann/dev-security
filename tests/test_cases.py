@@ -1,4 +1,4 @@
-from security_observatory.cases import build_security_cases
+from security_observatory.cases import build_recovery_playbooks, build_security_cases
 from security_observatory.dashboard_server import build_ai_prompt, raw_report_fallback
 from security_observatory.enrichment import correlate_dependency_findings
 from security_observatory.model import Finding
@@ -43,6 +43,96 @@ def test_secret_findings_become_fix_now_cases():
     assert cases[0].action_level == "fix_now"
     assert "credential may be exposed" in cases[0].plain_english_risk
     assert "Rotate or revoke" in " ".join(cases[0].fix_steps)
+
+
+def test_recovery_playbooks_group_cases_by_class():
+    findings = [
+        Finding(repo="repo", scanner="gitleaks", severity="critical", category="secrets", title="Generic API Key", file=".env", line=3),
+        Finding(repo="repo", scanner="gitleaks", severity="critical", category="secrets", title="Stripe live key", file="config/prod.yaml", line=11),
+        Finding(repo="repo", scanner="trivy", severity="high", category="dependencies", title="CVE-2026-1000 in lodash", file="package-lock.json"),
+        Finding(repo="repo", scanner="trivy", severity="high", category="dependencies", title="CVE-2026-2222 in axios", file="package-lock.json"),
+        Finding(repo="repo", scanner="trivy", severity="medium", category="iac", title="S3 bucket is public", file="infra/main.tf", line=42),
+        Finding(repo="repo", scanner="medusa", severity="high", category="ai-risk", title="MCP shell tool grant", file=".claude/mcp.json", line=8),
+    ]
+
+    cases = build_security_cases(findings, [], {"repo": "repo"})
+    playbooks = build_recovery_playbooks(cases)
+
+    by_id = {playbook["id"]: playbook for playbook in playbooks}
+    assert set(by_id) == {
+        "rotate-leaked-secret",
+        "upgrade-vulnerable-dependency",
+        "tighten-iac-exposure",
+        "harden-ai-agent-config",
+    }, "one playbook per case-class, not one per finding"
+
+    # six findings condensed into four cards (one per class).
+    assert len(playbooks) == 4
+
+    # secrets playbook gathers both secret cases and instantiates the template with their files.
+    secrets = by_id["rotate-leaked-secret"]
+    assert secrets["case_count"] == 2
+    assert secrets["title"] == "Rotate leaked secrets and scrub history"
+    assert sorted(secrets["affected_files"]) == [".env", "config/prod.yaml"]
+    secret_steps_joined = "\n".join(secrets["steps"])
+    assert ".env" in secret_steps_joined and "config/prod.yaml" in secret_steps_joined
+    assert "Rerun the matching DëvSec secrets check" in secret_steps_joined
+    assert secrets["severity"] == "critical"
+    assert secrets["estimated_minutes"] > 0
+    assert secrets["estimate_label"].startswith("~ ")
+    item_titles = [item["title"] for item in secrets["items"]]
+    assert "Possible exposed credential in .env" in item_titles[0] or "Possible exposed credential" in item_titles[0]
+
+    # dependency playbook gathers both CVE cases and only renders one card.
+    deps = by_id["upgrade-vulnerable-dependency"]
+    assert deps["case_count"] == 2
+    assert "package-lock.json" in deps["affected_files"]
+
+    # critical class sorts ahead of the elevated/warning classes.
+    assert playbooks[0]["id"] == "rotate-leaked-secret"
+
+
+def test_recovery_playbooks_returns_empty_when_no_open_cases():
+    assert build_recovery_playbooks([]) == []
+
+
+def test_recovery_playbooks_skips_suppressed_and_info_cases():
+    cases = [
+        {
+            "case_id": "case-1",
+            "category": "secrets",
+            "severity": "critical",
+            "action_level": "fix_now",
+            "title": "Possible exposed credential in .env",
+            "affected_files": [".env"],
+            "scanners": ["gitleaks"],
+            "suppressed": True,
+        },
+        {
+            "case_id": "case-2",
+            "category": "dependencies",
+            "severity": "medium",
+            "action_level": "info",
+            "title": "Informational advisory",
+            "affected_files": ["package-lock.json"],
+            "scanners": ["trivy"],
+        },
+        {
+            "case_id": "case-3",
+            "category": "dependencies",
+            "severity": "high",
+            "action_level": "fix_now",
+            "title": "axios CVE",
+            "affected_files": ["package-lock.json"],
+            "scanners": ["trivy"],
+        },
+    ]
+
+    playbooks = build_recovery_playbooks(cases)
+
+    assert len(playbooks) == 1
+    assert playbooks[0]["id"] == "upgrade-vulnerable-dependency"
+    assert playbooks[0]["case_count"] == 1
 
 
 def test_missing_scanner_evidence_is_reflected_in_report():

@@ -24,6 +24,7 @@ The walkthrough audit at `reports/walkthrough-audit-20260523-102224/` produced a
 - **SECURITY.md is required, not optional.** This is a security tool — a missing disclosure path is a tell. Step 4.1 ships SECURITY.md (10 lines pointing at GHSA or email).
 - **No issue templates / PR templates at launch.** Skip until a malformed issue from a stranger forces the question. Don't pad `.github/` with ceremony.
 - **CHANGELOG.md is in scope.** One initial `## 0.1.0 — initial public release` entry. Step 5.1 tags `v0.1.0` before the public flip.
+- **F-003 path locked: (A) in-app docs rendering, server-side, stdlib-only.** Docs render through a minimal Markdown→HTML converter in `src/security_observatory/docs_render.py`, wrapped in a DëvSec docs page shell served from `/docs/<file>.md`. Local-first ethos wins; Python `dependencies = []` stays intact; dashboard-ui bundle unchanged.
 
 ## How prompts work in this campaign
 
@@ -40,29 +41,29 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 1 — Silent gates and dishonest buttons
 
-- [ ] Step 1.1 — Fix the `target=dashboard` silent-gate pattern (F-001, F-006, F-008)
-- [ ] Step 1.2 — Remove the fake agent pill and wire the Export no-op (F-002, F-005, F-013)
-- [ ] Step 1.3 — Honest install labels for built-in and locally-detected tools (F-004, F-012)
+- [x] Step 1.1 — Fix the `target=dashboard` silent-gate pattern (F-001, F-006, F-008)
+- [x] Step 1.2 — Remove the fake agent pill and wire the Export no-op (F-002, F-005, F-013)
+- [x] Step 1.3 — Honest install labels for built-in and locally-detected tools (F-004, F-012)
 
 ### Phase 2 — Honest docs and disclosure
 
-- [ ] Step 2.1 — Render in-app docs or relink to vendor URLs (F-003)
-- [ ] Step 2.2 — Reconcile health score scale and surface the platform-posture token gate (F-009, F-010)
+- [x] Step 2.1 — Render in-app docs or relink to vendor URLs (F-003)
+- [x] Step 2.2 — Reconcile health score scale and surface the platform-posture token gate (F-009, F-010)
 
 ### Phase 3 — Half-built things, finish or hide
 
-- [ ] Step 3.1 — Real per-class recovery playbooks, or honest narrower title (F-007)
-- [ ] Step 3.2 — Ship the Activity heatmap, or replace it with something that earns its space (F-011)
+- [x] Step 3.1 — Real per-class recovery playbooks, or honest narrower title (F-007)
+- [x] Step 3.2 — Ship the Activity heatmap, or replace it with something that earns its space (F-011)
 
 ### Phase 4 — Repo hygiene for a public audience
 
-- [ ] Step 4.1 — LICENSE, SECURITY.md, CONTRIBUTING.md, CHANGELOG.md, hardened `.gitignore` *(parallel with 4.2)*
-- [ ] Step 4.2 — README polish for strangers + screenshots/GIF + brand reconciliation *(parallel with 4.1)*
-- [ ] Step 4.3 — Pre-public security sweep on dëv-security's own git history *(runs LAST in Phase 4, after 4.1+4.2)*
+- [x] Step 4.1 — LICENSE, SECURITY.md, CONTRIBUTING.md, CHANGELOG.md, hardened `.gitignore` *(parallel with 4.2)*
+- [x] Step 4.2 — README polish for strangers + screenshots/GIF + brand reconciliation *(parallel with 4.1)*
+- [x] Step 4.3 — Pre-public security sweep on dëv-security's own git history *(runs LAST in Phase 4, after 4.1+4.2)*
 
 ### Phase 5 — Prove it
 
-- [ ] Step 5.1 — Re-run the product walkthrough audit, confirm punch list is empty, fix any new findings inline
+- [x] Step 5.1 — Re-run the product walkthrough audit, confirm punch list is empty, fix any new findings inline
 - [ ] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).

@@ -11,3 +11,23 @@ assets/icons/security-observatory/
 src/security_observatory/dashboard/assets/
 dashboard-ui/node_modules/
 dashboard-ui/dist/
+
+# macOS / IDE
+.idea/
+.vscode/
+*.swp
+.Trash-*
+
+# Logs and temp
+*.log
+*.tmp
+
+# Secret-shaped — never commit
+.env
+.env.*
+*.local
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx

@@ -3,6 +3,7 @@ import CatalogHome from './components/catalog/CatalogHome';
 import CatalogBrowse from './components/catalog/CatalogBrowse';
 import CatalogToolPage from './components/catalog/CatalogToolPage';
 import CatalogPackPage from './components/catalog/CatalogPackPage';
+import NeedsRepoTarget from './components/NeedsRepoTarget';
 import {
   CatalogMutationState,
   CatalogStatusFilter,
@@ -64,7 +65,6 @@ import {
   Clock3,
   Copy,
   Database,
-  Download,
   EyeOff,
   FileCode2,
   FileText,
@@ -76,7 +76,6 @@ import {
   Layers3,
   ListChecks,
   Lock,
-  Pause,
   Play,
   Plus,
   RefreshCw,
@@ -104,6 +103,8 @@ import {
   HoneyKeyStatus,
   ProjectRepo,
   ProjectsPayload,
+  RecoveryPlaybook,
+  RecoveryPlaybookItem,
   ScannerDoctorItem,
   SecurityPackCatalogItem,
   SecurityPackTool,
@@ -202,15 +203,7 @@ type ActivityItem = {
   tone: Tone;
 };
 
-type PlaybookRecommendation = {
-  id: string;
-  title: string;
-  body: string;
-  trigger: string;
-  steps: string[];
-  estimate: string;
-  caseItem?: DisplayCase;
-};
+type RecoveryPlaybookView = RecoveryPlaybook & {tone: Tone};
 
 const navGroups: {title: string; items: {id: TabId; label: string; icon: typeof Home}[]}[] = [
   {
@@ -453,52 +446,9 @@ function severityCounts(summary: DashboardSummary) {
   };
 }
 
-function buildPlaybooks(summary: DashboardSummary): PlaybookRecommendation[] {
-  const cases = activeCaseList(summary);
-  const mapped = cases.slice(0, 6).map((item, index): PlaybookRecommendation => {
-    const category = item.category ?? 'security';
-    const title = playbookTitle(item, category);
-    return {
-      id: item.id,
-      title,
-      body: item.nextStep,
-      trigger: `${caseScanner(item)} · ${categoryLabel(category)}`,
-      estimate: index === 0 ? '22 min' : item.bucket === 'fix-now' ? '12 min' : '4 min',
-      caseItem: item,
-      steps: playbookSteps(item),
-    };
-  });
-  if (mapped.length) return mapped;
-  return [
-    {
-      id: 'coverage-review',
-      title: 'Review scan coverage',
-      body: 'Confirm the checks that ran are enough for the repo before trusting a clean result.',
-      trigger: 'verification · scanner-health',
-      estimate: '4 min',
-      steps: ['Review skipped checks', 'Install or rerun needed scanners', 'Run a quick sweep'],
-    },
-  ];
-}
-
-function playbookTitle(item: DisplayCase, category: string): string {
-  if (category === 'dependencies') return 'Rotate vulnerable package';
-  if (category === 'silent-upgrade') return 'Verify silent dependency change';
-  if (category === 'secrets') return 'Rotate live secret + scrub history';
-  if (category === 'iac') return 'Tighten infrastructure exposure';
-  if (category === 'platform-posture') return 'Restore platform guardrails';
-  if (category === 'ai-risk') return 'Narrow agent permissions';
-  if (category === 'behavioral-drift') return 'Investigate package behavior drift';
-  return item.title;
-}
-
-function playbookSteps(item: DisplayCase): string[] {
-  return [
-    `Capture evidence for ${item.location}`,
-    item.nextStep,
-    'Rerun the matching DëvSec check',
-    'Record the case decision when verified',
-  ];
+function recoveryPlaybooksFor(summary: DashboardSummary): RecoveryPlaybookView[] {
+  const playbooks = summary.recovery_playbooks ?? [];
+  return playbooks.map((playbook) => ({...playbook, tone: toneForSeverity(playbook.severity)}));
 }
 
 function countRecord(record?: Record<string, number>): number {
@@ -558,7 +508,6 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
-  const [agentRunning, setAgentRunning] = useState(true);
   const [search, setSearch] = useState('');
 
   const loadSummary = useCallback(async () => {
@@ -606,7 +555,6 @@ export default function App() {
   useEffect(() => {
     setActiveJob(null);
     setRunError(null);
-    if (target.type === 'dashboard') setIsCheckOpen(false);
   }, [target]);
 
   useEffect(() => {
@@ -659,6 +607,9 @@ export default function App() {
   function toggleAudit(auditId: AuditId) {
     setRunError(null);
     if (activeJob?.status === 'complete') setActiveJob(null);
+    if (auditId === 'platform-posture' && !(summary.environment?.scm_token_present ?? true)) {
+      return;
+    }
     if (auditId === 'full') {
       setSelectedAudits(['full']);
       return;
@@ -676,6 +627,8 @@ export default function App() {
       setIsCheckOpen(true);
       return;
     }
+    const tokenPresent = summary.environment?.scm_token_present ?? true;
+    const audits = tokenPresent ? auditsOverride : auditsOverride.filter((id) => id !== 'platform-posture');
     setIsRunningCheck(true);
     setActiveJob(null);
     setRunError(null);
@@ -683,7 +636,7 @@ export default function App() {
       const response = await fetch('/api/run-check', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({repoPath: target.repo.path, audits: auditsOverride}),
+        body: JSON.stringify({repoPath: target.repo.path, audits}),
       });
       if (!response.ok) throw new Error(await response.text());
       const payload: {job: CheckJob} = await response.json();
@@ -697,7 +650,7 @@ export default function App() {
   function runFullCheck() {
     setSelectedAudits(['full']);
     setIsCheckOpen(true);
-    void runCheck(['full']);
+    if (target.type === 'repo') void runCheck(['full']);
   }
 
   async function saveCaseDecision(caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) {
@@ -731,7 +684,6 @@ export default function App() {
           targetRepos={targetRepos}
           onTargetChange={selectTarget}
           onNav={setActiveTab}
-          agentRunning={agentRunning}
         />
         <main className="mist-main">
           <Toolbar
@@ -742,20 +694,22 @@ export default function App() {
             setSearch={setSearch}
             isLoading={isLoading}
             error={error}
-            agentRunning={agentRunning}
-            setAgentRunning={setAgentRunning}
             onRunAll={runFullCheck}
             canRun={target.type === 'repo'}
+            runAllHint={target.type === 'repo' ? 'Run all configured checks for the selected repo' : 'Pick a repo first'}
           />
           {isCheckOpen && (
             <RunCheckSheet
               target={target}
+              targetRepos={targetRepos}
               selectedAudits={selectedAudits}
               activeJob={activeJob}
               isRunningCheck={isRunningCheck}
               runError={runError}
+              scmTokenPresent={summary.environment?.scm_token_present ?? true}
               onToggleAudit={toggleAudit}
               onRun={() => void runCheck()}
+              onTargetChange={selectTarget}
               onClose={() => setIsCheckOpen(false)}
               onNewCheck={() => setActiveJob(null)}
               onViewResults={() => {
@@ -841,8 +795,8 @@ function ActiveView({
   if (tab === 'findings') return <FindingsView summary={summary} search={search} onCaseDecision={onCaseDecision} />;
   if (tab === 'honey-keys') return <HoneyKeysView summary={summary} target={target} onRefresh={onRefresh} />;
   if (tab === 'scanners') return <CatalogRouter route={catalogRoute} summary={summary} onRouteChange={onCatalogRouteChange} onRefresh={onRefresh} onChooseChecks={onChooseChecks} />;
-  if (tab === 'playbooks') return <PlaybooksView summary={summary} onChooseChecks={onChooseChecks} />;
-  if (tab === 'verification') return <VerificationView summary={summary} onChooseChecks={onChooseChecks} />;
+  if (tab === 'playbooks') return <PlaybooksView summary={summary} target={target} targetRepos={targetRepos} onChooseChecks={onChooseChecks} onTargetChange={onTargetChange} />;
+  if (tab === 'verification') return <VerificationView summary={summary} target={target} targetRepos={targetRepos} onChooseChecks={onChooseChecks} onTargetChange={onTargetChange} />;
   if (tab === 'activity') return <ActivityView summary={summary} search={search} />;
   if (tab === 'reports') return <ReportsView summary={summary} />;
   return <SettingsView summary={summary} target={target} targetRepos={targetRepos} updatedAt={updatedAt} onTargetChange={onTargetChange} />;
@@ -917,7 +871,6 @@ function Sidebar({
   targetRepos,
   onTargetChange,
   onNav,
-  agentRunning,
 }: {
   active: TabId;
   counts: Partial<Record<TabId, number>>;
@@ -925,7 +878,6 @@ function Sidebar({
   targetRepos: ProjectRepo[];
   onTargetChange: (value: string) => void;
   onNav: (tab: TabId) => void;
-  agentRunning: boolean;
 }) {
   return (
     <aside className="mist-sidebar">
@@ -934,7 +886,13 @@ function Sidebar({
         <div className="workspace-mark"><ShieldCheck size={17} /></div>
         <div className="workspace-copy">
           <div className="workspace-title">{targetLabel(target)}</div>
-          <select className="workspace-select" value={targetValue(target)} onChange={(event) => onTargetChange(event.target.value)}>
+          <select
+            className="workspace-select"
+            name="workspace-target"
+            aria-label="Workspace target"
+            value={targetValue(target)}
+            onChange={(event) => onTargetChange(event.target.value)}
+          >
             <option value="dashboard">devsec · dashboard</option>
             {targetRepos.map((repo) => (
               <option key={repo.path} value={`repo:${repo.path}`}>devsec · {repo.name}</option>
@@ -963,13 +921,6 @@ function Sidebar({
           <Settings size={17} />
           <span>Settings</span>
         </button>
-        <div className="agent-card">
-          <span className={`status-dot ${agentRunning ? 'live' : 'paused'}`} />
-          <div>
-            <strong>Agent {agentRunning ? 'live' : 'paused'}</strong>
-            <span>{agentRunning ? 'tailing scanners' : 'tap resume'}</span>
-          </div>
-        </div>
       </div>
     </aside>
   );
@@ -983,10 +934,9 @@ function Toolbar({
   setSearch,
   isLoading,
   error,
-  agentRunning,
-  setAgentRunning,
   onRunAll,
   canRun,
+  runAllHint,
 }: {
   title: string;
   targetLabel: string;
@@ -995,12 +945,12 @@ function Toolbar({
   setSearch: (value: string) => void;
   isLoading: boolean;
   error: string | null;
-  agentRunning: boolean;
-  setAgentRunning: (value: boolean) => void;
   onRunAll: () => void;
   canRun: boolean;
+  runAllHint: string;
 }) {
   const searchPlaceholder = title === 'Tool Catalog' ? 'Search tools, packs' : 'Search findings, manifests';
+  const runAllLabel = canRun ? 'Run all' : 'Run all (pick a repo)';
   return (
     <header className="mist-toolbar">
       <div className="toolbar-title">
@@ -1016,13 +966,24 @@ function Toolbar({
       </div>
       <label className="toolbar-search">
         <Search size={16} />
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={searchPlaceholder} />
+        <input
+          type="search"
+          name="dashboard-search"
+          aria-label="Search the dashboard"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder={searchPlaceholder}
+        />
         <kbd>⌘K</kbd>
       </label>
-      <IconButton label={agentRunning ? 'Pause agent' : 'Resume agent'} onClick={() => setAgentRunning(!agentRunning)}>
-        {agentRunning ? <Pause size={15} /> : <Play size={15} />}
-      </IconButton>
-      <Button variant="secondary" size="sm" icon={<RefreshCw size={14} />} onClick={onRunAll} disabled={!canRun}>
+      <Button
+        variant="secondary"
+        size="sm"
+        icon={<RefreshCw size={14} />}
+        onClick={onRunAll}
+        title={runAllHint}
+        ariaLabel={runAllLabel}
+      >
         Run all
       </Button>
     </header>
@@ -1031,33 +992,41 @@ function Toolbar({
 
 function RunCheckSheet({
   target,
+  targetRepos,
   selectedAudits,
   activeJob,
   isRunningCheck,
   runError,
+  scmTokenPresent,
   onToggleAudit,
   onRun,
+  onTargetChange,
   onClose,
   onNewCheck,
   onViewResults,
 }: {
   target: TargetSelection;
+  targetRepos: ProjectRepo[];
   selectedAudits: AuditId[];
   activeJob: CheckJob | null;
   isRunningCheck: boolean;
   runError: string | null;
+  scmTokenPresent: boolean;
   onToggleAudit: (audit: AuditId) => void;
   onRun: () => void;
+  onTargetChange: (value: string) => void;
   onClose: () => void;
   onNewCheck: () => void;
   onViewResults: () => void;
 }) {
+  const needsRepo = target.type !== 'repo';
+  const startDisabled = needsRepo || isRunningCheck;
   return (
     <section className="run-sheet">
       <div className="run-sheet-head">
         <div>
           <Eyebrow>{activeJob?.status === 'complete' ? 'Security check complete' : 'Run security check'}</Eyebrow>
-          <h2>{target.type === 'repo' ? target.repo.name : 'Choose a repo target'}</h2>
+          <h2>{target.type === 'repo' ? target.repo.name : 'Run security check'}</h2>
           <p>{activeJob?.status === 'complete' ? 'Latest local scan data has been saved.' : 'Choose the scanners to run. Existing backend behavior stays unchanged.'}</p>
         </div>
         <div className="run-actions">
@@ -1069,21 +1038,53 @@ function RunCheckSheet({
           ) : (
             <>
               <Button variant="ghost" onClick={onClose} disabled={isRunningCheck}>Cancel</Button>
-              <Button onClick={onRun} disabled={target.type !== 'repo' || isRunningCheck}>{isRunningCheck ? 'Checking...' : 'Start check'}</Button>
+              <Button onClick={onRun} disabled={startDisabled} title={needsRepo ? 'Pick a repo to run checks against' : undefined}>{isRunningCheck ? 'Checking...' : 'Start check'}</Button>
             </>
           )}
         </div>
       </div>
+      {needsRepo && activeJob?.status !== 'complete' && (
+        <NeedsRepoTarget
+          targetRepos={targetRepos}
+          onTargetChange={onTargetChange}
+          message="Pick a repo to run checks against."
+        />
+      )}
       {activeJob?.status !== 'complete' && (
         <div className="audit-grid">
-          {auditOptions.map((option) => (
-            <label key={option.id} className={`audit-tile ${selectedAudits.includes(option.id) ? 'selected' : ''}`}>
-              <input type="checkbox" checked={selectedAudits.includes(option.id)} onChange={() => onToggleAudit(option.id)} disabled={isRunningCheck} />
-              <span>{option.label}</span>
-              <em>{option.estimate}</em>
-              <p>{option.description}</p>
-            </label>
-          ))}
+          {auditOptions.map((option) => {
+            const tokenGate = option.id === 'platform-posture' && !scmTokenPresent;
+            const tileClass = [
+              'audit-tile',
+              selectedAudits.includes(option.id) ? 'selected' : '',
+              tokenGate ? 'gated' : '',
+            ].filter(Boolean).join(' ');
+            return (
+              <label
+                key={option.id}
+                className={tileClass}
+                title={tokenGate ? 'Set SCM_TOKEN in the environment that launches the dashboard, then reload.' : undefined}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedAudits.includes(option.id) && !tokenGate}
+                  onChange={() => onToggleAudit(option.id)}
+                  disabled={isRunningCheck || tokenGate}
+                />
+                <span>
+                  {option.label}
+                  {tokenGate && <small className="audit-tile-gate"> · Needs SCM_TOKEN</small>}
+                </span>
+                <em>{option.estimate}</em>
+                <p>{option.description}</p>
+                {tokenGate && (
+                  <p className="audit-tile-gate-note">
+                    Stop the dashboard, export <code>SCM_TOKEN=&lt;github-or-gitlab-token&gt;</code> in the same shell, then run <code>security-scan dashboard</code> again to enable this check.
+                  </p>
+                )}
+              </label>
+            );
+          })}
         </div>
       )}
       {activeJob && isRunningCheck && (
@@ -1465,20 +1466,46 @@ function HoneyKeysView({summary, target, onRefresh}: {summary: DashboardSummary;
   );
 }
 
-function PlaybooksView({summary, onChooseChecks}: {summary: DashboardSummary; onChooseChecks: () => void}) {
-  const playbooks = buildPlaybooks(summary);
+function PlaybooksView({summary, target, targetRepos, onChooseChecks, onTargetChange}: {summary: DashboardSummary; target: TargetSelection; targetRepos: ProjectRepo[]; onChooseChecks: () => void; onTargetChange: (value: string) => void}) {
+  const playbooks = recoveryPlaybooksFor(summary);
   const [activeId, setActiveId] = useState(playbooks[0]?.id ?? '');
   const active = playbooks.find((item) => item.id === activeId) ?? playbooks[0];
+  const needsRepo = target.type !== 'repo';
+  const rerunHint = needsRepo ? 'Switch to the repo where the finding lives to rerun its check' : undefined;
+
+  if (!playbooks.length || !active) {
+    return (
+      <div className="view-stack">
+        <PaperCard>
+          <div className="empty-state">
+            <Eyebrow>Recovery playbooks</Eyebrow>
+            <h2>No open cases need a recovery playbook right now.</h2>
+            <p>Playbooks appear when active cases match a recovery class — leaked secrets, vulnerable dependencies, risky AI/agent config, IaC misconfig, platform-posture drift, workflow surfaces, install hooks, package drift, or named-campaign indicators.</p>
+          </div>
+        </PaperCard>
+      </div>
+    );
+  }
+
+  const scanSource = active.items.find((item) => item.scan_id) ?? null;
+
   return (
     <div className="view-stack">
+      {needsRepo && (
+        <NeedsRepoTarget
+          targetRepos={targetRepos}
+          onTargetChange={onTargetChange}
+          message="Switch to the repo where the finding lives to rerun its check."
+        />
+      )}
       <div className="playbook-grid">
         {playbooks.map((item) => (
           <button key={item.id} type="button" className={`playbook-tile ${active.id === item.id ? 'selected' : ''}`} onClick={() => setActiveId(item.id)}>
             <BookOpen size={22} />
-            <span>{item.steps.length} steps · {item.estimate}</span>
+            <span>{item.case_count} case{item.case_count === 1 ? '' : 's'} · {item.estimate_label}</span>
             <strong>{item.title}</strong>
-            <p>{item.body}</p>
-            <em>{item.trigger}</em>
+            <p>{item.summary}</p>
+            <em>{severityMeta[item.tone].label} · {item.scanners.slice(0, 2).join(' + ') || 'no scanner attached'}</em>
           </button>
         ))}
       </div>
@@ -1487,21 +1514,22 @@ function PlaybooksView({summary, onChooseChecks}: {summary: DashboardSummary; on
           <div>
             <Eyebrow>Recovery playbook</Eyebrow>
             <h2>{active.title}</h2>
-            <code>{active.trigger}</code>
-            <p>{active.body}</p>
+            <code>{severityMeta[active.tone].label} · {active.case_count} case{active.case_count === 1 ? '' : 's'}{active.scanners.length ? ` · ${active.scanners.join(', ')}` : ''}</code>
+            <p>{active.summary}</p>
             <div className="button-row">
-              {active.caseItem?.scanId && <a className="button primary" href={reportViewUrl(active.caseItem.scanId, 'prompt')}><Sparkles size={14} /> AI prompt</a>}
-              {active.caseItem?.scanId && <a className="button secondary" href={reportViewUrl(active.caseItem.scanId, 'raw')}><FileText size={14} /> Raw report</a>}
-              <Button variant="ghost" onClick={onChooseChecks}>Rerun checks</Button>
+              {scanSource?.scan_id && <a className="button primary" href={reportViewUrl(scanSource.scan_id, 'prompt')}><Sparkles size={14} /> AI prompt</a>}
+              {scanSource?.scan_id && <a className="button secondary" href={reportViewUrl(scanSource.scan_id, 'raw')}><FileText size={14} /> Raw report</a>}
+              <Button variant="ghost" onClick={onChooseChecks} disabled={needsRepo} title={rerunHint}>Rerun checks</Button>
             </div>
             <ol className="step-list">
-              {active.steps.map((step, index) => <li key={step}><span>{index + 1}</span><strong>{step}</strong></li>)}
+              {active.steps.map((step, index) => <li key={`${active.id}-step-${index}`}><span>{index + 1}</span><strong>{step}</strong></li>)}
             </ol>
+            <PlaybookItemList items={active.items} />
           </div>
           <div className="playbook-meta">
-            <MetricBlock label="Steps" value={String(active.steps.length)} />
-            <MetricBlock label="Wall est." value={active.estimate} />
-            <MetricBlock label="Source" value={active.caseItem ? caseScanner(active.caseItem) : 'verification'} />
+            <MetricBlock label="Cases" value={String(active.case_count)} />
+            <MetricBlock label="Wall est." value={active.estimate_label} />
+            <MetricBlock label="Sources" value={active.scanners.length ? active.scanners.join(' + ') : 'verification'} />
           </div>
         </div>
       </PaperCard>
@@ -1509,13 +1537,38 @@ function PlaybooksView({summary, onChooseChecks}: {summary: DashboardSummary; on
   );
 }
 
-function VerificationView({summary, onChooseChecks}: {summary: DashboardSummary; onChooseChecks: () => void}) {
+function PlaybookItemList({items}: {items: RecoveryPlaybookItem[]}) {
+  if (!items.length) return null;
+  return (
+    <div className="playbook-items">
+      <Eyebrow>Cases in this playbook</Eyebrow>
+      <ul className="playbook-item-list">
+        {items.map((item) => (
+          <li key={item.case_id || `${item.repo}-${item.title}`}>
+            <strong>{item.title}</strong>
+            <em>{severityMeta[toneForSeverity(item.severity)].label} · {item.location} · {item.scanners.join(', ') || 'no scanner attached'}</em>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function VerificationView({summary, target, targetRepos, onChooseChecks, onTargetChange}: {summary: DashboardSummary; target: TargetSelection; targetRepos: ProjectRepo[]; onChooseChecks: () => void; onTargetChange: (value: string) => void}) {
   const completeness = scanCompleteness(summary);
   const scanners = topScannerItems(summary);
   const coverage = scannerCoverageSummary(summary);
   const failed = scanners.filter((item) => item.status === 'missing' || item.status === 'error');
+  const needsRepo = target.type !== 'repo';
   return (
     <div className="view-stack">
+      {needsRepo && (
+        <NeedsRepoTarget
+          targetRepos={targetRepos}
+          onTargetChange={onTargetChange}
+          message="Pick a repo to run its checks."
+        />
+      )}
       <section className={`verification-hero ${failed.length ? 'attention' : ''}`}>
         <div>
           <Eyebrow onSurface>Verification</Eyebrow>
@@ -1555,8 +1608,7 @@ function ActivityView({summary, search}: {summary: DashboardSummary; search: str
       </section>
       <section className="split-grid align-start">
         <PaperCard>
-          <SectionHeader title="Audits · 24 h × 7 d" />
-          <Heatmap history={summary.history} />
+          <AuditsPerDay history={summary.history} />
         </PaperCard>
         <PaperCard>
           <SectionHeader title="Event mix · 7 d" />
@@ -1746,7 +1798,12 @@ function SettingsView({summary, target, targetRepos, updatedAt, onTargetChange}:
         <SectionHeader title="Workspace" />
         <div className="settings-list">
           <SettingRow label="Target" sub="Controls which repo the dashboard scopes to.">
-            <select value={targetValue(target)} onChange={(event) => onTargetChange(event.target.value)}>
+            <select
+              name="settings-workspace-target"
+              aria-label="Workspace target"
+              value={targetValue(target)}
+              onChange={(event) => onTargetChange(event.target.value)}
+            >
               <option value="dashboard">Dashboard</option>
               {targetRepos.map((repo) => <option key={repo.path} value={`repo:${repo.path}`}>{repo.name}</option>)}
               <option value="add-repo">+ Add repo...</option>
@@ -1766,9 +1823,7 @@ function SettingsView({summary, target, targetRepos, updatedAt, onTargetChange}:
           <SettingRow label="Honey Key retention" sub="Security log data used only for triage.">
             <strong>{summary.honey_event_retention_days ?? 90} days</strong>
           </SettingRow>
-          <SettingRow label="Generated reports" sub="Reports remain local unless you export or share them.">
-            <Button variant="secondary" size="sm" icon={<Download size={14} />}>Export</Button>
-          </SettingRow>
+          <SettingRow label="Generated reports" sub="Reports remain local unless you export or share them." />
         </div>
       </PaperCard>
       <DataCoverageCard summary={summary} />
@@ -2238,23 +2293,45 @@ function CoverageCard({title, icon, items, empty}: {title: string; icon: ReactNo
   );
 }
 
-function Heatmap({history}: {history: DashboardSummary['history']}) {
-  const values = Array.from({length: 7}, (_, day) => Array.from({length: 24}, (_, hour) => {
+function AuditsPerDay({history}: {history: DashboardSummary['history']}) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const days = Array.from({length: 7}, (_, i) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (6 - i));
+    return date;
+  });
+  const counts = days.map((day) => {
+    const next = new Date(day);
+    next.setDate(day.getDate() + 1);
     return history.filter((scan) => {
-      const date = new Date(scan.finished_at ?? scan.started_at);
-      return !Number.isNaN(date.getTime()) && date.getDay() === day && date.getHours() === hour;
+      const value = scan.finished_at ?? scan.started_at;
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return false;
+      return date >= day && date < next;
     }).length;
-  }));
-  const max = Math.max(1, ...values.flat());
+  });
+  const max = Math.max(1, ...counts);
+  const total = counts.reduce((sum, value) => sum + value, 0);
+  const totalLabel = total === 1 ? '1 scan this week' : `${total} scans this week`;
   return (
-    <div className="heatmap">
-      {values.map((row, rowIndex) => (
-        <div key={rowIndex}>
-          <span>{['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][rowIndex]}</span>
-          {row.map((value, colIndex) => <i key={colIndex} style={{opacity: 0.18 + (value / max) * 0.75}} />)}
-        </div>
-      ))}
-    </div>
+    <>
+      <SectionHeader title="Scans · 7 d" right={<span>{totalLabel}</span>} />
+      <div className="audits-strip">
+        {counts.map((count, idx) => {
+          const isToday = days[idx].getTime() === today.getTime();
+          const height = count === 0 ? 0 : Math.max(6, (count / max) * 88);
+          return (
+            <span key={idx} className={isToday ? 'is-today' : undefined}>
+              <em>{count}</em>
+              <i style={{height: `${height}px`}} />
+              <strong>{dayLabels[days[idx].getDay()]}</strong>
+            </span>
+          );
+        })}
+      </div>
+    </>
   );
 }
 
@@ -2351,12 +2428,8 @@ function Donut({value}: {value: number}) {
   );
 }
 
-function Button({children, variant = 'primary', size = 'md', icon, onClick, disabled}: {children: ReactNode; variant?: 'primary' | 'secondary' | 'ghost' | 'glass' | 'glassOnGlass'; size?: 'sm' | 'md'; icon?: ReactNode; onClick?: () => void; disabled?: boolean}) {
-  return <button type="button" className={`button ${variant} ${size}`} onClick={onClick} disabled={disabled}>{icon}{children}</button>;
-}
-
-function IconButton({children, label, onClick}: {children: ReactNode; label: string; onClick: () => void}) {
-  return <button type="button" className="icon-button" aria-label={label} title={label} onClick={onClick}>{children}</button>;
+function Button({children, variant = 'primary', size = 'md', icon, onClick, disabled, title, ariaLabel}: {children: ReactNode; variant?: 'primary' | 'secondary' | 'ghost' | 'glass' | 'glassOnGlass'; size?: 'sm' | 'md'; icon?: ReactNode; onClick?: () => void; disabled?: boolean; title?: string; ariaLabel?: string}) {
+  return <button type="button" className={`button ${variant} ${size}`} onClick={onClick} disabled={disabled} title={title} aria-label={ariaLabel}>{icon}{children}</button>;
 }
 
 function PaperCard({children, className = '', padded = true, id}: {children: ReactNode; className?: string; padded?: boolean; id?: string}) {
@@ -2420,8 +2493,8 @@ function EmptyLine({title, detail}: {title: string; detail: string}) {
   return <div className="empty-line"><strong>{title}</strong><span>{detail}</span></div>;
 }
 
-function SettingRow({label, sub, children}: {label: string; sub: string; children: ReactNode}) {
-  return <div className="setting-row"><div><strong>{label}</strong><span>{sub}</span></div><div>{children}</div></div>;
+function SettingRow({label, sub, children}: {label: string; sub: string; children?: ReactNode}) {
+  return <div className="setting-row"><div><strong>{label}</strong><span>{sub}</span></div>{children !== undefined && <div>{children}</div>}</div>;
 }
 
 function ScanIcon(props: {size?: number; className?: string}) {

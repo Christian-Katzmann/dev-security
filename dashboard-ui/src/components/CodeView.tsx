@@ -82,9 +82,11 @@ export default function CodeView({summary}: CodeViewProps) {
           </div>
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-black/40" />
-            <input 
-              type="text" 
-              placeholder="Filter vectors..." 
+            <input
+              type="search"
+              name="code-vectors-filter"
+              aria-label="Filter code vectors"
+              placeholder="Filter vectors..."
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               className="w-full bg-white/50 border border-black/10 px-10 py-2 text-xs font-mono placeholder:text-black/30 text-black focus:outline-none focus:border-black/50 transition-colors"

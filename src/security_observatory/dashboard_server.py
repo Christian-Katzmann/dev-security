@@ -15,9 +15,10 @@ import threading
 import uuid
 import webbrowser
 
-from .cases import build_security_cases, scanner_evidence_gaps
+from .cases import build_recovery_playbooks, build_security_cases, scanner_evidence_gaps
 from .decisions import assemble_suppression
 from .discovery import discover_repos
+from .docs_render import render_markdown
 from .honey_keys import (
     DEFAULT_PLACEMENT_PATHS,
     build_decoy_snippets,
@@ -79,6 +80,18 @@ SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def dashboard_environment_signal() -> dict[str, Any]:
+    """Runtime hints the dashboard needs to surface gates honestly.
+
+    Mirrors scanners._legitify_token: any of these env vars satisfies the
+    platform-posture token requirement. Stays in the server layer because
+    storage shouldn't know about the runtime environment.
+    """
+    token_env_names = ("SCM_TOKEN", "SECURITY_OBSERVATORY_SCM_TOKEN", "LEGITIFY_TOKEN")
+    scm_token_present = any((os.environ.get(name) or "").strip() for name in token_env_names)
+    return {"scm_token_present": scm_token_present}
 
 
 def job_snapshot(job_id: str) -> dict[str, object] | None:
@@ -588,6 +601,190 @@ def _url_text(value: object) -> str:
     return quote(str(value or ""), safe="")
 
 
+def _docs_title(source: str, fallback: str) -> str:
+    for line in source.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("# "):
+            return stripped[2:].strip() or fallback
+    return fallback
+
+
+def _docs_page_shell(*, title: str, body: str, source_path: str) -> str:
+    safe_title = html.escape(title)
+    safe_source = html.escape(source_path)
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{safe_title} — DëvSec docs</title>
+  <style>
+    :root {{
+      color-scheme: light;
+      --bg: #f5f2ed;
+      --panel: rgba(255, 255, 255, 0.78);
+      --ink: #111111;
+      --muted: rgba(17, 17, 17, 0.62);
+      --line: rgba(17, 17, 17, 0.12);
+      --gold: #d4a62d;
+      --code-bg: #171717;
+      --code-fg: #f4f4f4;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      background: radial-gradient(circle at top left, rgba(212,166,45,0.10), transparent 32rem), var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.7;
+    }}
+    a {{ color: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }}
+    a:hover {{ text-decoration-color: var(--gold); }}
+    .topbar {{
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem clamp(1rem, 4vw, 3rem);
+      border-bottom: 1px solid var(--line);
+      background: rgba(245, 242, 237, 0.92);
+      backdrop-filter: blur(14px);
+    }}
+    .brand {{ display: flex; align-items: center; gap: 0.75rem; min-width: 0; text-decoration: none; }}
+    .mark {{
+      width: 2rem; height: 2rem;
+      border: 1px solid var(--ink);
+      display: grid; place-items: center;
+      background: white; font-size: 0.8rem;
+    }}
+    .brand-text {{ min-width: 0; }}
+    .brand-title {{
+      font-size: 0.7rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      white-space: nowrap;
+    }}
+    .brand-subtitle {{
+      font-size: 0.85rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 54vw;
+    }}
+    .nav a {{
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.58);
+      padding: 0.55rem 0.8rem;
+      text-decoration: none;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+    }}
+    main {{ width: min(820px, calc(100% - 2rem)); margin: 0 auto; padding: 2.5rem 0 5rem; }}
+    .eyebrow {{
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin: 0 0 1.4rem;
+    }}
+    .doc {{
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: clamp(1.6rem, 4vw, 3rem);
+    }}
+    .doc h1 {{ font-size: clamp(2rem, 5vw, 3rem); line-height: 1.05; margin: 0 0 1.2rem; font-weight: 360; letter-spacing: -0.02em; }}
+    .doc h2 {{ font-size: 1.45rem; margin: 2.4rem 0 0.8rem; font-weight: 520; letter-spacing: -0.01em; }}
+    .doc h3 {{ font-size: 1.15rem; margin: 1.8rem 0 0.6rem; font-weight: 520; }}
+    .doc h4, .doc h5, .doc h6 {{ font-size: 1rem; margin: 1.4rem 0 0.5rem; font-weight: 520; }}
+    .doc p {{ margin: 0.9rem 0; }}
+    .doc ul, .doc ol {{ margin: 0.9rem 0; padding-left: 1.4rem; }}
+    .doc li {{ margin: 0.25rem 0; }}
+    .doc li > ul, .doc li > ol {{ margin: 0.3rem 0; }}
+    .doc blockquote {{
+      margin: 1.2rem 0;
+      padding: 0.5rem 1rem;
+      border-left: 3px solid var(--gold);
+      background: rgba(212,166,45,0.07);
+      color: var(--muted);
+    }}
+    .doc hr {{ border: 0; border-top: 1px solid var(--line); margin: 2rem 0; }}
+    .doc code {{
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.86em;
+      background: rgba(17,17,17,0.06);
+      padding: 0.12rem 0.35rem;
+      border-radius: 3px;
+    }}
+    .doc pre {{
+      background: var(--code-bg);
+      color: var(--code-fg);
+      padding: 1rem 1.1rem;
+      overflow: auto;
+      font-size: 0.82rem;
+      line-height: 1.55;
+      border: 1px solid rgba(255,255,255,0.08);
+      margin: 1.2rem 0;
+    }}
+    .doc pre code {{ background: transparent; padding: 0; border-radius: 0; color: inherit; font-size: inherit; }}
+    .doc table {{
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.4rem 0;
+      font-size: 0.92rem;
+    }}
+    .doc th, .doc td {{
+      border: 1px solid var(--line);
+      padding: 0.55rem 0.75rem;
+      text-align: left;
+      vertical-align: top;
+    }}
+    .doc th {{
+      background: rgba(17,17,17,0.04);
+      font-weight: 520;
+    }}
+    .source {{
+      margin-top: 1.4rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+    }}
+    @media (max-width: 760px) {{
+      .topbar {{ align-items: flex-start; flex-direction: column; }}
+    }}
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Back to dashboard">
+      <span class="mark">D</span>
+      <span class="brand-text">
+        <span class="brand-title">DëvSec docs</span>
+        <span class="brand-subtitle">{safe_title}</span>
+      </span>
+    </a>
+    <nav class="nav">
+      <a href="/">Back to dashboard</a>
+    </nav>
+  </header>
+  <main>
+    <p class="eyebrow">In-app documentation</p>
+    <article class="doc">{body}</article>
+    <p class="source">Source: {safe_source}</p>
+  </main>
+</body>
+</html>"""
+
+
 def build_ai_prompt(scan: dict[str, object]) -> str:
     scanners = list(scan.get("scanners", []))
     scanner_dicts = [item for item in scanners if isinstance(item, dict)]
@@ -840,16 +1037,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         repo_root = Path(__file__).resolve().parents[2]
         docs_root = (repo_root / "docs").resolve()
         candidate = (docs_root / path.removeprefix("/docs/")).resolve()
-        if not candidate.is_file() or docs_root not in candidate.parents and candidate != docs_root:
+        if not candidate.is_file() or (docs_root not in candidate.parents and candidate != docs_root):
             self.send_error(404, "Doc not found.")
             return
         try:
-            body = candidate.read_bytes()
+            source = candidate.read_text(encoding="utf-8")
         except OSError:
             self.send_error(404, "Doc not found.")
             return
+        rendered = render_markdown(source)
+        title = _docs_title(source, candidate.stem)
+        page = _docs_page_shell(title=title, body=rendered, source_path=str(candidate.relative_to(repo_root)))
+        body = page.encode("utf-8")
         self.send_response(200)
-        self.send_header("Content-Type", "text/markdown; charset=utf-8")
+        self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -878,6 +1079,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 payload = db.dashboard_payload()
             finally:
                 db.close()
+            payload["environment"] = dashboard_environment_signal()
+            payload["recovery_playbooks"] = build_recovery_playbooks(payload.get("active_cases") or [])
             self.send_json(payload)
             return
         if parsed.path == "/api/tool-catalog":

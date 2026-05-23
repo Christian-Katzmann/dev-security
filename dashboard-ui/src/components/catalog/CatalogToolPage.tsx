@@ -31,7 +31,7 @@ import {
   Download,
   ShieldCheck,
 } from 'lucide-react';
-import {DashboardSummary, ToolCatalogItem} from '../../dashboardData';
+import {DashboardSummary, ToolCatalogItem, formatRelativeTime} from '../../dashboardData';
 import {humanizeKey} from '../../uiHelpers';
 import {
   catalogCapabilityLabels,
@@ -65,6 +65,18 @@ function isDisplayOnly(tool: ToolCatalogItem): boolean {
   return tool.lifecycle === 'coming-soon' || tool.install_state === 'coming-soon';
 }
 
+// Tools that are already on the user's machine — either built into DëvSec,
+// detected on PATH, or owned by a verified DëvSec-managed install. None of
+// these need a hero Install CTA; an Install button on a tool that's already
+// installed is the F-004 lie.
+function isAlreadyInstalled(tool: ToolCatalogItem): boolean {
+  return (
+    tool.install_state === 'built-in' ||
+    tool.install_state === 'detected' ||
+    tool.install_state === 'managed'
+  );
+}
+
 // Specs the mockup asks for. Only Version and Requirements have real backing
 // today; the rest are honest blanks with a TODO so the gap is visible to the
 // next person who touches this file.
@@ -96,6 +108,7 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
 
   const installEnabled = tool ? previewCanInstall(tool.install_preview) : false;
   const displayOnly = tool ? isDisplayOnly(tool) : false;
+  const alreadyInstalled = tool ? isAlreadyInstalled(tool) : false;
   const mutating = tool && mutation?.toolId === tool.id && mutation.status === 'running';
   const installLabel = mutating ? 'Installing...' : 'Install plugin';
 
@@ -128,10 +141,18 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
   // Install action copy: when the install isn't directly executable, the
   // button doesn't disappear — it still shows the next step the user needs to
   // take, just visually quieter. That preserves the affordance without
-  // pretending we can run it.
+  // pretending we can run it. Already-installed tools (built-in, detected,
+  // managed) drop the button entirely; their next-step copy already explains
+  // what to do.
   const installHelp = installEnabled
     ? null
     : tool.install.next_step ?? tool.install.instructions ?? null;
+  const alreadyInstalledNote = alreadyInstalled
+    ? (tool.install.next_step
+        ?? (tool.install_state === 'built-in'
+          ? `${tool.label} is built into DëvSec. Use it in any matching scan profile.`
+          : `${tool.label} is installed locally. Use it in any matching scan profile.`))
+    : null;
 
   return (
     <div className="catalog-tool">
@@ -160,6 +181,15 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
                 <CircleSlash size={14} />
                 Display only — no install or scan action in this version.
               </span>
+            ) : alreadyInstalled ? (
+              <span className="catalog-tool-display-note">
+                <CheckCircle2 size={14} />
+                {tool.install_state === 'built-in'
+                  ? 'Built in — no install needed.'
+                  : tool.install_state === 'managed'
+                  ? 'Managed by DëvSec.'
+                  : 'Detected locally.'}
+              </span>
             ) : (
               <button
                 type="button"
@@ -174,8 +204,11 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
             )}
           </div>
         </div>
-        {!displayOnly && !installEnabled && installHelp && (
+        {!displayOnly && !alreadyInstalled && !installEnabled && installHelp && (
           <p className="catalog-tool-hero-help">{installHelp}</p>
+        )}
+        {alreadyInstalled && alreadyInstalledNote && (
+          <p className="catalog-tool-hero-help">{alreadyInstalledNote}</p>
         )}
         {mutation && mutation.toolId === tool.id && mutation.status !== 'running' && (
           <p className={`catalog-tool-hero-message ${mutation.status}`}>{mutation.message}</p>
@@ -273,7 +306,16 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
             <Kv label="Detection" value={catalogInstallDetectionLabels[tool.install.detection]} />
             <Kv label="Binary" value={tool.install.binary ?? 'Not required'} mono />
             <Kv label="Uninstall" value={catalogUninstallLabels[tool.install.uninstall_posture]} />
-            {runtimeItem && <Kv label="Last runtime" value={runtimeItem.status.replace('-', ' ')} />}
+            {runtimeItem && (() => {
+              const relative = formatRelativeTime(runtimeItem.last_run);
+              if (runtimeItem.status === 'ran' && relative) {
+                return <Kv label="Last runtime" value={relative} />;
+              }
+              if (runtimeItem.status === 'not-run' || runtimeItem.status === 'missing') {
+                return <Kv label="Last runtime" value="Never run" />;
+              }
+              return null;
+            })()}
           </dl>
           {tool.install.next_step && (
             <p className="catalog-tool-next-step">

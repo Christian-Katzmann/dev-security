@@ -1,8 +1,19 @@
-# Security Observatory
+# DëvSec — local-first security observability
 
-Local-first security observability for modern repositories.
+A practical security sweep for repos you actually work in. DëvSec runs established open-source scanners on your machine, stores the history in local SQLite, and turns scanner noise into a small set of plain next actions.
 
-Security Observatory, also used in the app as DëvSec, runs a practical security sweep on local codebases, stores the history locally, and turns scanner output into a dashboard of plain next actions. It is designed for repo owners who want a clear view of code, dependency, secret, infrastructure, and AI-agent risk without sending source code to a SaaS product.
+*(Installed as the `security-observatory` Python package. The CLI is `security-scan`. The dashboard is branded DëvSec — same project, three names you'll meet in different places.)*
+
+**Status:** 0.1.x — early. Local scanning works well; the dashboard is honest about what's still partial.
+
+![DëvSec overview — local dashboard showing posture score, open findings, and recent scan activity](docs/images/overview.png)
+
+## Why this exists
+
+Most security platforms send your source code to a SaaS, charge per repo, or both.
+DëvSec is the opposite shape: scanners run locally against a clone of the repo you already have.
+Results stay under `~/.security-observatory`, nothing is uploaded, and no cloud LLM is required.
+The dashboard exists so you can read what the scanners actually found without grepping raw JSON.
 
 ## What It Is
 
@@ -353,19 +364,21 @@ __generated__
 
 ## Health Score
 
-Health scores start at 100 and subtract weighted risk:
+The engine computes a health score from 0 to 100 internally. The CLI prints it and the JSON report (`security-scan . --json`) emits it on that 0–100 scale. The dashboard divides the same value by 10 and displays it as `/ 10` (so a 33 in the JSON shows as `3.3 / 10`). The table below uses the dashboard's 0–10 scale.
 
-| Finding type | Penalty |
+Health scores start at 10.0 and subtract weighted risk:
+
+| Finding type | Penalty (display scale) |
 | --- | ---: |
-| Leaked secret | -40, capped at -80 |
-| Critical vulnerability | -25 |
-| AI-agent or repo-poisoning risk | -15, capped at -45 |
-| High vulnerability | -10, capped at -60 |
-| Medium vulnerability | -2, capped at -25 |
-| Low vulnerability | -0.5, capped at -10 |
-| Missing SBOM | -3 |
+| Leaked secret | -4.0, capped at -8.0 |
+| Critical vulnerability | -2.5 |
+| AI-agent or repo-poisoning risk | -1.5, capped at -4.5 |
+| High vulnerability | -1.0, capped at -6.0 |
+| Medium vulnerability | -0.2, capped at -2.5 |
+| Low vulnerability | -0.05, capped at -1.0 |
+| Missing SBOM | -0.3 |
 
-The final score is capped between 0 and 100.
+The final score is capped between 0.0 and 10.0 on display (0 and 100 internally).
 
 ## Development
 

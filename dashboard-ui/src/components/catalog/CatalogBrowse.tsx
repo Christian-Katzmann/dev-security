@@ -38,6 +38,7 @@ import {
   ToolCategory,
 } from '../../dashboardData';
 import {
+  catalogCardAction,
   catalogCategoryLabels,
   catalogCategoryOrder,
   catalogIcon,
@@ -137,7 +138,11 @@ export default function CatalogBrowse({summary, onRefresh, onOpenTool, onBack}: 
     });
   }, [filtered]);
 
-  const featuredInstallEnabled = featured ? hasManagedInstallPath(featured) : false;
+  // The Featured Install button must reflect the *runtime* install state, not
+  // the catalog default. A tool with a managed install path may still be
+  // already detected on the user's machine — in which case there is nothing
+  // to install and the button is hidden, leaving only "View tool".
+  const featuredInstallEnabled = featured ? catalogCardAction(featured) === 'install' : false;
   const featuredMutating = featured && mutation?.toolId === featured.id && mutation.status === 'running';
 
   const installFeatured = useCallback(() => {
@@ -163,15 +168,17 @@ export default function CatalogBrowse({summary, onRefresh, onOpenTool, onBack}: 
             <h1>Featured: {featured.label}</h1>
             <p>{featured.summary}</p>
             <div className="catalog-browse-featured-actions">
-              <button
-                type="button"
-                className="catalog-browse-cta"
-                onClick={installFeatured}
-                disabled={!featuredInstallEnabled || Boolean(featuredMutating)}
-              >
-                <Download size={15} />
-                {featuredMutating ? 'Installing...' : 'Install'}
-              </button>
+              {featuredInstallEnabled && (
+                <button
+                  type="button"
+                  className="catalog-browse-cta"
+                  onClick={installFeatured}
+                  disabled={Boolean(featuredMutating)}
+                >
+                  <Download size={15} />
+                  {featuredMutating ? 'Installing...' : 'Install'}
+                </button>
+              )}
               <button
                 type="button"
                 className="catalog-browse-cta-secondary"

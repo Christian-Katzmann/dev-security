@@ -1,0 +1,9 @@
+
+Security Observatory
+Local store: /Users/christiankatzmann/.security-observatory
+
+Repo                         Health  Crit  High   Med Secrets AI-risk
+--------------------------------------------------------------------------
+de-v-security                     0     5    43    78       0      42
+
+de-v-security: normalized report /Users/christiankatzmann/.security-observatory/reports/de-v-security/de-v-security-20260523T135650Z/normalized-report.json

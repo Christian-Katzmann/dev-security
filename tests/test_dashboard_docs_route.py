@@ -40,7 +40,7 @@ def _http(port: int, path: str) -> tuple[int, bytes, str]:
         return exc.code, exc.read(), exc.headers.get_content_type()
 
 
-def test_docs_route_serves_real_in_repo_markdown(tmp_path):
+def test_docs_route_renders_in_repo_markdown_as_html(tmp_path):
     repo_root = Path(__file__).resolve().parents[1]
     assert (repo_root / "docs" / "iocs.md").is_file(), "fixture missing"
 
@@ -50,9 +50,20 @@ def test_docs_route_serves_real_in_repo_markdown(tmp_path):
     finally:
         server.shutdown()
 
+    text = body.decode("utf-8")
     assert status == HTTPStatus.OK
-    assert content_type == "text/markdown"
-    assert body.startswith((repo_root / "docs" / "iocs.md").read_bytes()[:32])
+    assert content_type == "text/html"
+    # Real rendered HTML — the wall of raw markdown is gone, the H1 from the
+    # source has become an actual <h1>, and a code fence has become <pre><code>.
+    assert "<!doctype html>" in text
+    assert "<h1>IOC Packs</h1>" in text
+    assert "<pre><code" in text
+    # The raw markdown markers must not leak into the rendered output.
+    assert "# IOC Packs" not in text
+    # Page chrome links the user back to the dashboard.
+    assert "Back to dashboard" in text
+    # The source path is shown so the user can trace where the doc lives.
+    assert "docs/iocs.md" in text
 
 
 def test_docs_route_404s_when_file_missing(tmp_path):

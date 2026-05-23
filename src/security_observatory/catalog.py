@@ -459,18 +459,35 @@ def tool_catalog_entries(
     for entry in entries:
         install_state = detect_install_state_for_tool(entry, managed_evidence.get(entry.id))
         if install_state == ToolInstallState.MANAGED:
-            resolved.append(
-                entry.with_runtime_install(
-                    ToolInstallState.MANAGED,
-                    owner=ToolInstallOwner.DEVSEC,
-                    method=ToolInstallMethod.MANAGED_FUTURE,
-                    uninstall_posture=ToolUninstallPosture.DEVSEC_MANAGED,
-                    managed_package=entry.install.managed_package or entry.id,
-                )
+            updated = entry.with_runtime_install(
+                ToolInstallState.MANAGED,
+                owner=ToolInstallOwner.DEVSEC,
+                method=ToolInstallMethod.MANAGED_FUTURE,
+                uninstall_posture=ToolUninstallPosture.DEVSEC_MANAGED,
+                managed_package=entry.install.managed_package or entry.id,
             )
         else:
-            resolved.append(entry.with_install_state(install_state))
+            updated = entry.with_install_state(install_state)
+        rewritten = _next_step_for_runtime_state(entry, install_state)
+        if rewritten is not None and rewritten != updated.install.next_step:
+            updated = replace(updated, install=replace(updated.install, next_step=rewritten))
+        resolved.append(updated)
     return resolved
+
+
+def _next_step_for_runtime_state(
+    entry: ToolCatalogEntry,
+    install_state: ToolInstallState,
+) -> str | None:
+    # Tools authored as "Install X, then rerun…" go stale the moment runtime
+    # detection proves the tool is already on disk. Rewrite the next-step copy
+    # so the catalog detail page doesn't ask the user to install something they
+    # already have.
+    if install_state == ToolInstallState.DETECTED:
+        return f"{entry.label} is installed locally. Run a matching scan profile to include it."
+    if install_state == ToolInstallState.MANAGED:
+        return f"{entry.label} is managed by DëvSec. Run a matching scan profile to include it."
+    return None
 
 
 def current_tool_catalog(
