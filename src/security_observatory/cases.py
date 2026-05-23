@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import Any, Iterable
 import hashlib
 import re
@@ -15,6 +16,168 @@ DEPENDENCY_SCANNERS = {"trivy", "osv-scanner", "grype"}
 SECRET_SCANNERS = {"gitleaks", "trufflehog", "trivy"}
 VULN_ID_RE = re.compile(r"\b(?:CVE-\d{4}-\d+|GHSA-[A-Za-z0-9-]+|PYSEC-\d{4}-\d+|OSV-\d+)\b", re.IGNORECASE)
 PACKAGE_RE = re.compile(r"\bin\s+([A-Za-z0-9_.:/@+-]+)\b")
+
+
+@dataclass(frozen=True)
+class _RecoveryPlaybookTemplate:
+    id: str
+    title: str
+    summary: str
+    step_templates: tuple[str, ...]
+    base_minutes: int = 12
+    minutes_per_extra_case: int = 5
+
+
+_RECOVERY_PLAYBOOK_TEMPLATES: dict[str, _RecoveryPlaybookTemplate] = {
+    "rotate-leaked-secret": _RecoveryPlaybookTemplate(
+        id="rotate-leaked-secret",
+        title="Rotate leaked secrets and scrub history",
+        summary="Real-looking credentials may have leaked. Rotate the live value first, then clean the source and check history.",
+        step_templates=(
+            "Confirm whether the exposed values in {files} are real credentials without printing them in logs or chat.",
+            "Rotate or revoke the credential at the provider before changing code.",
+            "Remove the source of the secret from {files} and replace it with an env var or secret-manager reference.",
+            "Check whether the credential appeared in git history and clean it up if needed.",
+            "Rerun the matching DëvSec secrets check to confirm the source is gone.",
+        ),
+        base_minutes=20,
+        minutes_per_extra_case=8,
+    ),
+    "upgrade-vulnerable-dependency": _RecoveryPlaybookTemplate(
+        id="upgrade-vulnerable-dependency",
+        title="Upgrade vulnerable dependencies",
+        summary="Known vulnerabilities in declared packages. Upgrade to a safe version and rerun the test suite.",
+        step_templates=(
+            "Confirm where each affected package is declared in {files} and which version is installed.",
+            "Upgrade to the smallest safe version that fixes the issue and reinstall.",
+            "Run the project's dependency install and test commands to catch regressions.",
+            "If no fix exists, decide whether the package is reachable and document the temporary risk.",
+            "Rerun the matching DëvSec dependency check.",
+        ),
+        base_minutes=15,
+        minutes_per_extra_case=4,
+    ),
+    "harden-ai-agent-config": _RecoveryPlaybookTemplate(
+        id="harden-ai-agent-config",
+        title="Narrow AI/agent permissions",
+        summary="AI prompts, MCP servers, or agent tool configs may expand attack surface beyond intent.",
+        step_templates=(
+            "Open each referenced agent config in {files} and confirm which tools, files, or networks it can reach.",
+            "Remove unsafe tool grants — shell access, broad file write, secret-bearing env passthrough.",
+            "Tighten prompts so untrusted input cannot redirect agent behavior.",
+            "Rerun the matching DëvSec AI check.",
+        ),
+        base_minutes=12,
+        minutes_per_extra_case=4,
+    ),
+    "tighten-iac-exposure": _RecoveryPlaybookTemplate(
+        id="tighten-iac-exposure",
+        title="Tighten infrastructure exposure",
+        summary="Infrastructure-as-code settings may be more open than they need to be.",
+        step_templates=(
+            "Open each flagged infrastructure file in {files} and confirm the setting is in use.",
+            "Tighten access to the smallest safe scope.",
+            "Run the infrastructure validation or plan command before applying changes.",
+            "Rerun the matching DëvSec IaC check.",
+        ),
+        base_minutes=15,
+        minutes_per_extra_case=6,
+    ),
+    "restore-platform-posture": _RecoveryPlaybookTemplate(
+        id="restore-platform-posture",
+        title="Restore platform guardrails",
+        summary="Branch protection, workflow tokens, or SCM admin settings may have weakened.",
+        step_templates=(
+            "Open the repository or organization settings referenced in {files}.",
+            "Restore the stricter branch, review, workflow-token, webhook, or admin-access policy.",
+            "Rerun the platform posture check and confirm the policy passes.",
+        ),
+        base_minutes=10,
+        minutes_per_extra_case=4,
+    ),
+    "harden-workflow-surface": _RecoveryPlaybookTemplate(
+        id="harden-workflow-surface",
+        title="Harden workflow supply-chain surfaces",
+        summary="GitHub Actions or CI workflows have risky supply-chain or token surfaces.",
+        step_templates=(
+            "Open each workflow file in {files} and confirm whether it runs on trusted or untrusted events.",
+            "Pin external actions to reviewed commit SHAs and remove fetch-and-exec shell patterns.",
+            "Reduce workflow token permissions to the smallest named scopes.",
+            "Rerun the workflow surface check.",
+        ),
+        base_minutes=15,
+        minutes_per_extra_case=5,
+    ),
+    "review-install-hook": _RecoveryPlaybookTemplate(
+        id="review-install-hook",
+        title="Review install-time package hooks",
+        summary="Dependencies can run code at install time. High-risk hooks need a closer look.",
+        step_templates=(
+            "Open each referenced install hook in {files} and read the exact command it runs.",
+            "Remove remote shell execution, credential-file writes, and unexplained dynamic downloads from install time.",
+            "If the hook is a legitimate native build, document the reason and add a narrow allow-list entry.",
+            "Rerun the install-hook check.",
+        ),
+        base_minutes=10,
+        minutes_per_extra_case=4,
+    ),
+    "verify-package-drift": _RecoveryPlaybookTemplate(
+        id="verify-package-drift",
+        title="Verify package drift",
+        summary="A dependency artifact changed behavior or version without a clear source-manifest change.",
+        step_templates=(
+            "Compare the old and new package artifacts referenced by {files}.",
+            "Check release notes, provenance, and installer scripts before accepting the upgrade.",
+            "If the change is unexplained, hold or revert the lockfile movement and regenerate it from an explicit manifest change.",
+            "Rerun the matching DëvSec drift check.",
+        ),
+        base_minutes=15,
+        minutes_per_extra_case=5,
+    ),
+    "respond-to-named-campaign": _RecoveryPlaybookTemplate(
+        id="respond-to-named-campaign",
+        title="Respond to named-campaign indicators",
+        summary="IOC pack evidence implicates a package, namespace, or domain that appears in this repo's dependency evidence.",
+        step_templates=(
+            "Confirm the package, version, namespace, or domain referenced in {files} matches the advisory.",
+            "Compare local install-recency and rotation surfaces against the advisory before deciding what to rotate.",
+            "If the match is real and recent, rotate the enumerated repo-specific surfaces at the provider first; if not, record the decision with a short reason.",
+            "Rerun the matching DëvSec IOC check.",
+        ),
+        base_minutes=18,
+        minutes_per_extra_case=6,
+    ),
+    "fix-code-finding": _RecoveryPlaybookTemplate(
+        id="fix-code-finding",
+        title="Fix risky code patterns",
+        summary="Code patterns the scanners flagged as unsafe. Verify reachability and apply the smallest safe fix.",
+        step_templates=(
+            "Open the code referenced in {files} and confirm the risky path can actually run.",
+            "Trace how user input, files, network data, or agent tools reach this code.",
+            "Apply the smallest safe code change that removes the risky behavior.",
+            "Add or run a test that proves the unsafe path is blocked.",
+            "Rerun the matching DëvSec scanner.",
+        ),
+        base_minutes=15,
+        minutes_per_extra_case=5,
+    ),
+}
+
+_PLAYBOOK_BY_CATEGORY: dict[str, str] = {
+    "secrets": "rotate-leaked-secret",
+    "dependencies": "upgrade-vulnerable-dependency",
+    "ai-risk": "harden-ai-agent-config",
+    "iac": "tighten-iac-exposure",
+    "platform-posture": "restore-platform-posture",
+    "workflow": "harden-workflow-surface",
+    "install-hooks": "review-install-hook",
+    "behavioral-drift": "verify-package-drift",
+    "silent-upgrade": "verify-package-drift",
+    "supply-chain-ioc": "respond-to-named-campaign",
+    "code-security": "fix-code-finding",
+}
+
+_DEFAULT_PLAYBOOK_ID = "fix-code-finding"
 
 
 def build_security_cases(
@@ -627,3 +790,114 @@ def _merge_steps(default_steps: list[str], scanner_steps: list[str]) -> list[str
 
 def _clean(value: str) -> str:
     return re.sub(r"\s+", " ", value.strip().lower())
+
+
+def build_recovery_playbooks(cases: Iterable[SecurityCase | dict[str, Any]]) -> list[dict[str, Any]]:
+    """Group security cases by playbook class and instantiate per-class templates.
+
+    The Recovery playbooks surface renders one playbook per class with the matching
+    open cases as items inside it — never one card per finding. Step templates carry a
+    `{files}` placeholder which is filled in with the union of affected files across
+    the cases in the playbook. The "Rerun matching DëvSec check" action is the last
+    step of every template.
+    """
+    grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for case in cases:
+        data = case.to_dict() if hasattr(case, "to_dict") else dict(case)
+        if data.get("suppressed"):
+            continue
+        if str(data.get("action_level") or "") == "info":
+            continue
+        category = str(data.get("category") or "")
+        playbook_id = _PLAYBOOK_BY_CATEGORY.get(category, _DEFAULT_PLAYBOOK_ID)
+        grouped[playbook_id].append(data)
+
+    playbooks: list[dict[str, Any]] = []
+    for playbook_id, items in grouped.items():
+        template = _RECOVERY_PLAYBOOK_TEMPLATES.get(playbook_id, _RECOVERY_PLAYBOOK_TEMPLATES[_DEFAULT_PLAYBOOK_ID])
+        files = _aggregate_playbook_files(items)
+        files_text = _format_files_text(files)
+        steps = [step.replace("{files}", files_text) for step in template.step_templates]
+        extra_cases = max(0, len(items) - 1)
+        estimated_minutes = template.base_minutes + extra_cases * template.minutes_per_extra_case
+        severity = _max_playbook_severity(items)
+        scanners = sorted({str(scanner) for item in items for scanner in (item.get("scanners") or []) if scanner})
+        items_payload = [_playbook_item_payload(item) for item in items]
+        items_payload.sort(key=lambda entry: (SEVERITY_ORDER.get(entry["severity"], 0) * -1, entry["title"].lower()))
+        playbooks.append(
+            {
+                "id": playbook_id,
+                "title": template.title,
+                "summary": template.summary,
+                "severity": severity,
+                "scanners": scanners,
+                "estimated_minutes": estimated_minutes,
+                "estimate_label": f"~ {estimated_minutes} min",
+                "steps": steps,
+                "case_count": len(items),
+                "affected_files": files,
+                "items": items_payload,
+            }
+        )
+
+    playbooks.sort(
+        key=lambda playbook: (
+            -SEVERITY_ORDER.get(playbook["severity"], 0),
+            -playbook["case_count"],
+            playbook["title"].lower(),
+        )
+    )
+    return playbooks
+
+
+def _aggregate_playbook_files(items: list[dict[str, Any]], max_files: int = 6) -> list[str]:
+    seen: set[str] = set()
+    files: list[str] = []
+    for item in items:
+        for file in item.get("affected_files") or []:
+            text = str(file).strip()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            files.append(text)
+            if len(files) >= max_files:
+                return files
+    return files
+
+
+def _format_files_text(files: list[str]) -> str:
+    if not files:
+        return "the affected files"
+    if len(files) == 1:
+        return files[0]
+    if len(files) == 2:
+        return f"{files[0]} and {files[1]}"
+    head = ", ".join(files[:-1])
+    return f"{head}, and {files[-1]}"
+
+
+def _playbook_item_payload(case: dict[str, Any]) -> dict[str, Any]:
+    affected_files = [str(item) for item in (case.get("affected_files") or []) if item]
+    location = affected_files[0] if affected_files else "repository"
+    scan_id = case.get("scan_id")
+    return {
+        "case_id": str(case.get("case_id") or case.get("id") or ""),
+        "repo": str(case.get("repo") or case.get("repo_name") or ""),
+        "title": str(case.get("title") or "Security case"),
+        "severity": normalize_severity(case.get("severity")),
+        "category": str(case.get("category") or "unknown"),
+        "action_level": str(case.get("action_level") or "verify"),
+        "scan_id": str(scan_id) if scan_id else None,
+        "location": location,
+        "affected_files": affected_files,
+        "scanners": sorted({str(scanner) for scanner in (case.get("scanners") or []) if scanner}),
+    }
+
+
+def _max_playbook_severity(items: list[dict[str, Any]]) -> str:
+    if not items:
+        return "medium"
+    return max(
+        (normalize_severity(item.get("severity")) for item in items),
+        key=lambda value: SEVERITY_ORDER.get(value, 0),
+    )

@@ -710,6 +710,34 @@ export type DashboardSummary = {
   environment?: {
     scm_token_present?: boolean;
   };
+  recovery_playbooks?: RecoveryPlaybook[];
+};
+
+export type RecoveryPlaybookItem = {
+  case_id: string;
+  repo: string;
+  title: string;
+  severity: Severity;
+  category: string;
+  action_level: string;
+  scan_id: string | null;
+  location: string;
+  affected_files: string[];
+  scanners: string[];
+};
+
+export type RecoveryPlaybook = {
+  id: string;
+  title: string;
+  summary: string;
+  severity: Severity;
+  scanners: string[];
+  estimated_minutes: number;
+  estimate_label: string;
+  steps: string[];
+  case_count: number;
+  affected_files: string[];
+  items: RecoveryPlaybookItem[];
 };
 
 export type ProjectRepo = {

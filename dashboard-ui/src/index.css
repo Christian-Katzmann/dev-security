@@ -1549,6 +1549,59 @@ a.button,
   gap: 12px;
 }
 
+.playbook-items {
+  margin-top: 32px;
+}
+
+.playbook-item-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.playbook-item-list li {
+  border-top: 1px solid rgba(28, 36, 34, 0.10);
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.playbook-item-list li strong {
+  color: var(--ink-strong);
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.playbook-item-list li em {
+  font-style: normal;
+  font: 600 11px/1.3 var(--font-mono);
+  color: var(--ink-muted);
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px 4px;
+  max-width: 640px;
+}
+
+.empty-state h2 {
+  margin: 0;
+  color: var(--ink-strong);
+  font-size: 22px;
+  line-height: 1.25;
+}
+
+.empty-state p {
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+
 .verification-hero h1,
 .report-hero h1 {
   margin-bottom: 10px;

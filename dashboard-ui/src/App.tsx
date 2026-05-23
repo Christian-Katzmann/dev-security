@@ -103,6 +103,8 @@ import {
   HoneyKeyStatus,
   ProjectRepo,
   ProjectsPayload,
+  RecoveryPlaybook,
+  RecoveryPlaybookItem,
   ScannerDoctorItem,
   SecurityPackCatalogItem,
   SecurityPackTool,
@@ -201,15 +203,7 @@ type ActivityItem = {
   tone: Tone;
 };
 
-type PlaybookRecommendation = {
-  id: string;
-  title: string;
-  body: string;
-  trigger: string;
-  steps: string[];
-  estimate: string;
-  caseItem?: DisplayCase;
-};
+type RecoveryPlaybookView = RecoveryPlaybook & {tone: Tone};
 
 const navGroups: {title: string; items: {id: TabId; label: string; icon: typeof Home}[]}[] = [
   {
@@ -452,52 +446,9 @@ function severityCounts(summary: DashboardSummary) {
   };
 }
 
-function buildPlaybooks(summary: DashboardSummary): PlaybookRecommendation[] {
-  const cases = activeCaseList(summary);
-  const mapped = cases.slice(0, 6).map((item, index): PlaybookRecommendation => {
-    const category = item.category ?? 'security';
-    const title = playbookTitle(item, category);
-    return {
-      id: item.id,
-      title,
-      body: item.nextStep,
-      trigger: `${caseScanner(item)} · ${categoryLabel(category)}`,
-      estimate: index === 0 ? '22 min' : item.bucket === 'fix-now' ? '12 min' : '4 min',
-      caseItem: item,
-      steps: playbookSteps(item),
-    };
-  });
-  if (mapped.length) return mapped;
-  return [
-    {
-      id: 'coverage-review',
-      title: 'Review scan coverage',
-      body: 'Confirm the checks that ran are enough for the repo before trusting a clean result.',
-      trigger: 'verification · scanner-health',
-      estimate: '4 min',
-      steps: ['Review skipped checks', 'Install or rerun needed scanners', 'Run a quick sweep'],
-    },
-  ];
-}
-
-function playbookTitle(item: DisplayCase, category: string): string {
-  if (category === 'dependencies') return 'Rotate vulnerable package';
-  if (category === 'silent-upgrade') return 'Verify silent dependency change';
-  if (category === 'secrets') return 'Rotate live secret + scrub history';
-  if (category === 'iac') return 'Tighten infrastructure exposure';
-  if (category === 'platform-posture') return 'Restore platform guardrails';
-  if (category === 'ai-risk') return 'Narrow agent permissions';
-  if (category === 'behavioral-drift') return 'Investigate package behavior drift';
-  return item.title;
-}
-
-function playbookSteps(item: DisplayCase): string[] {
-  return [
-    `Capture evidence for ${item.location}`,
-    item.nextStep,
-    'Rerun the matching DëvSec check',
-    'Record the case decision when verified',
-  ];
+function recoveryPlaybooksFor(summary: DashboardSummary): RecoveryPlaybookView[] {
+  const playbooks = summary.recovery_playbooks ?? [];
+  return playbooks.map((playbook) => ({...playbook, tone: toneForSeverity(playbook.severity)}));
 }
 
 function countRecord(record?: Record<string, number>): number {
@@ -1503,11 +1454,28 @@ function HoneyKeysView({summary, target, onRefresh}: {summary: DashboardSummary;
 }
 
 function PlaybooksView({summary, target, targetRepos, onChooseChecks, onTargetChange}: {summary: DashboardSummary; target: TargetSelection; targetRepos: ProjectRepo[]; onChooseChecks: () => void; onTargetChange: (value: string) => void}) {
-  const playbooks = buildPlaybooks(summary);
+  const playbooks = recoveryPlaybooksFor(summary);
   const [activeId, setActiveId] = useState(playbooks[0]?.id ?? '');
   const active = playbooks.find((item) => item.id === activeId) ?? playbooks[0];
   const needsRepo = target.type !== 'repo';
   const rerunHint = needsRepo ? 'Switch to the repo where the finding lives to rerun its check' : undefined;
+
+  if (!playbooks.length || !active) {
+    return (
+      <div className="view-stack">
+        <PaperCard>
+          <div className="empty-state">
+            <Eyebrow>Recovery playbooks</Eyebrow>
+            <h2>No open cases need a recovery playbook right now.</h2>
+            <p>Playbooks appear when active cases match a recovery class — leaked secrets, vulnerable dependencies, risky AI/agent config, IaC misconfig, platform-posture drift, workflow surfaces, install hooks, package drift, or named-campaign indicators.</p>
+          </div>
+        </PaperCard>
+      </div>
+    );
+  }
+
+  const scanSource = active.items.find((item) => item.scan_id) ?? null;
+
   return (
     <div className="view-stack">
       {needsRepo && (
@@ -1521,10 +1489,10 @@ function PlaybooksView({summary, target, targetRepos, onChooseChecks, onTargetCh
         {playbooks.map((item) => (
           <button key={item.id} type="button" className={`playbook-tile ${active.id === item.id ? 'selected' : ''}`} onClick={() => setActiveId(item.id)}>
             <BookOpen size={22} />
-            <span>{item.steps.length} steps · {item.estimate}</span>
+            <span>{item.case_count} case{item.case_count === 1 ? '' : 's'} · {item.estimate_label}</span>
             <strong>{item.title}</strong>
-            <p>{item.body}</p>
-            <em>{item.trigger}</em>
+            <p>{item.summary}</p>
+            <em>{severityMeta[item.tone].label} · {item.scanners.slice(0, 2).join(' + ') || 'no scanner attached'}</em>
           </button>
         ))}
       </div>
@@ -1533,24 +1501,42 @@ function PlaybooksView({summary, target, targetRepos, onChooseChecks, onTargetCh
           <div>
             <Eyebrow>Recovery playbook</Eyebrow>
             <h2>{active.title}</h2>
-            <code>{active.trigger}</code>
-            <p>{active.body}</p>
+            <code>{severityMeta[active.tone].label} · {active.case_count} case{active.case_count === 1 ? '' : 's'}{active.scanners.length ? ` · ${active.scanners.join(', ')}` : ''}</code>
+            <p>{active.summary}</p>
             <div className="button-row">
-              {active.caseItem?.scanId && <a className="button primary" href={reportViewUrl(active.caseItem.scanId, 'prompt')}><Sparkles size={14} /> AI prompt</a>}
-              {active.caseItem?.scanId && <a className="button secondary" href={reportViewUrl(active.caseItem.scanId, 'raw')}><FileText size={14} /> Raw report</a>}
+              {scanSource?.scan_id && <a className="button primary" href={reportViewUrl(scanSource.scan_id, 'prompt')}><Sparkles size={14} /> AI prompt</a>}
+              {scanSource?.scan_id && <a className="button secondary" href={reportViewUrl(scanSource.scan_id, 'raw')}><FileText size={14} /> Raw report</a>}
               <Button variant="ghost" onClick={onChooseChecks} disabled={needsRepo} title={rerunHint}>Rerun checks</Button>
             </div>
             <ol className="step-list">
-              {active.steps.map((step, index) => <li key={step}><span>{index + 1}</span><strong>{step}</strong></li>)}
+              {active.steps.map((step, index) => <li key={`${active.id}-step-${index}`}><span>{index + 1}</span><strong>{step}</strong></li>)}
             </ol>
+            <PlaybookItemList items={active.items} />
           </div>
           <div className="playbook-meta">
-            <MetricBlock label="Steps" value={String(active.steps.length)} />
-            <MetricBlock label="Wall est." value={active.estimate} />
-            <MetricBlock label="Source" value={active.caseItem ? caseScanner(active.caseItem) : 'verification'} />
+            <MetricBlock label="Cases" value={String(active.case_count)} />
+            <MetricBlock label="Wall est." value={active.estimate_label} />
+            <MetricBlock label="Sources" value={active.scanners.length ? active.scanners.join(' + ') : 'verification'} />
           </div>
         </div>
       </PaperCard>
+    </div>
+  );
+}
+
+function PlaybookItemList({items}: {items: RecoveryPlaybookItem[]}) {
+  if (!items.length) return null;
+  return (
+    <div className="playbook-items">
+      <Eyebrow>Cases in this playbook</Eyebrow>
+      <ul className="playbook-item-list">
+        {items.map((item) => (
+          <li key={item.case_id || `${item.repo}-${item.title}`}>
+            <strong>{item.title}</strong>
+            <em>{severityMeta[toneForSeverity(item.severity)].label} · {item.location} · {item.scanners.join(', ') || 'no scanner attached'}</em>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -15,7 +15,7 @@ import threading
 import uuid
 import webbrowser
 
-from .cases import build_security_cases, scanner_evidence_gaps
+from .cases import build_recovery_playbooks, build_security_cases, scanner_evidence_gaps
 from .decisions import assemble_suppression
 from .discovery import discover_repos
 from .docs_render import render_markdown
@@ -1080,6 +1080,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             finally:
                 db.close()
             payload["environment"] = dashboard_environment_signal()
+            payload["recovery_playbooks"] = build_recovery_playbooks(payload.get("active_cases") or [])
             self.send_json(payload)
             return
         if parsed.path == "/api/tool-catalog":
