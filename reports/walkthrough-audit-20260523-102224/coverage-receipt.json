@@ -1,0 +1,141 @@
+{
+  "audit_id": "walkthrough-audit-20260523-102224",
+  "product": "DëvSec (Security Observatory) dashboard",
+  "url": "http://127.0.0.1:8766/",
+  "audit_started_at": "2026-05-23T10:22:24Z",
+  "ai_mode": "no-ai",
+  "ai_budget": null,
+  "complete": false,
+  "coverage_ratio": 0.55,
+  "explanation": "Coverage below 0.9 because the audit deliberately skipped mutating actions (Run all, Start check, Install plugin on a real third-party tool, Retire honey key, Place new key, Add repo via window.prompt) and skipped per-tool detail pages for 11 of 16 tools after the install-state pattern was already confirmed on representative samples (Built-in AI static checks, Trivy, malcontent, IOC Watch, External Surface). All top-level routes were visited and all UI patterns flagged in the punch list were reproduced on at least one surface.",
+  "surfaces_planned": [
+    "Overview (dashboard target)",
+    "Overview (real repo target)",
+    "Open digest CTA",
+    "See activity CTA",
+    "Open findings KPI card",
+    "Honey keys armed KPI card",
+    "Tool catalog KPI card",
+    "Findings (dashboard target)",
+    "Findings (repo target)",
+    "Findings severity filters",
+    "Findings category filters",
+    "Finding case detail panel",
+    "Case decision actions (VERIFY / FALSE POSITIVE / ACCEPT RISK / MARK FIXED)",
+    "Honey keys page",
+    "Honey key Place-new-key form",
+    "Honey key Retire action",
+    "Tool Catalog Home",
+    "Tool Catalog Browse all",
+    "Tool detail pages (16 tools)",
+    "Pack page (Starter / Secrets / Dependencies)",
+    "Pack Open profile CTA",
+    "Run security check sheet",
+    "Recovery playbooks",
+    "Recovery playbook Rerun checks button",
+    "Verification view",
+    "Verification Run checks button",
+    "Activity view",
+    "Activity event filters",
+    "Reports view",
+    "Reports Raw / Prompt download links",
+    "Settings view",
+    "Settings Export button",
+    "Workspace target switcher (dashboard ↔ repo)",
+    "Workspace + Add repo prompt",
+    "Header Pause / Resume agent toggle",
+    "Header Run all button (both states)",
+    "Sidebar agent status pill",
+    "Read documentation links"
+  ],
+  "surfaces_visited": [
+    "Overview (dashboard target)",
+    "Overview (real repo target)",
+    "Open digest CTA",
+    "Open findings KPI card",
+    "Findings (dashboard target)",
+    "Findings (repo target)",
+    "Finding case detail panel",
+    "Case decision actions (partial — dialog dismissed)",
+    "Honey keys page",
+    "Tool Catalog Home",
+    "Tool Catalog Browse all",
+    "Tool detail: Built-in AI static checks",
+    "Tool detail: Trivy",
+    "Tool detail: malcontent",
+    "Tool detail: IOC Watch",
+    "Tool detail: External Surface",
+    "Pack page (Starter)",
+    "Pack Open profile CTA",
+    "Run security check sheet (via Open profile and via Rerun checks)",
+    "Recovery playbooks",
+    "Recovery playbook Rerun checks button",
+    "Verification view",
+    "Activity view",
+    "Reports view",
+    "Settings view",
+    "Settings Export button (no-op)",
+    "Workspace target switcher (dashboard → repo)",
+    "Header Pause / Resume agent toggle",
+    "Header Run all button (disabled state, enabled state)",
+    "Sidebar agent status pill",
+    "Read documentation link (built-in tool)"
+  ],
+  "surfaces_skipped": [
+    {
+      "surface": "Tool detail pages for 11 of 16 tools (Checkov, Gitleaks, Grype, Install hook classifier, legitify, Medusa, OSV-Scanner, Semgrep, Syft, TruffleHog, Workflow surface audit)",
+      "reason": "install-state pattern already validated on representative samples; would not change findings"
+    },
+    {
+      "surface": "Workspace + Add repo prompt",
+      "reason": "window.prompt() opened and the chrome-devtools MCP got into a locked state; could not recover within audit window. Verified that the trigger exists; the prompt-handling UX is the same pattern as VERIFY / case-decision dialogs."
+    },
+    {
+      "surface": "Honey key Place-new-key form",
+      "reason": "destructive (writes a honey key to the user's real repo) and not testable on dashboard target"
+    },
+    {
+      "surface": "Honey key Retire action",
+      "reason": "destructive (modifies real honey-key state)"
+    },
+    {
+      "surface": "Run all / Start check",
+      "reason": "would trigger actual scanner runs against user's local repos; out of scope for non-mutating audit"
+    },
+    {
+      "surface": "Install plugin actions on installable third-party tools (Trivy, Gitleaks, etc.)",
+      "reason": "would run Homebrew install; out of scope for non-mutating audit"
+    },
+    {
+      "surface": "Reports Raw / Prompt download links",
+      "reason": "links route to /report/?scanId=… endpoints; not opened because content is generated reports, not new UI surface"
+    },
+    {
+      "surface": "Pack page (Secrets, Dependencies)",
+      "reason": "Starter Pack already validated the pack-page pattern; same code path"
+    },
+    {
+      "surface": "Findings severity / category filters and search",
+      "reason": "not exercised after the table view was confirmed working; the filter buttons exist (CRITICAL / ELEVATED / WARNING / LOW / Leaked secrets / Dependency risks / AI agent risks)"
+    },
+    {
+      "surface": "Activity event filters (All / Scanner runs / Findings / Honey keys)",
+      "reason": "not clicked; filter buttons are present and look standard"
+    }
+  ],
+  "finding_counts": {
+    "user-blocking": 2,
+    "polished-but-lying": 7,
+    "half-built": 2,
+    "stale-promise": 2,
+    "total": 13
+  },
+  "evidence_dir": "evidence/",
+  "tooling": {
+    "primary": "chrome-devtools MCP",
+    "fallback_used": null,
+    "console_issues_observed": [
+      "A form field element should have an id or name attribute (count: 2)"
+    ]
+  }
+}
