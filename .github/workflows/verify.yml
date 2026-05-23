@@ -20,8 +20,6 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39 # v3
-        with:
-          python-version: "3.12"
       - name: Sync dev dependencies
         run: uv sync --dev
       - name: Run pytest
