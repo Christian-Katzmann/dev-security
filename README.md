@@ -19,6 +19,8 @@ DëvSec is the opposite shape: scanners run locally against a clone of the repo 
 Results stay under `~/.security-observatory`, nothing is uploaded, and no cloud LLM is required.
 The dashboard exists so you can read what the scanners actually found without grepping raw JSON.
 
+For the longer-form argument behind the local-first stance, see [PROVOCATION.md](PROVOCATION.md).
+
 ## What It Is
 
 - A local CLI: `security-scan`
@@ -454,6 +456,8 @@ scripts/                        Dashboard and desktop launcher scripts
 
 - [Setup guide](docs/setup.md)
 - [Architecture](docs/architecture.md)
+- [Glossary](docs/glossary.md) — finding, case, action level, confidence, honey key, evidence gap
+- [Architectural decisions](docs/decisions/) — accepted ADRs and a `REJECTED/` folder for paths considered and turned down
 - [Tool Catalog and Security Packs](docs/tool-catalog.md)
 - [Current scanner catalog mapping](docs/tool-catalog-current-scanners.md)
 - [Scanner explanations](docs/scanners.md)
