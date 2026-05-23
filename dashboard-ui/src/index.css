@@ -293,32 +293,6 @@ kbd {
   gap: 8px;
 }
 
-.agent-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #fff;
-  border: 1px solid var(--border-hair);
-}
-
-.agent-card strong,
-.agent-card span {
-  display: block;
-}
-
-.agent-card strong {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.agent-card span:not(.status-dot) {
-  font: 400 10px/1 var(--font-mono);
-  color: var(--ink-muted);
-  margin-top: 3px;
-}
-
 .status-dot {
   width: 8px;
   height: 8px;
@@ -384,7 +358,6 @@ kbd {
 
 .posture-pill,
 .toolbar-search,
-.icon-button,
 .button {
   height: 30px;
   display: inline-flex;
@@ -448,13 +421,6 @@ kbd {
   font-size: 10px;
 }
 
-.icon-button {
-  width: 32px;
-  padding: 0;
-  border-radius: 10px;
-  cursor: pointer;
-}
-
 .button {
   gap: 8px;
   padding: 0 14px;
@@ -502,13 +468,11 @@ kbd {
 }
 
 .button:active,
-.icon-button:active,
 .nav-row:active {
   transform: scale(0.98);
 }
 
-.button:disabled,
-.icon-button:disabled {
+.button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }

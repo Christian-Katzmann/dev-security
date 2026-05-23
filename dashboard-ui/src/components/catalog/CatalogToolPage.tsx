@@ -31,7 +31,7 @@ import {
   Download,
   ShieldCheck,
 } from 'lucide-react';
-import {DashboardSummary, ToolCatalogItem} from '../../dashboardData';
+import {DashboardSummary, ToolCatalogItem, formatRelativeTime} from '../../dashboardData';
 import {humanizeKey} from '../../uiHelpers';
 import {
   catalogCapabilityLabels,
@@ -273,7 +273,16 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
             <Kv label="Detection" value={catalogInstallDetectionLabels[tool.install.detection]} />
             <Kv label="Binary" value={tool.install.binary ?? 'Not required'} mono />
             <Kv label="Uninstall" value={catalogUninstallLabels[tool.install.uninstall_posture]} />
-            {runtimeItem && <Kv label="Last runtime" value={runtimeItem.status.replace('-', ' ')} />}
+            {runtimeItem && (() => {
+              const relative = formatRelativeTime(runtimeItem.last_run);
+              if (runtimeItem.status === 'ran' && relative) {
+                return <Kv label="Last runtime" value={relative} />;
+              }
+              if (runtimeItem.status === 'not-run' || runtimeItem.status === 'missing') {
+                return <Kv label="Last runtime" value="Never run" />;
+              }
+              return null;
+            })()}
           </dl>
           {tool.install.next_step && (
             <p className="catalog-tool-next-step">

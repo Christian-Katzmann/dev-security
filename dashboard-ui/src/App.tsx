@@ -65,7 +65,6 @@ import {
   Clock3,
   Copy,
   Database,
-  Download,
   EyeOff,
   FileCode2,
   FileText,
@@ -77,7 +76,6 @@ import {
   Layers3,
   ListChecks,
   Lock,
-  Pause,
   Play,
   Plus,
   RefreshCw,
@@ -559,7 +557,6 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
-  const [agentRunning, setAgentRunning] = useState(true);
   const [search, setSearch] = useState('');
 
   const loadSummary = useCallback(async () => {
@@ -731,7 +728,6 @@ export default function App() {
           targetRepos={targetRepos}
           onTargetChange={selectTarget}
           onNav={setActiveTab}
-          agentRunning={agentRunning}
         />
         <main className="mist-main">
           <Toolbar
@@ -742,8 +738,6 @@ export default function App() {
             setSearch={setSearch}
             isLoading={isLoading}
             error={error}
-            agentRunning={agentRunning}
-            setAgentRunning={setAgentRunning}
             onRunAll={runFullCheck}
             canRun={target.type === 'repo'}
             runAllHint={target.type === 'repo' ? 'Run all configured checks for the selected repo' : 'Pick a repo first'}
@@ -920,7 +914,6 @@ function Sidebar({
   targetRepos,
   onTargetChange,
   onNav,
-  agentRunning,
 }: {
   active: TabId;
   counts: Partial<Record<TabId, number>>;
@@ -928,7 +921,6 @@ function Sidebar({
   targetRepos: ProjectRepo[];
   onTargetChange: (value: string) => void;
   onNav: (tab: TabId) => void;
-  agentRunning: boolean;
 }) {
   return (
     <aside className="mist-sidebar">
@@ -966,13 +958,6 @@ function Sidebar({
           <Settings size={17} />
           <span>Settings</span>
         </button>
-        <div className="agent-card">
-          <span className={`status-dot ${agentRunning ? 'live' : 'paused'}`} />
-          <div>
-            <strong>Agent {agentRunning ? 'live' : 'paused'}</strong>
-            <span>{agentRunning ? 'tailing scanners' : 'tap resume'}</span>
-          </div>
-        </div>
       </div>
     </aside>
   );
@@ -986,8 +971,6 @@ function Toolbar({
   setSearch,
   isLoading,
   error,
-  agentRunning,
-  setAgentRunning,
   onRunAll,
   canRun,
   runAllHint,
@@ -999,8 +982,6 @@ function Toolbar({
   setSearch: (value: string) => void;
   isLoading: boolean;
   error: string | null;
-  agentRunning: boolean;
-  setAgentRunning: (value: boolean) => void;
   onRunAll: () => void;
   canRun: boolean;
   runAllHint: string;
@@ -1025,9 +1006,6 @@ function Toolbar({
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={searchPlaceholder} />
         <kbd>⌘K</kbd>
       </label>
-      <IconButton label={agentRunning ? 'Pause agent' : 'Resume agent'} onClick={() => setAgentRunning(!agentRunning)}>
-        {agentRunning ? <Pause size={15} /> : <Play size={15} />}
-      </IconButton>
       <Button
         variant="secondary"
         size="sm"
@@ -1809,9 +1787,7 @@ function SettingsView({summary, target, targetRepos, updatedAt, onTargetChange}:
           <SettingRow label="Honey Key retention" sub="Security log data used only for triage.">
             <strong>{summary.honey_event_retention_days ?? 90} days</strong>
           </SettingRow>
-          <SettingRow label="Generated reports" sub="Reports remain local unless you export or share them.">
-            <Button variant="secondary" size="sm" icon={<Download size={14} />}>Export</Button>
-          </SettingRow>
+          <SettingRow label="Generated reports" sub="Reports remain local unless you export or share them." />
         </div>
       </PaperCard>
       <DataCoverageCard summary={summary} />
@@ -2398,10 +2374,6 @@ function Button({children, variant = 'primary', size = 'md', icon, onClick, disa
   return <button type="button" className={`button ${variant} ${size}`} onClick={onClick} disabled={disabled} title={title} aria-label={ariaLabel}>{icon}{children}</button>;
 }
 
-function IconButton({children, label, onClick}: {children: ReactNode; label: string; onClick: () => void}) {
-  return <button type="button" className="icon-button" aria-label={label} title={label} onClick={onClick}>{children}</button>;
-}
-
 function PaperCard({children, className = '', padded = true, id}: {children: ReactNode; className?: string; padded?: boolean; id?: string}) {
   return <section id={id} className={`paper-card ${padded ? 'padded' : ''} ${className}`}>{children}</section>;
 }
@@ -2463,8 +2435,8 @@ function EmptyLine({title, detail}: {title: string; detail: string}) {
   return <div className="empty-line"><strong>{title}</strong><span>{detail}</span></div>;
 }
 
-function SettingRow({label, sub, children}: {label: string; sub: string; children: ReactNode}) {
-  return <div className="setting-row"><div><strong>{label}</strong><span>{sub}</span></div><div>{children}</div></div>;
+function SettingRow({label, sub, children}: {label: string; sub: string; children?: ReactNode}) {
+  return <div className="setting-row"><div><strong>{label}</strong><span>{sub}</span></div>{children !== undefined && <div>{children}</div>}</div>;
 }
 
 function ScanIcon(props: {size?: number; className?: string}) {
