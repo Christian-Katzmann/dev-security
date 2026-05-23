@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="en" data-resolution="landscape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      /* Eczar is not in the auto-resolved font set — bundle the latin subset locally.
+         The same woff2 file covers weights 500 and 600 because Eczar is variable. */
+      @font-face {
+        font-family: "Eczar";
+        font-style: normal;
+        font-weight: 500 600;
+        font-display: block;
+        src: url("./assets/fonts/eczar-500-latin.woff2") format("woff2");
+        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+          U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+          U+2212, U+2215, U+FEFF, U+FFFD;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        background: #2a2a2a;
+        font-family: "Inter", system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* ----- Scene container shared rules ----- */
+      .scene {
+        position: absolute;
+        inset: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+      }
+
+      /* ===========================================================
+         BEAT 1 — Problem on charcoal
+         =========================================================== */
+      #beat-1 {
+        background: #2a2a2a;
+      }
+      #beat-1 .stack {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 28px;
+        padding: 0 160px;
+      }
+      #beat-1 .line {
+        color: #ffffff;
+        font-family: "Inter", sans-serif;
+        font-weight: 500;
+        font-size: 56px;
+        letter-spacing: -0.01em;
+        text-align: center;
+        line-height: 1.25;
+        max-width: 1500px;
+      }
+      #beat-1 .line.emphasis {
+        font-weight: 600;
+        color: #ede4d6;
+      }
+
+      /* ===========================================================
+         BEAT 2 — Terminal then dashboard reveal on cream
+         =========================================================== */
+      #beat-2 {
+        background: #ede4d6;
+      }
+      #beat-2 .terminal {
+        position: absolute;
+        top: 180px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 1300px;
+        height: 560px;
+        background: #1f1f1f;
+        border-radius: 14px;
+        box-shadow: 0 30px 80px rgba(42, 42, 42, 0.18);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      #beat-2 .terminal .titlebar {
+        height: 36px;
+        background: #2a2a2a;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 0 16px;
+      }
+      #beat-2 .terminal .dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+      }
+      #beat-2 .terminal .dot.r {
+        background: #ff5f57;
+      }
+      #beat-2 .terminal .dot.y {
+        background: #febc2e;
+      }
+      #beat-2 .terminal .dot.g {
+        background: #28c840;
+      }
+      #beat-2 .terminal .title {
+        margin-left: 14px;
+        color: #ede4d6;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 14px;
+        opacity: 0.7;
+      }
+      #beat-2 .terminal .body {
+        flex: 1;
+        padding: 28px 32px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 20px;
+        line-height: 1.55;
+        color: #ede4d6;
+        overflow: hidden;
+      }
+      #beat-2 .terminal .body .line {
+        white-space: pre;
+      }
+      #beat-2 .terminal .b2-reveal {
+        opacity: 0;
+      }
+      #beat-2 .terminal .prompt {
+        color: #a5b9a5;
+      }
+      #beat-2 .terminal .cmd {
+        color: #ffffff;
+      }
+      #beat-2 .terminal .out {
+        color: #c5beb1;
+      }
+      #beat-2 .terminal .out .crit {
+        color: #e89280;
+        font-weight: 500;
+      }
+      #beat-2 .dashboard-shot {
+        position: absolute;
+        top: 70px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 1640px;
+        height: 940px;
+        background: url("./assets/overview.png") center / cover no-repeat;
+        border-radius: 12px;
+        box-shadow: 0 30px 80px rgba(42, 42, 42, 0.15);
+        opacity: 0;
+      }
+      #beat-2 .lower-subtitle {
+        position: absolute;
+        bottom: 70px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #2a2a2a;
+        font-family: "Inter", sans-serif;
+        font-weight: 500;
+        font-size: 48px;
+        letter-spacing: -0.005em;
+        text-align: center;
+        background: rgba(237, 228, 214, 0.92);
+        padding: 18px 36px;
+        border-radius: 10px;
+        opacity: 0;
+      }
+
+      /* ===========================================================
+         BEAT 3 — Case row drill + handoff card on cream
+         =========================================================== */
+      #beat-3 {
+        background: #ede4d6;
+      }
+      #beat-3 .stage {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+      }
+      #beat-3 .dashboard {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 1820px;
+        height: 1140px;
+        transform: translate(-50%, -50%);
+        background: url("./assets/overview.png") center / cover no-repeat;
+        border-radius: 8px;
+        transform-origin: 50% 78%;
+      }
+      #beat-3 .handoff {
+        position: absolute;
+        top: 110px;
+        right: 90px;
+        width: 760px;
+        background: #ffffff;
+        border: 1px solid #d6cdb9;
+        border-radius: 14px;
+        padding: 32px 36px 34px;
+        box-shadow: 0 30px 80px rgba(42, 42, 42, 0.15);
+        opacity: 0;
+        transform: translateX(40px);
+      }
+      #beat-3 .handoff .tag {
+        display: inline-block;
+        background: #2a2a2a;
+        color: #ede4d6;
+        font-family: "Inter", sans-serif;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 5px 10px;
+        border-radius: 4px;
+      }
+      #beat-3 .handoff h3 {
+        margin-top: 14px;
+        color: #2a2a2a;
+        font-family: "Inter", sans-serif;
+        font-size: 26px;
+        font-weight: 600;
+        letter-spacing: -0.005em;
+      }
+      #beat-3 .handoff pre {
+        margin-top: 18px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 15px;
+        line-height: 1.55;
+        color: #2a2a2a;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      #beat-3 .handoff pre .k {
+        color: #2a2a2a;
+        font-weight: 600;
+      }
+      #beat-3 .lower-subtitle {
+        position: absolute;
+        bottom: 70px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #2a2a2a;
+        font-family: "Inter", sans-serif;
+        font-weight: 500;
+        font-size: 44px;
+        letter-spacing: -0.005em;
+        text-align: center;
+        background: rgba(237, 228, 214, 0.94);
+        padding: 16px 30px;
+        border-radius: 10px;
+        opacity: 0;
+        max-width: 1400px;
+      }
+
+      /* ===========================================================
+         BEAT 4 — Montage + wordmark on cream
+         =========================================================== */
+      #beat-4 {
+        background: #ede4d6;
+      }
+      #beat-4 .montage-shot {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 1640px;
+        height: 1025px;
+        transform: translate(-50%, -50%);
+        border-radius: 10px;
+        box-shadow: 0 24px 60px rgba(42, 42, 42, 0.14);
+        background-position: center;
+        background-size: cover;
+        background-repeat: no-repeat;
+        opacity: 0;
+      }
+      #beat-4 .shot-overview {
+        background-image: url("./assets/overview.png");
+      }
+      #beat-4 .shot-catalog {
+        background-image: url("./assets/catalog.png");
+      }
+      #beat-4 .shot-settings {
+        background-image: url("./assets/settings.png");
+      }
+      #beat-4 .lower-subtitle {
+        position: absolute;
+        bottom: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #2a2a2a;
+        font-family: "Inter", sans-serif;
+        font-weight: 500;
+        font-size: 48px;
+        letter-spacing: -0.005em;
+        text-align: center;
+        background: rgba(237, 228, 214, 0.94);
+        padding: 16px 32px;
+        border-radius: 10px;
+        opacity: 0;
+      }
+      #beat-4 .endframe {
+        position: absolute;
+        inset: 0;
+        background: #ede4d6;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 38px;
+        opacity: 0;
+      }
+      #beat-4 .endframe .wordmark {
+        font-family: "Eczar", serif;
+        font-weight: 600;
+        font-size: 200px;
+        letter-spacing: 0.01em;
+        color: #2a2a2a;
+        line-height: 1;
+      }
+      #beat-4 .endframe .wordmark .brace {
+        color: #c89a4c;
+        margin: 0 22px;
+      }
+      #beat-4 .endframe .url {
+        font-family: "Inter", sans-serif;
+        font-weight: 500;
+        font-size: 30px;
+        color: #2a2a2a;
+        letter-spacing: -0.005em;
+        opacity: 0.85;
+      }
+      #beat-4 .blackout {
+        position: absolute;
+        inset: 0;
+        background: #000000;
+        opacity: 0;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div
+      id="root"
+      data-composition-id="main"
+      data-start="0"
+      data-duration="47"
+      data-width="1920"
+      data-height="1080"
+    >
+      <!-- ====================== BEAT 1 ====================== -->
+      <div
+        id="beat-1"
+        class="clip scene"
+        data-start="0"
+        data-duration="8"
+        data-track-index="0"
+      >
+        <div class="stack">
+          <div class="line" id="b1-line-1">
+            Most security tools send your source code to a SaaS.
+          </div>
+          <div class="line emphasis" id="b1-line-2">DëvSec doesn't.</div>
+        </div>
+      </div>
+
+      <!-- ====================== BEAT 2 ====================== -->
+      <div
+        id="beat-2"
+        class="clip scene"
+        data-start="7.6"
+        data-duration="14.8"
+        data-track-index="1"
+      >
+        <div class="dashboard-shot" id="b2-dashboard"></div>
+        <div class="terminal" id="b2-terminal">
+          <div class="titlebar">
+            <span class="dot r"></span><span class="dot y"></span
+            ><span class="dot g"></span>
+            <span class="title">dev-security — security-scan</span>
+          </div>
+          <div class="body" id="b2-body"><div class="line"><span class="prompt">$</span> <span class="cmd b2-reveal" id="b2-cmd">security-scan .</span></div><div class="line b2-reveal out">&nbsp;</div><div class="line b2-reveal out">Security Observatory</div><div class="line b2-reveal out">Local store: ~/.security-observatory</div><div class="line b2-reveal out">&nbsp;</div><div class="line b2-reveal out">Repo                          Health  Crit  High   Med Secrets AI-risk</div><div class="line b2-reveal out">--------------------------------------------------------------------------</div><div class="line b2-reveal out">dëv-security                     <span class="crit">0.0    10    48   388</span>       0       4</div><div class="line b2-reveal out">&nbsp;</div><div class="line b2-reveal out">dëv-security: normalized report ~/.security-observatory/scans/...</div></div>
+        </div>
+        <div class="lower-subtitle" id="b2-sub">
+          Scanners run on your machine.
+        </div>
+      </div>
+
+      <!-- ====================== BEAT 3 ====================== -->
+      <div
+        id="beat-3"
+        class="clip scene"
+        data-start="22"
+        data-duration="16.4"
+        data-track-index="2"
+      >
+        <div class="stage" data-layout-allow-overflow>
+          <div class="dashboard" id="b3-dash" data-layout-allow-overflow></div>
+          <div class="handoff" id="b3-handoff">
+            <span class="tag">AI prompt · ready to copy</span>
+            <h3>stdlib dependency vulnerability CVE-2025-68121</h3>
+            <pre><span class="k">Case:</span> stdlib dependency vulnerability CVE-2025-68121
+<span class="k">Risk:</span> An attacker reaching this dependency can run code
+      with the rights of the host process.
+<span class="k">Evidence:</span>
+- grype: CVE-2025-68121 at package: stdlib (1.21.0 → 1.22.4)
+<span class="k">Verification steps:</span>
+- Inspect the referenced files and confirm the scanner result is real.
+- Decide whether this is exploitable in this project, not just
+  theoretically possible.
+<span class="k">Fix steps:</span>
+- Upgrade to the smallest safe version that fixes the issue.
+- Re-run the matching DëvSec dependency check.</pre>
+          </div>
+        </div>
+        <div class="lower-subtitle" id="b3-sub-a">
+          500 findings, grouped into 41 cases.
+        </div>
+        <div class="lower-subtitle" id="b3-sub-b">
+          Each case carries a fix path — ready for the agent you already trust.
+        </div>
+      </div>
+
+      <!-- ====================== BEAT 4 ====================== -->
+      <div
+        id="beat-4"
+        class="clip scene"
+        data-start="38"
+        data-duration="9"
+        data-track-index="3"
+      >
+        <div class="montage-shot shot-overview" id="b4-shot-1"></div>
+        <div class="montage-shot shot-catalog" id="b4-shot-2"></div>
+        <div class="montage-shot shot-settings" id="b4-shot-3"></div>
+        <div class="lower-subtitle" id="b4-sub">
+          Local SQLite. 127.0.0.1. No cloud LLM.
+        </div>
+        <div class="endframe" id="b4-endframe">
+          <div class="wordmark">
+            <span class="brace">{</span>DËVSEC<span class="brace">}</span>
+          </div>
+          <div class="url">github.com/Christian-Katzmann/dev-security</div>
+        </div>
+        <div class="blackout" id="b4-blackout"></div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+
+      const tl = gsap.timeline({ paused: true });
+
+      // ===================== BEAT 1 =====================
+      // line 1: fade in 0.3s, hold; line 2: fade in at 5.2s, hold.
+      // Outgoing fade is the scene's data-duration end — no exit tween.
+      tl.from(
+        "#b1-line-1",
+        { opacity: 0, y: 16, duration: 0.7, ease: "power2.out" },
+        0.4,
+      );
+      tl.from(
+        "#b1-line-2",
+        { opacity: 0, y: 16, duration: 0.6, ease: "power2.out" },
+        5.2,
+      );
+
+      // ===================== BEAT 2 =====================
+      // Scene starts at 7.6 (0.4s overlap with Beat 1 for crossfade).
+
+      // Scene crossfade-in.
+      tl.from(
+        "#beat-2",
+        { opacity: 0, duration: 0.4, ease: "power1.out" },
+        7.6,
+      );
+
+      // Terminal enters: gentle scale-up + fade in.
+      tl.from(
+        "#b2-terminal",
+        { opacity: 0, y: 24, scale: 0.985, duration: 0.7, ease: "power3.out" },
+        8.0,
+      );
+
+      // Command "security-scan ." appears (paste-in — instant) at t=9.0.
+      tl.to("#b2-cmd", { opacity: 1, duration: 0.05, ease: "none" }, 9.0);
+
+      // Scanner output streams. Lines after the command reveal in a fast stagger
+      // — "fast scroll, readability isn't the point; presence of real output is".
+      // The visible payload is real `security-scan` output (from print_human_summary()
+      // in src/security_observatory/cli.py) matching the demo data thread:
+      // posture 0.0, 10 critical, 48 high, 388 medium, 4 AI-risk.
+      tl.to(
+        ".b2-reveal:not(#b2-cmd)",
+        {
+          opacity: 1,
+          duration: 0.18,
+          ease: "none",
+          stagger: 0.22,
+        },
+        9.6,
+      );
+
+      // Dashboard reveal: terminal recedes (scale + fade), dashboard fades in over it.
+      // Reveal starts at t=12.5; dashboard up at t=12.9; subtitle lands at t=13.4.
+      tl.to(
+        "#b2-terminal",
+        { opacity: 0, scale: 0.96, duration: 0.6, ease: "power2.in" },
+        12.5,
+      );
+      tl.to(
+        "#b2-dashboard",
+        { opacity: 1, duration: 0.7, ease: "power3.out" },
+        12.9,
+      );
+      tl.to(
+        "#b2-sub",
+        { opacity: 1, duration: 0.5, ease: "power2.out" },
+        13.4,
+      );
+
+      // Slow settle: dashboard barely scales (1.0 -> 1.03 over the rest of the beat).
+      tl.fromTo(
+        "#b2-dashboard",
+        { scale: 1.0 },
+        { scale: 1.03, duration: 7.0, ease: "power1.inOut" },
+        13.6,
+      );
+
+      // ===================== BEAT 3 =====================
+      // Scene starts at 22.0 (0.4s overlap with Beat 2).
+      tl.from(
+        "#beat-3",
+        { opacity: 0, duration: 0.4, ease: "power1.out" },
+        22.0,
+      );
+
+      // Dashboard arrives at full size, then pans/zooms toward the case row in
+      // the Open Findings list. The transform-origin (50% 78%) puts the zoom
+      // around the lower-middle area where the case list sits.
+      tl.fromTo(
+        "#b3-dash",
+        { scale: 1.0, opacity: 1 },
+        { scale: 1.0, duration: 0.01 },
+        22.0,
+      );
+      tl.to(
+        "#b3-dash",
+        { scale: 1.18, duration: 5.0, ease: "power2.inOut" },
+        22.6,
+      );
+
+      // First subtitle lands during the zoom-in.
+      tl.to(
+        "#b3-sub-a",
+        { opacity: 1, duration: 0.5, ease: "power2.out" },
+        23.0,
+      );
+
+      // Subtitle A swaps for subtitle B. Since subtitle A is timed visibility,
+      // we leave it on screen until the clip's natural end. Subtitle B fades
+      // in at 28.6, layered slightly above A on the same lower-third.
+      // To prevent visual overlap, hide A right before B enters.
+      tl.set("#b3-sub-a", { opacity: 0 }, 28.4);
+
+      tl.to(
+        "#b3-sub-b",
+        { opacity: 1, duration: 0.6, ease: "power2.out" },
+        28.6,
+      );
+
+      // Handoff card slides in from the right as the second subtitle lands.
+      tl.to(
+        "#b3-handoff",
+        { opacity: 1, x: 0, duration: 0.7, ease: "expo.out" },
+        29.0,
+      );
+
+      // Hold the handoff for the rest of the beat.
+
+      // ===================== BEAT 4 =====================
+      // Scene starts at 38.0 (0.4s overlap with Beat 3).
+      tl.from(
+        "#beat-4",
+        { opacity: 0, duration: 0.4, ease: "power1.out" },
+        38.0,
+      );
+
+      // Three-shot montage. Each held ~1.4s, with 0.3s crossfades.
+      // Beat starts at 38; montage from 38.2 to 42.5; subtitle holds throughout;
+      // wordmark enters at 42.5.
+
+      // Shot 1 — Overview
+      tl.to("#b4-shot-1", { opacity: 1, duration: 0.35, ease: "power2.out" }, 38.2);
+      // Shot 2 — Tool Catalog
+      tl.to("#b4-shot-2", { opacity: 1, duration: 0.35, ease: "power2.out" }, 39.55);
+      // Shot 3 — Settings
+      tl.to("#b4-shot-3", { opacity: 1, duration: 0.35, ease: "power2.out" }, 40.9);
+
+      // Subtitle: holds across the montage, exits when wordmark arrives.
+      tl.to(
+        "#b4-sub",
+        { opacity: 1, duration: 0.45, ease: "power2.out" },
+        38.5,
+      );
+
+      // End frame: cream pane covers the montage, wordmark fades in slowly.
+      tl.to("#b4-endframe", { opacity: 1, duration: 0.7, ease: "power2.out" }, 42.2);
+
+      // Fade to black on the very last beats (this is the final scene — exits are allowed here).
+      tl.to("#b4-blackout", { opacity: 1, duration: 1.2, ease: "power2.inOut" }, 45.8);
+
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

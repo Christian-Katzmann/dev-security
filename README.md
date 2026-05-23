@@ -6,7 +6,11 @@ A practical security sweep for repos you actually work in. DëvSec runs establis
 
 **Status:** 0.1.x — early. Local scanning works well; the dashboard is honest about what's still partial.
 
-![DëvSec overview — local dashboard showing posture score, open findings, and recent scan activity](docs/images/overview.png)
+<video src="design/trailer/trailer.mp4" controls width="100%" poster="design/screenshots/01-overview.png">
+  Your browser does not support embedded video. <a href="design/trailer/trailer.mp4">Download the 47-second trailer (5.7 MB).</a>
+</video>
+
+*The dashboard groups raw scanner output into action-level cases — each carries plain-English risk, severity, and an agent-ready handoff prompt. The 0.0 / 10 posture is real: this is DëvSec scanning itself.*
 
 ## Why this exists
 
@@ -32,6 +36,20 @@ The dashboard exists so you can read what the scanners actually found without gr
 - Not a replacement for manual review, threat modeling, or production monitoring
 - Not proof that a repository is safe when scans come back clean
 - Not dependent on paid APIs, token-based analysis, or hidden SaaS services
+
+## Screens
+
+![Recovery playbooks page showing three category-level playbooks and a detailed dependency upgrade playbook](design/screenshots/02-recovery-playbooks.png)
+
+*Cases roll up into category-level playbooks — 41 stdlib CVE findings become one "Upgrade vulnerable dependencies" playbook with steps, a wall-clock estimate, and an AI-prompt handoff, not 41 separate tickets.*
+
+![Tool Catalog home page with featured security packs](design/screenshots/03-tool-catalog.png)
+
+*Every scanner is named with install state (built-in, detected-locally, managed-install, coming soon) and a per-tool policy that gates network access, credentials, and file writes — the catalog is the contract; nothing runs that hasn't been approved in it.*
+
+![Settings page showing workspace controls, privacy and storage panel, and data coverage](design/screenshots/04-settings.png)
+
+*Repository snapshots, history records, and active findings are stored in local SQLite under `~/.security-observatory`; the Settings page shows you what the dashboard has on hand and reinforces that reports never leave the machine unless you export them.*
 
 ## Current Features
 
