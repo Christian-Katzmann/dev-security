@@ -5,18 +5,6 @@
     <meta name="viewport" content="width=1920, height=1080" />
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
     <style>
-      /* Eczar is not in the auto-resolved font set — bundle the latin subset locally.
-         The same woff2 file covers weights 500 and 600 because Eczar is variable. */
-      @font-face {
-        font-family: "Eczar";
-        font-style: normal;
-        font-weight: 500 600;
-        font-display: block;
-        src: url("./assets/fonts/eczar-500-latin.woff2") format("woff2");
-        unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
-          U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
-          U+2212, U+2215, U+FEFF, U+FFFD;
-      }
       * {
         margin: 0;
         padding: 0;
@@ -28,12 +16,11 @@
         width: 1920px;
         height: 1080px;
         overflow: hidden;
-        background: #2a2a2a;
+        background: #ede4d6;
         font-family: "Inter", system-ui, sans-serif;
         -webkit-font-smoothing: antialiased;
       }
 
-      /* ----- Scene container shared rules ----- */
       .scene {
         position: absolute;
         inset: 0;
@@ -42,50 +29,131 @@
         overflow: hidden;
       }
 
-      /* ===========================================================
-         BEAT 1 — Problem on charcoal
-         =========================================================== */
-      #beat-1 {
-        background: #2a2a2a;
-      }
-      #beat-1 .stack {
+      /* =========================================================
+         Shared: browser-chromed dashboard window
+         ========================================================= */
+      .browser {
         position: absolute;
-        inset: 0;
+        top: 50%;
+        left: 50%;
+        width: 1620px;
+        height: 980px;
+        transform: translate(-50%, -50%);
+        background: #ffffff;
+        border-radius: 14px;
+        box-shadow: 0 36px 90px rgba(42, 42, 42, 0.18),
+          0 6px 20px rgba(42, 42, 42, 0.08);
+        overflow: hidden;
         display: flex;
         flex-direction: column;
-        justify-content: center;
+      }
+      .browser .chrome {
+        flex: 0 0 46px;
+        background: #f3ecdc;
+        border-bottom: 1px solid #dccfb3;
+        display: flex;
         align-items: center;
-        gap: 28px;
-        padding: 0 160px;
+        padding: 0 18px;
+        gap: 8px;
       }
-      #beat-1 .line {
-        color: #ffffff;
-        font-family: "Inter", sans-serif;
-        font-weight: 500;
-        font-size: 56px;
-        letter-spacing: -0.01em;
+      .browser .chrome .dot {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+      }
+      .browser .chrome .dot.r {
+        background: #ff5f57;
+      }
+      .browser .chrome .dot.y {
+        background: #febc2e;
+      }
+      .browser .chrome .dot.g {
+        background: #28c840;
+      }
+      .browser .chrome .urlbar {
+        flex: 1;
+        max-width: 720px;
+        margin: 0 auto;
+        background: #ede4d6;
+        border-radius: 8px;
+        padding: 6px 18px;
+        font-family: "JetBrains Mono", monospace;
+        font-size: 16px;
+        color: #2a2a2a;
         text-align: center;
-        line-height: 1.25;
-        max-width: 1500px;
+        border: 1px solid #d6cdb9;
+        opacity: 0.88;
       }
-      #beat-1 .line.emphasis {
-        font-weight: 600;
-        color: #ede4d6;
+      .browser .urlbar .scheme {
+        color: #7a8d7a;
+        margin-right: 6px;
+      }
+      .browser .content {
+        flex: 1;
+        background-position: top center;
+        background-size: cover;
+        background-repeat: no-repeat;
+      }
+      .browser.shot-overview .content {
+        background-image: url("./assets/overview.png");
+      }
+      .browser.shot-catalog .content {
+        background-image: url("./assets/catalog.png");
+      }
+      .browser.shot-playbooks .content {
+        background-image: url("./assets/playbooks.png");
       }
 
       /* ===========================================================
-         BEAT 2 — Terminal then dashboard reveal on cream
+         BEAT 1 — Cold open: dashboard already on screen,
+         subtitle layers in over it.
+         =========================================================== */
+      #beat-1 {
+        background: #ede4d6;
+      }
+      #beat-1 .subtitle-stack {
+        position: absolute;
+        bottom: 80px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        max-width: 1600px;
+      }
+      #beat-1 .line {
+        background: #2a2a2a;
+        color: #ede4d6;
+        font-family: "Inter", sans-serif;
+        font-weight: 500;
+        font-size: 44px;
+        letter-spacing: -0.005em;
+        line-height: 1.2;
+        text-align: center;
+        padding: 14px 28px;
+        border-radius: 10px;
+        opacity: 0;
+      }
+      #beat-1 .line.emphasis {
+        background: #2a2a2a;
+        color: #ffffff;
+        font-weight: 600;
+      }
+
+      /* ===========================================================
+         BEAT 2 — Terminal scene → dashboard re-establishes
          =========================================================== */
       #beat-2 {
         background: #ede4d6;
       }
       #beat-2 .terminal {
         position: absolute;
-        top: 180px;
+        top: 50%;
         left: 50%;
-        transform: translateX(-50%);
-        width: 1300px;
-        height: 560px;
+        width: 1500px;
+        height: 720px;
+        transform: translate(-50%, -50%);
         background: #1f1f1f;
         border-radius: 14px;
         box-shadow: 0 30px 80px rgba(42, 42, 42, 0.18);
@@ -94,28 +162,28 @@
         flex-direction: column;
       }
       #beat-2 .terminal .titlebar {
-        height: 36px;
+        height: 38px;
         background: #2a2a2a;
         display: flex;
         align-items: center;
         gap: 8px;
         padding: 0 16px;
       }
-      #beat-2 .terminal .dot {
-        width: 12px;
-        height: 12px;
+      #beat-2 .terminal .titlebar .dot {
+        width: 13px;
+        height: 13px;
         border-radius: 50%;
       }
-      #beat-2 .terminal .dot.r {
+      #beat-2 .terminal .titlebar .dot.r {
         background: #ff5f57;
       }
-      #beat-2 .terminal .dot.y {
+      #beat-2 .terminal .titlebar .dot.y {
         background: #febc2e;
       }
-      #beat-2 .terminal .dot.g {
+      #beat-2 .terminal .titlebar .dot.g {
         background: #28c840;
       }
-      #beat-2 .terminal .title {
+      #beat-2 .terminal .titlebar .title {
         margin-left: 14px;
         color: #ede4d6;
         font-family: "JetBrains Mono", monospace;
@@ -124,9 +192,9 @@
       }
       #beat-2 .terminal .body {
         flex: 1;
-        padding: 28px 32px;
+        padding: 36px 40px;
         font-family: "JetBrains Mono", monospace;
-        font-size: 20px;
+        font-size: 22px;
         line-height: 1.55;
         color: #ede4d6;
         overflow: hidden;
@@ -150,16 +218,7 @@
         color: #e89280;
         font-weight: 500;
       }
-      #beat-2 .dashboard-shot {
-        position: absolute;
-        top: 70px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 1640px;
-        height: 940px;
-        background: url("./assets/overview.png") center / cover no-repeat;
-        border-radius: 12px;
-        box-shadow: 0 30px 80px rgba(42, 42, 42, 0.15);
+      #beat-2 .browser {
         opacity: 0;
       }
       #beat-2 .lower-subtitle {
@@ -167,20 +226,20 @@
         bottom: 70px;
         left: 50%;
         transform: translateX(-50%);
-        color: #2a2a2a;
+        color: #ede4d6;
         font-family: "Inter", sans-serif;
         font-weight: 500;
-        font-size: 48px;
+        font-size: 44px;
         letter-spacing: -0.005em;
         text-align: center;
-        background: rgba(237, 228, 214, 0.92);
-        padding: 18px 36px;
+        background: #2a2a2a;
+        padding: 14px 30px;
         border-radius: 10px;
         opacity: 0;
       }
 
       /* ===========================================================
-         BEAT 3 — Case row drill + handoff card on cream
+         BEAT 3 — Camera move into case row + handoff card
          =========================================================== */
       #beat-3 {
         background: #ede4d6;
@@ -190,16 +249,8 @@
         inset: 0;
         overflow: hidden;
       }
-      #beat-3 .dashboard {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 1820px;
-        height: 1140px;
-        transform: translate(-50%, -50%);
-        background: url("./assets/overview.png") center / cover no-repeat;
-        border-radius: 8px;
-        transform-origin: 50% 78%;
+      #beat-3 .browser {
+        transform-origin: 50% 70%;
       }
       #beat-3 .handoff {
         position: absolute;
@@ -210,9 +261,10 @@
         border: 1px solid #d6cdb9;
         border-radius: 14px;
         padding: 32px 36px 34px;
-        box-shadow: 0 30px 80px rgba(42, 42, 42, 0.15);
+        box-shadow: 0 30px 80px rgba(42, 42, 42, 0.18);
         opacity: 0;
         transform: translateX(40px);
+        z-index: 5;
       }
       #beat-3 .handoff .tag {
         display: inline-block;
@@ -252,61 +304,41 @@
         bottom: 70px;
         left: 50%;
         transform: translateX(-50%);
-        color: #2a2a2a;
+        color: #ede4d6;
         font-family: "Inter", sans-serif;
         font-weight: 500;
-        font-size: 44px;
+        font-size: 40px;
         letter-spacing: -0.005em;
         text-align: center;
-        background: rgba(237, 228, 214, 0.94);
-        padding: 16px 30px;
+        background: #2a2a2a;
+        padding: 14px 26px;
         border-radius: 10px;
         opacity: 0;
-        max-width: 1400px;
+        max-width: 1500px;
       }
 
       /* ===========================================================
-         BEAT 4 — Montage + wordmark on cream
+         BEAT 4 — Three-shot montage + end frame
          =========================================================== */
       #beat-4 {
         background: #ede4d6;
       }
-      #beat-4 .montage-shot {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 1640px;
-        height: 1025px;
-        transform: translate(-50%, -50%);
-        border-radius: 10px;
-        box-shadow: 0 24px 60px rgba(42, 42, 42, 0.14);
-        background-position: center;
-        background-size: cover;
-        background-repeat: no-repeat;
+      #beat-4 .browser {
         opacity: 0;
-      }
-      #beat-4 .shot-overview {
-        background-image: url("./assets/overview.png");
-      }
-      #beat-4 .shot-catalog {
-        background-image: url("./assets/catalog.png");
-      }
-      #beat-4 .shot-settings {
-        background-image: url("./assets/settings.png");
       }
       #beat-4 .lower-subtitle {
         position: absolute;
         bottom: 80px;
         left: 50%;
         transform: translateX(-50%);
-        color: #2a2a2a;
+        color: #ede4d6;
         font-family: "Inter", sans-serif;
         font-weight: 500;
-        font-size: 48px;
+        font-size: 44px;
         letter-spacing: -0.005em;
         text-align: center;
-        background: rgba(237, 228, 214, 0.94);
-        padding: 16px 32px;
+        background: #2a2a2a;
+        padding: 14px 30px;
         border-radius: 10px;
         opacity: 0;
       }
@@ -318,20 +350,14 @@
         flex-direction: column;
         justify-content: center;
         align-items: center;
-        gap: 38px;
+        gap: 32px;
         opacity: 0;
+        z-index: 10;
       }
-      #beat-4 .endframe .wordmark {
-        font-family: "Eczar", serif;
-        font-weight: 600;
-        font-size: 200px;
-        letter-spacing: 0.01em;
-        color: #2a2a2a;
-        line-height: 1;
-      }
-      #beat-4 .endframe .wordmark .brace {
-        color: #c89a4c;
-        margin: 0 22px;
+      #beat-4 .endframe .wordmark-img {
+        width: 880px;
+        height: auto;
+        display: block;
       }
       #beat-4 .endframe .url {
         font-family: "Inter", sans-serif;
@@ -347,6 +373,7 @@
         background: #000000;
         opacity: 0;
         pointer-events: none;
+        z-index: 20;
       }
     </style>
   </head>
@@ -359,7 +386,7 @@
       data-width="1920"
       data-height="1080"
     >
-      <!-- ====================== BEAT 1 ====================== -->
+      <!-- ====================== BEAT 1 — Cold open on dashboard ====================== -->
       <div
         id="beat-1"
         class="clip scene"
@@ -367,7 +394,15 @@
         data-duration="8"
         data-track-index="0"
       >
-        <div class="stack">
+        <div class="browser shot-overview" id="b1-browser">
+          <div class="chrome">
+            <span class="dot r"></span><span class="dot y"></span
+            ><span class="dot g"></span>
+            <div class="urlbar"><span class="scheme">http://</span>127.0.0.1:8765/overview</div>
+          </div>
+          <div class="content"></div>
+        </div>
+        <div class="subtitle-stack">
           <div class="line" id="b1-line-1">
             Most security tools send your source code to a SaaS.
           </div>
@@ -375,7 +410,7 @@
         </div>
       </div>
 
-      <!-- ====================== BEAT 2 ====================== -->
+      <!-- ====================== BEAT 2 — Terminal then dashboard ====================== -->
       <div
         id="beat-2"
         class="clip scene"
@@ -383,7 +418,14 @@
         data-duration="14.8"
         data-track-index="1"
       >
-        <div class="dashboard-shot" id="b2-dashboard"></div>
+        <div class="browser shot-overview" id="b2-browser">
+          <div class="chrome">
+            <span class="dot r"></span><span class="dot y"></span
+            ><span class="dot g"></span>
+            <div class="urlbar"><span class="scheme">http://</span>127.0.0.1:8765/overview</div>
+          </div>
+          <div class="content"></div>
+        </div>
         <div class="terminal" id="b2-terminal">
           <div class="titlebar">
             <span class="dot r"></span><span class="dot y"></span
@@ -397,7 +439,7 @@
         </div>
       </div>
 
-      <!-- ====================== BEAT 3 ====================== -->
+      <!-- ====================== BEAT 3 — Drill into case + handoff card ====================== -->
       <div
         id="beat-3"
         class="clip scene"
@@ -406,7 +448,14 @@
         data-track-index="2"
       >
         <div class="stage" data-layout-allow-overflow>
-          <div class="dashboard" id="b3-dash" data-layout-allow-overflow></div>
+          <div class="browser shot-overview" id="b3-browser" data-layout-allow-overflow>
+            <div class="chrome">
+              <span class="dot r"></span><span class="dot y"></span
+              ><span class="dot g"></span>
+              <div class="urlbar"><span class="scheme">http://</span>127.0.0.1:8765/findings</div>
+            </div>
+            <div class="content"></div>
+          </div>
           <div class="handoff" id="b3-handoff">
             <span class="tag">AI prompt · ready to copy</span>
             <h3>stdlib dependency vulnerability CVE-2025-68121</h3>
@@ -432,7 +481,7 @@
         </div>
       </div>
 
-      <!-- ====================== BEAT 4 ====================== -->
+      <!-- ====================== BEAT 4 — Montage + end frame ====================== -->
       <div
         id="beat-4"
         class="clip scene"
@@ -440,16 +489,35 @@
         data-duration="9"
         data-track-index="3"
       >
-        <div class="montage-shot shot-overview" id="b4-shot-1"></div>
-        <div class="montage-shot shot-catalog" id="b4-shot-2"></div>
-        <div class="montage-shot shot-settings" id="b4-shot-3"></div>
+        <div class="browser shot-overview" id="b4-shot-1">
+          <div class="chrome">
+            <span class="dot r"></span><span class="dot y"></span
+            ><span class="dot g"></span>
+            <div class="urlbar"><span class="scheme">http://</span>127.0.0.1:8765/overview</div>
+          </div>
+          <div class="content"></div>
+        </div>
+        <div class="browser shot-catalog" id="b4-shot-2">
+          <div class="chrome">
+            <span class="dot r"></span><span class="dot y"></span
+            ><span class="dot g"></span>
+            <div class="urlbar"><span class="scheme">http://</span>127.0.0.1:8765/tool-catalog</div>
+          </div>
+          <div class="content"></div>
+        </div>
+        <div class="browser shot-playbooks" id="b4-shot-3">
+          <div class="chrome">
+            <span class="dot r"></span><span class="dot y"></span
+            ><span class="dot g"></span>
+            <div class="urlbar"><span class="scheme">http://</span>127.0.0.1:8765/recovery-playbooks</div>
+          </div>
+          <div class="content"></div>
+        </div>
         <div class="lower-subtitle" id="b4-sub">
           Local SQLite. 127.0.0.1. No cloud LLM.
         </div>
         <div class="endframe" id="b4-endframe">
-          <div class="wordmark">
-            <span class="brace">{</span>DËVSEC<span class="brace">}</span>
-          </div>
+          <img class="wordmark-img" src="./assets/wordmark.png" alt="" />
           <div class="url">github.com/Christian-Katzmann/dev-security</div>
         </div>
         <div class="blackout" id="b4-blackout"></div>
@@ -458,48 +526,51 @@
 
     <script>
       window.__timelines = window.__timelines || {};
-
       const tl = gsap.timeline({ paused: true });
 
-      // ===================== BEAT 1 =====================
-      // line 1: fade in 0.3s, hold; line 2: fade in at 5.2s, hold.
-      // Outgoing fade is the scene's data-duration end — no exit tween.
-      tl.from(
+      // ===================== BEAT 1 — Cold open =====================
+      // Dashboard already on screen at t=0. Very subtle scale "settling"
+      // motion so the frame breathes a bit (1.02 → 1.0) instead of being dead-still.
+      tl.fromTo(
+        "#b1-browser",
+        { scale: 1.03 },
+        { scale: 1.0, duration: 8.0, ease: "power1.out" },
+        0,
+      );
+
+      // Subtitle layers in over the dashboard. The dashboard provides context;
+      // the subtitle delivers the claim.
+      tl.to(
         "#b1-line-1",
-        { opacity: 0, y: 16, duration: 0.7, ease: "power2.out" },
-        0.4,
+        { opacity: 1, duration: 0.6, ease: "power2.out" },
+        1.6,
       );
-      tl.from(
+      tl.to(
         "#b1-line-2",
-        { opacity: 0, y: 16, duration: 0.6, ease: "power2.out" },
-        5.2,
+        { opacity: 1, duration: 0.6, ease: "power2.out" },
+        4.6,
       );
 
-      // ===================== BEAT 2 =====================
-      // Scene starts at 7.6 (0.4s overlap with Beat 1 for crossfade).
-
-      // Scene crossfade-in.
+      // ===================== BEAT 2 — Terminal then dashboard =====================
       tl.from(
         "#beat-2",
         { opacity: 0, duration: 0.4, ease: "power1.out" },
         7.6,
       );
 
-      // Terminal enters: gentle scale-up + fade in.
+      // Terminal enters.
       tl.from(
         "#b2-terminal",
         { opacity: 0, y: 24, scale: 0.985, duration: 0.7, ease: "power3.out" },
         8.0,
       );
 
-      // Command "security-scan ." appears (paste-in — instant) at t=9.0.
+      // Command appears as a paste-in.
       tl.to("#b2-cmd", { opacity: 1, duration: 0.05, ease: "none" }, 9.0);
 
-      // Scanner output streams. Lines after the command reveal in a fast stagger
-      // — "fast scroll, readability isn't the point; presence of real output is".
-      // The visible payload is real `security-scan` output (from print_human_summary()
-      // in src/security_observatory/cli.py) matching the demo data thread:
-      // posture 0.0, 10 critical, 48 high, 388 medium, 4 AI-risk.
+      // Real `security-scan` output streams in (fast stagger; readability isn't the point,
+      // presence of real output is). Pulled verbatim from print_human_summary() in
+      // src/security_observatory/cli.py with the demo-thread numbers.
       tl.to(
         ".b2-reveal:not(#b2-cmd)",
         {
@@ -511,51 +582,44 @@
         9.6,
       );
 
-      // Dashboard reveal: terminal recedes (scale + fade), dashboard fades in over it.
-      // Reveal starts at t=12.5; dashboard up at t=12.9; subtitle lands at t=13.4.
+      // Terminal recedes, browser-chromed dashboard fades in over it.
       tl.to(
         "#b2-terminal",
         { opacity: 0, scale: 0.96, duration: 0.6, ease: "power2.in" },
         12.5,
       );
       tl.to(
-        "#b2-dashboard",
+        "#b2-browser",
         { opacity: 1, duration: 0.7, ease: "power3.out" },
         12.9,
       );
+
+      // Subtitle lands as the dashboard settles.
       tl.to(
         "#b2-sub",
         { opacity: 1, duration: 0.5, ease: "power2.out" },
         13.4,
       );
 
-      // Slow settle: dashboard barely scales (1.0 -> 1.03 over the rest of the beat).
+      // Subtle settling motion on the dashboard for the rest of the beat.
       tl.fromTo(
-        "#b2-dashboard",
+        "#b2-browser",
         { scale: 1.0 },
-        { scale: 1.03, duration: 7.0, ease: "power1.inOut" },
+        { scale: 1.025, duration: 7.0, ease: "power1.inOut" },
         13.6,
       );
 
-      // ===================== BEAT 3 =====================
-      // Scene starts at 22.0 (0.4s overlap with Beat 2).
+      // ===================== BEAT 3 — Drill into case + handoff =====================
       tl.from(
         "#beat-3",
         { opacity: 0, duration: 0.4, ease: "power1.out" },
         22.0,
       );
 
-      // Dashboard arrives at full size, then pans/zooms toward the case row in
-      // the Open Findings list. The transform-origin (50% 78%) puts the zoom
-      // around the lower-middle area where the case list sits.
+      // Camera move: programmatic zoom into the dashboard's open-findings list area.
       tl.fromTo(
-        "#b3-dash",
-        { scale: 1.0, opacity: 1 },
-        { scale: 1.0, duration: 0.01 },
-        22.0,
-      );
-      tl.to(
-        "#b3-dash",
+        "#b3-browser",
+        { scale: 1.0 },
         { scale: 1.18, duration: 5.0, ease: "power2.inOut" },
         22.6,
       );
@@ -567,10 +631,7 @@
         23.0,
       );
 
-      // Subtitle A swaps for subtitle B. Since subtitle A is timed visibility,
-      // we leave it on screen until the clip's natural end. Subtitle B fades
-      // in at 28.6, layered slightly above A on the same lower-third.
-      // To prevent visual overlap, hide A right before B enters.
+      // Swap subtitle A → subtitle B at t=28.4 (A is hidden, B fades in).
       tl.set("#b3-sub-a", { opacity: 0 }, 28.4);
 
       tl.to(
@@ -586,39 +647,35 @@
         29.0,
       );
 
-      // Hold the handoff for the rest of the beat.
-
-      // ===================== BEAT 4 =====================
-      // Scene starts at 38.0 (0.4s overlap with Beat 3).
+      // ===================== BEAT 4 — Montage + end frame =====================
       tl.from(
         "#beat-4",
         { opacity: 0, duration: 0.4, ease: "power1.out" },
         38.0,
       );
 
-      // Three-shot montage. Each held ~1.4s, with 0.3s crossfades.
-      // Beat starts at 38; montage from 38.2 to 42.5; subtitle holds throughout;
-      // wordmark enters at 42.5.
-
-      // Shot 1 — Overview
+      // Three-shot montage of dashboard surfaces, each with its own URL bar
+      // showing "look — we're inside the same local app, just navigating".
       tl.to("#b4-shot-1", { opacity: 1, duration: 0.35, ease: "power2.out" }, 38.2);
-      // Shot 2 — Tool Catalog
       tl.to("#b4-shot-2", { opacity: 1, duration: 0.35, ease: "power2.out" }, 39.55);
-      // Shot 3 — Settings
       tl.to("#b4-shot-3", { opacity: 1, duration: 0.35, ease: "power2.out" }, 40.9);
 
-      // Subtitle: holds across the montage, exits when wordmark arrives.
+      // Subtitle "Local SQLite. 127.0.0.1. No cloud LLM." holds across the montage.
       tl.to(
         "#b4-sub",
         { opacity: 1, duration: 0.45, ease: "power2.out" },
         38.5,
       );
 
-      // End frame: cream pane covers the montage, wordmark fades in slowly.
+      // End frame: cream pane covers the montage, real brand wordmark PNG fades in.
       tl.to("#b4-endframe", { opacity: 1, duration: 0.7, ease: "power2.out" }, 42.2);
 
-      // Fade to black on the very last beats (this is the final scene — exits are allowed here).
-      tl.to("#b4-blackout", { opacity: 1, duration: 1.2, ease: "power2.inOut" }, 45.8);
+      // Fade to black at the very end (final scene, exits allowed).
+      tl.to(
+        "#b4-blackout",
+        { opacity: 1, duration: 1.2, ease: "power2.inOut" },
+        45.8,
+      );
 
       window.__timelines["main"] = tl;
     </script>
