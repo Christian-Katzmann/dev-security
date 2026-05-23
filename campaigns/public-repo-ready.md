@@ -24,6 +24,7 @@ The walkthrough audit at `reports/walkthrough-audit-20260523-102224/` produced a
 - **SECURITY.md is required, not optional.** This is a security tool — a missing disclosure path is a tell. Step 4.1 ships SECURITY.md (10 lines pointing at GHSA or email).
 - **No issue templates / PR templates at launch.** Skip until a malformed issue from a stranger forces the question. Don't pad `.github/` with ceremony.
 - **CHANGELOG.md is in scope.** One initial `## 0.1.0 — initial public release` entry. Step 5.1 tags `v0.1.0` before the public flip.
+- **F-003 path locked: (A) in-app docs rendering, server-side, stdlib-only.** Docs render through a minimal Markdown→HTML converter in `src/security_observatory/docs_render.py`, wrapped in a DëvSec docs page shell served from `/docs/<file>.md`. Local-first ethos wins; Python `dependencies = []` stays intact; dashboard-ui bundle unchanged.
 
 ## How prompts work in this campaign
 
@@ -42,7 +43,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 - [x] Step 1.1 — Fix the `target=dashboard` silent-gate pattern (F-001, F-006, F-008)
 - [x] Step 1.2 — Remove the fake agent pill and wire the Export no-op (F-002, F-005, F-013)
-- [ ] Step 1.3 — Honest install labels for built-in and locally-detected tools (F-004, F-012)
+- [x] Step 1.3 — Honest install labels for built-in and locally-detected tools (F-004, F-012)
 
 ### Phase 2 — Honest docs and disclosure
 
