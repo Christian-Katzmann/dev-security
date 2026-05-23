@@ -1,0 +1,48 @@
+name: Verify
+
+# Proves the project still works: Python tests + dashboard type-check + dashboard build.
+# This is distinct from `security.yml` (which runs DëvSec's own scanners against this repo).
+# Both gate PRs; this one answers "does it run?", the other answers "does it leak?".
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python — pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.12"
+      - name: Sync dev dependencies
+        run: uv sync --dev
+      - name: Run pytest
+        run: uv run pytest
+
+  dashboard:
+    name: Dashboard — type-check + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: dashboard-ui/package-lock.json
+      - name: Install dashboard dependencies
+        working-directory: dashboard-ui
+        run: npm ci
+      - name: Type-check (tsc --noEmit)
+        working-directory: dashboard-ui
+        run: npm run lint
+      - name: Build dashboard
+        working-directory: dashboard-ui
+        run: npm run build

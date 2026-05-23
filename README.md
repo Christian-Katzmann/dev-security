@@ -195,6 +195,24 @@ See [docs/desktop-launcher.md](docs/desktop-launcher.md).
 
 A starter GitHub Actions workflow is available at [templates/security.yml](templates/security.yml). CI support is optional; the primary workflow is local scanning.
 
+## Try it
+
+No hosted demo URL — by design. DëvSec runs on your machine, and any demo we'd host would either require you to upload code (the whole point we're not doing), or show synthetic data that wouldn't prove anything real.
+
+The shortest path to seeing DëvSec work is:
+
+```bash
+git clone https://github.com/Christian-Katzmann/dev-security.git
+cd dev-security
+./install-security-observatory.sh
+security-scan .
+security-scan dashboard
+```
+
+A clone, an installer, a scan of this repo, and the local dashboard at `http://127.0.0.1:8765`. The first scan takes roughly two minutes on a recent Mac.
+
+If you want to see the dashboard with the same demo data the [Screens](#screens) section uses, run the scan against this repo specifically — those screenshots are DëvSec scanning itself.
+
 ## Installation
 
 Requirements:
