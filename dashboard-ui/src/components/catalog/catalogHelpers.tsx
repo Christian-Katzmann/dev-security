@@ -451,6 +451,17 @@ export function previewCanInstall(preview?: ToolInstallPreview): boolean {
   return Boolean(preview?.tool_id && preview.action === 'managed-install-preview' && preview.execution_available);
 }
 
+// State-aware action verb for catalog cards and banner CTAs. Built-in and
+// already-detected tools never get an "Install plugin" label — there is
+// nothing for the user to install. Display-only tools have no action surface.
+export type CatalogCardAction = 'install' | 'view' | 'display-only';
+
+export function catalogCardAction(tool: ToolCatalogItem): CatalogCardAction {
+  if (tool.lifecycle === 'coming-soon' || tool.install_state === 'coming-soon') return 'display-only';
+  if (previewCanInstall(tool.install_preview)) return 'install';
+  return 'view';
+}
+
 export function previewCanUninstall(preview?: ToolInstallPreview): boolean {
   return Boolean(preview?.tool_id && preview.action === 'managed-uninstall-preview' && preview.execution_available && preview.ownership?.ownership_id);
 }

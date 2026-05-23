@@ -41,7 +41,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 ### Phase 1 — Silent gates and dishonest buttons
 
 - [x] Step 1.1 — Fix the `target=dashboard` silent-gate pattern (F-001, F-006, F-008)
-- [ ] Step 1.2 — Remove the fake agent pill and wire the Export no-op (F-002, F-005, F-013)
+- [x] Step 1.2 — Remove the fake agent pill and wire the Export no-op (F-002, F-005, F-013)
 - [ ] Step 1.3 — Honest install labels for built-in and locally-detected tools (F-004, F-012)
 
 ### Phase 2 — Honest docs and disclosure
