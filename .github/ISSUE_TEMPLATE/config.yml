@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security disclosure
+    url: https://github.com/QTpi-grl/dev-security/blob/main/SECURITY.md
+    about: Do not open public issues for security bugs. See SECURITY.md for the private disclosure path.
+  - name: Contributing guide
+    url: https://github.com/QTpi-grl/dev-security/blob/main/CONTRIBUTING.md
+    about: Read this first — setup, tests that must pass before a PR, and what makes a good issue.
+  - name: Troubleshooting docs
+    url: https://github.com/QTpi-grl/dev-security/blob/main/docs/troubleshooting.md
+    about: Common failure modes, partial-scan markers, and recovery steps before filing a bug.
