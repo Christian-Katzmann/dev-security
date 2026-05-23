@@ -22,6 +22,12 @@ dashboard-ui/dist/
 *.log
 *.tmp
 
+# HyperFrames runtime artifacts (regenerate on `npx hyperframes render`)
+design/trailer/composition/snapshots/
+design/trailer/composition/node_modules/
+design/trailer/work-*/
+design/trailer/_verify/
+
 # Secret-shaped — never commit
 .env
 .env.*
