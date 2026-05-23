@@ -14,6 +14,11 @@ from pathlib import Path
 
 import pytest
 
+# The MCP SDK is an optional dependency (uv sync --extra mcp). If it isn't
+# installed (developer running pytest without the extra), skip this module
+# cleanly rather than crashing the entire test collection.
+pytest.importorskip("mcp")
+
 from security_observatory.cases import build_security_cases
 from security_observatory.mcp_server import (
     RepoNotFoundError,
