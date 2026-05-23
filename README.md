@@ -6,11 +6,9 @@ A practical security sweep for repos you actually work in. DëvSec runs establis
 
 **Status:** 0.1.x — early. Local scanning works well; the dashboard is honest about what's still partial.
 
-<video src="design/trailer/trailer.mp4" controls width="100%" poster="design/screenshots/01-overview.png">
-  Your browser does not support embedded video. <a href="design/trailer/trailer.mp4">Download the 32-second trailer.</a>
-</video>
+https://github.com/user-attachments/assets/47df2225-0295-4459-adc8-70057145c8ee
 
-*The dashboard groups raw scanner output into action-level cases — each carries plain-English risk, severity, and an agent-ready handoff prompt. The 0.0 / 10 posture is real: this is DëvSec scanning itself.*
+*The dashboard groups raw scanner output into action-level cases — each carries plain-English risk, severity, and an agent-ready handoff prompt. The 0.0 / 10 posture is real: this is DëvSec scanning itself. Source MP4: [design/trailer/trailer.mp4](design/trailer/trailer.mp4).*
 
 ## Why this exists
 
