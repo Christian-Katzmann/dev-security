@@ -105,44 +105,14 @@
       }
 
       /* ===========================================================
-         BEAT 1 — Cold open: dashboard already on screen,
-         subtitle layers in over it.
+         BEAT 1 — Cold open: dashboard, no motion, no subtitle.
          =========================================================== */
       #beat-1 {
         background: #ede4d6;
       }
-      #beat-1 .subtitle-stack {
-        position: absolute;
-        bottom: 80px;
-        left: 50%;
-        transform: translateX(-50%);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 14px;
-        max-width: 1600px;
-      }
-      #beat-1 .line {
-        background: #2a2a2a;
-        color: #ede4d6;
-        font-family: "Inter", sans-serif;
-        font-weight: 500;
-        font-size: 44px;
-        letter-spacing: -0.005em;
-        line-height: 1.2;
-        text-align: center;
-        padding: 14px 28px;
-        border-radius: 10px;
-        opacity: 0;
-      }
-      #beat-1 .line.emphasis {
-        background: #2a2a2a;
-        color: #ffffff;
-        font-weight: 600;
-      }
 
       /* ===========================================================
-         BEAT 2 — Terminal scene → dashboard re-establishes
+         BEAT 2 — Terminal → dashboard. No subtitle.
          =========================================================== */
       #beat-2 {
         background: #ede4d6;
@@ -221,25 +191,10 @@
       #beat-2 .browser {
         opacity: 0;
       }
-      #beat-2 .lower-subtitle {
-        position: absolute;
-        bottom: 70px;
-        left: 50%;
-        transform: translateX(-50%);
-        color: #ede4d6;
-        font-family: "Inter", sans-serif;
-        font-weight: 500;
-        font-size: 44px;
-        letter-spacing: -0.005em;
-        text-align: center;
-        background: #2a2a2a;
-        padding: 14px 30px;
-        border-radius: 10px;
-        opacity: 0;
-      }
 
       /* ===========================================================
-         BEAT 3 — Camera move into case row + handoff card
+         BEAT 3 — Handoff card appears, zooms in on it, zooms back out.
+         No subtitle. No dashboard zoom — only the card zoom moment.
          =========================================================== */
       #beat-3 {
         background: #ede4d6;
@@ -249,8 +204,14 @@
         inset: 0;
         overflow: hidden;
       }
-      #beat-3 .browser {
-        transform-origin: 50% 70%;
+      /* The zoom-wrapper holds both the browser window and the card.
+         When we "zoom in on the card", we scale this wrapper with its
+         transform-origin set to the card's visual center, so the card
+         stays in place visually while the dashboard scales around it. */
+      #beat-3 .zoom-wrapper {
+        position: absolute;
+        inset: 0;
+        transform-origin: 1450px 322px;
       }
       #beat-3 .handoff {
         position: absolute;
@@ -299,47 +260,15 @@
         color: #2a2a2a;
         font-weight: 600;
       }
-      #beat-3 .lower-subtitle {
-        position: absolute;
-        bottom: 70px;
-        left: 50%;
-        transform: translateX(-50%);
-        color: #ede4d6;
-        font-family: "Inter", sans-serif;
-        font-weight: 500;
-        font-size: 40px;
-        letter-spacing: -0.005em;
-        text-align: center;
-        background: #2a2a2a;
-        padding: 14px 26px;
-        border-radius: 10px;
-        opacity: 0;
-        max-width: 1500px;
-      }
 
       /* ===========================================================
-         BEAT 4 — Three-shot montage + end frame
+         BEAT 4 — Three-shot montage + end frame. No subtitle.
+         Slowed 20% vs the previous render's montage pacing.
          =========================================================== */
       #beat-4 {
         background: #ede4d6;
       }
       #beat-4 .browser {
-        opacity: 0;
-      }
-      #beat-4 .lower-subtitle {
-        position: absolute;
-        bottom: 80px;
-        left: 50%;
-        transform: translateX(-50%);
-        color: #ede4d6;
-        font-family: "Inter", sans-serif;
-        font-weight: 500;
-        font-size: 44px;
-        letter-spacing: -0.005em;
-        text-align: center;
-        background: #2a2a2a;
-        padding: 14px 30px;
-        border-radius: 10px;
         opacity: 0;
       }
       #beat-4 .endframe {
@@ -382,16 +311,16 @@
       id="root"
       data-composition-id="main"
       data-start="0"
-      data-duration="47"
+      data-duration="32"
       data-width="1920"
       data-height="1080"
     >
-      <!-- ====================== BEAT 1 — Cold open on dashboard ====================== -->
+      <!-- ====================== BEAT 1 — Dashboard cold open (0–4s) ====================== -->
       <div
         id="beat-1"
         class="clip scene"
         data-start="0"
-        data-duration="8"
+        data-duration="4"
         data-track-index="0"
       >
         <div class="browser shot-overview" id="b1-browser">
@@ -402,20 +331,14 @@
           </div>
           <div class="content"></div>
         </div>
-        <div class="subtitle-stack">
-          <div class="line" id="b1-line-1">
-            Most security tools send your source code to a SaaS.
-          </div>
-          <div class="line emphasis" id="b1-line-2">DëvSec doesn't.</div>
-        </div>
       </div>
 
-      <!-- ====================== BEAT 2 — Terminal then dashboard ====================== -->
+      <!-- ====================== BEAT 2 — Terminal then dashboard (3.6–13s) ====================== -->
       <div
         id="beat-2"
         class="clip scene"
-        data-start="7.6"
-        data-duration="14.8"
+        data-start="3.6"
+        data-duration="9.4"
         data-track-index="1"
       >
         <div class="browser shot-overview" id="b2-browser">
@@ -434,32 +357,30 @@
           </div>
           <div class="body" id="b2-body"><div class="line"><span class="prompt">$</span> <span class="cmd b2-reveal" id="b2-cmd">security-scan .</span></div><div class="line b2-reveal out">&nbsp;</div><div class="line b2-reveal out">Security Observatory</div><div class="line b2-reveal out">Local store: ~/.security-observatory</div><div class="line b2-reveal out">&nbsp;</div><div class="line b2-reveal out">Repo                          Health  Crit  High   Med Secrets AI-risk</div><div class="line b2-reveal out">--------------------------------------------------------------------------</div><div class="line b2-reveal out">dëv-security                     <span class="crit">0.0    10    48   388</span>       0       4</div><div class="line b2-reveal out">&nbsp;</div><div class="line b2-reveal out">dëv-security: normalized report ~/.security-observatory/scans/...</div></div>
         </div>
-        <div class="lower-subtitle" id="b2-sub">
-          Scanners run on your machine.
-        </div>
       </div>
 
-      <!-- ====================== BEAT 3 — Drill into case + handoff card ====================== -->
+      <!-- ====================== BEAT 3 — Card appears, zoom in on it, zoom out (12.6–22s) ====================== -->
       <div
         id="beat-3"
         class="clip scene"
-        data-start="22"
-        data-duration="16.4"
+        data-start="12.6"
+        data-duration="9.4"
         data-track-index="2"
       >
         <div class="stage" data-layout-allow-overflow>
-          <div class="browser shot-overview" id="b3-browser" data-layout-allow-overflow>
-            <div class="chrome">
-              <span class="dot r"></span><span class="dot y"></span
-              ><span class="dot g"></span>
-              <div class="urlbar"><span class="scheme">http://</span>127.0.0.1:8765/findings</div>
+          <div class="zoom-wrapper" id="b3-zoom" data-layout-allow-overflow>
+            <div class="browser shot-overview" id="b3-browser" data-layout-allow-overflow>
+              <div class="chrome">
+                <span class="dot r"></span><span class="dot y"></span
+                ><span class="dot g"></span>
+                <div class="urlbar"><span class="scheme">http://</span>127.0.0.1:8765/findings</div>
+              </div>
+              <div class="content"></div>
             </div>
-            <div class="content"></div>
-          </div>
-          <div class="handoff" id="b3-handoff">
-            <span class="tag">AI prompt · ready to copy</span>
-            <h3>stdlib dependency vulnerability CVE-2025-68121</h3>
-            <pre><span class="k">Case:</span> stdlib dependency vulnerability CVE-2025-68121
+            <div class="handoff" id="b3-handoff">
+              <span class="tag">AI prompt · ready to copy</span>
+              <h3>stdlib dependency vulnerability CVE-2025-68121</h3>
+              <pre><span class="k">Case:</span> stdlib dependency vulnerability CVE-2025-68121
 <span class="k">Risk:</span> An attacker reaching this dependency can run code
       with the rights of the host process.
 <span class="k">Evidence:</span>
@@ -471,22 +392,17 @@
 <span class="k">Fix steps:</span>
 - Upgrade to the smallest safe version that fixes the issue.
 - Re-run the matching DëvSec dependency check.</pre>
+            </div>
           </div>
-        </div>
-        <div class="lower-subtitle" id="b3-sub-a">
-          500 findings, grouped into 41 cases.
-        </div>
-        <div class="lower-subtitle" id="b3-sub-b">
-          Each case carries a fix path — ready for the agent you already trust.
         </div>
       </div>
 
-      <!-- ====================== BEAT 4 — Montage + end frame ====================== -->
+      <!-- ====================== BEAT 4 — Montage + end frame (21.6–32s) ====================== -->
       <div
         id="beat-4"
         class="clip scene"
-        data-start="38"
-        data-duration="9"
+        data-start="21.6"
+        data-duration="10.4"
         data-track-index="3"
       >
         <div class="browser shot-overview" id="b4-shot-1">
@@ -513,9 +429,6 @@
           </div>
           <div class="content"></div>
         </div>
-        <div class="lower-subtitle" id="b4-sub">
-          Local SQLite. 127.0.0.1. No cloud LLM.
-        </div>
         <div class="endframe" id="b4-endframe">
           <img class="wordmark-img" src="./assets/wordmark.png" alt="" />
           <div class="url">github.com/Christian-Katzmann/dev-security</div>
@@ -528,49 +441,33 @@
       window.__timelines = window.__timelines || {};
       const tl = gsap.timeline({ paused: true });
 
-      // ===================== BEAT 1 — Cold open =====================
-      // Dashboard already on screen at t=0. Very subtle scale "settling"
-      // motion so the frame breathes a bit (1.02 → 1.0) instead of being dead-still.
-      tl.fromTo(
+      // ===================== BEAT 1 — Cold open (0–4s) =====================
+      // Dashboard simply present. Only motion is the entrance fade.
+      tl.from(
         "#b1-browser",
-        { scale: 1.03 },
-        { scale: 1.0, duration: 8.0, ease: "power1.out" },
+        { opacity: 0, duration: 0.7, ease: "power2.out" },
         0,
       );
+      // No subtitle. No zoom. Just hold.
 
-      // Subtitle layers in over the dashboard. The dashboard provides context;
-      // the subtitle delivers the claim.
-      tl.to(
-        "#b1-line-1",
-        { opacity: 1, duration: 0.6, ease: "power2.out" },
-        1.6,
-      );
-      tl.to(
-        "#b1-line-2",
-        { opacity: 1, duration: 0.6, ease: "power2.out" },
-        4.6,
-      );
-
-      // ===================== BEAT 2 — Terminal then dashboard =====================
+      // ===================== BEAT 2 — Terminal then dashboard (3.6–13s) =====================
       tl.from(
         "#beat-2",
         { opacity: 0, duration: 0.4, ease: "power1.out" },
-        7.6,
+        3.6,
       );
 
-      // Terminal enters.
+      // Terminal window enters.
       tl.from(
         "#b2-terminal",
         { opacity: 0, y: 24, scale: 0.985, duration: 0.7, ease: "power3.out" },
-        8.0,
+        4.0,
       );
 
-      // Command appears as a paste-in.
-      tl.to("#b2-cmd", { opacity: 1, duration: 0.05, ease: "none" }, 9.0);
+      // Command appears (paste-in, no faked typing).
+      tl.to("#b2-cmd", { opacity: 1, duration: 0.05, ease: "none" }, 5.0);
 
-      // Real `security-scan` output streams in (fast stagger; readability isn't the point,
-      // presence of real output is). Pulled verbatim from print_human_summary() in
-      // src/security_observatory/cli.py with the demo-thread numbers.
+      // Real `security-scan` output streams in (fast stagger, real output format).
       tl.to(
         ".b2-reveal:not(#b2-cmd)",
         {
@@ -579,102 +476,85 @@
           ease: "none",
           stagger: 0.22,
         },
-        9.6,
+        5.6,
       );
+      // Output stagger finishes around t=7.6. Hold full terminal until t=9.2.
 
-      // Terminal recedes, browser-chromed dashboard fades in over it.
+      // Terminal recedes; browser-chromed dashboard fades in over it.
       tl.to(
         "#b2-terminal",
         { opacity: 0, scale: 0.96, duration: 0.6, ease: "power2.in" },
-        12.5,
+        9.2,
       );
       tl.to(
         "#b2-browser",
         { opacity: 1, duration: 0.7, ease: "power3.out" },
-        12.9,
+        9.5,
       );
+      // No subtitle. Dashboard simply holds.
 
-      // Subtitle lands as the dashboard settles.
-      tl.to(
-        "#b2-sub",
-        { opacity: 1, duration: 0.5, ease: "power2.out" },
-        13.4,
-      );
-
-      // Subtle settling motion on the dashboard for the rest of the beat.
-      tl.fromTo(
-        "#b2-browser",
-        { scale: 1.0 },
-        { scale: 1.025, duration: 7.0, ease: "power1.inOut" },
-        13.6,
-      );
-
-      // ===================== BEAT 3 — Drill into case + handoff =====================
+      // ===================== BEAT 3 — Card appears, zoom on card, zoom back (12.6–22s) =====================
       tl.from(
         "#beat-3",
         { opacity: 0, duration: 0.4, ease: "power1.out" },
-        22.0,
+        12.6,
       );
 
-      // Camera move: programmatic zoom into the dashboard's open-findings list area.
-      tl.fromTo(
-        "#b3-browser",
-        { scale: 1.0 },
-        { scale: 1.18, duration: 5.0, ease: "power2.inOut" },
-        22.6,
-      );
+      // Hold the dashboard alone for ~1.2s so the eye lands somewhere familiar
+      // before the card slides in.
 
-      // First subtitle lands during the zoom-in.
-      tl.to(
-        "#b3-sub-a",
-        { opacity: 1, duration: 0.5, ease: "power2.out" },
-        23.0,
-      );
-
-      // Swap subtitle A → subtitle B at t=28.4 (A is hidden, B fades in).
-      tl.set("#b3-sub-a", { opacity: 0 }, 28.4);
-
-      tl.to(
-        "#b3-sub-b",
-        { opacity: 1, duration: 0.6, ease: "power2.out" },
-        28.6,
-      );
-
-      // Handoff card slides in from the right as the second subtitle lands.
+      // Handoff card slides in from the right.
       tl.to(
         "#b3-handoff",
         { opacity: 1, x: 0, duration: 0.7, ease: "expo.out" },
-        29.0,
+        14.2,
       );
 
-      // ===================== BEAT 4 — Montage + end frame =====================
+      // Hold the card at its original size and position for ~1.4s so the
+      // viewer sees its full context next to the dashboard.
+
+      // Zoom IN on the card. The zoom-wrapper scales with transform-origin
+      // at the card's visual center (1450, 322), so the card stays in place
+      // while the dashboard scales around it.
+      tl.fromTo(
+        "#b3-zoom",
+        { scale: 1.0 },
+        { scale: 1.3, duration: 1.4, ease: "power2.inOut" },
+        16.3,
+      );
+
+      // Hold zoomed-in so the viewer can read "AI prompt · ready to copy"
+      // and the markdown contents.
+
+      // Zoom BACK OUT to the original framing.
+      tl.to(
+        "#b3-zoom",
+        { scale: 1.0, duration: 1.4, ease: "power2.inOut" },
+        19.4,
+      );
+      // After zoom-out, hold at original framing until Beat 4 takes over.
+
+      // ===================== BEAT 4 — Montage + end frame (21.6–32s) =====================
       tl.from(
         "#beat-4",
         { opacity: 0, duration: 0.4, ease: "power1.out" },
-        38.0,
+        21.6,
       );
 
-      // Three-shot montage of dashboard surfaces, each with its own URL bar
-      // showing "look — we're inside the same local app, just navigating".
-      tl.to("#b4-shot-1", { opacity: 1, duration: 0.35, ease: "power2.out" }, 38.2);
-      tl.to("#b4-shot-2", { opacity: 1, duration: 0.35, ease: "power2.out" }, 39.55);
-      tl.to("#b4-shot-3", { opacity: 1, duration: 0.35, ease: "power2.out" }, 40.9);
+      // Three-shot montage at 20% slower pacing than the prior render
+      // (1.7s gap instead of 1.35s).
+      tl.to("#b4-shot-1", { opacity: 1, duration: 0.4, ease: "power2.out" }, 22.0);
+      tl.to("#b4-shot-2", { opacity: 1, duration: 0.4, ease: "power2.out" }, 23.7);
+      tl.to("#b4-shot-3", { opacity: 1, duration: 0.4, ease: "power2.out" }, 25.4);
 
-      // Subtitle "Local SQLite. 127.0.0.1. No cloud LLM." holds across the montage.
-      tl.to(
-        "#b4-sub",
-        { opacity: 1, duration: 0.45, ease: "power2.out" },
-        38.5,
-      );
+      // End frame: real brand wordmark PNG fades in over the last montage shot.
+      tl.to("#b4-endframe", { opacity: 1, duration: 0.8, ease: "power2.out" }, 27.6);
 
-      // End frame: cream pane covers the montage, real brand wordmark PNG fades in.
-      tl.to("#b4-endframe", { opacity: 1, duration: 0.7, ease: "power2.out" }, 42.2);
-
-      // Fade to black at the very end (final scene, exits allowed).
+      // Blackout fade — slower than before (1.5s vs 1.2s) to match the 20%-slower feel.
       tl.to(
         "#b4-blackout",
-        { opacity: 1, duration: 1.2, ease: "power2.inOut" },
-        45.8,
+        { opacity: 1, duration: 1.5, ease: "power2.inOut" },
+        30.5,
       );
 
       window.__timelines["main"] = tl;
