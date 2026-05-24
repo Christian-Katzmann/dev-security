@@ -1,9 +1,9 @@
 """Read-only MCP adapter for the local Security Observatory.
 
-Exposes six tools over stdio so local agents (Claude Desktop, Cursor, Codex,
+Exposes eight tools over stdio so local agents (Claude Desktop, Cursor, Codex,
 etc.) can ask focused questions about scan history without an HTTP listener,
-write paths, or cloud round-trip. Wraps existing methods on ObservatoryDB
-and the case-builder vocabulary in cases.py — no new query logic lives here.
+write paths, or cloud round-trip. Wraps existing methods on ObservatoryDB,
+small scan-history reads, and the case-builder vocabulary in cases.py.
 
 See mcp/README.md for connection instructions and the deliberate hard limits.
 """
@@ -101,6 +101,18 @@ def _redact_files(values: Any, repo_path: str | None) -> list[str]:
     return out
 
 
+def _placement_repo(value: Any, project_id: Any) -> str:
+    raw = str(value or "")
+    if raw == "~":
+        return str(project_id or "")
+    if raw.startswith((os.sep, "~/")):
+        return Path(raw).name or (_redact_path(raw) or str(project_id or ""))
+    text = _redact_path(raw) or str(project_id or "")
+    if text.startswith(os.sep):
+        return Path(text).name or text
+    return text
+
+
 def _evidence_excerpt(row: dict[str, Any]) -> str | None:
     for key in ("evidence_summary", "remediation", "title"):
         value = row.get(key)
@@ -166,6 +178,35 @@ def _trust_payload(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _honey_severity(
+    key: dict[str, Any],
+    project_statuses: dict[str, dict[str, Any]],
+) -> str | None:
+    trigger_count = int(key.get("trigger_count") or 0)
+    if trigger_count <= 0 and not key.get("last_triggered_at"):
+        return None
+    project = project_statuses.get(str(key.get("project_id"))) or {}
+    if project.get("status") == "red" or key.get("status") == "triggered":
+        return "critical"
+    return "high"
+
+
+def _honey_key_payload(
+    key: dict[str, Any],
+    project_statuses: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "id": str(key.get("id") or ""),
+        "project_id": str(key.get("project_id") or ""),
+        "status": str(key.get("status") or "active"),
+        "placed_at": key.get("created_at"),
+        "placement_repo": _placement_repo(key.get("repo_id"), key.get("project_id")),
+        "trigger_count": int(key.get("trigger_count") or 0),
+        "last_triggered_at": key.get("last_triggered_at"),
+        "severity_if_triggered": _honey_severity(key, project_statuses),
+    }
+
+
 def _list_repos(db: ObservatoryDB | None) -> list[dict[str, Any]]:
     if db is None:
         return []
@@ -187,6 +228,43 @@ def _list_repos(db: ObservatoryDB | None) -> list[dict[str, Any]]:
         }
         for row in rows
     ]
+
+
+def _honey_keys(db: ObservatoryDB | None) -> list[dict[str, Any]]:
+    if db is None:
+        return []
+    # Touch events as part of the public contract: trigger counts and recency
+    # must reflect the event stream, even when an old key row is incomplete.
+    events = db.list_honey_key_events(limit=100)
+    last_event_by_key: dict[str, dict[str, Any]] = {}
+    trigger_counts: dict[str, int] = {}
+    for event in events:
+        key_id = str(event.get("honey_key_id") or "")
+        if not key_id:
+            continue
+        trigger_counts[key_id] = trigger_counts.get(key_id, 0) + 1
+        last_event_by_key.setdefault(key_id, event)
+    project_statuses = db.project_statuses()
+    payloads = []
+    for key in db.list_honey_keys():
+        key_id = str(key.get("id") or "")
+        last_event = last_event_by_key.get(key_id)
+        normalized = dict(key)
+        normalized["trigger_count"] = max(
+            int(normalized.get("trigger_count") or 0),
+            trigger_counts.get(key_id, 0),
+        )
+        if last_event and not normalized.get("last_triggered_at"):
+            normalized["last_triggered_at"] = last_event.get("triggered_at")
+        payloads.append(_honey_key_payload(normalized, project_statuses))
+    payloads.sort(
+        key=lambda item: (
+            int(item["trigger_count"]) > 0 or item["status"] == "triggered",
+            item.get("last_triggered_at") or item.get("placed_at") or "",
+        ),
+        reverse=True,
+    )
+    return payloads[:100]
 
 
 def _latest_scan(db: ObservatoryDB | None, repo: str) -> dict[str, Any]:
@@ -214,6 +292,46 @@ def _latest_scan(db: ObservatoryDB | None, repo: str) -> dict[str, Any]:
         "health_score": int(scan["health_score"]),
         "status": scan["status"],
     }
+
+
+def _scan_history(db: ObservatoryDB | None, repo: str, limit: int = 10) -> list[dict[str, Any]]:
+    if db is None:
+        raise RepoNotFoundError(f"No scans found for repo {repo!r}")
+    try:
+        bounded_limit = int(limit)
+    except (TypeError, ValueError):
+        bounded_limit = 10
+    bounded_limit = max(1, min(bounded_limit, 50))
+    rows = db.conn.execute(
+        """
+        select s.id as scan_id,
+               s.started_at,
+               s.finished_at,
+               s.health_score,
+               s.status,
+               count(f.id) as finding_count
+        from scans s
+        left join findings f on f.scan_id = s.id
+        where s.repo_name = ?
+        group by s.id, s.started_at, s.finished_at, s.health_score, s.status
+        order by s.started_at desc
+        limit ?
+        """,
+        (repo, bounded_limit),
+    ).fetchall()
+    if not rows:
+        raise RepoNotFoundError(f"No scans found for repo {repo!r}")
+    return [
+        {
+            "scan_id": row["scan_id"],
+            "started_at": row["started_at"],
+            "finished_at": row["finished_at"],
+            "health_score": int(row["health_score"]),
+            "finding_count": int(row["finding_count"]),
+            "status": row["status"],
+        }
+        for row in rows
+    ]
 
 
 def _findings(
@@ -264,18 +382,28 @@ def _cases(
     db: ObservatoryDB | None,
     repo: str,
     status: str | None,
+    scan_id: str | None = None,
 ) -> list[dict[str, Any]]:
     if db is None:
         raise RepoNotFoundError(f"No scans found for repo {repo!r}")
-    scan = db.latest_scan_for_repo(repo)
-    if not scan:
-        raise RepoNotFoundError(f"No scans found for repo {repo!r}")
+    if scan_id:
+        export = db.scan_export(scan_id)
+        if not export or export.get("repo") != repo:
+            raise ValueError(f"Scan {scan_id!r} was not found for repo {repo!r}")
+        scan = {
+            "id": export["scan_id"],
+            "repo_path": export.get("repo_path"),
+        }
+    else:
+        scan = db.latest_scan_for_repo(repo)
+        if not scan:
+            raise RepoNotFoundError(f"No scans found for repo {repo!r}")
+        export = db.scan_export(scan["id"])
     requested = (status or "open").lower()
     if requested not in SUPPORTED_CASE_STATUSES:
         raise ValueError(
             f"Unknown status {status!r}. Use one of: {', '.join(SUPPORTED_CASE_STATUSES)}"
         )
-    export = db.scan_export(scan["id"])
     if not export:
         return []
     cases = export.get("cases", [])
@@ -360,6 +488,16 @@ def create_server(home: Path | None = None) -> FastMCP:
         return _with_db(_list_repos)
 
     @server.tool()
+    def honey_keys() -> list[dict[str, Any]]:
+        """List Honey Keys with placement and trigger state.
+
+        Returns up to 100 keys sorted triggered-first, then by recency. Each
+        row includes project id, status, placement repo, trigger count, last
+        trigger timestamp, and a minimal severity if a key was touched.
+        """
+        return _with_db(_honey_keys)
+
+    @server.tool()
     def latest_scan(repo: str) -> dict[str, Any]:
         """Return the most recent scan summary for ``repo``.
 
@@ -367,6 +505,15 @@ def create_server(home: Path | None = None) -> FastMCP:
         and overall status. Raises if the repo has no scan history.
         """
         return _with_db(lambda db: _latest_scan(db, repo))
+
+    @server.tool()
+    def scan_history(repo: str, limit: int = 10) -> list[dict[str, Any]]:
+        """Return previous scans for ``repo``, most recent first.
+
+        ``limit`` defaults to 10 and is capped at 50. Raises if the repo has
+        no scan history.
+        """
+        return _with_db(lambda db: _scan_history(db, repo, limit))
 
     @server.tool()
     def findings(
@@ -383,15 +530,20 @@ def create_server(home: Path | None = None) -> FastMCP:
         return _with_db(lambda db: _findings(db, repo, severity, limit))
 
     @server.tool()
-    def cases(repo: str, status: str | None = None) -> list[dict[str, Any]]:
-        """Return action-level cases for the most recent scan of ``repo``.
+    def cases(
+        repo: str,
+        status: str | None = None,
+        scan_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return action-level cases for a scan of ``repo``.
 
         Cases are the project's primary unit of value: each is a grouped,
         plain-English explanation with suggested steps and an agent handoff
         prompt. Filter ``status`` by open | verified | accepted_risk |
-        resolved (default open).
+        resolved (default open). Pass ``scan_id`` to inspect a previous scan;
+        otherwise the latest scan is used.
         """
-        return _with_db(lambda db: _cases(db, repo, status))
+        return _with_db(lambda db: _cases(db, repo, status, scan_id))
 
     @server.tool()
     def recovery_playbook(category: str) -> dict[str, Any]:

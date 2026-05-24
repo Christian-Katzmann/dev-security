@@ -8,9 +8,9 @@ tools, no telemetry. The same posture as the rest of DëvSec.
 
 ## What it exposes — and what it doesn't
 
-Six read-only tools wrap existing query methods on `ObservatoryDB` and the
-case-builder vocabulary in `cases.py`. The adapter does not add new query
-logic, mutate state, or open a network port. See
+Eight read-only tools wrap existing query methods on `ObservatoryDB`, direct
+scan-history reads, and the case-builder vocabulary in `cases.py`. The adapter
+does not mutate state or open a network port. See
 [../docs/threat-model.md](../docs/threat-model.md) for the project's overall
 attack-surface posture; the adapter inherits it.
 
@@ -26,10 +26,14 @@ This pulls in the official `mcp` Python SDK (FastMCP) and registers the
 Verify it starts:
 
 ```bash
-uv run devsec-mcp <<< '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+printf '%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"devsec-smoke","version":"0"}}}' \
+  '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+  | uv run devsec-mcp
 ```
 
-You should see a single line of JSON listing six tools.
+The `tools/list` response should list eight tools.
 
 ## Connect — Claude Desktop
 
@@ -61,14 +65,16 @@ Same shape as the Claude Desktop config — most clients accept the
 Codex, add the server to your `~/.codex/config.json` `mcp_servers` section.
 The launch command is identical: `uv --directory <repo> run devsec-mcp`.
 
-## The six tools
+## The eight tools
 
 | Tool | What it returns |
 |---|---|
 | `list_repos` | Repositories with scan history, with last-scan timestamps. |
+| `honey_keys` | Honey Key placement and trigger state, capped at 100 keys and sorted triggered-first. |
 | `latest_scan(repo)` | Most recent scan summary: timing, scanner count, finding count, health score, status. |
+| `scan_history(repo, limit?)` | Previous scans for a repo, most-recent-first, with finding counts and status. |
 | `findings(repo, severity?, limit?)` | Raw findings from the latest scan. Filter by severity. |
-| `cases(repo, status?)` | Action-level cases — the project's primary unit of value. Each carries a plain-English risk read, suggested steps, and an agent-ready handoff prompt. Filter by `open` / `verified` / `accepted_risk` / `resolved`. |
+| `cases(repo, status?, scan_id?)` | Action-level cases — the project's primary unit of value. Each carries a plain-English risk read, suggested steps, and an agent-ready handoff prompt. Filter by `open` / `verified` / `accepted_risk` / `resolved`; pass `scan_id` to inspect a previous scan. |
 | `recovery_playbook(category)` | The category-specific recovery playbook (steps, estimated minutes, and a ready-to-paste agent prompt). No DB access needed. |
 | `dependency_trust(repo)` | OpenSSF-style trust enrichments per dependency, when collected. |
 

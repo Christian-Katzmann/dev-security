@@ -27,9 +27,11 @@ from security_observatory.mcp_server import (
     _cases,
     _dependency_trust,
     _findings,
+    _honey_keys,
     _latest_scan,
     _list_repos,
     _recovery_playbook,
+    _scan_history,
     create_server,
     observatory_home,
 )
@@ -47,27 +49,38 @@ def _make_db(tmp_path: Path) -> ObservatoryDB:
     return ObservatoryDB(tmp_path / "db" / "observatory.sqlite")
 
 
-def _seed_scan(db: ObservatoryDB, tmp_path: Path) -> None:
+def _seed_scan(
+    db: ObservatoryDB,
+    tmp_path: Path,
+    *,
+    scan_id: str = SCAN_ID,
+    repo_name: str = REPO_NAME,
+    repo_path: str = REPO_PATH,
+    started_at: str = STARTED_AT,
+    finished_at: str = "2026-01-01T00:01:00+00:00",
+    health_score: int = 42,
+    status: str = "warn",
+) -> None:
     findings = [
         Finding(
-            repo=REPO_NAME,
+            repo=repo_name,
             scanner="gitleaks",
             severity="critical",
             category="secrets",
             title="Hardcoded AWS access key",
-            file=f"{REPO_PATH}/config/secrets.py",
+            file=f"{repo_path}/config/secrets.py",
             line=42,
             remediation="Rotate the leaked credential at the provider before changing code.",
             evidence_summary="AWS access key matches the AKIA prefix in config/secrets.py.",
             fingerprint="finding-secrets-1",
         ),
         Finding(
-            repo=REPO_NAME,
+            repo=repo_name,
             scanner="osv-scanner",
             severity="high",
             category="dependencies",
             title="CVE-2026-1000 in lodash",
-            file=f"{REPO_PATH}/package-lock.json",
+            file=f"{repo_path}/package-lock.json",
             remediation="Upgrade lodash to >= 4.17.22.",
             vulnerability_id="CVE-2026-1000",
             package_name="lodash",
@@ -78,12 +91,12 @@ def _seed_scan(db: ObservatoryDB, tmp_path: Path) -> None:
             fingerprint="finding-deps-1",
         ),
         Finding(
-            repo=REPO_NAME,
+            repo=repo_name,
             scanner="semgrep",
             severity="medium",
             category="code-security",
             title="Unsafe deserialization",
-            file=f"{REPO_PATH}/app/api/decode.py",
+            file=f"{repo_path}/app/api/decode.py",
             line=17,
             remediation="Replace pickle.loads with a safe serializer.",
             fingerprint="finding-code-1",
@@ -96,24 +109,24 @@ def _seed_scan(db: ObservatoryDB, tmp_path: Path) -> None:
             {"scanner": "osv-scanner", "available": True, "findings": 1},
             {"scanner": "semgrep", "available": True, "findings": 1},
         ],
-        {"repo": REPO_NAME},
+        {"repo": repo_name},
     )
     db.save_scan(
-        scan_id=SCAN_ID,
-        repo_name=REPO_NAME,
-        repo_path=REPO_PATH,
-        started_at=STARTED_AT,
-        finished_at="2026-01-01T00:01:00+00:00",
+        scan_id=scan_id,
+        repo_name=repo_name,
+        repo_path=repo_path,
+        started_at=started_at,
+        finished_at=finished_at,
         profile="default",
-        health_score=42,
-        status="warn",
+        health_score=health_score,
+        status=status,
         scanner_statuses=[
             {"scanner": "gitleaks", "available": True, "findings": 1},
             {"scanner": "osv-scanner", "available": True, "findings": 1},
             {"scanner": "semgrep", "available": True, "findings": 1},
         ],
         findings=findings,
-        report_path=str(tmp_path / "reports" / f"{SCAN_ID}.json"),
+        report_path=str(tmp_path / "reports" / f"{scan_id}.json"),
         cases=cases,
         dependency_trust_enrichments=[
             {
@@ -153,7 +166,9 @@ def test_server_lists_expected_tools(tmp_path):
     names = {tool.name for tool in tools}
     assert names == {
         "list_repos",
+        "honey_keys",
         "latest_scan",
+        "scan_history",
         "findings",
         "cases",
         "recovery_playbook",
@@ -202,6 +217,89 @@ def test_list_repos_with_seeded_data(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# honey_keys
+# ---------------------------------------------------------------------------
+
+
+def test_honey_keys_empty_returns_list(tmp_path):
+    assert _honey_keys(None) == []
+    db = _make_db(tmp_path)
+    try:
+        assert _honey_keys(db) == []
+    finally:
+        db.close()
+
+
+def test_honey_keys_returns_normalized_shape(tmp_path):
+    db = _make_db(tmp_path)
+    try:
+        db.create_honey_key(
+            key_id="hny_demo_1",
+            project_id=REPO_NAME,
+            repo_id=REPO_NAME,
+            name="Deploy token",
+            token_hash="hash-demo-1",
+            placement_path=".env.backup",
+        )
+        result = _honey_keys(db)
+    finally:
+        db.close()
+    assert len(result) == 1
+    assert result[0] == {
+        "id": "hny_demo_1",
+        "project_id": REPO_NAME,
+        "status": "active",
+        "placed_at": result[0]["placed_at"],
+        "placement_repo": REPO_NAME,
+        "trigger_count": 0,
+        "last_triggered_at": None,
+        "severity_if_triggered": None,
+    }
+    json.dumps(result)
+
+
+def test_honey_keys_includes_trigger_event(tmp_path):
+    db = _make_db(tmp_path)
+    try:
+        key = db.create_honey_key(
+            key_id="hny_demo_2",
+            project_id=REPO_NAME,
+            repo_id=REPO_NAME,
+            name="CI token",
+            token_hash="hash-demo-2",
+            placement_path=".github/workflows/build.yml",
+        )
+        db.create_honey_key(
+            key_id="hny_demo_3",
+            project_id=REPO_NAME,
+            repo_id=REPO_NAME,
+            name="Older token",
+            token_hash="hash-demo-3",
+            placement_path=".env.example",
+        )
+        db.record_honey_key_trigger(
+            honey_key={**key, "token_hash": "hash-demo-2"},
+            ip_address="127.0.0.1",
+            user_agent="pytest",
+            method="POST",
+            path="/api/honey/trigger",
+            headers={"User-Agent": "pytest"},
+            body_summary=None,
+            confidence=0.98,
+            source_type="api_call",
+        )
+        result = _honey_keys(db)
+    finally:
+        db.close()
+    assert [item["id"] for item in result][:2] == ["hny_demo_2", "hny_demo_3"]
+    triggered = result[0]
+    assert triggered["status"] == "triggered"
+    assert triggered["trigger_count"] == 1
+    assert triggered["last_triggered_at"]
+    assert triggered["severity_if_triggered"] == "critical"
+
+
+# ---------------------------------------------------------------------------
 # latest_scan
 # ---------------------------------------------------------------------------
 
@@ -229,6 +327,69 @@ def test_latest_scan_repo_not_found_raises_clear_error(tmp_path):
     finally:
         db.close()
     assert "nonexistent-repo" in str(exc.value)
+
+
+# ---------------------------------------------------------------------------
+# scan_history
+# ---------------------------------------------------------------------------
+
+
+def test_scan_history_empty_raises(tmp_path):
+    db = _make_db(tmp_path)
+    try:
+        with pytest.raises(RepoNotFoundError) as exc:
+            _scan_history(db, REPO_NAME)
+    finally:
+        db.close()
+    assert REPO_NAME in str(exc.value)
+
+
+def test_scan_history_returns_recent_first(tmp_path):
+    db = _make_db(tmp_path)
+    try:
+        _seed_scan(
+            db,
+            tmp_path,
+            scan_id="demo-20260101T000000Z",
+            started_at="2026-01-01T00:00:00+00:00",
+            health_score=42,
+            status="warn",
+        )
+        _seed_scan(
+            db,
+            tmp_path,
+            scan_id="demo-20260102T000000Z",
+            started_at="2026-01-02T00:00:00+00:00",
+            finished_at="2026-01-02T00:01:00+00:00",
+            health_score=88,
+            status="ok",
+        )
+        result = _scan_history(db, REPO_NAME, limit=10)
+    finally:
+        db.close()
+    assert [item["scan_id"] for item in result] == [
+        "demo-20260102T000000Z",
+        "demo-20260101T000000Z",
+    ]
+    assert result[0]["health_score"] == 88
+    assert result[0]["finding_count"] == 3
+    assert result[0]["status"] == "ok"
+
+
+def test_scan_history_limit_caps(tmp_path):
+    db = _make_db(tmp_path)
+    try:
+        for index in range(55):
+            _seed_scan(
+                db,
+                tmp_path,
+                scan_id=f"demo-20260101T00{index:02d}00Z",
+                started_at=f"2026-01-01T00:{index:02d}:00+00:00",
+            )
+        result = _scan_history(db, REPO_NAME, limit=999)
+    finally:
+        db.close()
+    assert len(result) == 50
 
 
 # ---------------------------------------------------------------------------
@@ -357,6 +518,48 @@ def test_cases_repo_not_found_raises_repo_error(tmp_path):
         db.close()
 
 
+def test_cases_accepts_explicit_scan_id(tmp_path):
+    db = _make_db(tmp_path)
+    try:
+        _seed_scan(
+            db,
+            tmp_path,
+            scan_id="demo-old",
+            started_at="2026-01-01T00:00:00+00:00",
+        )
+        _seed_scan(
+            db,
+            tmp_path,
+            scan_id="demo-new",
+            started_at="2026-01-02T00:00:00+00:00",
+            health_score=99,
+        )
+        result = _cases(db, REPO_NAME, status=None, scan_id="demo-old")
+    finally:
+        db.close()
+    assert result
+    assert all(case["status"] == "open" for case in result)
+
+
+def test_cases_rejects_scan_id_from_other_repo(tmp_path):
+    db = _make_db(tmp_path)
+    try:
+        _seed_scan(db, tmp_path)
+        _seed_scan(
+            db,
+            tmp_path,
+            scan_id="other-repo-scan",
+            repo_name="other-repo",
+            repo_path="/Users/dummyuser/Dev/Projects/other-repo",
+        )
+        with pytest.raises(ValueError) as exc:
+            _cases(db, REPO_NAME, status=None, scan_id="other-repo-scan")
+    finally:
+        db.close()
+    assert "other-repo-scan" in str(exc.value)
+    assert REPO_NAME in str(exc.value)
+
+
 # ---------------------------------------------------------------------------
 # recovery_playbook
 # ---------------------------------------------------------------------------
@@ -417,8 +620,17 @@ def test_no_absolute_paths_in_output(tmp_path):
     db = _make_db(tmp_path)
     try:
         _seed_scan(db, tmp_path)
+        db.create_honey_key(
+            key_id="hny_path_redaction",
+            project_id=REPO_NAME,
+            repo_id=REPO_PATH,
+            name="Path redaction key",
+            token_hash="hash-path-redaction",
+            placement_path=".env",
+        )
         finding_rows = _findings(db, REPO_NAME, severity=None, limit=50)
         case_rows = _cases(db, REPO_NAME, status="open")
+        honey_rows = _honey_keys(db)
     finally:
         db.close()
 
@@ -444,6 +656,10 @@ def test_no_absolute_paths_in_output(tmp_path):
     for case in case_rows:
         for file_path in case["affected_files"]:
             _scan(file_path)
+
+    assert honey_rows, "fixture should produce honey keys"
+    for key in honey_rows:
+        _scan(key["placement_repo"])
 
 
 # ---------------------------------------------------------------------------
@@ -510,5 +726,3 @@ def _structured_content(result) -> dict:
             except (TypeError, ValueError):
                 continue
     return {}
-
-
