@@ -56,8 +56,8 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 2 — Close the verification gap
 
-- [ ] Step 2.1 — Implement canary-first staging + pre-rotation health refusal
-- [ ] Step 2.2 — Implement soak-test pipeline phase (default-on, per-adapter)
+- [x] Step 2.1 — Implement canary-first staging + pre-rotation health refusal
+- [x] Step 2.2 — Implement soak-test pipeline phase (default-on, per-adapter)
 - [ ] Step 2.3 — Implement unified verification report (file-written, Security Brief format)
 
 ### Phase 3 — Hardening, demo, receipts
