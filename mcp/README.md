@@ -35,6 +35,11 @@ printf '%s\n' \
 
 The `tools/list` response should list eight tools.
 
+The JSON-RPC `initialize` response also advertises DëvSec's compact agent
+voice doctrine in the MCP `instructions` field. The full doctrine lives in
+[../docs/agent-voice.md](../docs/agent-voice.md), with safety-tier refusal
+language in [../docs/agent-safety.md](../docs/agent-safety.md).
+
 ## Connect — Claude Desktop
 
 Edit `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)

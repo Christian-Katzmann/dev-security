@@ -21,6 +21,7 @@ pytest.importorskip("mcp")
 
 from security_observatory.cases import build_security_cases
 from security_observatory.mcp_server import (
+    DEVSEC_MCP_INSTRUCTIONS,
     RepoNotFoundError,
     SUPPORTED_CASE_STATUSES,
     SUPPORTED_SEVERITIES,
@@ -178,6 +179,15 @@ def test_server_lists_expected_tools(tmp_path):
         assert tool.description, f"tool {tool.name!r} has no description"
         assert isinstance(tool.inputSchema, dict)
         assert tool.inputSchema.get("type") == "object"
+
+
+def test_server_instructions_reference_doctrine(tmp_path):
+    server = create_server(home=tmp_path)
+    assert server.instructions == DEVSEC_MCP_INSTRUCTIONS
+    assert "Action: <fix_now|verify|watch|info> · Severity" in server.instructions
+    assert "docs/agent-voice.md" in server.instructions
+    assert "docs/agent-safety.md" in server.instructions
+    assert "read-only and stdio-only" in server.instructions
 
 
 def test_create_server_uses_env_home_by_default(monkeypatch, tmp_path):
