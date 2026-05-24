@@ -15,6 +15,13 @@ type CaseCardProps = {
   item: DisplayCase;
   compact?: boolean;
   onDecision?: (item: DisplayCase, status: CaseDecisionStatus | 'open', note: string) => Promise<void> | void;
+  /**
+   * When the case's repo has rotation scaffolded AND the backend inferred a
+   * tracked env-var name, the parent can wire `onRotate` to open the Tier 5R
+   * rotation modal. The button only renders when both are true.
+   */
+  rotationScaffolded?: boolean;
+  onRotate?: (item: DisplayCase) => void;
 };
 
 const bucketStyles: Record<AttentionBucket, string> = {
@@ -49,11 +56,23 @@ function suppressionDate(value?: string | null): string | null {
   return date.toLocaleDateString();
 }
 
-export default function CaseCard({item, compact = false, onDecision}: CaseCardProps) {
+export default function CaseCard({
+  item,
+  compact = false,
+  onDecision,
+  rotationScaffolded = false,
+  onRotate,
+}: CaseCardProps) {
   const rawUrl = actionUrl(item, 'raw');
   const promptUrl = actionUrl(item, 'prompt');
   const suppressedAt = suppressionDate(item.suppression?.updated_at);
   const shouldRotate = item.installRecency?.confidence === 'strong' && Boolean(item.rotationSurfaces?.length);
+  const canRotateSecret = Boolean(
+    item.category === 'secrets' &&
+    rotationScaffolded &&
+    item.inferredSecretName &&
+    onRotate,
+  );
 
   async function saveDecision(status: CaseDecisionStatus | 'open') {
     if (!onDecision) return;
@@ -234,6 +253,17 @@ export default function CaseCard({item, compact = false, onDecision}: CaseCardPr
                 >
                   Raw report
                 </a>
+              )}
+              {canRotateSecret && (
+                <button
+                  type="button"
+                  onClick={() => onRotate?.(item)}
+                  title={`Open Tier 5R rotation modal for ${item.inferredSecretName}`}
+                  className="inline-flex min-h-9 items-center justify-center gap-2 border border-black/30 bg-[#fffaf0] px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-black transition-colors hover:border-black hover:bg-white"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  Rotate {item.inferredSecretName}
+                </button>
               )}
             </div>
 

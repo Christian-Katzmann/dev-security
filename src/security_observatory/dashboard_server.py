@@ -57,6 +57,7 @@ from .rotation import (
     read_rotation_history,
     read_rotation_status,
 )
+from .rotation_inference import infer_secret_name, load_catalog_secret_names
 from .scanners import scan_profile_catalog, scanner_names_for_profile, security_pack_catalog, tool_catalog
 from .storage import ObservatoryDB
 
@@ -1494,6 +1495,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             # every repo view, including the "Set up rotation" CTA for repos
             # without scaffolding. Read fresh on each request because rotation
             # state lives outside the DB (in each repo's data/ directory).
+            catalog_names_cache: list[str] | None = None
             for repo in payload.get("repos") or []:
                 repo_path_raw = repo.get("path")
                 if not repo_path_raw:
@@ -1510,6 +1512,35 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         "in_grace_count": 0,
                         "last_event_at": None,
                     }
+                # Enrich secrets-category cases with `inferred_secret_name` so
+                # the case card can pre-fill the rotation modal. We only infer
+                # when rotation is scaffolded — otherwise the affordance won't
+                # render anyway. Candidate names come from the repo's tracked
+                # secrets first; fall back to the global catalog so cases for
+                # never-yet-rotated secrets still get a sensible guess.
+                if not repo["rotation_state"].get("scaffolded"):
+                    continue
+                try:
+                    rotation_rows = read_rotation_status(repo_path_raw)
+                except OSError:
+                    rotation_rows = []
+                candidate_names = [
+                    str(row.get("secret")) for row in rotation_rows if row.get("secret")
+                ]
+                if not candidate_names:
+                    if catalog_names_cache is None:
+                        catalog_names_cache = load_catalog_secret_names()
+                    candidate_names = list(catalog_names_cache)
+                if not candidate_names:
+                    continue
+                for case in repo.get("active_cases") or repo.get("cases") or []:
+                    if not isinstance(case, dict):
+                        continue
+                    if str(case.get("category") or "") != "secrets":
+                        continue
+                    inferred = infer_secret_name(case, candidate_names)
+                    if inferred:
+                        case["inferred_secret_name"] = inferred
             self.send_json(payload)
             return
         if parsed.path == "/api/tool-catalog":

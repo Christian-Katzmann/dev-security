@@ -6,6 +6,7 @@ import CatalogPackPage from './components/catalog/CatalogPackPage';
 import AgentLabView from './components/agent-lab/AgentLabView';
 import NeedsRepoTarget from './components/NeedsRepoTarget';
 import RotationStatusCard from './components/RotationStatusCard';
+import RotationTriggerFlow from './components/RotationTriggerFlow';
 import {
   CatalogMutationState,
   CatalogStatusFilter,
@@ -108,6 +109,7 @@ import {
   ProjectsPayload,
   RecoveryPlaybook,
   RecoveryPlaybookItem,
+  RotationSecretRow,
   ScannerDoctorItem,
   SecurityPackCatalogItem,
   SecurityPackTool,
@@ -1204,11 +1206,28 @@ function FindingsView({summary, search, onCaseDecision}: {summary: DashboardSumm
   const [severityFilter, setSeverityFilter] = useState<Tone | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [rotateTarget, setRotateTarget] = useState<{repo: ProjectRepo; secret: RotationSecretRow} | null>(null);
+  const [rotateError, setRotateError] = useState<string | null>(null);
   const cases = displayCases(summary);
   const suppressed = suppressedDisplayCases(summary);
   const reasons = suppressionReasons(summary);
   const counts = severityCounts(summary);
   const categories = [...new Set(cases.map((item) => item.category).filter(Boolean) as string[])];
+  // Map case.repoName → rotation context. The "Rotate this" affordance only
+  // appears when the case's repo has rotation scaffolded; the path comes
+  // straight from the summary so we can construct the ProjectRepo the
+  // RotationTriggerFlow modal expects.
+  const rotationByRepo = useMemo(() => {
+    const map = new Map<string, {scaffolded: boolean; repo: ProjectRepo}>();
+    for (const repo of summary.repos) {
+      const scaffolded = Boolean(repo.rotation_state?.scaffolded);
+      map.set(repo.repo, {
+        scaffolded,
+        repo: {name: repo.repo, path: repo.path},
+      });
+    }
+    return map;
+  }, [summary.repos]);
   const filtered = cases.filter((item) => {
     if (severityFilter !== 'all' && toneForCase(item) !== severityFilter) return false;
     if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
@@ -1220,6 +1239,34 @@ function FindingsView({summary, search, onCaseDecision}: {summary: DashboardSumm
   });
   const shown = filtered.slice(0, 32);
   const selected = cases.find((item) => item.id === selectedId) ?? filtered[0] ?? null;
+
+  async function openRotation(item: DisplayCase) {
+    setRotateError(null);
+    const context = rotationByRepo.get(item.repoName);
+    if (!context?.scaffolded || !item.inferredSecretName) return;
+    try {
+      const response = await fetch(
+        `/api/rotation/status/${encodeURIComponent(item.repoName)}`,
+        {cache: 'no-store'},
+      );
+      if (!response.ok) throw new Error(await response.text());
+      const payload = (await response.json()) as {secrets?: RotationSecretRow[]};
+      const row = (payload.secrets ?? []).find(
+        (entry) => entry.secret === item.inferredSecretName,
+      );
+      if (!row) {
+        setRotateError(
+          `Secret ${item.inferredSecretName} is not tracked in rotation state — open the rotation card to pick from the available secrets.`,
+        );
+        return;
+      }
+      setRotateTarget({repo: context.repo, secret: row});
+    } catch (err) {
+      setRotateError(
+        err instanceof Error ? err.message : 'Unable to read rotation state for this repo.',
+      );
+    }
+  }
 
   return (
     <div className="view-stack">
@@ -1250,7 +1297,15 @@ function FindingsView({summary, search, onCaseDecision}: {summary: DashboardSumm
             </div>
           )}
         </PaperCard>
-        {selected ? <CaseDetailCard item={selected} onDecision={onCaseDecision} /> : <PaperCard><EmptyLine title="No active cases" detail="This target has no case matching the current filters." /></PaperCard>}
+        {selected ? (
+          <CaseDetailCard
+            item={selected}
+            onDecision={onCaseDecision}
+            rotationScaffolded={rotationByRepo.get(selected.repoName)?.scaffolded ?? false}
+            onRotate={openRotation}
+            rotateError={rotateError}
+          />
+        ) : <PaperCard><EmptyLine title="No active cases" detail="This target has no case matching the current filters." /></PaperCard>}
       </section>
       {!!suppressed.length && (
         <PaperCard>
@@ -1261,6 +1316,14 @@ function FindingsView({summary, search, onCaseDecision}: {summary: DashboardSumm
         </PaperCard>
       )}
       {!!reasons.length && <SuppressionReasonsCard reasons={reasons} />}
+      {rotateTarget && (
+        <RotationTriggerFlow
+          repo={rotateTarget.repo}
+          secret={rotateTarget.secret}
+          onClose={() => setRotateTarget(null)}
+          onDone={() => setRotateTarget(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1914,12 +1977,34 @@ function EmptyRepoView({repoName, onRunQuick, onChooseChecks}: {repoName: string
   );
 }
 
-function CaseDetailCard({item, onDecision}: {item: DisplayCase; onDecision: (caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) => Promise<void>}) {
+function CaseDetailCard({
+  item,
+  onDecision,
+  rotationScaffolded = false,
+  onRotate,
+  rotateError = null,
+}: {
+  item: DisplayCase;
+  onDecision: (caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) => Promise<void>;
+  rotationScaffolded?: boolean;
+  onRotate?: (item: DisplayCase) => void;
+  rotateError?: string | null;
+}) {
   async function save(status: CaseDecisionStatus | 'open') {
     const note = status === 'open' ? '' : window.prompt('Optional note for this decision', item.decision?.note ?? '');
     if (note === null) return;
     await onDecision(item.id, item.repoName, status, note);
   }
+  // "Rotate this" affordance: only on secrets-category cases when the repo
+  // has rotation scaffolded AND the backend inferred a tracked secret name.
+  // The button opens the same Tier 5R modal the rotation status card uses —
+  // single confirmation phrase across both surfaces (see docs/agent-safety.md).
+  const canRotate = Boolean(
+    item.category === 'secrets' &&
+    rotationScaffolded &&
+    item.inferredSecretName &&
+    onRotate,
+  );
   return (
     <PaperCard className="detail-card">
       <div className="detail-head">
@@ -1964,7 +2049,22 @@ function CaseDetailCard({item, onDecision}: {item: DisplayCase; onDecision: (cas
       <div className="button-row wrap">
         {item.scanId && <a className="button primary" href={reportViewUrl(item.scanId, 'prompt')}><Sparkles size={14} /> AI prompt</a>}
         {item.scanId && <a className="button secondary" href={reportViewUrl(item.scanId, 'raw')}><FileText size={14} /> Raw report</a>}
+        {canRotate && (
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => onRotate?.(item)}
+            title={`Open Tier 5R rotation modal for ${item.inferredSecretName}`}
+          >
+            <RotateCcw size={14} /> Rotate {item.inferredSecretName}
+          </button>
+        )}
       </div>
+      {rotateError && (
+        <div className="evidence-panel" style={{borderColor: '#b91c1c40', color: '#7f1d1d'}}>
+          {rotateError}
+        </div>
+      )}
       <div className="decision-grid">
         {([
           ['verified', 'Verify', CheckCircle2],

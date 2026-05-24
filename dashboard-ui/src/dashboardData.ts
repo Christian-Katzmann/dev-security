@@ -958,6 +958,7 @@ export type SecurityCase = {
     evidence?: string[];
   } | null;
   rotation_surfaces?: string[];
+  inferred_secret_name?: string | null;
   evidence?: unknown[];
   agent_prompt?: string;
   raw_report_url?: string;
@@ -999,6 +1000,12 @@ export type DisplayCase = {
   incident?: HoneyIncident | null;
   installRecency?: SecurityCase['install_recency'];
   rotationSurfaces?: string[];
+  /**
+   * Best-effort env-var name from `infer_secret_name` on the backend, present
+   * only on secrets-category cases when rotation is scaffolded for the repo.
+   * The case card uses this to pre-fill the rotation modal.
+   */
+  inferredSecretName?: string;
 };
 
 export type ScanCompleteness = {
@@ -1498,6 +1505,7 @@ function caseToDisplayCase(item: SecurityCase, index: number): DisplayCase {
     incident: item.incident,
     installRecency: item.install_recency,
     rotationSurfaces: item.rotation_surfaces,
+    inferredSecretName: item.inferred_secret_name ?? undefined,
   };
 }
 
