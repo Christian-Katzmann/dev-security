@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "campaign": {
+    "slug": "devsec-dashboard-coherence",
+    "title": "5 · DëvSec dashboard coherence — fix the lying numbers, lock the vocabulary, unify the control room",
+    "repo_path": "/Users/christiankatzmann/Dev/Projects/dëv-security",
+    "campaign_path": "/Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/devsec-dashboard-coherence.md",
+    "run_dir": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/devsec-dashboard-coherence",
+    "created_at": "2026-05-24T21:00:13+00:00",
+    "updated_at": "2026-05-24T23:11:04+00:00",
+    "status": "active",
+    "model": "gpt-5.5",
+    "reasoning_effort": "xhigh",
+    "execution_environment": "worktree",
+    "rrule": "FREQ=HOURLY;INTERVAL=1",
+    "schedule_mode": "fast-chain",
+    "fast_chain_delay_minutes": 2
+  },
+  "phase": "final_review",
+  "cursor": {
+    "step_id": null,
+    "phase": "close",
+    "attempt": 0
+  },
+  "policy": {
+    "one_step_per_run": true,
+    "create_fresh_automation_each_step": true,
+    "pause_current_automation_after_chaining": true,
+    "campaign_markdown_is_progress_source": true,
+    "run_step_reviews": false,
+    "run_phase_reviews": false,
+    "require_final_review": true,
+    "final_review": {
+      "mode": "whole-campaign",
+      "verdict_path": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/devsec-dashboard-coherence/final-review.md",
+      "rework_receipt_path": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/devsec-dashboard-coherence/final-rework.md"
+    },
+    "auto_commit": false,
+    "safety_source": "campaign_prompt"
+  },
+  "campaign_chain": {
+    "enabled": false,
+    "next_state_path": null
+  },
+  "automations": [
+    {
+      "id": "campaign-devsec-dashboard-coherence",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T21:00:59+00:00",
+      "expected_next": "step 0.1 Verify, polish, and commit the in-session Homebrew install button",
+      "updated_at": "2026-05-24T21:11:41+00:00"
+    },
+    {
+      "id": "campaign-devsec-dashboard-coherence-step-0-2-20260524210914",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T21:09:22+00:00",
+      "expected_next": "step 0.2 Bug-bash sweep (visual and information quick wins)",
+      "updated_at": "2026-05-24T21:32:09+00:00"
+    },
+    {
+      "id": "campaign-devsec-dashboard-coherence-step-1-1-20260524232913",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T21:29:36+00:00",
+      "expected_next": "step 1.1 Lock severity and findings/cases vocabulary across UI, CLI, docs, AI handoffs",
+      "updated_at": "2026-05-24T22:06:40+00:00"
+    },
+    {
+      "id": "campaign-devsec-dashboard-coherence-step-2-1-20260525000600",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T22:05:25+00:00",
+      "expected_next": "step 2.1 Per-view mode classification and repo-selector state machine",
+      "updated_at": "2026-05-24T22:16:45+00:00"
+    },
+    {
+      "id": "campaign-devsec-dashboard-coherence-step-2-2-20260525001600",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T22:14:57+00:00",
+      "expected_next": "step 2.2 Wire the mode through Overview, Findings, Activity, Reports",
+      "updated_at": "2026-05-24T22:29:09+00:00"
+    },
+    {
+      "id": "campaign-devsec-dashboard-coherence-step-3-1-20260525002800",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T22:27:33+00:00",
+      "expected_next": "step 3.1 Every KPI uses scopedSummary; cross-repo KPIs labeled explicitly; decide handling of pre-cases scans",
+      "updated_at": "2026-05-24T22:30:13+00:00"
+    },
+    {
+      "id": "campaign-devsec-dashboard-coherence-step-3-1-20260525003200",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T22:30:49+00:00",
+      "expected_next": "step 3.1 Every KPI uses scopedSummary; cross-repo KPIs labeled explicitly; decide handling of pre-cases scans",
+      "updated_at": "2026-05-24T22:44:44+00:00"
+    },
+    {
+      "id": "campaign-devsec-dashboard-coherence-step-4-1-20260525004400",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T22:43:05+00:00",
+      "expected_next": "step 4.1 Make the row-click feedback visible (sticky panel / sheet / inline expand)",
+      "updated_at": "2026-05-24T22:54:56+00:00"
+    },
+    {
+      "id": "campaign-devsec-dashboard-coherence-step-5-1-20260525005400",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T22:53:11+00:00",
+      "expected_next": "step 5.1 Move the Verification-style scan-completion + Run controls to Overview; keep Verification as deeper diagnostic",
+      "updated_at": "2026-05-24T23:11:04+00:00"
+    },
+    {
+      "id": "campaign-devsec-dashboard-coherence-final-review-20260525011000",
+      "status": "ACTIVE",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T23:09:15+00:00",
+      "expected_next": "final_review 5 · DëvSec dashboard coherence — fix the lying numbers, lock the vocabulary, unify the control room"
+    }
+  ],
+  "blockers": []
+}

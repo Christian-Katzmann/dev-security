@@ -1,0 +1,133 @@
+# Campaign Automation Timeline
+
+- Campaign: `devsec-dashboard-coherence`
+- Title: `5 · DëvSec dashboard coherence — fix the lying numbers, lock the vocabulary, unify the control room`
+- Repo: `/Users/christiankatzmann/Dev/Projects/dëv-security`
+- Campaign file: `/Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/devsec-dashboard-coherence.md`
+- Created: `2026-05-24T21:00:13+00:00`
+- Model: `gpt-5.5`
+- Reasoning effort: `xhigh`
+
+- `2026-05-24T21:00:52+00:00` Verified automation `campaign-devsec-dashboard-coherence` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T21:00:59+00:00` Created automation `campaign-devsec-dashboard-coherence` for step 0.1 Verify, polish, and commit the in-session Homebrew install button.
+- `2026-05-24T21:02:02+00:00` Automation `campaign-devsec-dashboard-coherence` has no scheduler run in the Codex app registry.
+- `2026-05-24T21:02:12+00:00` Automation `campaign-devsec-dashboard-coherence` has no scheduler run in the Codex app registry.
+- `2026-05-24T21:02:23+00:00` Automation `campaign-devsec-dashboard-coherence` has no scheduler run in the Codex app registry.
+- `2026-05-24T21:02:33+00:00` Automation `campaign-devsec-dashboard-coherence` has no scheduler run in the Codex app registry.
+- `2026-05-24T21:02:43+00:00` Automation `campaign-devsec-dashboard-coherence` has no scheduler run in the Codex app registry.
+- `2026-05-24T21:02:53+00:00` Automation `campaign-devsec-dashboard-coherence` has no scheduler run in the Codex app registry.
+- `2026-05-24T21:03:03+00:00` Automation `campaign-devsec-dashboard-coherence` has no scheduler run in the Codex app registry.
+- `2026-05-24T21:03:13+00:00` Automation `campaign-devsec-dashboard-coherence` has no scheduler run in the Codex app registry.
+- `2026-05-24T21:03:23+00:00` Verified automation `campaign-devsec-dashboard-coherence` launched thread `pending:348f0745-071a-467d-bb9b-661f4f5cebd6` with status `IN_PROGRESS`.
+- `2026-05-24T21:08:56+00:00` Completed step 0.1; campaign markdown is checked and parser next is step 0.2 Bug-bash sweep.
+- `2026-05-24T21:08:56+00:00` Step 0.1 local commit is 1c0c1ec. PR was not opened because origin/main is 22 commits behind this branch, which would create a mixed campaign PR.
+- `2026-05-24T21:09:14+00:00` Registered next automation `campaign-devsec-dashboard-coherence-step-0-2-20260524210914` for step 0.2 using registry fallback.
+- `2026-05-24T21:09:22+00:00` Verified next automation `campaign-devsec-dashboard-coherence-step-0-2-20260524210914` in registry as ACTIVE gpt-5.5/xhigh.
+- `2026-05-24T21:09:22+00:00` Recorded next automation `campaign-devsec-dashboard-coherence-step-0-2-20260524210914` for step 0.2 Bug-bash sweep.
+- `2026-05-24T21:09:31+00:00` Verified next automation campaign-devsec-dashboard-coherence-step-0-2-20260524210914 in registry as ACTIVE gpt-5.5/xhigh.
+- `2026-05-24T21:09:41+00:00` Automation `campaign-devsec-dashboard-coherence-step-0-2-20260524210914` has no scheduler run since `1779656949906` in the Codex app registry.
+- `2026-05-24T21:09:51+00:00` Automation `campaign-devsec-dashboard-coherence-step-0-2-20260524210914` has no scheduler run since `1779656949906` in the Codex app registry.
+- `2026-05-24T21:10:01+00:00` Automation `campaign-devsec-dashboard-coherence-step-0-2-20260524210914` has no scheduler run since `1779656949906` in the Codex app registry.
+- `2026-05-24T21:10:11+00:00` Automation `campaign-devsec-dashboard-coherence-step-0-2-20260524210914` has no scheduler run since `1779656949906` in the Codex app registry.
+- `2026-05-24T21:10:21+00:00` Automation `campaign-devsec-dashboard-coherence-step-0-2-20260524210914` has no scheduler run since `1779656949906` in the Codex app registry.
+- `2026-05-24T21:10:31+00:00` Automation `campaign-devsec-dashboard-coherence-step-0-2-20260524210914` has no scheduler run since `1779656949906` in the Codex app registry.
+- `2026-05-24T21:10:41+00:00` Automation `campaign-devsec-dashboard-coherence-step-0-2-20260524210914` has no scheduler run since `1779656949906` in the Codex app registry.
+- `2026-05-24T21:10:51+00:00` Automation `campaign-devsec-dashboard-coherence-step-0-2-20260524210914` has no scheduler run since `1779656949906` in the Codex app registry.
+- `2026-05-24T21:11:01+00:00` Automation `campaign-devsec-dashboard-coherence-step-0-2-20260524210914` has no scheduler run since `1779656949906` in the Codex app registry.
+- `2026-05-24T21:11:11+00:00` Automation `campaign-devsec-dashboard-coherence-step-0-2-20260524210914` has no scheduler run since `1779656949906` in the Codex app registry.
+- `2026-05-24T21:11:22+00:00` Automation `campaign-devsec-dashboard-coherence-step-0-2-20260524210914` has no scheduler run since `1779656949906` in the Codex app registry.
+- `2026-05-24T21:11:32+00:00` Verified fallback automation campaign-devsec-dashboard-coherence-step-0-2-20260524210914 launched a scheduler run.
+- `2026-05-24T21:11:41+00:00` Paused current automation campaign-devsec-dashboard-coherence after verifying next automation launch.
+- `2026-05-24T21:11:41+00:00` Verified current automation campaign-devsec-dashboard-coherence is PAUSED in registry.
+- `2026-05-24T21:12:23+00:00` Final sanity verified next automation remains ACTIVE.
+- `2026-05-24T21:12:23+00:00` Final sanity verified current automation remains PAUSED.
+- `2026-05-24T21:28:15+00:00` Completed step 0.2; campaign markdown is checked and parser next is step 1.1 Vocabulary lock.
+- `2026-05-24T21:28:31+00:00` Step 0.2 local commit is d613f3b. Visual receipts and doctor before/after output are under reports/campaign-automation/devsec-dashboard-coherence/visuals/.
+- `2026-05-24T21:29:13+00:00` Registered next automation campaign-devsec-dashboard-coherence-step-1-1-20260524232913 for step 1.1 using registry fallback.
+- `2026-05-24T21:29:22+00:00` Verified automation `campaign-devsec-dashboard-coherence-step-1-1-20260524232913` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T21:29:36+00:00` Recorded next automation campaign-devsec-dashboard-coherence-step-1-1-20260524232913 for step 1.1 Vocabulary lock.
+- `2026-05-24T21:31:27+00:00` Verified automation `campaign-devsec-dashboard-coherence-step-1-1-20260524232913` launched thread `019e5be6-5a46-7ae2-864e-b3387d52ec79` with status `IN_PROGRESS`.
+- `2026-05-24T21:31:46+00:00` Paused current automation campaign-devsec-dashboard-coherence-step-0-2-20260524210914 after verifying next automation launch.
+- `2026-05-24T21:31:51+00:00` Verified automation `campaign-devsec-dashboard-coherence-step-0-2-20260524210914` in Codex app registry as PAUSED with model gpt-5.5/xhigh.
+- `2026-05-24T21:32:09+00:00` Verified current automation campaign-devsec-dashboard-coherence-step-0-2-20260524210914 is PAUSED in registry.
+- `2026-05-24T21:32:57+00:00` Verified automation `campaign-devsec-dashboard-coherence-step-1-1-20260524232913` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T21:32:57+00:00` Verified automation `campaign-devsec-dashboard-coherence-step-0-2-20260524210914` in Codex app registry as PAUSED with model gpt-5.5/xhigh.
+- `2026-05-24T21:33:00+00:00` Skipped Step 1.1 run because an existing lock from campaign-devsec-dashboard-coherence-step-0-2-20260524210914 is younger than 6 hours.
+- `2026-05-24T21:33:46+00:00` Step 0.2 PR was not opened because the branch inherits local campaign history ahead of origin/main; opening now would create a mixed campaign PR.
+- `2026-05-24T21:38:55+00:00` Verified automation `campaign-devsec-dashboard-coherence-step-1-1-20260524232913` launched thread `019e5be6-5a46-7ae2-864e-b3387d52ec79` with status `PENDING_REVIEW`.
+- `2026-05-24T21:39:59+00:00` Verified automation `campaign-devsec-dashboard-coherence-step-1-1-20260524232913` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T21:42:51+00:00` Automation `campaign-devsec-dashboard-coherence-step-1-1-20260524232913` has no scheduler run since `1779658810000` in the Codex app registry.
+- `2026-05-24T21:43:01+00:00` Verified automation `campaign-devsec-dashboard-coherence-step-1-1-20260524232913` launched thread `019e5bf0-e1c0-7331-8a5d-e15e3fc33b9b` with status `IN_PROGRESS`.
+- `2026-05-24T22:04:17+00:00` Completed step 1.1; campaign markdown is checked and parser next is step 2.1 Per-view mode classification.
+- `2026-05-24T22:04:17+00:00` Step 1.1 local commit is acb2477. Verification passed: import check, uv run pytest, dashboard lint, dashboard build. Vocabulary audit receipt: reports/campaign-automation/devsec-dashboard-coherence/step-1.1-vocabulary-audit.md.
+- `2026-05-24T22:05:16+00:00` Registered next automation campaign-devsec-dashboard-coherence-step-2-1-20260525000600 for step 2.1 using registry fallback.
+- `2026-05-24T22:05:25+00:00` Verified next automation campaign-devsec-dashboard-coherence-step-2-1-20260525000600 in registry as ACTIVE gpt-5.5/xhigh.
+- `2026-05-24T22:05:25+00:00` Recorded next automation campaign-devsec-dashboard-coherence-step-2-1-20260525000600 for step 2.1 Per-view mode classification.
+- `2026-05-24T22:06:26+00:00` Verified fallback automation campaign-devsec-dashboard-coherence-step-2-1-20260525000600 launched a scheduler run.
+- `2026-05-24T22:06:40+00:00` Paused current automation campaign-devsec-dashboard-coherence-step-1-1-20260524232913 after verifying next automation launch.
+- `2026-05-24T22:06:40+00:00` Verified current automation campaign-devsec-dashboard-coherence-step-1-1-20260524232913 is PAUSED in registry.
+- `2026-05-24T22:06:40+00:00` Final sanity verified next automation campaign-devsec-dashboard-coherence-step-2-1-20260525000600 remains ACTIVE.
+- `2026-05-24T22:14:57+00:00` Step 2.1 complete; parser advanced to Step 2.2.
+- `2026-05-24T22:14:57+00:00` Registered fallback automation `campaign-devsec-dashboard-coherence-step-2-2-20260525001600` for Step 2.2 at 2026-05-25T00:16:00+02:00.
+- `2026-05-24T22:14:57+00:00` Verified Step 2.2 automation `campaign-devsec-dashboard-coherence-step-2-2-20260525001600` is ACTIVE in the Codex registry.
+- `2026-05-24T22:14:57+00:00` Recorded Step 2.2 automation `campaign-devsec-dashboard-coherence-step-2-2-20260525001600` after registry verification.
+- `2026-05-24T22:16:35+00:00` Verified fallback Step 2.2 automation launched from scheduler.
+- `2026-05-24T22:16:45+00:00` Paused current Step 2.1 automation after Step 2.2 scheduler launch was verified.
+- `2026-05-24T22:16:45+00:00` Verified current Step 2.1 automation is PAUSED in the Codex registry.
+- `2026-05-24T22:17:20+00:00` Released Step 2.1 campaign lock after chaining Step 2.2.
+- `2026-05-24T22:26:25+00:00` Step 2.2 implemented: Overview, Cases, Activity, and Reports now render with explicit all-repos/repo scope labels; dashboard lint/build passed; Vite smoke check rendered with backend API unavailable.
+- `2026-05-24T22:26:36+00:00` Step 2.2 checked in campaign markdown; parser advanced to step 3.1.
+- `2026-05-24T22:27:19+00:00` Registered fallback automation `campaign-devsec-dashboard-coherence-step-3-1-20260525002800` for step 3.1 at 2026-05-25T00:28:00+02:00.
+- `2026-05-24T22:27:25+00:00` Verified fallback automation campaign-devsec-dashboard-coherence-step-3-1-20260525002800 is ACTIVE in the Codex app registry.
+- `2026-05-24T22:27:33+00:00` Recorded next automation campaign-devsec-dashboard-coherence-step-3-1-20260525002800 for step 3.1 after registry verification.
+- `2026-05-24T22:28:41+00:00` Verified scheduler launched fallback automation campaign-devsec-dashboard-coherence-step-3-1-20260525002800.
+- `2026-05-24T22:28:59+00:00` Paused current automation campaign-devsec-dashboard-coherence-step-2-2-20260525001600 after verified handoff to step 3.1.
+- `2026-05-24T22:28:59+00:00` Re-verified next automation campaign-devsec-dashboard-coherence-step-3-1-20260525002800 remains ACTIVE after scheduler launch.
+- `2026-05-24T22:29:09+00:00` Verified current automation campaign-devsec-dashboard-coherence-step-2-2-20260525001600 is PAUSED in the registry.
+- `2026-05-24T22:29:09+00:00` Recorded current automation campaign-devsec-dashboard-coherence-step-2-2-20260525001600 as PAUSED after verification.
+
+- 2026-05-24T22:29:14.488537+00:00 — skipped: lock exists for 11.9 minutes for automation campaign-devsec-dashboard-coherence-step-3-1-20260525002800.
+- `2026-05-24T22:29:55+00:00` Released Step 2.2 campaign lock before rescheduling Step 3.1 because the first fallback launch skipped on the active lock.
+- `2026-05-24T22:30:13+00:00` Paused skipped Step 3.1 fallback automation campaign-devsec-dashboard-coherence-step-3-1-20260525002800 before creating a fresh post-lock launch.
+- `2026-05-24T22:30:18+00:00` Verified skipped Step 3.1 fallback automation campaign-devsec-dashboard-coherence-step-3-1-20260525002800 is PAUSED.
+- `2026-05-24T22:30:34+00:00` Registered fresh fallback automation `campaign-devsec-dashboard-coherence-step-3-1-20260525003200` for step 3.1 after releasing the Step 2.2 lock.
+- `2026-05-24T22:30:43+00:00` Verified fresh Step 3.1 automation campaign-devsec-dashboard-coherence-step-3-1-20260525003200 is ACTIVE in the Codex registry.
+- `2026-05-24T22:30:49+00:00` Recorded fresh Step 3.1 automation campaign-devsec-dashboard-coherence-step-3-1-20260525003200 after registry verification.
+- `2026-05-24T22:32:30+00:00` Verified fresh Step 3.1 automation campaign-devsec-dashboard-coherence-step-3-1-20260525003200 launched after the Step 2.2 lock was released.
+- `2026-05-24T22:42:18+00:00` Completed step 3.1; campaign markdown is checked and parser next is step 4.1 Findings master-detail composition.
+- `2026-05-24T22:42:28+00:00` Step 3.1 implemented: case KPIs now ignore raw-only pre-cases scans, Tool Catalog is labeled across all repos, Activity separates case-backed raw from pre-cases raw; lint/build and Playwright smoke check passed. Receipt: reports/campaign-automation/devsec-dashboard-coherence/step-3.1-kpi-audit.md.
+- `2026-05-24T22:42:54+00:00` Registered fallback automation `campaign-devsec-dashboard-coherence-step-4-1-20260525004400` for step 4.1 at 2026-05-25T00:44:00+02:00.
+- `2026-05-24T22:43:05+00:00` Verified Step 4.1 fallback automation campaign-devsec-dashboard-coherence-step-4-1-20260525004400 is ACTIVE in the Codex registry.
+- `2026-05-24T22:43:05+00:00` Recorded next automation campaign-devsec-dashboard-coherence-step-4-1-20260525004400 for step 4.1 after registry verification.
+- `2026-05-24T22:43:11+00:00` Automation `campaign-devsec-dashboard-coherence-step-4-1-20260525004400` has no scheduler run since `1779662580000` in the Codex app registry.
+- `2026-05-24T22:43:21+00:00` Automation `campaign-devsec-dashboard-coherence-step-4-1-20260525004400` has no scheduler run since `1779662580000` in the Codex app registry.
+- `2026-05-24T22:43:31+00:00` Automation `campaign-devsec-dashboard-coherence-step-4-1-20260525004400` has no scheduler run since `1779662580000` in the Codex app registry.
+- `2026-05-24T22:43:41+00:00` Automation `campaign-devsec-dashboard-coherence-step-4-1-20260525004400` has no scheduler run since `1779662580000` in the Codex app registry.
+- `2026-05-24T22:43:51+00:00` Automation `campaign-devsec-dashboard-coherence-step-4-1-20260525004400` has no scheduler run since `1779662580000` in the Codex app registry.
+- `2026-05-24T22:44:02+00:00` Automation `campaign-devsec-dashboard-coherence-step-4-1-20260525004400` has no scheduler run since `1779662580000` in the Codex app registry.
+- `2026-05-24T22:44:12+00:00` Automation `campaign-devsec-dashboard-coherence-step-4-1-20260525004400` has no scheduler run since `1779662580000` in the Codex app registry.
+- `2026-05-24T22:44:22+00:00` Automation `campaign-devsec-dashboard-coherence-step-4-1-20260525004400` has no scheduler run since `1779662580000` in the Codex app registry.
+- `2026-05-24T22:44:32+00:00` Verified fallback Step 4.1 automation launched from scheduler.
+- `2026-05-24T22:44:44+00:00` Paused current automation campaign-devsec-dashboard-coherence-step-3-1-20260525003200 after verified handoff to step 4.1.
+- `2026-05-24T22:44:51+00:00` Verified current Step 3.1 automation is PAUSED in the Codex registry.
+- `2026-05-24T22:44:51+00:00` Final sanity verified next Step 4.1 automation remains ACTIVE.
+- `2026-05-24T22:45:15+00:00` Released Step 3.1 campaign lock after verified handoff to Step 4.1.
+- `2026-05-24T22:46:16+00:00` Post-handoff lock check: active lock now belongs to Step 4.1 automation campaign-devsec-dashboard-coherence-step-4-1-20260525004400.
+- `2026-05-24T22:52:29+00:00` Completed step 4.1 Findings master-detail composition; parser advanced to step 5.1.
+- `2026-05-24T22:53:00+00:00` Registered fallback automation `campaign-devsec-dashboard-coherence-step-5-1-20260525005400` for step 5.1 at 2026-05-25T00:54:00+02:00.
+- `2026-05-24T22:53:06+00:00` Verified fallback automation campaign-devsec-dashboard-coherence-step-5-1-20260525005400 is ACTIVE and pinned to gpt-5.5/xhigh.
+- `2026-05-24T22:53:11+00:00` Recorded next automation campaign-devsec-dashboard-coherence-step-5-1-20260525005400 for parser next step 5.1.
+- `2026-05-24T22:54:47+00:00` Verified scheduler launched automation campaign-devsec-dashboard-coherence-step-5-1-20260525005400 for step 5.1.
+- `2026-05-24T22:54:56+00:00` Paused current automation campaign-devsec-dashboard-coherence-step-4-1-20260525004400 after verified step 5.1 handoff.
+- `2026-05-24T22:55:02+00:00` Verified current automation campaign-devsec-dashboard-coherence-step-4-1-20260525004400 is PAUSED in the registry.
+- `2026-05-24T22:56:26+00:00` Released step 4.1 lock; observed active lock now belongs to step 5.1 automation campaign-devsec-dashboard-coherence-step-5-1-20260525005400.
+- `2026-05-24T23:08:16+00:00` Step 5.1 completed; parser next is whole-campaign final_review.
+- `2026-05-24T23:09:01+00:00` Registered fallback automation for whole-campaign final review because automation_update tool was unavailable.
+- `2026-05-24T23:09:08+00:00` Verified next final-review automation is ACTIVE in Codex registry.
+- `2026-05-24T23:09:15+00:00` Recorded verified next automation for whole-campaign final review.
+- `2026-05-24T23:10:52+00:00` Verified fallback-created final-review automation produced an automation_runs row.
+- `2026-05-24T23:11:03+00:00` Paused current Step 5.1 automation after verified final-review handoff.
+- `2026-05-24T23:11:03+00:00` Verified current Step 5.1 automation is PAUSED in Codex registry.
+- `2026-05-24T23:11:04+00:00` Recorded current automation status PAUSED in campaign state.
+- `2026-05-24T23:11:35+00:00` Step 5.1 implemented: Overview now owns the daily scan-control panel, all-repos runs use a 3-repo fan-out limit, Verification is diagnostic depth, toolbar run controls are hidden on Overview to avoid duplication. Verification passed: dashboard lint, dashboard build, Playwright desktop Overview/Verification, mobile Overview overflow check, no console warnings. Dashboard QA server stopped.
+- `2026-05-24T23:11:35+00:00` Skipped final-review automation campaign-devsec-dashboard-coherence-final-review-20260525011000 because /Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/devsec-dashboard-coherence/lock is younger than 6 hours; another campaign unit is still considered active.

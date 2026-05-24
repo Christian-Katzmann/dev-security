@@ -45,7 +45,7 @@ Positive checks from the review (must not regress):
 
 ## Progress checklist
 
-- [ ] Step 1.1 — Close the four NEEDS WORK findings and verify build + tests
+- [x] Step 1.1 — Close the four NEEDS WORK findings and verify build + tests
 
 ## Step 1.1 — Close the four NEEDS WORK findings and verify build + tests
 
