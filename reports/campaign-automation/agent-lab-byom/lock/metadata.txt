@@ -1,5 +1,0 @@
-automation_id: d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423
-start_time: 2026-05-24T09:50:43Z
-next_type: step
-step_id: 3.2
-phase: 3

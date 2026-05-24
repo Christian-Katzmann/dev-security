@@ -7,7 +7,7 @@
     "campaign_path": "/Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/agent-lab-byom.md",
     "run_dir": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/agent-lab-byom",
     "created_at": "2026-05-21T21:49:23+00:00",
-    "updated_at": "2026-05-24T09:56:39+00:00",
+    "updated_at": "2026-05-24T10:13:38+00:00",
     "status": "active",
     "model": "gpt-5.5",
     "reasoning_effort": "xhigh",
@@ -118,22 +118,45 @@
     },
     {
       "id": "d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423",
-      "status": "ACTIVE",
+      "status": "PAUSED",
       "kind": "cron",
       "execution_environment": "worktree",
       "model": "gpt-5.5",
       "reasoning_effort": "xhigh",
       "created_at": "2026-05-24T02:21:26+00:00",
-      "expected_next": "step 3.2 Validate with mocked and pasted proposals"
+      "expected_next": "step 3.2 Validate with mocked and pasted proposals",
+      "updated_at": "2026-05-24T09:58:40+00:00"
     },
     {
       "id": "d-vsec-agent-lab-byo-ai-final-review-20260524-1157",
-      "status": "ACTIVE",
+      "status": "PAUSED",
       "kind": "cron",
       "execution_environment": "worktree",
       "model": "gpt-5.5",
       "reasoning_effort": "xhigh",
       "created_at": "2026-05-24T09:56:39+00:00",
+      "expected_next": "final_review DëvSec Agent Lab BYO AI",
+      "updated_at": "2026-05-24T10:06:39+00:00"
+    },
+    {
+      "id": "d-vsec-agent-lab-byo-ai-final-rework-20260524-1206",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T10:04:40+00:00",
+      "expected_next": "final_rework DëvSec Agent Lab BYO AI",
+      "updated_at": "2026-05-24T10:13:38+00:00"
+    },
+    {
+      "id": "d-vsec-agent-lab-byo-ai-final-review-rerun-20260524-1213",
+      "status": "ACTIVE",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T10:12:11+00:00",
       "expected_next": "final_review DëvSec Agent Lab BYO AI"
     }
   ],

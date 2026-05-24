@@ -121,3 +121,32 @@
 - `2026-05-24T09:56:27+00:00` Registered fallback final-review automation d-vsec-agent-lab-byo-ai-final-review-20260524-1157 for 2026-05-24T11:57:00+02:00.
 - `2026-05-24T09:56:32+00:00` Verified fallback final-review automation d-vsec-agent-lab-byo-ai-final-review-20260524-1157 in registry as ACTIVE gpt-5.5/xhigh.
 - `2026-05-24T09:56:39+00:00` Recorded final-review automation d-vsec-agent-lab-byo-ai-final-review-20260524-1157 for parser next final_review.
+- `2026-05-24T09:58:07+00:00` Verified scheduler launched fallback final-review automation d-vsec-agent-lab-byo-ai-final-review-20260524-1157.
+- `2026-05-24T09:58:15+00:00` Observed scheduler launch for final-review automation.
+- `2026-05-24T09:58:29+00:00` Paused current automation d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423 after verified handoff to final review.
+- `2026-05-24T09:58:40+00:00` Verified current automation d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423 is PAUSED in registry.
+- `2026-05-24T09:58:40+00:00` State recorded current automation d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423 as PAUSED.
+- `2026-05-24T09:58:48+00:00` Released current lock for step 3.2 after verified final-review handoff.
+- `2026-05-24T09:58:53+00:00` skipped d-vsec-agent-lab-byo-ai-final-review-20260524-1157: lock exists from d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423 and is younger than 6 hours; final review not run
+- `2026-05-24T09:59:43+00:00` acquired lock for d-vsec-agent-lab-byo-ai-final-review-20260524-1157 after prior step lock released; proceeding with whole-campaign final review
+- `2026-05-24T10:03:42+00:00` Final review verdict NEEDS WORK: strict proposal list-field validation is too permissive; next unit is final_rework.
+- `2026-05-24T10:04:28+00:00` Registered fallback final-rework automation d-vsec-agent-lab-byo-ai-final-rework-20260524-1206 for 2026-05-24T12:06:00+02:00.
+- `2026-05-24T10:04:35+00:00` Verified automation `d-vsec-agent-lab-byo-ai-final-rework-20260524-1206` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T10:04:40+00:00` Created automation `d-vsec-agent-lab-byo-ai-final-rework-20260524-1206` for final_rework DëvSec Agent Lab BYO AI.
+- `2026-05-24T10:06:22+00:00` Verified automation `d-vsec-agent-lab-byo-ai-final-rework-20260524-1206` launched thread `pending:0f746114-c0db-491d-a4e2-55201ae349f1` with status `IN_PROGRESS`.
+- `2026-05-24T10:06:39+00:00` Paused final-review automation after verified handoff to final-rework automation d-vsec-agent-lab-byo-ai-final-rework-20260524-1206.
+- `2026-05-24T10:06:46+00:00` Observed scheduler launch for final-rework automation.
+- `2026-05-24T10:06:48+00:00` Verified automation `d-vsec-agent-lab-byo-ai-final-review-20260524-1157` in Codex app registry as PAUSED with model gpt-5.5/xhigh.
+- `2026-05-24T10:07:16+00:00` Released final-review lock after verified handoff to final-rework automation d-vsec-agent-lab-byo-ai-final-rework-20260524-1206.
+- `2026-05-24T10:07:53+00:00` acquired lock for d-vsec-agent-lab-byo-ai-final-rework-20260524-1206; proceeding with final rework
+- `2026-05-24T10:08:19+00:00` Verified automation `d-vsec-agent-lab-byo-ai-final-rework-20260524-1206` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T10:08:19+00:00` Verified automation `d-vsec-agent-lab-byo-ai-final-review-20260524-1157` in Codex app registry as PAUSED with model gpt-5.5/xhigh.
+- `2026-05-24T10:10:38+00:00` Final rework completed: strict Agent Lab proposal list-field validation fixed and verified; next unit is whole-campaign final review.
+- `2026-05-24T10:11:57+00:00` Registered fallback final-review rerun automation `d-vsec-agent-lab-byo-ai-final-review-rerun-20260524-1213` for 2026-05-24T12:13:00+02:00.
+- `2026-05-24T10:12:03+00:00` Verified fallback final-review rerun automation d-vsec-agent-lab-byo-ai-final-review-rerun-20260524-1213 in registry as ACTIVE gpt-5.5/xhigh.
+- `2026-05-24T10:12:11+00:00` Recorded final-review rerun automation d-vsec-agent-lab-byo-ai-final-review-rerun-20260524-1213 for parser next final_review.
+- `2026-05-24T10:12:20+00:00` Released final-rework lock before fallback launch verification for final-review rerun.
+- `2026-05-24T10:12:31+00:00` Automation `d-vsec-agent-lab-byo-ai-final-review-rerun-20260524-1213` has no scheduler run since `1779617580000` in the Codex app registry.
+- `2026-05-24T10:13:24+00:00` Observed scheduler launch for fallback final-review rerun automation.
+- `2026-05-24T10:13:38+00:00` Paused current final-rework automation after verified handoff to final-review rerun.
+- `2026-05-24T10:13:38+00:00` Verified current final-rework automation d-vsec-agent-lab-byo-ai-final-rework-20260524-1206 is PAUSED in registry.

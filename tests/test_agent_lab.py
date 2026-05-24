@@ -260,6 +260,41 @@ def test_agent_proposal_validation_rejects_schema_unknown_surface_and_profile(tm
     assert "requested_execution[0].tool_ids contains ai-static, which is not in scan profile secrets." in errors
 
 
+def test_agent_proposal_validation_rejects_malformed_list_fields(tmp_path, monkeypatch):
+    monkeypatch.setattr("security_observatory.catalog.shutil.which", lambda _binary: None)
+    db = ObservatoryDB(tmp_path / "observatory.sqlite")
+    try:
+        managed_records = db.list_managed_tools()
+    finally:
+        db.close()
+
+    malformed = deepcopy(_proposal())
+    malformed["requested_permissions"] = "local_repo_read"
+    malformed["requested_execution"][0]["tool_ids"] = "gitleaks"
+    malformed["recommended_tools"][0]["safety_labels"] = "local-only"
+    errors = _validation_errors(malformed, managed_records)
+
+    assert "requested_permissions must be a list." in errors
+    assert "requested_execution[0].tool_ids must be a list." in errors
+    assert "recommended_tools[0].safety_labels must be a list." in errors
+
+
+def test_agent_proposal_validation_defaults_omitted_tool_ids_to_profile_tools(tmp_path, monkeypatch):
+    monkeypatch.setattr("security_observatory.catalog.shutil.which", lambda _binary: None)
+    db = ObservatoryDB(tmp_path / "observatory.sqlite")
+    try:
+        managed_records = db.list_managed_tools()
+    finally:
+        db.close()
+
+    proposal = deepcopy(_proposal())
+    del proposal["requested_execution"][0]["tool_ids"]
+    validated = validate_agent_proposal(proposal, managed_tool_records=managed_records)
+
+    assert validated["requested_execution"][0]["tool_ids"] == ["gitleaks", "trufflehog", "trivy"]
+    assert validated["final_execution_plan"]["items"][0]["tool_ids"] == ["gitleaks", "trufflehog", "trivy"]
+
+
 def test_agent_proposal_route_imports_and_decides(tmp_path, monkeypatch):
     monkeypatch.setattr("security_observatory.catalog.shutil.which", lambda _binary: None)
     server, port = _serve(tmp_path)

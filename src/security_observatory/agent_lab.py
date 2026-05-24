@@ -712,7 +712,13 @@ def _normalize_recommended_tools(value: Any, indexes: dict[str, Any], errors: li
         if not _tool_policy_allows_agent_lab(tool):
             errors.append(f"{label}.tool_id is blocked for Agent Lab.")
             continue
-        agent_labels = _list_of_text(item.get("safety_labels"), limit=80, max_items=12)
+        agent_labels = _list_of_text(
+            item.get("safety_labels"),
+            field=f"{label}.safety_labels",
+            errors=errors,
+            limit=80,
+            max_items=12,
+        )
         canonical_labels = list((tool.get("derived_labels") or {}).get("safety") or [])
         if agent_labels and any(label not in canonical_labels for label in agent_labels):
             errors.append(f"{label}.safety_labels must match DëvSec catalog labels.")
@@ -775,14 +781,24 @@ def _normalize_requested_execution(value: Any, indexes: dict[str, Any], errors: 
         mode = _text(item.get("mode"), limit=80) or "dry_run_preview"
         if mode not in AGENT_LAB_ALLOWED_EXECUTION_MODES:
             errors.append(f"{label}.mode must be dry_run_preview or approved_run.")
-        requested_tool_ids = _list_of_text(item.get("tool_ids"), limit=120, max_items=30)
+        tool_ids_value = item.get("tool_ids")
+        tool_ids_omitted = "tool_ids" not in item or tool_ids_value is None
+        requested_tool_ids = _list_of_text(
+            tool_ids_value,
+            field=f"{label}.tool_ids",
+            errors=errors,
+            limit=120,
+            max_items=30,
+        )
         profile_tool_ids = [str(tool_id) for tool_id in profile.get("tool_ids", [])]
-        if not requested_tool_ids:
+        if tool_ids_omitted:
             requested_tool_ids = [
                 tool_id
                 for tool_id in profile_tool_ids
                 if _tool_policy_allows_agent_lab(indexes["tools"].get(tool_id) or {})
             ]
+        elif isinstance(tool_ids_value, list) and not requested_tool_ids:
+            errors.append(f"{label}.tool_ids must include at least one tool_id when provided.")
         for tool_id in requested_tool_ids:
             tool = indexes["tools"].get(tool_id)
             if not tool:
@@ -808,7 +824,13 @@ def _normalize_requested_execution(value: Any, indexes: dict[str, Any], errors: 
 
 
 def _normalize_requested_permissions(value: Any, errors: list[str]) -> list[str]:
-    permissions = _list_of_text(value, limit=80, max_items=20)
+    permissions = _list_of_text(
+        value,
+        field="requested_permissions",
+        errors=errors,
+        limit=80,
+        max_items=20,
+    )
     unknown = [item for item in permissions if item not in AGENT_LAB_ALLOWED_PERMISSIONS]
     if unknown:
         errors.append("requested_permissions contains permissions outside the Agent Lab MVP allowlist.")
@@ -892,12 +914,34 @@ def _list_of_dicts(value: Any, field: str, errors: list[str], *, max_items: int)
     return clean
 
 
-def _list_of_text(value: Any, *, limit: int, max_items: int) -> list[str]:
+def _list_of_text(
+    value: Any,
+    *,
+    limit: int,
+    max_items: int,
+    field: str | None = None,
+    errors: list[str] | None = None,
+) -> list[str]:
     if value is None:
         return []
     if not isinstance(value, list):
+        if field and errors is not None:
+            errors.append(f"{field} must be a list.")
         return []
-    return [_text(item, limit=limit) for item in value[:max_items] if _text(item, limit=limit)]
+    if len(value) > max_items:
+        if field and errors is not None:
+            errors.append(f"{field} may contain at most {max_items} items.")
+        return []
+    clean = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str):
+            if field and errors is not None:
+                errors.append(f"{field}[{index}] must be a string.")
+            continue
+        text = _text(item, limit=limit)
+        if text:
+            clean.append(text)
+    return clean
 
 
 def _reject_unknown_keys(value: dict[str, Any], allowed: set[str], field: str, errors: list[str]) -> None:
