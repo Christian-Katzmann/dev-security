@@ -34,6 +34,7 @@ design/trailer/_verify/
 # Secret-shaped — never commit
 .env
 .env.*
+!.env.example
 *.local
 *.pem
 *.key

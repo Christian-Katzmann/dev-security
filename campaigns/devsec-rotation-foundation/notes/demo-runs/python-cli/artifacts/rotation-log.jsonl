@@ -1,0 +1,17 @@
+{"at":"2026-05-24T19:03:23.889Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"HEALTH_CHECK","outcome":"started"}
+{"at":"2026-05-24T19:04:24.031Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"HEALTH_CHECK","outcome":"succeeded","duration_ms":60142}
+{"at":"2026-05-24T19:04:24.032Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"PREFLIGHT","outcome":"started"}
+{"at":"2026-05-24T19:04:24.204Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"PREFLIGHT","outcome":"succeeded","duration_ms":172}
+{"at":"2026-05-24T19:04:24.204Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"STAGE_CANARY","outcome":"started"}
+{"at":"2026-05-24T19:04:24.206Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"STAGE_CANARY","outcome":"succeeded","duration_ms":1}
+{"at":"2026-05-24T19:04:24.206Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"DEPLOY_CANARY","outcome":"started"}
+{"at":"2026-05-24T19:04:24.207Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"DEPLOY_CANARY","outcome":"succeeded","duration_ms":1}
+{"at":"2026-05-24T19:04:24.207Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"VERIFY_CANARY","outcome":"started"}
+{"at":"2026-05-24T19:04:24.304Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"VERIFY_CANARY","outcome":"succeeded","duration_ms":96}
+{"at":"2026-05-24T19:04:24.304Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"STAGE_PROD","outcome":"started"}
+{"at":"2026-05-24T19:04:24.320Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"STAGE_PROD","outcome":"succeeded","duration_ms":16}
+{"at":"2026-05-24T19:04:24.320Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"DEPLOY_PROD","outcome":"started"}
+{"at":"2026-05-24T19:04:24.324Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"DEPLOY_PROD","outcome":"succeeded","duration_ms":4}
+{"at":"2026-05-24T19:04:24.324Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"VERIFY_PROD","outcome":"started"}
+{"at":"2026-05-24T19:04:24.413Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"VERIFY_PROD","outcome":"succeeded","duration_ms":89}
+{"at":"2026-05-24T19:04:24.413Z","rotation_id":"8084afdf-a07d-4f68-8547-a6b8d7e0f25b","secret_name":"DEVSEC_GITHUB_TOKEN","step":"SOAK","outcome":"skipped","note":"operator override via --no-soak"}

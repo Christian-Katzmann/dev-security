@@ -1,0 +1,62 @@
+════════════════════════════════════════════════════════════════════════
+Demo 1 — Vercel-shape rotation via mock adapter
+════════════════════════════════════════════════════════════════════════
+(Real Vercel deploys are gated by skill safety rails — see
+ header docs at the top of this file for the rationale.)
+
+[demo] fixture at /var/folders/3_/t0jz94kj4g79zg4nvct8v9q00000gn/T/demo-vercel-h2dmTm
+[demo] secret: ANTHROPIC_ADMIN_KEY (Class B-API, 24h grace window)
+[demo] adapter: mock Vercel (stackName=vercel)
+▶ HEALTH_CHECK — capturing 0s baseline error rate for ANTHROPIC_ADMIN_KEY
+  → baseline clean (0 matches in 300000ms). Advancing to PREFLIGHT.
+▶ PREFLIGHT ANTHROPIC_ADMIN_KEY
+  → ACQUIRED new value (fingerprint fp-mock-…)
+▶ STAGE_CANARY ANTHROPIC_ADMIN_KEY via vercel adapter (canary target only — prod stays on the OLD value)
+  → staged canary via vercel
+▶ DEPLOY_CANARY — vercel canary deployment
+  → https://moneyapp-git-rotation-cw7-katzmann.vercel.app
+▶ VERIFY_CANARY — provider + application probe against canary https://moneyapp-git-rotation-cw7-katzmann.vercel.app
+  → canary VERIFIED (provider @ https://api.anthropic.com/v1/admin/me, app probe @ https://moneyapp-git-rotation-cw7-katzmann.vercel.app/api/health/auth-secret)
+▶ STAGE_PROD ANTHROPIC_ADMIN_KEY via vercel adapter (production + development targets)
+  → staged prod via vercel
+▶ DEPLOY_PROD — vercel production deployment
+  → https://moneyapp.vercel.app
+▶ VERIFY_PROD — provider + application probe against prod https://moneyapp.vercel.app
+  → prod VERIFIED (provider @ https://api.anthropic.com/v1/admin/me, app probe @ https://moneyapp.vercel.app/api/health/auth-secret)
+▶ SOAK — observing 15 min for auth-error patterns above baseline (baseline: 0 matches in 300000ms)
+  → soak clean: Soak clean: 0 new auth-error pattern matches in 15 min window vs baseline 0.
+▶ GRACE — old ANTHROPIC_ADMIN_KEY stays valid for 24h (revoke 2026-05-25T19:07:48.214Z). Next: rotation-revoke-check cron.
+
+  ↳ Verification receipt → data/rotation-receipts/ANTHROPIC_ADMIN_KEY-2026-05-24T190748Z.md
+
+# Rotation verified — `ANTHROPIC_ADMIN_KEY`
+
+- **Status:** IN_GRACE
+- **Action: completed · Severity: medium**
+- **Provider check:** ✓ provider API returned ok at https://api.anthropic.com/v1/admin/me
+- **Application probe:** ✓ vercel probe at https://moneyapp.vercel.app/api/health/auth-secret returned ok
+- **Soak test:** ✓ 15 min window, 0 new auth-related errors above baseline (0 matches in 5 min baseline)
+- **Old key status:** valid until 2026-05-25T19:07:48.214Z (24h grace; revoke runs automatically)
+- **Audit trail:** rotation_id `8760e0ce-aecc-48bd-9809-07118773e78a`, events emitted to `rotation-log.jsonl`
+- **New key fingerprint:** `sha256:fp-mock-sk-ant-f…` (cross-reference at the provider console)
+
+Scope of this verification: Vercel preview + production env writes, provider verify, application probe against the production deployment, and a soak window tailing `vercel logs` for auth-error patterns above the pre-rotation baseline. Outside scope: long-running processes that cache credentials in memory may still hold the old value until they next restart; runtime configuration on external services is not observed.
+
+
+[demo] terminal_status: IN_GRACE
+[demo] halted_reason: <none>
+
+[demo] adapter call sequence (11 calls):
+  - baseline
+  - preflight
+  - readCurrentValue:ANTHROPIC_ADMIN_KEY
+  - ensureNoDrift:ANTHROPIC_ADMIN_KEY
+  - writeEnv:ANTHROPIC_ADMIN_KEY:canary
+  - deploy:canary
+  - applicationProbe:ANTHROPIC_ADMIN_KEY:canary
+  - writeEnv:ANTHROPIC_ADMIN_KEY:prod
+  - deploy:prod
+  - applicationProbe:ANTHROPIC_ADMIN_KEY:prod
+  - soakWindow:900000
+
+[demo] artifacts copied to /Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/devsec-rotation-foundation/notes/demo-runs/vercel/artifacts

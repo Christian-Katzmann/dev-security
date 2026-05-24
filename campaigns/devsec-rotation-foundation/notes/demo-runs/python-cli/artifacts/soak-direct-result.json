@@ -1,0 +1,50 @@
+{
+  "baseline": {
+    "errorCount": 0,
+    "observedDurationMs": 60148,
+    "samples": [],
+    "context": {
+      "stackName": "python-cli",
+      "secretName": "DEVSEC_GITHUB_TOKEN",
+      "invocationCount": 2,
+      "invocations": [
+        {
+          "exitCode": 0,
+          "durationMs": 93
+        },
+        {
+          "exitCode": 0,
+          "durationMs": 145
+        }
+      ],
+      "clampedDurationMs": 60000,
+      "requestedDurationMs": 2000
+    }
+  },
+  "soak": {
+    "errorCount": 0,
+    "anomalyDetected": false,
+    "verdict": "Soak clean: 0 matches over 2 invocations vs baseline 0 (tolerance 0).",
+    "observedDurationMs": 60131,
+    "samples": [],
+    "context": {
+      "stackName": "python-cli",
+      "secretName": "DEVSEC_GITHUB_TOKEN",
+      "invocationCount": 2,
+      "invocations": [
+        {
+          "exitCode": 0,
+          "durationMs": 87
+        },
+        {
+          "exitCode": 0,
+          "durationMs": 128
+        }
+      ],
+      "clampedDurationMs": 60000,
+      "requestedDurationMs": 2000,
+      "baselineErrorCount": 0,
+      "tolerance": 0
+    }
+  }
+}

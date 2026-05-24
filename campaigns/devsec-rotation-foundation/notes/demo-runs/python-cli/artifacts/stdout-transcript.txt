@@ -1,0 +1,56 @@
+════════════════════════════════════════════════════════════════════════
+PART A — Full pipeline rotation against fixture (skipSoak: true)
+════════════════════════════════════════════════════════════════════════
+[demo] fixture at /var/folders/3_/t0jz94kj4g79zg4nvct8v9q00000gn/T/demo-python-cli-bPGgRe
+[demo] secret: DEVSEC_GITHUB_TOKEN, initial value: synthetic-pre-rotation-token-0001
+[demo] adapter.detect(repoRoot) = true
+▶ HEALTH_CHECK — capturing 2s baseline error rate for DEVSEC_GITHUB_TOKEN
+  → baseline clean (0 matches in 60141ms). Advancing to PREFLIGHT.
+▶ PREFLIGHT DEVSEC_GITHUB_TOKEN
+  ⚠️  pattern-match in /var/folders/3_/t0jz94kj4g79zg4nvct8v9q00000gn/T/demo-python-cli-bPGgRe/.env:3 (current-value, untracked)
+  → ACQUIRED new value (fingerprint fp-demo-…)
+▶ STAGE_CANARY DEVSEC_GITHUB_TOKEN via python-cli adapter (canary target only — prod stays on the OLD value)
+  → staged canary via python-cli
+▶ DEPLOY_CANARY — python-cli canary deployment
+  → (no-op deploy: python-cli)
+▶ VERIFY_CANARY — provider + application probe against canary (no-op deploy: python-cli)
+  → canary VERIFIED (provider @ (class-a no-provider stub), app probe @ /Users/christiankatzmann/Dev/Projects/dëv-security/.venv/bin/security-scan --version)
+▶ STAGE_PROD DEVSEC_GITHUB_TOKEN via python-cli adapter (production + development targets)
+  → staged prod via python-cli
+▶ DEPLOY_PROD — python-cli production deployment
+  → (no-op deploy: python-cli)
+▶ VERIFY_PROD — provider + application probe against prod (no-op deploy: python-cli)
+  → prod VERIFIED (provider @ (class-a no-provider stub), app probe @ /Users/christiankatzmann/Dev/Projects/dëv-security/.venv/bin/security-scan --version)
+▶ SOAK skipped (--no-soak) — rotation will reach ROTATED without verifying the new credential works under real conditions. This defeats the trust contract; only safe when an independent verification path covers DEVSEC_GITHUB_TOKEN.
+▶ ROTATED — DEVSEC_GITHUB_TOKEN is fully rotated
+
+  ↳ Verification receipt → data/rotation-receipts/DEVSEC_GITHUB_TOKEN-2026-05-24T190424Z.md
+
+# Rotation verified — `DEVSEC_GITHUB_TOKEN`
+
+- **Status:** ROTATED
+- **Action: completed · Severity: info**
+- **Provider check:** ✓ Class A self-generated (no provider) returned ok at (class-a no-provider stub)
+- **Application probe:** ✓ python-cli probe at /Users/christiankatzmann/Dev/Projects/dëv-security/.venv/bin/security-scan --ve… returned ok
+- **Soak test:** SKIPPED via --no-soak (rotation reached ROTATED without verifying the new credential under real conditions)
+- **Old key status:** replaced (Class A — no grace window; new value live in env, old value not separately tracked at any provider)
+- **Audit trail:** rotation_id `8084afdf-a07d-4f68-8547-a6b8d7e0f25b`, events emitted to `rotation-log.jsonl`
+- **New key fingerprint:** `sha256:fp-demo-syntheti…` (cross-reference at the provider console)
+- **Operator overrides:** --no-soak (recorded for audit)
+
+Scope of this verification: atomic `.env` replace, three spaced smoke-command invocations spanning the soak window, stdout/stderr scanned for auth-error patterns against the pre-rotation baseline. Outside scope: any subprocess that read the old `.env` value into its own environment before rotation still holds the old value; long-running services started before rotation must be restarted to pick up the new value.
+
+
+[demo] PART A terminal_status: ROTATED
+[demo] PART A halted_reason: <none>
+[demo] PART A artifacts → /Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/devsec-rotation-foundation/notes/demo-runs/python-cli/artifacts
+
+════════════════════════════════════════════════════════════════════════
+PART B — Direct adapter baseline + soakWindow (compressed timing)
+════════════════════════════════════════════════════════════════════════
+[demo] soak fixture at /var/folders/3_/t0jz94kj4g79zg4nvct8v9q00000gn/T/demo-python-cli-34CbrG
+[demo] calling pythonCliAdapter.baseline() with 2-second window...
+[demo] baseline result: {"errorCount":0,"samples":0}
+
+[demo] calling pythonCliAdapter.soakWindow() with 2-second window...
+[demo] soak result: {"errorCount":0,"anomalyDetected":false,"verdict":"Soak clean: 0 matches over 2 invocations vs baseline 0 (tolerance 0)."}

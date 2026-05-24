@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "repo_name": "dëv-security (demo fixture)",
+  "scaffolded_at": "2026-05-24T19:03:23.885Z",
+  "scaffolded_version": "v0.2-foundation",
+  "secrets": [
+    {
+      "name": "DEVSEC_GITHUB_TOKEN",
+      "class": "A",
+      "last_rotated_at": "2026-05-24T19:04:24.414Z"
+    }
+  ],
+  "rotations": [
+    {
+      "rotation_id": "8084afdf-a07d-4f68-8547-a6b8d7e0f25b",
+      "secret_name": "DEVSEC_GITHUB_TOKEN",
+      "secret_class": "A",
+      "status": "ROTATED",
+      "started_at": "2026-05-24T19:03:23.888Z",
+      "last_updated_at": "2026-05-24T19:04:24.414Z",
+      "log": [
+        {
+          "at": "2026-05-24T19:03:23.888Z",
+          "step": "HEALTH_CHECK",
+          "note": "rotation started"
+        },
+        {
+          "at": "2026-05-24T19:04:24.031Z",
+          "step": "PREFLIGHT",
+          "note": "baseline clean (60141ms, 0 matches)"
+        },
+        {
+          "at": "2026-05-24T19:04:24.204Z",
+          "step": "ACQUIRED",
+          "note": "acquired new value (fp fp-demo-…)"
+        },
+        {
+          "at": "2026-05-24T19:04:24.205Z",
+          "step": "STAGED_CANARY",
+          "note": "canary staged via python-cli adapter"
+        },
+        {
+          "at": "2026-05-24T19:04:24.207Z",
+          "step": "DEPLOYED_CANARY",
+          "note": "canary deployment ready: (no-op deploy: python-cli)"
+        },
+        {
+          "at": "2026-05-24T19:04:24.208Z",
+          "step": "IN_CANARY_VERIFY",
+          "note": "canary verify in flight"
+        },
+        {
+          "at": "2026-05-24T19:04:24.303Z",
+          "step": "VERIFIED_CANARY",
+          "note": "canary verified (provider + application)"
+        },
+        {
+          "at": "2026-05-24T19:04:24.318Z",
+          "step": "STAGED_PROD",
+          "note": "prod staged via python-cli adapter"
+        },
+        {
+          "at": "2026-05-24T19:04:24.323Z",
+          "step": "DEPLOYED_PROD",
+          "note": "prod deployment ready: (no-op deploy: python-cli)"
+        },
+        {
+          "at": "2026-05-24T19:04:24.412Z",
+          "step": "VERIFIED",
+          "note": "prod verified (provider + application)"
+        },
+        {
+          "at": "2026-05-24T19:04:24.413Z",
+          "step": "SOAKED",
+          "note": "SOAK skipped by operator (--no-soak)"
+        },
+        {
+          "at": "2026-05-24T19:04:24.414Z",
+          "step": "ROTATED",
+          "note": "rotation completed"
+        }
+      ],
+      "baseline_result": {
+        "errorCount": 0,
+        "observedDurationMs": 60141,
+        "samples": [],
+        "context": {
+          "stackName": "python-cli",
+          "secretName": "DEVSEC_GITHUB_TOKEN",
+          "invocationCount": 2,
+          "invocations": [
+            {
+              "exitCode": 0,
+              "durationMs": 195
+            },
+            {
+              "exitCode": 0,
+              "durationMs": 137
+            }
+          ],
+          "clampedDurationMs": 60000,
+          "requestedDurationMs": 1500
+        }
+      },
+      "previous_value_fingerprint": "9379f409268b7bd99be6381b77e771a70f7771659ae4a3869d866309842bdadb",
+      "new_value_fingerprint": "fp-demo-synthetic-po",
+      "deployment_id": "(no-op deploy: python-cli)",
+      "deployment_ref": {
+        "kind": "no-op",
+        "target": "prod"
+      },
+      "deployment_ref_canary": {
+        "kind": "no-op",
+        "target": "canary"
+      },
+      "verified_endpoint": "/Users/christiankatzmann/Dev/Projects/dëv-security/.venv/bin/security-scan --version",
+      "deployment_ref_prod": {
+        "kind": "no-op",
+        "target": "prod"
+      },
+      "provider_verified_endpoint": "(class-a no-provider stub)",
+      "soak_skipped": true,
+      "completed_at": "2026-05-24T19:04:24.414Z"
+    }
+  ]
+}

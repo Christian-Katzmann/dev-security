@@ -1,0 +1,138 @@
+{
+  "version": 1,
+  "repo_name": "money.com (demo fixture)",
+  "scaffolded_at": "2026-05-24T19:07:48.026Z",
+  "scaffolded_version": "v0.2-foundation",
+  "secrets": [
+    {
+      "name": "ANTHROPIC_ADMIN_KEY",
+      "class": "B-API"
+    }
+  ],
+  "rotations": [
+    {
+      "rotation_id": "8760e0ce-aecc-48bd-9809-07118773e78a",
+      "secret_name": "ANTHROPIC_ADMIN_KEY",
+      "secret_class": "B-API",
+      "status": "IN_GRACE",
+      "started_at": "2026-05-24T19:07:48.028Z",
+      "last_updated_at": "2026-05-24T19:07:48.215Z",
+      "log": [
+        {
+          "at": "2026-05-24T19:07:48.028Z",
+          "step": "HEALTH_CHECK",
+          "note": "rotation started"
+        },
+        {
+          "at": "2026-05-24T19:07:48.030Z",
+          "step": "PREFLIGHT",
+          "note": "baseline clean (300000ms, 0 matches)"
+        },
+        {
+          "at": "2026-05-24T19:07:48.201Z",
+          "step": "ACQUIRED",
+          "note": "acquired new value (fp fp-mock-…)"
+        },
+        {
+          "at": "2026-05-24T19:07:48.203Z",
+          "step": "STAGED_CANARY",
+          "note": "canary staged via vercel adapter"
+        },
+        {
+          "at": "2026-05-24T19:07:48.204Z",
+          "step": "DEPLOYED_CANARY",
+          "note": "canary deployment ready: https://moneyapp-git-rotation-cw7-katzmann.vercel.app"
+        },
+        {
+          "at": "2026-05-24T19:07:48.206Z",
+          "step": "IN_CANARY_VERIFY",
+          "note": "canary verify in flight"
+        },
+        {
+          "at": "2026-05-24T19:07:48.207Z",
+          "step": "VERIFIED_CANARY",
+          "note": "canary verified (provider + application)"
+        },
+        {
+          "at": "2026-05-24T19:07:48.208Z",
+          "step": "STAGED_PROD",
+          "note": "prod staged via vercel adapter"
+        },
+        {
+          "at": "2026-05-24T19:07:48.210Z",
+          "step": "DEPLOYED_PROD",
+          "note": "prod deployment ready: https://moneyapp.vercel.app"
+        },
+        {
+          "at": "2026-05-24T19:07:48.211Z",
+          "step": "VERIFIED",
+          "note": "prod verified (provider + application)"
+        },
+        {
+          "at": "2026-05-24T19:07:48.213Z",
+          "step": "IN_SOAK",
+          "note": "soak started (15 min window)"
+        },
+        {
+          "at": "2026-05-24T19:07:48.213Z",
+          "step": "SOAKED",
+          "note": "soak passed (0 matches over 900000ms)"
+        },
+        {
+          "at": "2026-05-24T19:07:48.215Z",
+          "step": "IN_GRACE",
+          "note": "entered grace, revoke at 2026-05-25T19:07:48.214Z"
+        }
+      ],
+      "baseline_result": {
+        "errorCount": 0,
+        "observedDurationMs": 300000,
+        "samples": [],
+        "context": {
+          "stackName": "vercel",
+          "secretName": "ANTHROPIC_ADMIN_KEY",
+          "logSource": "vercel logs"
+        }
+      },
+      "previous_value_fingerprint": "a97c4e0b519f5f9be4d48b1f8e66e542f8704237f3ae6ee33f2c2e6a030a588e",
+      "new_value_fingerprint": "fp-mock-sk-ant-fake-rota",
+      "new_key_id": "key_mock_rotated_id",
+      "old_key_id": "key_mock_initial_id",
+      "deployment_id": "https://moneyapp.vercel.app",
+      "deployment_ref": {
+        "kind": "vercel",
+        "target": "prod",
+        "url": "https://moneyapp.vercel.app",
+        "deploymentId": "mock-vercel-deploy-prod-1779649668209"
+      },
+      "deployment_ref_canary": {
+        "kind": "vercel",
+        "target": "canary",
+        "url": "https://moneyapp-git-rotation-cw7-katzmann.vercel.app",
+        "deploymentId": "mock-vercel-deploy-canary-1779649668204"
+      },
+      "verified_endpoint": "https://moneyapp.vercel.app/api/health/auth-secret",
+      "deployment_ref_prod": {
+        "kind": "vercel",
+        "target": "prod",
+        "url": "https://moneyapp.vercel.app",
+        "deploymentId": "mock-vercel-deploy-prod-1779649668209"
+      },
+      "provider_verified_endpoint": "https://api.anthropic.com/v1/admin/me",
+      "soak_window_ms": 900000,
+      "soak_result": {
+        "errorCount": 0,
+        "anomalyDetected": false,
+        "verdict": "Soak clean: 0 new auth-error pattern matches in 15 min window vs baseline 0.",
+        "observedDurationMs": 900000,
+        "samples": [],
+        "context": {
+          "stackName": "vercel",
+          "secretName": "ANTHROPIC_ADMIN_KEY",
+          "logSource": "vercel logs"
+        }
+      },
+      "revoke_scheduled_at": "2026-05-25T19:07:48.214Z"
+    }
+  ]
+}
