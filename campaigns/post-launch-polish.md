@@ -39,7 +39,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 - [x] Step 2.1 — Fix the React 19 / `@types/react` mismatch in dashboard-ui
 - [x] Step 2.2 — Reconcile the AI-static scanner with its two failing tests
-- [ ] Final review
+- [x] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
 

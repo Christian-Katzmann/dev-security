@@ -70,36 +70,36 @@ DëvSec's status line says *"the dashboard is honest about what's still partial.
 
 ## From scanner to next action
 
-```text
-┌─ on your machine ──────────────────────────────────────────────────┐
-│                                                                    │
-│   your repo                                                        │
-│      │                                                             │
-│      ▼                                                             │
-│   Semgrep · Gitleaks · TruffleHog · Trivy · OSV · Grype            │
-│   Syft · Checkov · Medusa · ai-static · IOC-watch                  │
-│      │                                                             │
-│      │  raw output, deduped by stable fingerprint                  │
-│      ▼                                                             │
-│   findings ──grouped──► cases ──tagged──► action level             │
-│   (atomic                (decision         fix_now · verify        │
-│    evidence)              units)           watch · info            │
-│                                                │                   │
-│                                                ▼                   │
-│                                        recovery playbook           │
-│                                        + agent-ready follow-up     │
-│                                        (markdown)                  │
-│                                                                    │
-│   history kept in SQLite under ~/.security-observatory             │
-│                                                                    │
-└────────────────────────────────────────────────────────────────────┘
-                                  │
-                                  ▼
-              you paste the follow-up into your own agent
-                   (Claude · Cursor · Aider · …)
-```
+*The pipeline proves DëvSec turns noisy scanner output into a local, reviewable next action without sending repo data away.*
 
-*Every step of the pipeline runs on the machine the repo lives on; the only thing that ever leaves is the markdown follow-up you choose to paste into an agent you already trust.*
+```text
++-- on your machine --------------------------------------------------+
+|                                                                    |
+| your repo                                                          |
+|   |                                                                |
+|   v                                                                |
+| scanners                                                           |
+|   Semgrep | Gitleaks | TruffleHog | Trivy | OSV | Grype            |
+|   Syft | Checkov | Medusa | ai-static | IOC-watch                  |
+|   |                                                                |
+|   | raw output, deduped by stable fingerprint                      |
+|   v                                                                |
+| findings -> cases -> action level                                  |
+| atomic      decision   fix_now | verify | watch | info             |
+| evidence    units              |                                   |
+|                                v                                   |
+|                       recovery playbook                            |
+|                       + agent-ready follow-up                      |
+|                       (markdown)                                   |
+|                                                                    |
+| history kept in SQLite under ~/.security-observatory               |
+|                                                                    |
++--------------------------------------------------------------------+
+                      |
+                      v
+       you paste the follow-up into your own agent
+              (Claude | Cursor | Aider | ...)
+```
 
 ## Current Features
 

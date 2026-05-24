@@ -28,6 +28,12 @@ AI_CONFIG_DIRS = {
     ".windsurf",
 }
 
+AI_CONFIG_RUNTIME_DIRS = {
+    "cache",
+    "logs",
+    "sessions",
+}
+
 PROMPT_INJECTION_RE = re.compile(
     r"(?i)(ignore (all )?(previous|prior) instructions|system prompt|developer message|"
     r"exfiltrat(e|ion)|leak (the )?(secret|token|key)|send .*?(env|secrets?)|"
@@ -95,15 +101,20 @@ def _candidate_files(repo: Path) -> list[Path]:
             rel_parts = path.relative_to(repo).parts
         except ValueError:
             continue
+        in_ai_config_dir = any(part in AI_CONFIG_DIRS for part in rel_parts)
         # Match exclude/config names against the path RELATIVE to the repo root,
         # not the absolute path. Otherwise a repo that happens to live under
         # /tmp/ (e.g. pytest's tmp_path on Linux CI runners) gets every file
-        # silently dropped because "tmp" is in DEFAULT_EXCLUDES.
-        if any(part in DEFAULT_EXCLUDES for part in rel_parts):
+        # silently dropped because "tmp" is in DEFAULT_EXCLUDES. Some AI config
+        # dirs are also default runtime excludes; scan their config files, but
+        # keep session/log/cache material out of the candidate set.
+        if in_ai_config_dir and any(part in AI_CONFIG_RUNTIME_DIRS for part in rel_parts):
+            continue
+        if any(part in DEFAULT_EXCLUDES and not (in_ai_config_dir and part in AI_CONFIG_DIRS) for part in rel_parts):
             continue
         if not path.is_file():
             continue
-        if path.name in AI_CONFIG_NAMES or any(part in AI_CONFIG_DIRS for part in rel_parts):
+        if path.name in AI_CONFIG_NAMES or in_ai_config_dir:
             if path.stat().st_size <= 2_000_000:
                 out.append(path)
     return out
@@ -375,7 +386,7 @@ def _has_broad_auto_approval(value: Any) -> bool:
         for key, item in value.items():
             key_text = str(key).lower()
             if key_text in {"autoapprove", "auto_approve", "auto-approve", "alwaysallow", "allowall", "dangerouslyskippermissions"}:
-                if item is True or item == "*" or item == ["*"]:
+                if _approval_value_is_broad(item):
                     return True
             if key_text in {"approvalmode", "approval_mode", "approval-mode"} and str(item).lower() in {"never", "none", "auto"}:
                 return True
@@ -385,6 +396,16 @@ def _has_broad_auto_approval(value: Any) -> bool:
         return any(_has_broad_auto_approval(item) for item in value)
     elif isinstance(value, str):
         return bool(BROAD_AUTO_APPROVAL_RE.search(value))
+    return False
+
+
+def _approval_value_is_broad(value: Any) -> bool:
+    if value is True:
+        return True
+    if isinstance(value, str):
+        return value.strip().lower() in {"*", "all", "true"}
+    if isinstance(value, list):
+        return any(_approval_value_is_broad(item) for item in value)
     return False
 
 
