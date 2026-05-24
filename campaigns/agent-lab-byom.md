@@ -58,7 +58,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 - [x] Step 3.1 — Build the user-mediated Agent Lab planner UI
 - [x] Step 3.2 — Validate with mocked and pasted proposals
-- [ ] Final review
+- [x] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
 

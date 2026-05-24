@@ -150,3 +150,11 @@
 - `2026-05-24T10:13:24+00:00` Observed scheduler launch for fallback final-review rerun automation.
 - `2026-05-24T10:13:38+00:00` Paused current final-rework automation after verified handoff to final-review rerun.
 - `2026-05-24T10:13:38+00:00` Verified current final-rework automation d-vsec-agent-lab-byo-ai-final-rework-20260524-1206 is PAUSED in registry.
+- `2026-05-24T10:17:23+00:00` Verified automation `d-vsec-agent-lab-byo-ai-final-review-rerun-20260524-1213` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T10:17:23+00:00` Corrected final-review rerun automation prompt through the official Codex app tool to use $campaign-automation-step and rescheduled it for 2026-05-24T12:19:00+02:00.
+- `2026-05-24T10:17:50+00:00` Final review rerun APPROVED; campaign checklist marked complete; verification passed import, pytest, dashboard lint, and dashboard build.
+- `2026-05-24T10:18:09+00:00` Paused final-review rerun automation after APPROVED whole-campaign final review; no campaign_chain configured.
+- `2026-05-24T10:18:16+00:00` Verified final-review rerun automation is PAUSED in Codex app registry after campaign completion.
+- `2026-05-24T10:18:28+00:00` Released final-review rerun lock after campaign completion and automation pause verification.
+- `2026-05-24T10:18:33+00:00` Verified automation `d-vsec-agent-lab-byo-ai-final-review-rerun-20260524-1213` in Codex app registry as PAUSED with model gpt-5.5/xhigh.
+- `2026-05-24T10:18:33+00:00` Paused final-review rerun automation after APPROVED verdict to prevent redundant rerun.
