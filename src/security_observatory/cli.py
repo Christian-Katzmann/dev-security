@@ -569,21 +569,53 @@ def vex_import(args: argparse.Namespace, home: Path) -> int:
     return 0
 
 
+OPTIONAL_DOCTOR_PROFILE_IDS = {"behavioral-drift", "platform-posture"}
+
+
+def _doctor_missing_is_optional(item: dict[str, object]) -> bool:
+    profile_ids = {str(profile) for profile in item.get("profile_ids", []) if str(profile).strip()}
+    return bool(profile_ids) and profile_ids.issubset(OPTIONAL_DOCTOR_PROFILE_IDS)
+
+
+def _print_missing_doctor_group(title: str, items: list[dict[str, object]], note: str | None = None) -> None:
+    if not items:
+        return
+    print(title)
+    if note:
+        print(f"  {note}")
+    for item in items:
+        tool = str(item["scanner"])
+        print(f"  {tool}: missing")
+        print(f"    fix: {item['install']}")
+
+
 def doctor(home: Path) -> int:
     print("Security Observatory doctor")
     print(f"Store: {home}")
     print(f"Python: {sys.executable}")
     print(f"Homebrew: {shutil.which('brew') or 'missing'}")
     print(f"uv: {shutil.which('uv') or 'missing'}")
+    missing_needed: list[dict[str, object]] = []
+    missing_optional: list[dict[str, object]] = []
     for item in scanner_catalog():
         tool = str(item["scanner"])
         if item.get("built_in"):
             print(f"{tool}: built in")
             continue
         location = shutil.which(tool)
-        print(f"{tool}: {location or 'missing'}")
-        if not location:
-            print(f"  fix: {item['install']}")
+        if location:
+            print(f"{tool}: {location}")
+            continue
+        if _doctor_missing_is_optional(item):
+            missing_optional.append(item)
+        else:
+            missing_needed.append(item)
+    _print_missing_doctor_group("Missing (needed for common scans):", missing_needed)
+    _print_missing_doctor_group(
+        "Missing (optional):",
+        missing_optional,
+        "These opt-in checks stay quiet unless you run their profile.",
+    )
     return 0
 
 

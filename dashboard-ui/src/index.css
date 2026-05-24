@@ -163,6 +163,7 @@ kbd {
   min-height: 48px;
   padding: 0 10px;
   border-radius: 8px;
+  cursor: pointer;
 }
 
 .workspace-mark {
@@ -198,16 +199,33 @@ kbd {
   white-space: nowrap;
 }
 
+.workspace-subtitle {
+  margin-top: 3px;
+  color: var(--ink-muted);
+  font: 500 10px/1 var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .workspace-select {
+  position: absolute;
+  inset: 0;
   width: 100%;
+  height: 100%;
   appearance: none;
   border: 0;
   outline: 0;
   padding: 0;
-  margin-top: 3px;
+  margin: 0;
   background: transparent;
-  color: var(--ink-muted);
-  font: 500 10px/1 var(--font-mono);
+  color: transparent;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.workspace-card .muted-icon {
+  pointer-events: none;
 }
 
 .muted-icon {
@@ -1034,6 +1052,11 @@ kbd {
   background: rgba(28,36,34,0.03);
 }
 
+.finding-row.selected {
+  background: rgba(220,170,165,0.15);
+  box-shadow: inset 3px 0 0 #842626;
+}
+
 .finding-row strong,
 .finding-row em {
   display: block;
@@ -1100,6 +1123,12 @@ kbd {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.findings-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -4px;
 }
 
 .mini-label {

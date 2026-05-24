@@ -187,12 +187,15 @@ The dashboard is a React/Vite app served by the Python CLI. It runs locally on `
 Current dashboard views:
 
 - Overview: top risks, best next action, scan coverage, and health movement
-- What Needs Attention: searchable and filterable cases
-- Honey Keys: create, insert, archive, and investigate decoy secrets
-- Code: code-security findings
-- Dependencies: package and vulnerability findings
-- Infrastructure: IaC and cloud-configuration findings
-- MCP: AI-agent, MCP, and editor-configuration findings
+- Findings: searchable and filterable security cases
+- Honey keys: create, insert, archive, and investigate decoy secrets
+- Tool Catalog: local scanner inventory, security packs, install state, and setup guidance
+- Agent Lab: bounded local-agent proposals and approval records
+- Recovery playbooks: grouped case response plans
+- Verification: scanner coverage, missing checks, and proof limits
+- Activity: saved scan, case, Honey Key, and project-status events
+- Reports: saved raw reports and AI handoff prompts
+- Settings: local storage, project selection, and dashboard environment details
 
 From the dashboard you can:
 

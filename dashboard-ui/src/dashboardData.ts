@@ -988,6 +988,7 @@ export type DisplayCase = {
   severity?: Severity;
   category?: string;
   scanId?: string;
+  agentPrompt?: string;
   rawReportUrl?: string;
   aiPromptUrl?: string;
   createdAt?: string;
@@ -1493,6 +1494,7 @@ function caseToDisplayCase(item: SecurityCase, index: number): DisplayCase {
     severity,
     category: item.category,
     scanId,
+    agentPrompt: item.agent_prompt,
     rawReportUrl: item.raw_report_url,
     aiPromptUrl: item.ai_prompt_url,
     createdAt: item.created_at,

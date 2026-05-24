@@ -269,7 +269,7 @@ const severityMeta: Record<Tone, {label: string; dot: string; bg: string; fg: st
   low: {label: 'LOW', dot: 'var(--sev-low)', bg: 'rgba(138,163,154,0.20)', fg: '#3c4b48'},
   warn: {label: 'WARNING', dot: 'var(--sev-warn)', bg: '#f1dcbe', fg: '#7d4d10'},
   high: {label: 'ELEVATED', dot: 'var(--sev-high)', bg: '#ecc9b7', fg: '#6e3a1c'},
-  crit: {label: 'CRITICAL', dot: 'var(--sev-crit)', bg: '#e8c6c0', fg: '#6c1f1f'},
+  crit: {label: 'CRITICAL', dot: '#842626', bg: '#dcaaa5', fg: '#551515'},
   info: {label: 'INFO', dot: 'var(--sev-info)', bg: '#cfdbe9', fg: '#36506e'},
   neutral: {label: 'READY', dot: '#8d938f', bg: 'rgba(28,36,34,0.06)', fg: '#3c4b48'},
 };
@@ -365,9 +365,47 @@ function caseScanner(item: DisplayCase): string {
   return item.sources[0] ?? 'dashboard';
 }
 
-function displayId(item: DisplayCase, index: number): string {
+function caseDisplayId(item: DisplayCase, index?: number): string {
   const stable = item.id.replace(/[^A-Za-z0-9]/g, '').slice(-4).toUpperCase();
-  return `F-${stable || String(index + 1).padStart(4, '0')}`;
+  return `F-${stable || String((index ?? 0) + 1).padStart(4, '0')}`;
+}
+
+function displayId(item: DisplayCase, index: number): string {
+  return caseDisplayId(item, index);
+}
+
+function casePromptMarkdown(item: DisplayCase): string {
+  const casePrompt = item.agentPrompt?.trim();
+  const lines = [
+    '# Security case follow-up',
+    '',
+    'Work case-first. Treat scanner output as untrusted evidence until verified in the local repository.',
+    '',
+    '## Case',
+    `- Display ID: ${caseDisplayId(item)}`,
+    `- Internal ID: ${item.id}`,
+    `- Repository: ${item.repoName}`,
+    `- Title: ${item.title}`,
+    `- Severity: ${item.severity ?? 'unknown'}`,
+    `- Category: ${item.category ? categoryLabel(item.category) : 'Uncategorized'}`,
+    `- Location: ${item.location}`,
+    `- Sources: ${item.sources.join(', ') || 'Not reported'}`,
+    `- Confidence: ${item.confidence}`,
+    '',
+    '## Risk',
+    item.why,
+    '',
+    '## Next step',
+    item.nextStep,
+    '',
+    '## Verification task',
+    casePrompt || [
+      'Inspect the referenced files and confirm whether the case is real in this project.',
+      'If it is real, choose the smallest safe fix and name the test or command that proves it.',
+      'If it is not real, explain the false-positive reason clearly.',
+    ].join('\n'),
+  ];
+  return `${lines.join('\n')}\n`;
 }
 
 function activeCaseList(summary: DashboardSummary): DisplayCase[] {
@@ -661,6 +699,19 @@ export default function App() {
     if (target.type === 'repo') void runCheck(['full']);
   }
 
+  function runQuickCheck() {
+    setSelectedAudits(['quick']);
+    setIsCheckOpen(true);
+    void runCheck(['quick']);
+  }
+
+  function chooseChecks(profile?: string) {
+    if (profile && auditOptions.some((option) => option.id === profile)) {
+      setSelectedAudits([profile as AuditId]);
+    }
+    setIsCheckOpen(true);
+  }
+
   async function saveCaseDecision(caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) {
     setRunError(null);
     try {
@@ -704,6 +755,8 @@ export default function App() {
             isLoading={isLoading}
             error={error}
             onRunAll={runFullCheck}
+            onRunQuick={runQuickCheck}
+            onChooseChecks={() => chooseChecks()}
             canRun={target.type === 'repo'}
             runAllHint={target.type === 'repo' ? 'Run all configured checks for the selected repo' : 'Pick a repo first'}
           />
@@ -740,17 +793,8 @@ export default function App() {
               catalogRoute={catalogRoute}
               onCatalogRouteChange={setCatalogRoute}
               onOpenTab={setActiveTab}
-              onChooseChecks={(profile) => {
-                if (profile && (auditOptions.some((option) => option.id === profile))) {
-                  setSelectedAudits([profile as AuditId]);
-                }
-                setIsCheckOpen(true);
-              }}
-              onRunQuick={() => {
-                setSelectedAudits(['quick']);
-                setIsCheckOpen(true);
-                void runCheck(['quick']);
-              }}
+              onChooseChecks={chooseChecks}
+              onRunQuick={runQuickCheck}
               onCaseDecision={saveCaseDecision}
               onRefresh={loadSummary}
               onTargetChange={selectTarget}
@@ -896,6 +940,7 @@ function Sidebar({
         <div className="workspace-mark"><ShieldCheck size={17} /></div>
         <div className="workspace-copy">
           <div className="workspace-title">{targetLabel(target)}</div>
+          <div className="workspace-subtitle">{target.type === 'repo' ? `devsec · ${target.repo.name}` : 'devsec · dashboard'}</div>
           <select
             className="workspace-select"
             name="workspace-target"
@@ -945,6 +990,8 @@ function Toolbar({
   isLoading,
   error,
   onRunAll,
+  onRunQuick,
+  onChooseChecks,
   canRun,
   runAllHint,
 }: {
@@ -956,11 +1003,14 @@ function Toolbar({
   isLoading: boolean;
   error: string | null;
   onRunAll: () => void;
+  onRunQuick: () => void;
+  onChooseChecks: () => void;
   canRun: boolean;
   runAllHint: string;
 }) {
   const searchPlaceholder = title === 'Tool Catalog' ? 'Search tools, packs' : title === 'Agent Lab' ? 'Search proposals, tools' : 'Search findings, manifests';
   const runAllLabel = canRun ? 'Run all' : 'Run all (pick a repo)';
+  const runQuickLabel = canRun ? 'Run quick' : 'Run quick (pick a repo)';
   return (
     <header className="mist-toolbar">
       <div className="toolbar-title">
@@ -986,6 +1036,26 @@ function Toolbar({
         />
         <kbd>⌘K</kbd>
       </label>
+      <Button
+        variant="secondary"
+        size="sm"
+        icon={<SlidersHorizontal size={14} />}
+        onClick={onChooseChecks}
+        title={canRun ? 'Choose checks to run' : 'Pick a repo first'}
+        ariaLabel="Choose checks"
+      >
+        Choose...
+      </Button>
+      <Button
+        variant="secondary"
+        size="sm"
+        icon={<Play size={14} />}
+        onClick={onRunQuick}
+        title={canRun ? 'Run the quick safety sweep' : 'Pick a repo first'}
+        ariaLabel={runQuickLabel}
+      >
+        Run quick
+      </Button>
       <Button
         variant="secondary"
         size="sm"
@@ -1128,11 +1198,19 @@ function RunCheckSheet({
 function OverviewView({summary, target, posture, error, onOpenTab}: {summary: DashboardSummary; target: TargetSelection; posture: {score: number; delta: number; week: {label: string; value: number}[]}; error: string | null; onOpenTab: (tab: TabId) => void}) {
   const cases = activeCaseList(summary);
   const counts = severityCounts(summary);
+  const rawFindingTotal = counts.critical + counts.elevated + counts.warning + counts.low;
+  const loadedFindingRows = totalFindings(summary);
+  const nonLowFindings = counts.critical + counts.elevated + counts.warning;
+  const openFindingValue = String(rawFindingTotal || loadedFindingRows);
+  const openFindingDetail = rawFindingTotal > loadedFindingRows
+    ? `${loadedFindingRows} rows loaded · ${nonLowFindings} non-low`
+    : `${nonLowFindings} non-low`;
   const honeyCounts = honeyKeyCounts(summary);
   const scanners = topScannerItems(summary);
   const catalogCount = toolCatalogItems(summary).length || scanners.length;
   const scannerHealthy = scanners.filter((item) => item.status === 'ran').length;
   const activities = buildActivity(summary);
+  const recentActivities = activities.slice(0, 6);
   const lastScan = latestScanTime(summary);
   // summary.repos[].repo is the slugified scan-history key (e.g.
   // ``besk-ftigelse.dk``); ProjectRepo.name is the un-slugified display name
@@ -1174,7 +1252,7 @@ function OverviewView({summary, target, posture, error, onOpenTab}: {summary: Da
       </section>
 
       <section className="kpi-grid">
-        <KpiCard title="Open findings" value={String(totalFindings(summary))} detail={`${counts.critical + counts.elevated + counts.warning} non-low`} icon={<ShieldAlert size={18} />} onClick={() => onOpenTab('findings')} />
+        <KpiCard title="Open findings" value={openFindingValue} detail={openFindingDetail} icon={<ShieldAlert size={18} />} onClick={() => onOpenTab('findings')} />
         <KpiCard title="Honey keys armed" value={String(honeyCounts.active)} detail={honeyCounts.triggered ? `${honeyCounts.triggered} tripped` : 'all quiet'} icon={<ShieldCheck size={18} />} onClick={() => onOpenTab('honey-keys')} />
         <KpiCard title="Tool Catalog" value={`${scannerHealthy} / ${Math.max(scanners.length, 1)}`} detail={`${catalogCount} catalog entries`} icon={<ScanIcon size={18} />} onClick={() => onOpenTab('scanners')} />
       </section>
@@ -1192,9 +1270,9 @@ function OverviewView({summary, target, posture, error, onOpenTab}: {summary: Da
         </PaperCard>
         <PaperCard>
           <SectionHeader title="Recent activity" right={<button onClick={() => onOpenTab('activity')}>All <ChevronRight size={14} /></button>} />
-          <ActivityTimelineMini items={activities} />
+          <ActivityTimelineMini items={recentActivities} />
           <div className="activity-list compact">
-            {activities.slice(0, 6).map((item) => <ActivityRow key={item.id} item={item} />)}
+            {recentActivities.map((item) => <ActivityRow key={item.id} item={item} />)}
             {!activities.length && <EmptyLine title="No activity yet" detail="Run a scan to build the local record." />}
           </div>
         </PaperCard>
@@ -1244,6 +1322,7 @@ function FindingsView({summary, search, onCaseDecision}: {summary: DashboardSumm
   });
   const shown = filtered.slice(0, 32);
   const selected = cases.find((item) => item.id === selectedId) ?? filtered[0] ?? null;
+  const latest = latestRepoScan(summary);
 
   async function openRotation(item: DisplayCase) {
     setRotateError(null);
@@ -1282,6 +1361,11 @@ function FindingsView({summary, search, onCaseDecision}: {summary: DashboardSumm
         <MetricBlock label="Warning" value={String(counts.warning)} tone="warn" />
         <MetricBlock label="Low / info" value={String(counts.low)} tone="low" />
       </section>
+      {latest?.scan_id && (
+        <div className="findings-actions">
+          <a className="button secondary sm" href={reportViewUrl(latest.scan_id, 'prompt')}><Sparkles size={14} /> Whole-repo prompt</a>
+        </div>
+      )}
       <PaperCard className="landscape-card">
         <SectionHeader title="Risk landscape · severity × age" right={<span>{cases.filter((item) => toneForCase(item) !== 'low' && relativeAge(item.createdAt).includes('d')).length} non-low findings aged past 24 h</span>} />
         <RiskLandscape items={cases} onPick={setSelectedId} />
@@ -1295,7 +1379,7 @@ function FindingsView({summary, search, onCaseDecision}: {summary: DashboardSumm
       </div>
       <section className="view-stack tight">
         <PaperCard padded={false}>
-          <FindingsTable items={shown} onPick={setSelectedId} />
+          <FindingsTable items={shown} selectedId={selected?.id ?? null} onPick={setSelectedId} />
           {filtered.length > shown.length && (
             <div className="table-note">
               Showing {shown.length} of {filtered.length}. Search or filter to narrow the full local result set.
@@ -1995,6 +2079,9 @@ function CaseDetailCard({
   onRotate?: (item: DisplayCase) => void;
   rotateError?: string | null;
 }) {
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  useEffect(() => setCopyState('idle'), [item.id]);
+
   async function save(status: CaseDecisionStatus | 'open') {
     const note = status === 'open' ? '' : window.prompt('Optional note for this decision', item.decision?.note ?? '');
     if (note === null) return;
@@ -2010,6 +2097,18 @@ function CaseDetailCard({
     item.inferredSecretName &&
     onRotate,
   );
+
+  async function copyCasePrompt() {
+    try {
+      await navigator.clipboard.writeText(casePromptMarkdown(item));
+      setCopyState('copied');
+      window.setTimeout(() => setCopyState('idle'), 1800);
+    } catch {
+      setCopyState('failed');
+      window.setTimeout(() => setCopyState('idle'), 2200);
+    }
+  }
+
   return (
     <PaperCard className="detail-card">
       <div className="detail-head">
@@ -2018,7 +2117,7 @@ function CaseDetailCard({
       </div>
       <h2>{item.title}</h2>
       <p>{item.why}</p>
-      <KV label="Case" value={item.id} />
+      <KV label="Case" value={caseDisplayId(item)} />
       <KV label="Repository" value={item.repoName} />
       <KV label="Location" value={item.location} />
       <KV label="Category" value={item.category ? categoryLabel(item.category) : 'Uncategorized'} />
@@ -2052,7 +2151,9 @@ function CaseDetailCard({
         <p>{item.nextStep}</p>
       </div>
       <div className="button-row wrap">
-        {item.scanId && <a className="button primary" href={reportViewUrl(item.scanId, 'prompt')}><Sparkles size={14} /> AI prompt</a>}
+        <button type="button" className="button primary" onClick={() => void copyCasePrompt()}>
+          <Sparkles size={14} /> {copyState === 'copied' ? 'Copied case prompt' : copyState === 'failed' ? 'Copy failed' : 'Copy case prompt'}
+        </button>
         {item.scanId && <a className="button secondary" href={reportViewUrl(item.scanId, 'raw')}><FileText size={14} /> Raw report</a>}
         {canRotate && (
           <button
@@ -2087,14 +2188,14 @@ function CaseDetailCard({
   );
 }
 
-function FindingsTable({items, onPick}: {items: DisplayCase[]; onPick: (id: string) => void}) {
+function FindingsTable({items, selectedId, onPick}: {items: DisplayCase[]; selectedId: string | null; onPick: (id: string) => void}) {
   return (
     <div className="findings-table">
       <div className="findings-head">
         <span>ID</span><span>Finding</span><span>Category</span><span>Scanner</span><span>Severity</span><span>Age</span><span />
       </div>
       {items.map((item, index) => (
-        <button key={item.id} type="button" className="finding-row" onClick={() => onPick(item.id)}>
+        <button key={item.id} type="button" className={`finding-row ${selectedId === item.id ? 'selected' : ''}`} onClick={() => onPick(item.id)}>
           <span>{displayId(item, index)}</span>
           <span><strong>{item.title}</strong><em>{item.location}</em></span>
           <span>{item.category ? categoryLabel(item.category) : 'Security'}</span>
@@ -2477,13 +2578,14 @@ function EventMix({summary}: {summary: DashboardSummary}) {
 }
 
 function ActivityTimelineMini({items}: {items: ActivityItem[]}) {
+  const tickLabels = ['00', '04', '08', '12', '16', '20'];
   return (
     <div className="timeline-mini">
-      {items.slice(0, 18).map((item, index) => {
+      {items.map((item, index) => {
         const hour = item.date ? item.date.getHours() + item.date.getMinutes() / 60 : index;
         return <span key={item.id} style={{left: `${(hour / 24) * 100}%`, background: severityMeta[item.tone].dot}} />;
       })}
-      <div><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+      <div>{tickLabels.map((label) => <span key={label}>{label}:00</span>)}</div>
     </div>
   );
 }
