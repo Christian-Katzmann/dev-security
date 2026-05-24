@@ -7,7 +7,7 @@
     "campaign_path": "/Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/agent-lab-byom.md",
     "run_dir": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/agent-lab-byom",
     "created_at": "2026-05-21T21:49:23+00:00",
-    "updated_at": "2026-05-21T22:11:01+00:00",
+    "updated_at": "2026-05-24T09:56:39+00:00",
     "status": "active",
     "model": "gpt-5.5",
     "reasoning_effort": "xhigh",
@@ -16,10 +16,10 @@
     "schedule_mode": "fast-chain",
     "fast_chain_delay_minutes": 2
   },
-  "phase": "step",
+  "phase": "final_review",
   "cursor": {
-    "step_id": "2.1",
-    "phase": "2",
+    "step_id": null,
+    "phase": "3",
     "attempt": 0
   },
   "policy": {
@@ -74,13 +74,67 @@
     },
     {
       "id": "d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010",
-      "status": "ACTIVE",
+      "status": "PAUSED",
       "kind": "cron",
       "execution_environment": "worktree",
       "model": "gpt-5.5",
       "reasoning_effort": "xhigh",
       "created_at": "2026-05-21T22:09:43+00:00",
-      "expected_next": "step 2.1 Add exportable agent context"
+      "expected_next": "step 2.1 Add exportable agent context",
+      "updated_at": "2026-05-24T01:44:37+00:00"
+    },
+    {
+      "id": "d-vsec-agent-lab-byo-ai-step-2-2-20260524-0344",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T01:42:43+00:00",
+      "expected_next": "step 2.2 Build proposal import and approval records",
+      "updated_at": "2026-05-24T01:57:27+00:00"
+    },
+    {
+      "id": "d-vsec-agent-lab-byo-ai-step-2-3-20260524-0357",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T01:55:56+00:00",
+      "expected_next": "step 2.3 Route approved existing scans through DëvSec",
+      "updated_at": "2026-05-24T02:08:47+00:00"
+    },
+    {
+      "id": "d-vsec-agent-lab-byo-ai-step-3-1-20260524-0408",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T02:07:06+00:00",
+      "expected_next": "step 3.1 Build the user-mediated Agent Lab planner UI",
+      "updated_at": "2026-05-24T02:23:52+00:00"
+    },
+    {
+      "id": "d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423",
+      "status": "ACTIVE",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T02:21:26+00:00",
+      "expected_next": "step 3.2 Validate with mocked and pasted proposals"
+    },
+    {
+      "id": "d-vsec-agent-lab-byo-ai-final-review-20260524-1157",
+      "status": "ACTIVE",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-24T09:56:39+00:00",
+      "expected_next": "final_review DëvSec Agent Lab BYO AI"
     }
   ],
   "blockers": []

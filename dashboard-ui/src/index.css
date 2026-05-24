@@ -1496,6 +1496,802 @@ a.button,
   margin-top: 18px;
 }
 
+.agent-lab {
+  --agent-panel-bg: rgba(255,255,255,0.86);
+  --agent-line: rgba(28,36,34,0.08);
+}
+
+.agent-lab-console {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(420px, 0.78fr);
+  gap: 20px;
+  align-items: stretch;
+  padding: 22px;
+  border-radius: var(--r-lg);
+  background:
+    linear-gradient(120deg, rgba(125,145,137,0.18), rgba(255,255,255,0.72) 50%, rgba(201,138,63,0.10)),
+    var(--surface-card);
+  border: 1px solid var(--border-hair);
+  box-shadow: var(--shadow-1);
+}
+
+.agent-lab-console-main {
+  min-width: 0;
+}
+
+.agent-lab-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-muted);
+  font: 700 11px/1 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.agent-lab-console h1 {
+  margin: 14px 0 10px;
+  color: var(--ink-strong);
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.agent-lab-console p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.agent-lab-policy-strip {
+  display: grid;
+  gap: 10px;
+  align-content: center;
+}
+
+.agent-lab-boundary-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 11px;
+  border-radius: var(--r-lg);
+  background: rgba(255,255,255,0.66);
+  border: 1px solid var(--border-hair);
+}
+
+.agent-lab-boundary-item > span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  background: rgba(28,36,34,0.06);
+  color: var(--ink-muted);
+}
+
+.agent-lab-boundary-item strong,
+.agent-lab-boundary-item em {
+  display: block;
+}
+
+.agent-lab-boundary-item strong {
+  color: var(--ink-strong);
+  font-size: 13px;
+}
+
+.agent-lab-boundary-item em {
+  margin-top: 3px;
+  color: var(--ink-muted);
+  font-style: normal;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.agent-lab-grid,
+.agent-lab-review-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.agent-lab-grid {
+  grid-template-columns: minmax(0, 1.08fr) minmax(380px, 0.92fr);
+}
+
+.agent-lab-review-layout {
+  grid-template-columns: minmax(300px, 0.38fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.agent-lab-panel {
+  min-width: 0;
+  padding: 18px;
+  border-radius: var(--r-lg);
+  background: var(--agent-panel-bg);
+  border: 1px solid var(--border-hair);
+  box-shadow: var(--shadow-1);
+}
+
+.agent-lab-review-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.agent-lab-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.agent-lab-panel-head span {
+  display: block;
+  color: var(--ink-faint);
+  font: 700 10px/1 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.agent-lab-panel-head h2 {
+  margin: 6px 0 0;
+  color: var(--ink-strong);
+  font-size: 18px;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.agent-lab-icon-button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-hair);
+  background: #fff;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.agent-lab-icon-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.agent-lab-adapter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.agent-lab-adapter {
+  min-width: 0;
+  min-height: 118px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  grid-template-rows: auto auto 1fr;
+  column-gap: 10px;
+  row-gap: 5px;
+  padding: 12px;
+  text-align: left;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border-hair);
+  background: rgba(255,255,255,0.62);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.agent-lab-adapter.active {
+  border-color: rgba(28,36,34,0.24);
+  background: rgba(138,163,154,0.14);
+}
+
+.agent-lab-adapter > span {
+  grid-row: 1 / 4;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  background: rgba(28,36,34,0.06);
+  color: var(--ink-muted);
+}
+
+.agent-lab-adapter strong {
+  color: var(--ink-strong);
+  font-size: 14px;
+}
+
+.agent-lab-adapter em,
+.agent-lab-adapter small {
+  display: block;
+  color: var(--ink-muted);
+  font-style: normal;
+  line-height: 1.35;
+}
+
+.agent-lab-adapter em {
+  font-size: 12px;
+}
+
+.agent-lab-adapter small {
+  align-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.agent-lab-stat-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 14px 0;
+}
+
+.agent-lab-mini-stat {
+  min-width: 0;
+  padding: 10px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-hair);
+  background: rgba(28,36,34,0.03);
+}
+
+.agent-lab-mini-stat span {
+  display: block;
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.agent-lab-mini-stat strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--ink-strong);
+  font: 600 20px/1 var(--font-mono);
+}
+
+.agent-lab-prompt-shell,
+.agent-lab-preview-box,
+.agent-lab-decision-box {
+  border: 1px solid var(--border-hair);
+  border-radius: var(--r-lg);
+  background: rgba(255,255,255,0.58);
+  overflow: hidden;
+}
+
+.agent-lab-prompt-head,
+.agent-lab-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border-hair);
+}
+
+.agent-lab-prompt-head strong,
+.agent-lab-preview-head strong {
+  display: block;
+  color: var(--ink-strong);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.agent-lab-prompt-head span,
+.agent-lab-preview-head span {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-muted);
+  font: 500 11px/1.25 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.agent-lab-code-area,
+.agent-lab-import-area {
+  width: 100%;
+  resize: vertical;
+  border: 0;
+  outline: 0;
+  background: rgba(28,36,34,0.025);
+  color: var(--ink);
+  font: 500 12px/1.45 var(--font-mono);
+}
+
+.agent-lab-code-area {
+  min-height: 288px;
+  padding: 12px;
+}
+
+.agent-lab-import-area {
+  min-height: 352px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-hair);
+  border-radius: var(--r-lg);
+  background: #fff;
+}
+
+.agent-lab-action {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-hair);
+  color: var(--ink);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.agent-lab-action.primary {
+  color: #fff;
+  background: var(--ink-strong);
+  border-color: var(--ink-strong);
+}
+
+.agent-lab-action.secondary {
+  background: #fff;
+}
+
+.agent-lab-action.ghost {
+  background: transparent;
+  box-shadow: none;
+}
+
+.agent-lab-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.agent-lab-button-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.agent-lab-notice {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  padding: 11px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border-hair);
+}
+
+.agent-lab-notice.warn {
+  background: rgba(201,138,63,0.10);
+  color: var(--sev-warn-ink);
+}
+
+.agent-lab-notice.info {
+  background: rgba(107,141,181,0.12);
+  color: var(--sev-info-ink);
+}
+
+.agent-lab-notice > span {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-md);
+  background: rgba(255,255,255,0.62);
+}
+
+.agent-lab-notice strong,
+.agent-lab-notice p {
+  margin: 0;
+}
+
+.agent-lab-notice strong {
+  display: block;
+  font-size: 13px;
+}
+
+.agent-lab-notice p {
+  margin-top: 4px;
+  color: var(--ink-muted);
+  line-height: 1.4;
+  font-size: 12px;
+}
+
+.agent-lab-error {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: var(--r-lg);
+  background: rgba(156,59,59,0.08);
+  border: 1px solid rgba(156,59,59,0.16);
+  color: var(--sev-crit-ink);
+}
+
+.agent-lab-error strong {
+  display: block;
+  font-size: 13px;
+}
+
+.agent-lab-error ul {
+  margin: 8px 0 0 18px;
+  padding: 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.agent-lab-count {
+  min-width: 28px;
+  justify-content: center;
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: rgba(28,36,34,0.06);
+  color: var(--ink-muted);
+  font: 600 12px/1 var(--font-mono) !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.agent-lab-proposal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-lab-proposal-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 11px;
+  text-align: left;
+  border-radius: var(--r-lg);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.agent-lab-proposal-row:hover,
+.agent-lab-proposal-row.active {
+  border-color: var(--border-hair);
+  background: rgba(28,36,34,0.04);
+}
+
+.agent-lab-state-dot {
+  width: 9px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--sev-warn);
+}
+
+.agent-lab-state-dot.approved {
+  background: var(--sev-low);
+}
+
+.agent-lab-state-dot.denied {
+  background: var(--sev-high);
+}
+
+.agent-lab-proposal-row strong,
+.agent-lab-proposal-row em {
+  display: block;
+}
+
+.agent-lab-proposal-row strong {
+  color: var(--ink-strong);
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.agent-lab-proposal-row em {
+  margin-top: 4px;
+  color: var(--ink-muted);
+  font-style: normal;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.agent-lab-proposal-row small {
+  color: var(--ink-muted);
+  font: 600 11px/1 var(--font-mono);
+}
+
+.agent-lab-status-pill {
+  display: inline-flex !important;
+  min-height: 24px;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: 999px;
+  font: 700 10px/1 var(--font-sans) !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  background: var(--sev-warn-soft);
+  color: var(--sev-warn-ink) !important;
+}
+
+.agent-lab-status-pill.approved {
+  background: var(--sev-low-soft);
+  color: var(--mist-surface-700) !important;
+}
+
+.agent-lab-status-pill.denied {
+  background: var(--sev-high-soft);
+  color: var(--sev-high-ink) !important;
+}
+
+.agent-lab-proposal-summary {
+  padding-bottom: 4px;
+}
+
+.agent-lab-proposal-summary h2 {
+  margin: 0;
+  color: var(--ink-strong);
+  font-size: 22px;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.agent-lab-proposal-summary p {
+  margin: 8px 0 0;
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+
+.agent-lab-meta-grid,
+.agent-lab-route-strip,
+.agent-lab-audit-trail {
+  display: grid;
+  gap: 8px;
+}
+
+.agent-lab-meta-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.agent-lab-route-strip,
+.agent-lab-audit-trail {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.agent-lab-meta-item,
+.agent-lab-audit-trail > div {
+  min-width: 0;
+  padding: 10px;
+  border-radius: var(--r-md);
+  background: rgba(28,36,34,0.035);
+  border: 1px solid var(--border-hair);
+}
+
+.agent-lab-meta-item span,
+.agent-lab-audit-trail span {
+  display: block;
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+.agent-lab-meta-item strong,
+.agent-lab-audit-trail strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--ink-strong);
+  font: 600 12px/1.3 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+.agent-lab-review-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.agent-lab-review-block {
+  min-width: 0;
+  padding: 13px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border-hair);
+  background: rgba(255,255,255,0.58);
+}
+
+.agent-lab-review-block h3 {
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-muted);
+  font: 700 11px/1 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.agent-lab-review-block > div {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-lab-stack-item,
+.agent-lab-execution-item,
+.agent-lab-preview-item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 10px;
+  border-radius: var(--r-md);
+  background: rgba(28,36,34,0.03);
+}
+
+.agent-lab-stack-item strong,
+.agent-lab-stack-item span,
+.agent-lab-stack-item em,
+.agent-lab-execution-item strong,
+.agent-lab-execution-item span,
+.agent-lab-preview-item strong,
+.agent-lab-preview-item span {
+  display: block;
+}
+
+.agent-lab-stack-item strong,
+.agent-lab-execution-item strong,
+.agent-lab-preview-item strong {
+  color: var(--ink-strong);
+  font-size: 13px;
+}
+
+.agent-lab-stack-item span,
+.agent-lab-execution-item span,
+.agent-lab-preview-item span {
+  margin-top: 4px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.agent-lab-stack-item em {
+  color: var(--ink-muted);
+  font: 600 11px/1.3 var(--font-mono);
+  font-style: normal;
+  text-align: right;
+}
+
+.agent-lab-safety-labels,
+.agent-lab-tool-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.agent-lab-safety-labels span,
+.agent-lab-tool-chips span,
+.agent-lab-tool-chip {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: rgba(138,163,154,0.16);
+  color: var(--mist-surface-700);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.agent-lab-tool-chip.blocked {
+  background: var(--sev-warn-soft);
+  color: var(--sev-warn-ink);
+}
+
+.agent-lab-muted-line {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.agent-lab-decision-box {
+  padding: 12px;
+}
+
+.agent-lab-decision-box label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.agent-lab-decision-box label span {
+  color: var(--ink-muted);
+  font: 700 10px/1 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.agent-lab-decision-box textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--border-hair);
+  border-radius: var(--r-md);
+  background: #fff;
+  outline: 0;
+  padding: 10px;
+  color: var(--ink);
+}
+
+.agent-lab-message {
+  margin: 10px 0 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.agent-lab-preview-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+}
+
+.agent-lab-audit-trail {
+  margin: 0 12px 12px;
+}
+
+.agent-lab-empty,
+.agent-lab-empty-state {
+  display: grid;
+  place-items: center;
+  text-align: center;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border-hair);
+  background: rgba(255,255,255,0.72);
+}
+
+.agent-lab-empty {
+  min-height: 480px;
+  padding: 28px;
+}
+
+.agent-lab-empty-state {
+  min-height: 220px;
+  padding: 24px;
+}
+
+.agent-lab-empty-mark,
+.agent-lab-empty-state > span {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-lg);
+  background: rgba(28,36,34,0.07);
+  color: var(--ink-muted);
+}
+
+.agent-lab-empty h1,
+.agent-lab-empty-state strong {
+  margin: 16px 0 8px;
+  color: var(--ink-strong);
+  font-size: 22px;
+}
+
+.agent-lab-empty p,
+.agent-lab-empty-state p {
+  max-width: 560px;
+  margin: 0 0 16px;
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+
 .playbook-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -4037,6 +4833,16 @@ a.button,
 }
 
 @media (max-width: 1080px) {
+  .agent-lab-console,
+  .agent-lab-grid,
+  .agent-lab-review-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-lab-review-layout {
+    align-items: stretch;
+  }
+
   .catalog-pack-hero {
     padding: 32px 28px;
   }
@@ -4047,6 +4853,40 @@ a.button,
 }
 
 @media (max-width: 760px) {
+  .agent-lab-console,
+  .agent-lab-panel {
+    padding: 14px;
+  }
+
+  .agent-lab-adapter-grid,
+  .agent-lab-stat-row,
+  .agent-lab-review-grid,
+  .agent-lab-meta-grid,
+  .agent-lab-route-strip,
+  .agent-lab-audit-trail {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-lab-policy-strip {
+    gap: 8px;
+  }
+
+  .agent-lab-prompt-head,
+  .agent-lab-preview-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .agent-lab-stack-item,
+  .agent-lab-execution-item,
+  .agent-lab-preview-item {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-lab-console h1 {
+    font-size: 26px;
+  }
+
   .catalog-pack {
     gap: 24px;
   }

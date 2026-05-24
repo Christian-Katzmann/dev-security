@@ -40,3 +40,84 @@
 - `2026-05-21T22:10:57+00:00` Verified current Step 1.3 automation is PAUSED in the Codex app registry.
 - `2026-05-21T22:11:01+00:00` Recorded current Step 1.3 automation as PAUSED after registry verification.
 - `2026-05-21T22:11:19+00:00` Released campaign lock after completing Step 1.3 and chaining Step 2.1.
+- `2026-05-24T01:30:24+00:00` Verified automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T01:30:24+00:00` Verified automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` launched thread `019e4c97-01bd-77b1-9c03-b55bec93676a` with status `ARCHIVED`.
+- `2026-05-24T01:30:56+00:00` Verified automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T01:31:19+00:00` Rescheduled existing Step 2.1 automation d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010 through the official Codex app automation tool for 2026-05-24T03:32:00+02:00; registry verification remained ACTIVE and pinned to gpt-5.5/xhigh.
+- `2026-05-24T01:31:25+00:00` Automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` has no scheduler run since `1779586243171` in the Codex app registry.
+- `2026-05-24T01:31:36+00:00` Automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` has no scheduler run since `1779586243171` in the Codex app registry.
+- `2026-05-24T01:31:46+00:00` Automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` has no scheduler run since `1779586243171` in the Codex app registry.
+- `2026-05-24T01:31:57+00:00` Automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` has no scheduler run since `1779586243171` in the Codex app registry.
+- `2026-05-24T01:32:07+00:00` Automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` has no scheduler run since `1779586243171` in the Codex app registry.
+- `2026-05-24T01:32:17+00:00` Automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` has no scheduler run since `1779586243171` in the Codex app registry.
+- `2026-05-24T01:32:27+00:00` Automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` has no scheduler run since `1779586243171` in the Codex app registry.
+- `2026-05-24T01:32:38+00:00` Automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` has no scheduler run since `1779586243171` in the Codex app registry.
+- `2026-05-24T01:32:48+00:00` Automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` has no scheduler run since `1779586243171` in the Codex app registry.
+- `2026-05-24T01:32:58+00:00` Automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` has no scheduler run since `1779586243171` in the Codex app registry.
+- `2026-05-24T01:33:08+00:00` Automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` has no scheduler run since `1779586243171` in the Codex app registry.
+- `2026-05-24T01:33:19+00:00` Automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` has no scheduler run since `1779586243171` in the Codex app registry.
+- `2026-05-24T01:33:39+00:00` Automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` has no scheduler run since `1779586243171` in the Codex app registry.
+- `2026-05-24T01:33:50+00:00` Observed fresh scheduler launch for rescheduled Step 2.1 automation.
+- `2026-05-24T01:34:03+00:00` Verified automation `d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T01:41:08+00:00` Completed step 2.1 Add exportable agent context; parser next is step 2.2 Build proposal import and approval records.
+- `2026-05-24T01:42:29+00:00` Registered fallback automation `d-vsec-agent-lab-byo-ai-step-2-2-20260524-0344` for step 2.2 at 2026-05-24T03:44:00+02:00.
+- `2026-05-24T01:42:37+00:00` Verified fallback automation d-vsec-agent-lab-byo-ai-step-2-2-20260524-0344 is ACTIVE and pinned to gpt-5.5/xhigh.
+- `2026-05-24T01:42:43+00:00` Recorded next automation d-vsec-agent-lab-byo-ai-step-2-2-20260524-0344 for parser next step 2.2.
+- `2026-05-24T01:42:54+00:00` Released current lock before fallback launch verification.
+- `2026-05-24T01:44:29+00:00` Verified scheduler launched fallback automation d-vsec-agent-lab-byo-ai-step-2-2-20260524-0344 after registration.
+- `2026-05-24T01:44:37+00:00` Paused current automation d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010 after verifying next fallback launch.
+- `2026-05-24T01:44:46+00:00` Verified current automation d-vsec-agent-lab-byo-ai-step-2-1-20260522-0010 is PAUSED in registry.
+- `2026-05-24T01:55:12+00:00` Completed step 2.2 Build proposal import and approval records; parser next is step 2.3 Route approved existing scans through DëvSec.
+- `2026-05-24T01:55:47+00:00` Registered fallback automation `d-vsec-agent-lab-byo-ai-step-2-3-20260524-0357` for step 2.3 at 2026-05-24T03:57:00+02:00.
+- `2026-05-24T01:55:55+00:00` Verified fallback automation d-vsec-agent-lab-byo-ai-step-2-3-20260524-0357 is ACTIVE and pinned to gpt-5.5/xhigh.
+- `2026-05-24T01:55:56+00:00` Recorded next automation d-vsec-agent-lab-byo-ai-step-2-3-20260524-0357 for parser next step 2.3.
+- `2026-05-24T01:56:13+00:00` Released current lock before fallback launch verification for step 2.3.
+- `2026-05-24T01:57:05+00:00` Automation `d-vsec-agent-lab-byo-ai-step-2-3-20260524-0357` has no scheduler run since `1779587760000` in the Codex app registry.
+- `2026-05-24T01:57:15+00:00` Verified scheduler launched fallback automation d-vsec-agent-lab-byo-ai-step-2-3-20260524-0357 after registration.
+- `2026-05-24T01:57:27+00:00` Paused current automation d-vsec-agent-lab-byo-ai-step-2-2-20260524-0344 after verifying next fallback launch.
+- `2026-05-24T01:57:27+00:00` Verified current automation d-vsec-agent-lab-byo-ai-step-2-2-20260524-0344 is PAUSED in registry.
+- `2026-05-24T02:05:34+00:00` Completed step 2.3 Route approved existing scans through DëvSec; parser now points to step 3.1.
+- `2026-05-24T02:06:54+00:00` Registered fallback automation `d-vsec-agent-lab-byo-ai-step-3-1-20260524-0408` for step 3.1 at 2026-05-24T04:08:00+02:00.
+- `2026-05-24T02:07:01+00:00` Verified fallback automation d-vsec-agent-lab-byo-ai-step-3-1-20260524-0408 is ACTIVE and pinned to gpt-5.5/xhigh.
+- `2026-05-24T02:07:06+00:00` Recorded next automation d-vsec-agent-lab-byo-ai-step-3-1-20260524-0408 for parser next step 3.1.
+- `2026-05-24T02:07:15+00:00` Released current lock before fallback launch verification for step 3.1.
+- `2026-05-24T02:07:28+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-1-20260524-0408` has no scheduler run since `1779588480000` in the Codex app registry.
+- `2026-05-24T02:07:38+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-1-20260524-0408` has no scheduler run since `1779588480000` in the Codex app registry.
+- `2026-05-24T02:07:48+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-1-20260524-0408` has no scheduler run since `1779588480000` in the Codex app registry.
+- `2026-05-24T02:07:58+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-1-20260524-0408` has no scheduler run since `1779588480000` in the Codex app registry.
+- `2026-05-24T02:08:08+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-1-20260524-0408` has no scheduler run since `1779588480000` in the Codex app registry.
+- `2026-05-24T02:08:19+00:00` Verified scheduler launched fallback automation d-vsec-agent-lab-byo-ai-step-3-1-20260524-0408 after registration.
+- `2026-05-24T02:08:34+00:00` Automation `d-vsec-agent-lab-byo-ai-step-2-3-20260524-0357` is missing from the Codex app registry or is not PAUSED with model gpt-5.5/xhigh.
+- `2026-05-24T02:08:34+00:00` Paused current automation d-vsec-agent-lab-byo-ai-step-2-3-20260524-0357 after verifying next fallback launch.
+- `2026-05-24T02:08:41+00:00` Verified current automation d-vsec-agent-lab-byo-ai-step-2-3-20260524-0357 is PAUSED in registry.
+- `2026-05-24T02:08:47+00:00` Recorded current automation d-vsec-agent-lab-byo-ai-step-2-3-20260524-0357 as PAUSED after registry verification.
+- `2026-05-24T02:20:30+00:00` Step 3.1 completed: Agent Lab UI added, dashboard lint/build passed, parser now points to step 3.2.
+- `2026-05-24T02:21:25+00:00` Registered fallback automation d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423 for step 3.2 at 2026-05-24T04:23:00+02:00.
+- `2026-05-24T02:21:25+00:00` Verified fallback automation d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423 in registry as ACTIVE gpt-5.5/xhigh.
+- `2026-05-24T02:21:26+00:00` Recorded automation d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423 for next parser unit: step 3.2 Validate with mocked and pasted proposals.
+- `2026-05-24T02:23:41+00:00` Verified scheduler launched fallback automation d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423 for step 3.2.
+- `2026-05-24T02:23:52+00:00` Paused current automation d-vsec-agent-lab-byo-ai-step-3-1-20260524-0408 after verified handoff to step 3.2.
+- `2026-05-24T02:23:52+00:00` Verified current automation d-vsec-agent-lab-byo-ai-step-3-1-20260524-0408 is PAUSED in registry.
+- `2026-05-24T02:23:52+00:00` State recorded current automation d-vsec-agent-lab-byo-ai-step-3-1-20260524-0408 as PAUSED.
+
+- 2026-05-24T02:24:06.221472+00:00 skipped d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423: lock exists (895s old).
+- `2026-05-24T02:24:13+00:00` Released current lock for step 3.1 after verified step 3.2 handoff.
+- `2026-05-24T09:47:46+00:00` Verified automation `d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T09:47:51+00:00` Rescheduled existing Step 3.2 automation d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423 through the official Codex app automation tool for 2026-05-24T11:49:00+02:00 after the earlier run skipped on a stale Step 3.1 lock.
+- `2026-05-24T09:47:57+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423` has no scheduler run since `1779616054581` in the Codex app registry.
+- `2026-05-24T09:48:07+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423` has no scheduler run since `1779616054581` in the Codex app registry.
+- `2026-05-24T09:48:17+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423` has no scheduler run since `1779616054581` in the Codex app registry.
+- `2026-05-24T09:48:28+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423` has no scheduler run since `1779616054581` in the Codex app registry.
+- `2026-05-24T09:48:38+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423` has no scheduler run since `1779616054581` in the Codex app registry.
+- `2026-05-24T09:48:48+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423` has no scheduler run since `1779616054581` in the Codex app registry.
+- `2026-05-24T09:48:58+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423` has no scheduler run since `1779616054581` in the Codex app registry.
+- `2026-05-24T09:49:08+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423` has no scheduler run since `1779616054581` in the Codex app registry.
+- `2026-05-24T09:49:18+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423` has no scheduler run since `1779616054581` in the Codex app registry.
+- `2026-05-24T09:49:28+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423` has no scheduler run since `1779616054581` in the Codex app registry.
+- `2026-05-24T09:49:38+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423` has no scheduler run since `1779616054581` in the Codex app registry.
+- `2026-05-24T09:49:48+00:00` Automation `d-vsec-agent-lab-byo-ai-step-3-2-20260524-0423` has no scheduler run since `1779616054581` in the Codex app registry.
+- `2026-05-24T09:49:59+00:00` Observed fresh scheduler launch for rescheduled Step 3.2 automation.
+- `2026-05-24T09:55:09+00:00` Step 3.2 completed: focused Agent Lab validation added and verified; next unit is whole-campaign final review.
+- `2026-05-24T09:56:27+00:00` Registered fallback final-review automation d-vsec-agent-lab-byo-ai-final-review-20260524-1157 for 2026-05-24T11:57:00+02:00.
+- `2026-05-24T09:56:32+00:00` Verified fallback final-review automation d-vsec-agent-lab-byo-ai-final-review-20260524-1157 in registry as ACTIVE gpt-5.5/xhigh.
+- `2026-05-24T09:56:39+00:00` Recorded final-review automation d-vsec-agent-lab-byo-ai-final-review-20260524-1157 for parser next final_review.

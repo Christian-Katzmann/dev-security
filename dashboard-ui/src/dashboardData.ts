@@ -240,6 +240,173 @@ export type ScanProfileCatalogItem = {
   notes: string[];
 };
 
+export type AgentLabAdapterId = 'codex' | 'claude-code' | 'local-agent' | 'manual-json';
+
+export type AgentLabContextPayload = {
+  schema_version: 'agent-lab.context.v1' | string;
+  context_id?: string;
+  context_hash?: string;
+  created_at?: string;
+  repo?: {
+    name?: string;
+    path?: string | null;
+  };
+  tool_catalog?: ToolCatalogItem[];
+  security_packs?: SecurityPackCatalogItem[];
+  scan_profiles?: ScanProfileCatalogItem[];
+  scan_history_summary?: Record<string, unknown>;
+  allowed_scan_profile_ids?: string[];
+  allowed_tool_ids?: string[];
+  blocked_tool_ids?: string[];
+  blocked_actions?: string[];
+  non_runnable_pack_rules?: Record<string, unknown>;
+  policy_boundaries?: Record<string, unknown>;
+};
+
+export type AgentLabRecommendedTool = {
+  tool_id: string;
+  label?: string;
+  reason?: string;
+  expected_benefit?: string;
+  policy?: ToolPolicy;
+  safety_labels?: string[];
+  agent_safety_labels?: string[];
+  install_state?: ToolInstallState | string;
+  lifecycle?: ToolLifecycle | string;
+};
+
+export type AgentLabRecommendedPack = {
+  pack_id: ToolPackId | string;
+  label?: string;
+  reason?: string;
+  runnable?: boolean;
+  mvp_state?: string;
+};
+
+export type AgentLabRequestedExecution = {
+  action: string;
+  scan_profile_id?: string;
+  profile_label?: string;
+  tool_ids?: string[];
+  mode?: string;
+  requires_approval?: boolean;
+  reason?: string;
+  status?: string;
+  scan_id?: string;
+  report_path?: string;
+};
+
+export type AgentLabEvidenceGap = {
+  tool_id?: string | null;
+  tool_label?: string;
+  scanner?: string;
+  scan_profile_id?: string;
+  reason?: string;
+  gap_type?: string;
+  install_state?: string;
+  user_message?: string;
+  source?: string;
+};
+
+export type AgentLabBlockedRequest = {
+  reason?: string;
+  detail?: string;
+  tool_id?: string | null;
+  scan_profile_id?: string | null;
+  source?: string;
+};
+
+export type AgentLabExecutionPreviewItem = {
+  index?: number;
+  action?: string;
+  scan_profile_id?: string;
+  profile_label?: string;
+  mode?: string;
+  reason?: string;
+  status?: string;
+  scanner_names?: string[];
+  tools?: {
+    tool_id?: string;
+    tool_label?: string;
+    scanner?: string | null;
+    scan_profile_id?: string;
+    install_state?: string;
+    lifecycle?: string;
+    safety_labels?: string[];
+    status?: string;
+  }[];
+  evidence_gaps?: AgentLabEvidenceGap[];
+  blocked?: AgentLabBlockedRequest[];
+};
+
+export type AgentLabExecutionPreview = {
+  version?: string;
+  proposal_id?: string;
+  approval_state?: string;
+  requested_mode?: string;
+  execution_surface?: string;
+  dry_run?: boolean;
+  can_execute?: boolean;
+  requires_approval?: boolean;
+  scan_profile_ids?: string[];
+  scanner_names?: string[];
+  items?: AgentLabExecutionPreviewItem[];
+  evidence_gaps?: AgentLabEvidenceGap[];
+  blocked_items?: AgentLabBlockedRequest[];
+  policy_gates?: Record<string, unknown>;
+};
+
+export type AgentLabProposal = {
+  id: string;
+  external_proposal_id?: string;
+  repo_name?: string;
+  repo_path?: string | null;
+  context_id?: string;
+  context_hash?: string | null;
+  source?: {
+    adapter_id?: AgentLabAdapterId | string;
+    agent_label?: string;
+    created_at?: string | null;
+  };
+  summary?: string;
+  recommended_tools?: AgentLabRecommendedTool[];
+  recommended_packs?: AgentLabRecommendedPack[];
+  requested_permissions?: string[];
+  requested_execution?: AgentLabRequestedExecution[];
+  expected_evidence_gaps?: AgentLabEvidenceGap[];
+  blocked_requests?: AgentLabBlockedRequest[];
+  notes?: string | null;
+  validation_status?: string;
+  validation_errors?: string[];
+  approval_state?: 'pending' | 'approved' | 'denied' | string;
+  approval_note?: string | null;
+  decided_by?: string | null;
+  imported_at?: string;
+  updated_at?: string;
+  approved_at?: string | null;
+  denied_at?: string | null;
+  raw_proposal?: Record<string, unknown>;
+  final_execution_plan?: {
+    version?: string;
+    approval_required?: boolean;
+    approval_state?: string;
+    items?: AgentLabRequestedExecution[];
+    last_preview?: AgentLabExecutionPreview;
+    last_execution?: {
+      job_id?: string;
+      mode?: string;
+      status?: string;
+      started_at?: string;
+      finished_at?: string;
+      scanner_names?: string[];
+      scan_id?: string;
+      report_path?: string;
+      error?: string;
+      evidence_gaps?: AgentLabEvidenceGap[];
+    };
+  };
+};
+
 export type ScannerDoctorStatus = 'ran' | 'missing' | 'error' | 'not-run';
 
 export type ScannerRecommendedPack = {
@@ -695,6 +862,7 @@ export type DashboardSummary = {
   security_packs?: SecurityPackCatalogItem[];
   scan_profiles?: ScanProfileCatalogItem[];
   managed_tools?: unknown[];
+  agent_lab_proposals?: AgentLabProposal[];
   completeness?: {
     checks_ran?: string[];
     checks_skipped?: string[];
@@ -758,6 +926,7 @@ export const emptySummary: DashboardSummary = {
   repos: [],
   history: [],
   findings: [],
+  agent_lab_proposals: [],
 };
 
 const severityWeight: Record<Severity, number> = {
@@ -1669,6 +1838,11 @@ export function filterSummaryByTarget(summary: DashboardSummary, target: TargetS
     security_packs: summary.security_packs,
     scan_profiles: summary.scan_profiles,
     managed_tools: summary.managed_tools,
+    agent_lab_proposals: summary.agent_lab_proposals?.filter((proposal) => {
+      const proposalRepoName = String(proposal.repo_name ?? '');
+      const proposalRepoPath = String(proposal.repo_path ?? '');
+      return repoNames.has(proposalRepoName) || proposalRepoPath === target.repo.path || repoKeyFromPath(proposalRepoPath) === repoKey;
+    }),
     completeness: summary.completeness,
     scan_completeness: summary.scan_completeness,
   };

@@ -50,14 +50,14 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 2 — Planner and approval loop
 
-- [ ] Step 2.1 — Add exportable agent context
-- [ ] Step 2.2 — Build proposal import and approval records
-- [ ] Step 2.3 — Route approved existing scans through DëvSec
+- [x] Step 2.1 — Add exportable agent context
+- [x] Step 2.2 — Build proposal import and approval records
+- [x] Step 2.3 — Route approved existing scans through DëvSec
 
 ### Phase 3 — Agent Lab interface
 
-- [ ] Step 3.1 — Build the user-mediated Agent Lab planner UI
-- [ ] Step 3.2 — Validate with mocked and pasted proposals
+- [x] Step 3.1 — Build the user-mediated Agent Lab planner UI
+- [x] Step 3.2 — Validate with mocked and pasted proposals
 - [ ] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).

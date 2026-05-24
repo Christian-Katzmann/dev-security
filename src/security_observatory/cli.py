@@ -146,13 +146,14 @@ def scan_repo(
     args: argparse.Namespace,
     home: Path,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    scanner_names: list[str] | None = None,
 ) -> dict[str, Any]:
     started_at = datetime.now(timezone.utc).isoformat()
     repo_name = slugify(repo.name)
     scan_id = f"{repo_name}-{utc_now_slug()}"
     scan_dir = home / "reports" / repo_name / scan_id
     scan_dir.mkdir(parents=True, exist_ok=True)
-    scanners = scanner_names_for_profile(args)
+    scanners = list(dict.fromkeys(scanner_names or scanner_names_for_profile(args)))
     rules_dir = package_root() / "rules"
 
     all_findings: list[Finding] = []

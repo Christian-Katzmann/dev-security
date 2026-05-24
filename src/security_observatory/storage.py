@@ -8,7 +8,7 @@ import re
 import secrets
 import sqlite3
 
-from .model import Finding, SecurityCase, redact_text
+from .model import Finding, SecurityCase, redact_text, sanitize_json
 from .decisions import (
     CASE_DECISION_STATUSES,
     SUPPRESSING_DECISION_STATUSES,
@@ -255,6 +255,40 @@ create table if not exists managed_tool_installations (
 
 create index if not exists idx_managed_tool_installations_tool on managed_tool_installations(tool_id, active);
 
+create table if not exists agent_lab_proposals (
+  id text primary key,
+  external_proposal_id text not null,
+  repo_name text not null,
+  repo_path text,
+  context_id text not null,
+  context_hash text,
+  adapter_id text not null,
+  agent_label text not null,
+  agent_created_at text,
+  summary text not null,
+  recommended_tools_json text not null,
+  recommended_packs_json text not null,
+  requested_permissions_json text not null,
+  requested_execution_json text not null,
+  expected_evidence_gaps_json text not null,
+  blocked_requests_json text not null,
+  notes text,
+  validation_status text not null check(validation_status in ('valid')),
+  validation_errors_json text not null,
+  approval_state text not null check(approval_state in ('pending', 'approved', 'denied')),
+  approval_note text,
+  decided_by text,
+  imported_at text not null,
+  updated_at text not null,
+  approved_at text,
+  denied_at text,
+  raw_proposal_json text not null,
+  final_execution_plan_json text not null
+);
+
+create index if not exists idx_agent_lab_proposals_repo on agent_lab_proposals(repo_name, imported_at desc);
+create index if not exists idx_agent_lab_proposals_state on agent_lab_proposals(approval_state, updated_at desc);
+
 create table if not exists honey_keys (
   id text primary key,
   project_id text not null,
@@ -488,6 +522,199 @@ class ObservatoryDB:
         if record:
             upsert_manifest_record(record)
         return record
+
+    def save_agent_lab_proposal(self, proposal: dict[str, Any]) -> dict[str, Any]:
+        now = _optional_text(proposal.get("updated_at")) or utc_now()
+        with self.conn:
+            self.conn.execute(
+                """
+                insert into agent_lab_proposals
+                (id, external_proposal_id, repo_name, repo_path, context_id, context_hash, adapter_id, agent_label,
+                 agent_created_at, summary, recommended_tools_json, recommended_packs_json, requested_permissions_json,
+                 requested_execution_json, expected_evidence_gaps_json, blocked_requests_json, notes, validation_status,
+                 validation_errors_json, approval_state, approval_note, decided_by, imported_at, updated_at, approved_at,
+                 denied_at, raw_proposal_json, final_execution_plan_json)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                on conflict(id) do update set
+                  repo_name = excluded.repo_name,
+                  repo_path = excluded.repo_path,
+                  context_id = excluded.context_id,
+                  context_hash = excluded.context_hash,
+                  adapter_id = excluded.adapter_id,
+                  agent_label = excluded.agent_label,
+                  agent_created_at = excluded.agent_created_at,
+                  summary = excluded.summary,
+                  recommended_tools_json = excluded.recommended_tools_json,
+                  recommended_packs_json = excluded.recommended_packs_json,
+                  requested_permissions_json = excluded.requested_permissions_json,
+                  requested_execution_json = excluded.requested_execution_json,
+                  expected_evidence_gaps_json = excluded.expected_evidence_gaps_json,
+                  blocked_requests_json = excluded.blocked_requests_json,
+                  notes = excluded.notes,
+                  validation_status = excluded.validation_status,
+                  validation_errors_json = excluded.validation_errors_json,
+                  approval_state = 'pending',
+                  approval_note = null,
+                  decided_by = null,
+                  updated_at = excluded.updated_at,
+                  approved_at = null,
+                  denied_at = null,
+                  raw_proposal_json = excluded.raw_proposal_json,
+                  final_execution_plan_json = excluded.final_execution_plan_json
+                """,
+                (
+                    str(proposal["id"]),
+                    str(proposal["external_proposal_id"]),
+                    str(proposal.get("repo_name") or "repository"),
+                    _optional_text(proposal.get("repo_path")),
+                    str(proposal["context_id"]),
+                    _optional_text(proposal.get("context_hash")),
+                    str(proposal["adapter_id"]),
+                    str(proposal.get("agent_label") or proposal["adapter_id"]),
+                    _optional_text(proposal.get("agent_created_at")),
+                    redact_text(str(proposal.get("summary") or ""))[:1200],
+                    _json(proposal.get("recommended_tools") or []),
+                    _json(proposal.get("recommended_packs") or []),
+                    _json(proposal.get("requested_permissions") or []),
+                    _json(proposal.get("requested_execution") or []),
+                    _json(proposal.get("expected_evidence_gaps") or []),
+                    _json(proposal.get("blocked_requests") or []),
+                    redact_text(str(proposal.get("notes") or "").strip())[:2000] or None,
+                    "valid",
+                    _json(proposal.get("validation_errors") or []),
+                    "pending",
+                    None,
+                    None,
+                    str(proposal.get("imported_at") or now),
+                    now,
+                    None,
+                    None,
+                    _json(proposal.get("raw_proposal") or {}),
+                    _json(proposal.get("final_execution_plan") or {}),
+                ),
+            )
+        saved = self.get_agent_lab_proposal(str(proposal["id"]))
+        if not saved:
+            raise ValueError("Agent Lab proposal could not be saved.")
+        return saved
+
+    def get_agent_lab_proposal(self, proposal_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "select * from agent_lab_proposals where id = ?",
+            (proposal_id,),
+        ).fetchone()
+        return _public_agent_lab_proposal(row) if row else None
+
+    def list_agent_lab_proposals(
+        self,
+        *,
+        repo_name: str | None = None,
+        approval_state: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        conditions = []
+        params: list[Any] = []
+        if repo_name:
+            conditions.append("repo_name = ?")
+            params.append(repo_name)
+        if approval_state:
+            conditions.append("approval_state = ?")
+            params.append(approval_state)
+        where = f"where {' and '.join(conditions)}" if conditions else ""
+        params.append(max(1, min(int(limit), 200)))
+        rows = self.conn.execute(
+            f"""
+            select *
+            from agent_lab_proposals
+            {where}
+            order by imported_at desc, id asc
+            limit ?
+            """,
+            params,
+        ).fetchall()
+        return [_public_agent_lab_proposal(row) for row in rows]
+
+    def set_agent_lab_proposal_approval(
+        self,
+        *,
+        proposal_id: str,
+        approval_state: str,
+        note: str | None = None,
+        decided_by: str | None = None,
+    ) -> dict[str, Any]:
+        clean_id = proposal_id.strip()
+        clean_state = approval_state.strip().lower().replace("declined", "denied")
+        if clean_state not in {"pending", "approved", "denied"}:
+            raise ValueError("Unsupported Agent Lab approval state.")
+        current = self.get_agent_lab_proposal(clean_id)
+        if not current:
+            raise ValueError("Agent Lab proposal not found.")
+        now = utc_now()
+        final_plan = dict(current.get("final_execution_plan") or {})
+        final_plan["approval_state"] = clean_state
+        for item in final_plan.get("items") or []:
+            if isinstance(item, dict):
+                item["status"] = {
+                    "pending": "pending_approval",
+                    "approved": "approved_pending_execution",
+                    "denied": "denied",
+                }[clean_state]
+        with self.conn:
+            self.conn.execute(
+                """
+                update agent_lab_proposals
+                set approval_state = ?,
+                    approval_note = ?,
+                    decided_by = ?,
+                    updated_at = ?,
+                    approved_at = ?,
+                    denied_at = ?,
+                    final_execution_plan_json = ?
+                where id = ?
+                """,
+                (
+                    clean_state,
+                    redact_text((note or "").strip())[:1000] or None,
+                    redact_text((decided_by or "").strip())[:120] or None,
+                    now,
+                    now if clean_state == "approved" else None,
+                    now if clean_state == "denied" else None,
+                    _json(final_plan),
+                    clean_id,
+                ),
+            )
+        saved = self.get_agent_lab_proposal(clean_id)
+        if not saved:
+            raise ValueError("Agent Lab proposal not found.")
+        return saved
+
+    def update_agent_lab_execution_plan(
+        self,
+        *,
+        proposal_id: str,
+        final_execution_plan: dict[str, Any],
+    ) -> dict[str, Any]:
+        clean_id = proposal_id.strip()
+        if not clean_id:
+            raise ValueError("Agent Lab proposal id is required.")
+        current = self.get_agent_lab_proposal(clean_id)
+        if not current:
+            raise ValueError("Agent Lab proposal not found.")
+        now = utc_now()
+        with self.conn:
+            self.conn.execute(
+                """
+                update agent_lab_proposals
+                set final_execution_plan_json = ?,
+                    updated_at = ?
+                where id = ?
+                """,
+                (_json(final_execution_plan), now, clean_id),
+            )
+        saved = self.get_agent_lab_proposal(clean_id)
+        if not saved:
+            raise ValueError("Agent Lab proposal not found.")
+        return saved
 
     def save_scan(
         self,
@@ -1128,6 +1355,7 @@ class ObservatoryDB:
             "security_packs": security_pack_catalog(detect_install_state=True, managed_tool_records=managed_tool_records),
             "scan_profiles": scan_profile_catalog(detect_install_state=True, managed_tool_records=managed_tool_records),
             "managed_tools": managed_tool_records,
+            "agent_lab_proposals": self.list_agent_lab_proposals(limit=50),
         }
 
     def scan_export(self, scan_id: str) -> dict[str, Any] | None:
@@ -1805,6 +2033,57 @@ def _public_ioc_indicator(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
         "source_file": data.get("source_file"),
         "source_line": data.get("source_line"),
     }
+
+
+def _public_agent_lab_proposal(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+    data = dict(row)
+    final_plan = _json_load(data.get("final_execution_plan_json"), {})
+    if isinstance(final_plan, dict):
+        final_plan["approval_state"] = data.get("approval_state")
+    return {
+        "id": data.get("id"),
+        "external_proposal_id": data.get("external_proposal_id"),
+        "repo_name": data.get("repo_name"),
+        "repo_path": data.get("repo_path"),
+        "context_id": data.get("context_id"),
+        "context_hash": data.get("context_hash"),
+        "source": {
+            "adapter_id": data.get("adapter_id"),
+            "agent_label": data.get("agent_label"),
+            "created_at": data.get("agent_created_at"),
+        },
+        "summary": data.get("summary"),
+        "recommended_tools": _json_load(data.get("recommended_tools_json"), []),
+        "recommended_packs": _json_load(data.get("recommended_packs_json"), []),
+        "requested_permissions": _json_load(data.get("requested_permissions_json"), []),
+        "requested_execution": _json_load(data.get("requested_execution_json"), []),
+        "expected_evidence_gaps": _json_load(data.get("expected_evidence_gaps_json"), []),
+        "blocked_requests": _json_load(data.get("blocked_requests_json"), []),
+        "notes": data.get("notes"),
+        "validation_status": data.get("validation_status"),
+        "validation_errors": _json_load(data.get("validation_errors_json"), []),
+        "approval_state": data.get("approval_state"),
+        "approval_note": data.get("approval_note"),
+        "decided_by": data.get("decided_by"),
+        "imported_at": data.get("imported_at"),
+        "updated_at": data.get("updated_at"),
+        "approved_at": data.get("approved_at"),
+        "denied_at": data.get("denied_at"),
+        "raw_proposal": _json_load(data.get("raw_proposal_json"), {}),
+        "final_execution_plan": final_plan,
+    }
+
+
+def _json(value: Any) -> str:
+    return json.dumps(sanitize_json(value), sort_keys=True)
+
+
+def _json_load(value: Any, fallback: Any) -> Any:
+    try:
+        parsed = json.loads(value or "")
+    except (TypeError, json.JSONDecodeError):
+        return fallback
+    return parsed if isinstance(parsed, type(fallback)) else fallback
 
 
 def _optional_text(value: Any) -> str | None:

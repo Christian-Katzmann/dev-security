@@ -3,6 +3,7 @@ import CatalogHome from './components/catalog/CatalogHome';
 import CatalogBrowse from './components/catalog/CatalogBrowse';
 import CatalogToolPage from './components/catalog/CatalogToolPage';
 import CatalogPackPage from './components/catalog/CatalogPackPage';
+import AgentLabView from './components/agent-lab/AgentLabView';
 import NeedsRepoTarget from './components/NeedsRepoTarget';
 import {
   CatalogMutationState,
@@ -57,6 +58,7 @@ import {
   Archive,
   BarChart3,
   BookOpen,
+  Bot,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -148,7 +150,7 @@ import {
   toolCatalogItems,
 } from './dashboardData';
 
-type TabId = 'overview' | 'findings' | 'honey-keys' | 'scanners' | 'playbooks' | 'verification' | 'activity' | 'reports' | 'settings';
+type TabId = 'overview' | 'findings' | 'honey-keys' | 'scanners' | 'agent-lab' | 'playbooks' | 'verification' | 'activity' | 'reports' | 'settings';
 // Substate for the Tool Catalog tab. Four routes total — home is the root, the
 // other three return via onBack to whichever route opened them ("from"). We
 // keep state on App so reopening the tab restores the user's place; default is
@@ -218,6 +220,7 @@ const navGroups: {title: string; items: {id: TabId; label: string; icon: typeof 
     title: 'Operate',
     items: [
       {id: 'scanners', label: 'Tool Catalog', icon: Search},
+      {id: 'agent-lab', label: 'Agent Lab', icon: Bot},
       {id: 'playbooks', label: 'Recovery playbooks', icon: BookOpen},
       {id: 'verification', label: 'Verification', icon: CheckCircle2},
     ],
@@ -236,6 +239,7 @@ const tabTitles: Record<TabId, string> = {
   findings: 'Findings',
   'honey-keys': 'Honey keys',
   scanners: 'Tool Catalog',
+  'agent-lab': 'Agent Lab',
   playbooks: 'Recovery playbooks',
   verification: 'Verification',
   activity: 'Activity',
@@ -671,6 +675,7 @@ export default function App() {
   const navCounts: Partial<Record<TabId, number>> = {
     findings: activeCases.length,
     'honey-keys': (scopedSummary.honey_keys ?? []).filter((key) => key.status === 'triggered').length,
+    'agent-lab': (scopedSummary.agent_lab_proposals ?? []).filter((proposal) => proposal.approval_state === 'pending').length,
     verification: topScannerItems(scopedSummary).filter((item) => item.status === 'missing' || item.status === 'error').length,
   };
 
@@ -788,13 +793,14 @@ function ActiveView({
   onRefresh: () => Promise<void>;
   onTargetChange: (value: string) => void;
 }) {
-  if (target.type === 'repo' && summary.repos.length === 0 && tab !== 'honey-keys' && tab !== 'settings') {
+  if (target.type === 'repo' && summary.repos.length === 0 && tab !== 'honey-keys' && tab !== 'agent-lab' && tab !== 'settings') {
     return <EmptyRepoView repoName={target.repo.name} onRunQuick={onRunQuick} onChooseChecks={onChooseChecks} />;
   }
   if (tab === 'overview') return <OverviewView summary={summary} posture={posture} error={error} onOpenTab={onOpenTab} />;
   if (tab === 'findings') return <FindingsView summary={summary} search={search} onCaseDecision={onCaseDecision} />;
   if (tab === 'honey-keys') return <HoneyKeysView summary={summary} target={target} onRefresh={onRefresh} />;
   if (tab === 'scanners') return <CatalogRouter route={catalogRoute} summary={summary} onRouteChange={onCatalogRouteChange} onRefresh={onRefresh} onChooseChecks={onChooseChecks} />;
+  if (tab === 'agent-lab') return <AgentLabView summary={summary} target={target} targetRepos={targetRepos} onRefresh={onRefresh} onTargetChange={onTargetChange} />;
   if (tab === 'playbooks') return <PlaybooksView summary={summary} target={target} targetRepos={targetRepos} onChooseChecks={onChooseChecks} onTargetChange={onTargetChange} />;
   if (tab === 'verification') return <VerificationView summary={summary} target={target} targetRepos={targetRepos} onChooseChecks={onChooseChecks} onTargetChange={onTargetChange} />;
   if (tab === 'activity') return <ActivityView summary={summary} search={search} />;
@@ -949,7 +955,7 @@ function Toolbar({
   canRun: boolean;
   runAllHint: string;
 }) {
-  const searchPlaceholder = title === 'Tool Catalog' ? 'Search tools, packs' : 'Search findings, manifests';
+  const searchPlaceholder = title === 'Tool Catalog' ? 'Search tools, packs' : title === 'Agent Lab' ? 'Search proposals, tools' : 'Search findings, manifests';
   const runAllLabel = canRun ? 'Run all' : 'Run all (pick a repo)';
   return (
     <header className="mist-toolbar">

@@ -16,6 +16,15 @@ import uuid
 import webbrowser
 
 from .cases import build_recovery_playbooks, build_security_cases, scanner_evidence_gaps
+from .agent_lab import (
+    AGENT_PROPOSAL_MAX_BYTES,
+    AgentLabExecutionError,
+    AgentLabProposalValidationError,
+    build_agent_context_payload,
+    build_agent_execution_preview,
+    proposal_from_import_payload,
+    validate_agent_proposal,
+)
 from .decisions import assemble_suppression
 from .discovery import discover_repos
 from .docs_render import render_markdown
@@ -932,10 +941,19 @@ def build_ai_prompt(scan: dict[str, object]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def run_check_job(job_id: str, db_path: Path, repo_path: Path, args: Namespace) -> None:
+def run_check_job(
+    job_id: str,
+    db_path: Path,
+    repo_path: Path,
+    args: Namespace,
+    *,
+    scanner_names: list[str] | None = None,
+    agent_lab_proposal_id: str | None = None,
+    agent_lab_preview: dict[str, Any] | None = None,
+) -> None:
     from .cli import scan_repo
 
-    scanners = scanner_names_for_profile(args)
+    scanners = list(dict.fromkeys(scanner_names or scanner_names_for_profile(args)))
     total = max(len(scanners), 1)
     update_job(
         job_id,
@@ -960,7 +978,25 @@ def run_check_job(job_id: str, db_path: Path, repo_path: Path, args: Namespace) 
             update_job(job_id, progress=percent, message=label, currentStep=label, currentScanner=scanner)
 
     try:
-        scan = scan_repo(repo_path, args, db_path.parent.parent, progress_callback=progress)
+        scan = scan_repo(repo_path, args, db_path.parent.parent, progress_callback=progress, scanner_names=scanners)
+        if agent_lab_proposal_id:
+            _record_agent_lab_execution_result(
+                db_path,
+                agent_lab_proposal_id,
+                agent_lab_preview or {},
+                {
+                    "job_id": job_id,
+                    "mode": "approved_run",
+                    "status": "complete",
+                    "scan_id": scan.get("scan_id"),
+                    "report_path": scan.get("report_path"),
+                    "started_at": scan.get("started_at"),
+                    "finished_at": scan.get("finished_at"),
+                    "profile": scan.get("profile"),
+                    "scanner_statuses": scan.get("scanners") or [],
+                    "evidence_gaps": scan.get("evidence_gaps") or [],
+                },
+            )
         update_job(
             job_id,
             status="complete",
@@ -972,6 +1008,19 @@ def run_check_job(job_id: str, db_path: Path, repo_path: Path, args: Namespace) 
             finishedAt=utc_now(),
         )
     except Exception as exc:
+        if agent_lab_proposal_id:
+            _record_agent_lab_execution_result(
+                db_path,
+                agent_lab_proposal_id,
+                agent_lab_preview or {},
+                {
+                    "job_id": job_id,
+                    "mode": "approved_run",
+                    "status": "failed",
+                    "error": str(exc),
+                    "finished_at": utc_now(),
+                },
+            )
         update_job(
             job_id,
             status="failed",
@@ -982,6 +1031,52 @@ def run_check_job(job_id: str, db_path: Path, repo_path: Path, args: Namespace) 
             currentScanner=None,
             finishedAt=utc_now(),
         )
+
+
+def _record_agent_lab_execution_result(
+    db_path: Path,
+    proposal_id: str,
+    preview: dict[str, Any],
+    execution: dict[str, Any],
+) -> None:
+    db = ObservatoryDB(db_path)
+    try:
+        proposal = db.get_agent_lab_proposal(proposal_id)
+        if not proposal:
+            return
+        plan = dict(proposal.get("final_execution_plan") or {})
+        plan.setdefault("version", "agent-lab.execution-plan.v1")
+        plan["approval_state"] = proposal.get("approval_state")
+        if preview:
+            plan["last_preview"] = preview
+        plan["last_execution"] = execution
+        _update_agent_lab_plan_item_statuses(plan, execution)
+        db.update_agent_lab_execution_plan(proposal_id=proposal_id, final_execution_plan=plan)
+    finally:
+        db.close()
+
+
+def _update_agent_lab_plan_item_statuses(plan: dict[str, Any], execution: dict[str, Any]) -> None:
+    items = plan.get("items")
+    if not isinstance(items, list):
+        return
+    status = str(execution.get("status") or "")
+    evidence_gaps = [item for item in execution.get("evidence_gaps") or [] if isinstance(item, dict)]
+    scan_id = execution.get("scan_id")
+    report_path = execution.get("report_path")
+    item_status = {
+        "queued": "queued_for_execution",
+        "complete": "executed_with_evidence_gaps" if evidence_gaps else "executed",
+        "failed": "execution_failed",
+    }.get(status, status or "unknown")
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        item["status"] = item_status
+        if scan_id:
+            item["scan_id"] = scan_id
+        if report_path:
+            item["report_path"] = report_path
 
 
 class DashboardHandler(SimpleHTTPRequestHandler):
@@ -997,6 +1092,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def send_json(self, payload: object) -> None:
         body = json.dumps(payload).encode("utf-8")
         self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def send_json_error(self, status: int, message: str, **extra: object) -> None:
+        body = json.dumps({"error": message, **extra}).encode("utf-8")
+        self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
@@ -1106,6 +1209,31 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             finally:
                 db.close()
             self.send_json({"items": scan_profile_catalog(detect_install_state=True, managed_tool_records=managed_tool_records)})
+            return
+        if parsed.path == "/api/agent-lab/context":
+            query = parse_qs(parsed.query)
+            repo_path = query.get("repoPath", query.get("repo_path", [""]))[0] or None
+            repo_name = query.get("repoName", query.get("repo_name", [""]))[0] or None
+            db = ObservatoryDB(self.db_path)
+            try:
+                payload = build_agent_context_payload(db, repo_path=repo_path, repo_name=repo_name)
+            finally:
+                db.close()
+            self.send_json(payload)
+            return
+        if parsed.path == "/api/agent-lab/proposals":
+            query = parse_qs(parsed.query)
+            repo_name = query.get("repoName", query.get("repo_name", [""]))[0] or None
+            approval_state = query.get("approvalState", query.get("approval_state", [""]))[0] or None
+            db = ObservatoryDB(self.db_path)
+            try:
+                proposals = db.list_agent_lab_proposals(repo_name=repo_name, approval_state=approval_state, limit=100)
+            finally:
+                db.close()
+            self.send_json({"items": proposals})
+            return
+        if parsed.path == "/api/agent-lab/proposals/execution-preview":
+            self.preview_agent_lab_proposal_execution(parsed)
             return
         if parsed.path == "/api/install-preview":
             query = parse_qs(parsed.query)
@@ -1231,6 +1359,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/case-decision":
             self.save_case_decision()
+            return
+        if parsed.path == "/api/agent-lab/proposals":
+            self.import_agent_lab_proposal()
+            return
+        if parsed.path == "/api/agent-lab/proposals/decision":
+            self.save_agent_lab_proposal_decision()
+            return
+        if parsed.path == "/api/agent-lab/proposals/run":
+            self.run_agent_lab_proposal()
             return
         if parsed.path == "/api/honey/keys":
             self.create_honey_key()
@@ -1405,6 +1542,184 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json({"decision": decision})
         except ValueError as exc:
             self.send_error(400, str(exc))
+        except Exception as exc:
+            self.send_error(500, str(exc))
+
+    def import_agent_lab_proposal(self) -> None:
+        try:
+            length = int(self.headers.get("Content-Length", "0") or "0")
+            if length > AGENT_PROPOSAL_MAX_BYTES:
+                self.send_json_error(400, "Agent Lab proposal is too large.", max_bytes=AGENT_PROPOSAL_MAX_BYTES)
+                return
+            body = self.rfile.read(length) if length else b"{}"
+            if len(body) > AGENT_PROPOSAL_MAX_BYTES:
+                self.send_json_error(400, "Agent Lab proposal is too large.", max_bytes=AGENT_PROPOSAL_MAX_BYTES)
+                return
+            try:
+                payload = json.loads(body.decode("utf-8")) if body else {}
+            except json.JSONDecodeError as exc:
+                self.send_json_error(400, "Request body must be JSON.", errors=[exc.msg])
+                return
+            proposal = proposal_from_import_payload(payload)
+            db = ObservatoryDB(self.db_path)
+            try:
+                managed_tool_records = db.list_managed_tools()
+                validated = validate_agent_proposal(proposal, managed_tool_records=managed_tool_records)
+                saved = db.save_agent_lab_proposal(validated)
+            finally:
+                db.close()
+            self.send_json({"proposal": saved})
+        except AgentLabProposalValidationError as exc:
+            self.send_json_error(400, "Agent Lab proposal failed validation.", errors=exc.errors)
+        except Exception as exc:
+            self.send_error(500, str(exc))
+
+    def preview_agent_lab_proposal_execution(self, parsed: Any) -> None:
+        query = parse_qs(parsed.query)
+        proposal_id = str(query.get("proposalId", query.get("proposal_id", query.get("id", [""])))[0] or "").strip()
+        mode = str(query.get("mode", ["dry_run_preview"])[0] or "dry_run_preview").strip()
+        if not proposal_id:
+            self.send_json_error(400, "Agent Lab proposal id is required.")
+            return
+        try:
+            db = ObservatoryDB(self.db_path)
+            try:
+                proposal = db.get_agent_lab_proposal(proposal_id)
+                if not proposal:
+                    self.send_json_error(404, "Agent Lab proposal not found.")
+                    return
+                preview = build_agent_execution_preview(
+                    proposal,
+                    managed_tool_records=db.list_managed_tools(),
+                    requested_mode=mode,
+                )
+                plan = dict(proposal.get("final_execution_plan") or {})
+                plan["last_preview"] = preview
+                proposal = db.update_agent_lab_execution_plan(proposal_id=proposal_id, final_execution_plan=plan)
+            finally:
+                db.close()
+            self.send_json({"preview": preview, "proposal": proposal})
+        except AgentLabExecutionError as exc:
+            self.send_json_error(400, "Agent Lab proposal cannot be routed.", errors=exc.errors)
+        except ValueError as exc:
+            self.send_json_error(400, str(exc))
+        except Exception as exc:
+            self.send_error(500, str(exc))
+
+    def save_agent_lab_proposal_decision(self) -> None:
+        try:
+            payload = self.read_json_body()
+            proposal_id = str(payload.get("proposalId") or payload.get("proposal_id") or payload.get("id") or "").strip()
+            approval_state = str(payload.get("approvalState") or payload.get("approval_state") or payload.get("decision") or "").strip()
+            if not proposal_id:
+                self.send_json_error(400, "Agent Lab proposal id is required.")
+                return
+            db = ObservatoryDB(self.db_path)
+            try:
+                proposal = db.set_agent_lab_proposal_approval(
+                    proposal_id=proposal_id,
+                    approval_state=approval_state,
+                    note=str(payload.get("note") or "").strip() or None,
+                    decided_by=str(payload.get("decidedBy") or payload.get("decided_by") or "").strip() or None,
+                )
+            finally:
+                db.close()
+            self.send_json({"proposal": proposal})
+        except ValueError as exc:
+            self.send_json_error(400, str(exc))
+        except Exception as exc:
+            self.send_error(500, str(exc))
+
+    def run_agent_lab_proposal(self) -> None:
+        try:
+            payload = self.read_json_body()
+            proposal_id = str(payload.get("proposalId") or payload.get("proposal_id") or payload.get("id") or "").strip()
+            mode = str(payload.get("mode") or "dry_run_preview").strip()
+            execute = bool(payload.get("execute")) or mode == "approved_run"
+            if not proposal_id:
+                self.send_json_error(400, "Agent Lab proposal id is required.")
+                return
+
+            db = ObservatoryDB(self.db_path)
+            try:
+                proposal = db.get_agent_lab_proposal(proposal_id)
+                if not proposal:
+                    self.send_json_error(404, "Agent Lab proposal not found.")
+                    return
+                preview = build_agent_execution_preview(
+                    proposal,
+                    managed_tool_records=db.list_managed_tools(),
+                    requested_mode="approved_run" if execute else "dry_run_preview",
+                    require_approval=execute,
+                )
+                if not execute:
+                    plan = dict(proposal.get("final_execution_plan") or {})
+                    plan["last_preview"] = preview
+                    proposal = db.update_agent_lab_execution_plan(proposal_id=proposal_id, final_execution_plan=plan)
+                    self.send_json({"preview": preview, "proposal": proposal})
+                    return
+            finally:
+                db.close()
+
+            repo_path = Path(str(proposal.get("repo_path") or "")).expanduser().resolve()
+            if not repo_path.is_dir():
+                self.send_json_error(400, "Agent Lab proposal repo path does not exist.")
+                return
+            scanner_names = [str(item) for item in preview.get("scanner_names") or [] if str(item).strip()]
+            if not scanner_names:
+                self.send_json_error(400, "Agent Lab proposal has no DëvSec scanner route.")
+                return
+            profile_ids = [str(item) for item in preview.get("scan_profile_ids") or [] if str(item).strip()]
+            args = args_for_audits(profile_ids)
+            job_id = uuid.uuid4().hex[:12]
+            job = {
+                "id": job_id,
+                "status": "queued",
+                "source": "agent-lab",
+                "proposalId": proposal_id,
+                "progress": 0,
+                "message": "Queued Agent Lab scan",
+                "repoName": repo_path.name,
+                "repoPath": str(repo_path),
+                "audits": profile_ids or ["quick"],
+                "steps": [SCANNER_LABELS.get(scanner, scanner) for scanner in scanner_names],
+                "currentStep": None,
+                "currentScanner": None,
+                "startedAt": utc_now(),
+                "finishedAt": None,
+                "error": None,
+                "executionPreview": preview,
+            }
+            with CHECK_JOBS_LOCK:
+                CHECK_JOBS[job_id] = job
+            _record_agent_lab_execution_result(
+                self.db_path,
+                proposal_id,
+                preview,
+                {
+                    "job_id": job_id,
+                    "mode": "approved_run",
+                    "status": "queued",
+                    "started_at": job["startedAt"],
+                    "scanner_names": scanner_names,
+                },
+            )
+            thread = threading.Thread(
+                target=run_check_job,
+                args=(job_id, self.db_path, repo_path, args),
+                kwargs={
+                    "scanner_names": scanner_names,
+                    "agent_lab_proposal_id": proposal_id,
+                    "agent_lab_preview": preview,
+                },
+                daemon=True,
+            )
+            thread.start()
+            self.send_accepted_json({"job": job_snapshot(job_id), "preview": preview})
+        except AgentLabExecutionError as exc:
+            self.send_json_error(400, "Agent Lab proposal cannot be routed.", errors=exc.errors)
+        except ValueError as exc:
+            self.send_json_error(400, str(exc))
         except Exception as exc:
             self.send_error(500, str(exc))
 
