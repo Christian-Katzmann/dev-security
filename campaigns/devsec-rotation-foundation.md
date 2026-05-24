@@ -64,7 +64,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 - [x] Step 3.1 — Update SKILL.md / catalog.json / runbook template; add `--fail-at` failure injection mode to test suite
 - [x] Step 3.2 — End-to-end demo on both stacks (real Next.js + Vercel project AND dëv-security with synthetic token), capture receipts
-- [ ] Final review
+- [x] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
 

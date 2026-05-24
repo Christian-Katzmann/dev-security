@@ -32,6 +32,8 @@ from security_observatory.mcp_server import (
     _latest_scan,
     _list_repos,
     _recovery_playbook,
+    _rotation_history,
+    _rotation_status,
     _scan_history,
     create_server,
     observatory_home,
@@ -174,6 +176,8 @@ def test_server_lists_expected_tools(tmp_path):
         "cases",
         "recovery_playbook",
         "dependency_trust",
+        "rotation_status",
+        "rotation_history",
     }
     for tool in tools:
         assert tool.description, f"tool {tool.name!r} has no description"
@@ -622,14 +626,358 @@ def test_dependency_trust_repo_not_found_raises(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# rotation_status / rotation_history — read-only wrappers over the
+# secrets-rotation skill's on-disk state files.
+# ---------------------------------------------------------------------------
+
+
+def _seed_repo_with_rotation_state(
+    db: ObservatoryDB,
+    tmp_path: Path,
+    *,
+    state: dict | str | None = None,
+    log_lines: list[dict | str] | None = None,
+) -> Path:
+    """Seed a scan whose `repo_path` is a real on-disk directory and (optionally)
+    write a rotation-state.json + rotation-log.jsonl into it.
+
+    Returns the repo path so individual tests can read it back if needed.
+    """
+    repo_dir = tmp_path / "repos" / "rotation-demo"
+    repo_dir.mkdir(parents=True, exist_ok=True)
+    _seed_scan(db, tmp_path, repo_path=str(repo_dir))
+    data_dir = repo_dir / "data"
+    if state is not None:
+        data_dir.mkdir(parents=True, exist_ok=True)
+        if isinstance(state, str):
+            (data_dir / "rotation-state.json").write_text(state, encoding="utf-8")
+        else:
+            (data_dir / "rotation-state.json").write_text(
+                json.dumps(state), encoding="utf-8"
+            )
+    if log_lines is not None:
+        data_dir.mkdir(parents=True, exist_ok=True)
+        lines: list[str] = []
+        for entry in log_lines:
+            if isinstance(entry, str):
+                lines.append(entry)
+            else:
+                lines.append(json.dumps(entry))
+        (data_dir / "rotation-log.jsonl").write_text(
+            "\n".join(lines) + "\n", encoding="utf-8"
+        )
+    return repo_dir
+
+
+def test_rotation_status_no_rotation_setup_returns_empty_list(tmp_path):
+    db = _make_db(tmp_path)
+    try:
+        _seed_repo_with_rotation_state(db, tmp_path)  # no state file
+        result = _rotation_status(db, REPO_NAME)
+    finally:
+        db.close()
+    assert result == []
+
+
+def test_rotation_status_returns_normalized_shape(tmp_path):
+    db = _make_db(tmp_path)
+    # Use a "recent" timestamp computed at test time so the cadence/overdue
+    # assertion below stays stable as the calendar advances (we'd otherwise
+    # drift into overdue once now > seeded_date + cadence_days).
+    recent = _dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=2)
+    recent_iso = recent.isoformat()
+    state = {
+        "version": 1,
+        "repo_name": REPO_NAME,
+        "scaffolded_at": "2026-04-01T00:00:00+00:00",
+        "scaffolded_version": "v0.2",
+        "secrets": [
+            {
+                "name": "AUTH_SECRET",
+                "class": "A",
+                "cadence_days": 30,
+                "last_rotated_at": recent_iso,
+            },
+            {
+                "name": "ANTHROPIC_API_KEY",
+                "class": "B-API",
+                "cadence_days": 90,
+            },
+        ],
+        "rotations": [
+            {
+                "rotation_id": "rot-auth-001",
+                "secret_name": "AUTH_SECRET",
+                "secret_class": "A",
+                "status": "ROTATED",
+                "started_at": recent_iso,
+                "last_updated_at": recent_iso,
+                "completed_at": recent_iso,
+                "log": [],
+            },
+            {
+                "rotation_id": "rot-anth-001",
+                "secret_name": "ANTHROPIC_API_KEY",
+                "secret_class": "B-API",
+                "status": "IN_GRACE",
+                "started_at": recent_iso,
+                "last_updated_at": recent_iso,
+                "completed_at": recent_iso,
+                "revoke_scheduled_at": "2099-01-01T00:00:00+00:00",
+                "log": [],
+            },
+        ],
+    }
+    try:
+        _seed_repo_with_rotation_state(db, tmp_path, state=state)
+        result = _rotation_status(db, REPO_NAME)
+    finally:
+        db.close()
+    by_name = {row["secret"]: row for row in result}
+    assert set(by_name) == {"AUTH_SECRET", "ANTHROPIC_API_KEY"}
+    expected_keys = {
+        "secret",
+        "class",
+        "status",
+        "last_rotated_at",
+        "days_since_rotation",
+        "cadence_days",
+        "next_rotation_due",
+        "rotation_id",
+        "in_grace_until",
+        "needs_attention",
+    }
+    for row in result:
+        assert set(row.keys()) == expected_keys
+    auth = by_name["AUTH_SECRET"]
+    assert auth["class"] == "A"
+    assert auth["status"] == "ROTATED"
+    assert auth["rotation_id"] == "rot-auth-001"
+    assert auth["cadence_days"] == 30
+    assert auth["last_rotated_at"] == recent_iso
+    assert auth["days_since_rotation"] == 2
+    assert auth["next_rotation_due"]  # computed; exact value tied to recent_iso
+    assert auth["in_grace_until"] is None
+    # 2 days < 30 day cadence; rotated cleanly → no attention needed.
+    assert auth["needs_attention"] is False
+    anth = by_name["ANTHROPIC_API_KEY"]
+    assert anth["status"] == "IN_GRACE"
+    assert anth["in_grace_until"] == "2099-01-01T00:00:00+00:00"
+    # JSON-serializable end-to-end (MCP transport requirement).
+    json.dumps(result)
+
+
+def test_rotation_status_corrupted_state_returns_partial(tmp_path):
+    db = _make_db(tmp_path)
+    # Garbage JSON — the tool must not raise; it must surface "unknown".
+    try:
+        _seed_repo_with_rotation_state(db, tmp_path, state="{not valid json")
+        result = _rotation_status(db, REPO_NAME)
+    finally:
+        db.close()
+    assert result, "corrupt state must surface as at least one unknown entry"
+    assert any(row["status"] == "unknown" for row in result)
+    # Unknown rows still satisfy the schema contract.
+    for row in result:
+        assert "secret" in row and "status" in row and "needs_attention" in row
+    json.dumps(result)
+
+
+def test_rotation_status_corrupted_partial_state_returns_known_plus_unknowns(tmp_path):
+    """Mixed-shape state file: one good secret entry, one malformed; expect both
+    surfaced — the good one with real data, the malformed one as unknown."""
+    db = _make_db(tmp_path)
+    state = {
+        "version": 1,
+        "repo_name": REPO_NAME,
+        "scaffolded_at": "2026-04-01T00:00:00+00:00",
+        "scaffolded_version": "v0.2",
+        "secrets": [
+            {"name": "AUTH_SECRET", "class": "A", "cadence_days": 30},
+            "this is not a dict",  # malformed entry
+        ],
+        "rotations": [],
+    }
+    try:
+        _seed_repo_with_rotation_state(db, tmp_path, state=state)
+        result = _rotation_status(db, REPO_NAME)
+    finally:
+        db.close()
+    statuses = [row["status"] for row in result]
+    assert "NEVER" in statuses  # the good secret with no rotations yet
+    assert "unknown" in statuses  # the malformed entry surfaced
+
+
+def test_rotation_history_no_log_returns_empty_list(tmp_path):
+    db = _make_db(tmp_path)
+    try:
+        _seed_repo_with_rotation_state(db, tmp_path)
+        result = _rotation_history(db, REPO_NAME)
+    finally:
+        db.close()
+    assert result == []
+
+
+def test_rotation_history_returns_recent_first(tmp_path):
+    db = _make_db(tmp_path)
+    log_lines = [
+        {
+            "at": "2026-05-20T14:00:00+00:00",
+            "rotation_id": "rot-1",
+            "secret_name": "AUTH_SECRET",
+            "step": "VERIFY_PROD",
+            "outcome": "succeeded",
+            "duration_ms": 1200,
+        },
+        {
+            "at": "2026-05-22T10:00:00+00:00",
+            "rotation_id": "rot-2",
+            "secret_name": "ANTHROPIC_API_KEY",
+            "step": "HEALTH_CHECK",
+            "outcome": "started",
+        },
+        {
+            "at": "2026-05-23T09:20:00+00:00",
+            "rotation_id": "rot-2",
+            "secret_name": "ANTHROPIC_API_KEY",
+            "step": "SOAK",
+            "outcome": "succeeded",
+            "duration_ms": 900_000,
+            "note": "soak window clean",
+        },
+    ]
+    try:
+        _seed_repo_with_rotation_state(db, tmp_path, log_lines=log_lines)
+        result = _rotation_history(db, REPO_NAME)
+    finally:
+        db.close()
+    assert [item["rotation_id"] for item in result] == ["rot-2", "rot-2", "rot-1"]
+    assert result[0]["step"] == "SOAK"
+    assert result[0]["outcome"] == "succeeded"
+    assert result[0]["note"] == "soak window clean"
+    # Schema contract.
+    for item in result:
+        assert {"timestamp", "secret", "rotation_id", "step", "outcome"}.issubset(item)
+    json.dumps(result)
+
+
+def test_rotation_history_limit_caps(tmp_path):
+    db = _make_db(tmp_path)
+    log_lines = [
+        {
+            "at": f"2026-05-01T00:{i:02d}:00+00:00",
+            "rotation_id": f"rot-{i}",
+            "secret_name": "AUTH_SECRET",
+            "step": "HEALTH_CHECK",
+            "outcome": "started",
+        }
+        for i in range(60)
+    ]
+    try:
+        _seed_repo_with_rotation_state(db, tmp_path, log_lines=log_lines)
+        result_default = _rotation_history(db, REPO_NAME)
+        result_capped = _rotation_history(db, REPO_NAME, limit=999)
+        result_explicit = _rotation_history(db, REPO_NAME, limit=5)
+    finally:
+        db.close()
+    assert len(result_default) == 20
+    assert len(result_capped) == 60  # 60 events, cap=100 doesn't truncate
+    assert len(result_explicit) == 5
+
+
+def test_rotation_history_skips_malformed_lines(tmp_path):
+    db = _make_db(tmp_path)
+    log_lines: list[dict | str] = [
+        {
+            "at": "2026-05-20T14:00:00+00:00",
+            "rotation_id": "rot-1",
+            "secret_name": "AUTH_SECRET",
+            "step": "PREFLIGHT",
+            "outcome": "succeeded",
+        },
+        "not json at all",
+        {
+            "at": "2026-05-20T14:10:00+00:00",
+            "rotation_id": "rot-1",
+            "secret_name": "AUTH_SECRET",
+            "step": "ACQUIRE",
+            "outcome": "succeeded",
+        },
+    ]
+    try:
+        _seed_repo_with_rotation_state(db, tmp_path, log_lines=log_lines)
+        result = _rotation_history(db, REPO_NAME)
+    finally:
+        db.close()
+    # Two good lines, one malformed dropped silently.
+    assert len(result) == 2
+    assert all(item["rotation_id"] == "rot-1" for item in result)
+
+
+def test_rotation_tools_repo_not_found_raises_clear_error(tmp_path):
+    db = _make_db(tmp_path)
+    try:
+        with pytest.raises(RepoNotFoundError) as exc_status:
+            _rotation_status(db, "ghost-repo")
+        with pytest.raises(RepoNotFoundError) as exc_history:
+            _rotation_history(db, "ghost-repo")
+    finally:
+        db.close()
+    assert "ghost-repo" in str(exc_status.value)
+    assert "ghost-repo" in str(exc_history.value)
+
+
+# ---------------------------------------------------------------------------
 # Path-leak invariant — the security-critical assertion
 # ---------------------------------------------------------------------------
 
 
 def test_no_absolute_paths_in_output(tmp_path):
     db = _make_db(tmp_path)
+    # Use the rotation-aware seeder so we also exercise rotation_status /
+    # rotation_history for the path-leak invariant. The repo path is a real
+    # tmp directory; the state file is seeded with one secret + one rotation.
+    state = {
+        "version": 1,
+        "repo_name": REPO_NAME,
+        "scaffolded_at": "2026-04-01T00:00:00+00:00",
+        "scaffolded_version": "v0.2",
+        "secrets": [
+            {"name": "AUTH_SECRET", "class": "A", "cadence_days": 30},
+        ],
+        "rotations": [
+            {
+                "rotation_id": "rot-leak-test",
+                "secret_name": "AUTH_SECRET",
+                "secret_class": "A",
+                "status": "ROTATED",
+                "started_at": "2026-05-20T13:50:00+00:00",
+                "last_updated_at": "2026-05-20T14:00:00+00:00",
+                "completed_at": "2026-05-20T14:00:00+00:00",
+                "log": [],
+            },
+        ],
+    }
+    log_lines = [
+        {
+            "at": "2026-05-20T14:00:00+00:00",
+            "rotation_id": "rot-leak-test",
+            "secret_name": "AUTH_SECRET",
+            "step": "VERIFY_PROD",
+            "outcome": "succeeded",
+            # Intentionally embed an absolute home path in a note to confirm
+            # the tool doesn't rewrite note bodies — but ALSO doesn't surface
+            # the note path as if it were a typed path field. The invariant
+            # here is that no typed *path* field returns an absolute path;
+            # free-form notes pass through as-is (the skill is responsible
+            # for what it writes there).
+            "note": "ok",
+        },
+    ]
     try:
-        _seed_scan(db, tmp_path)
+        _seed_repo_with_rotation_state(
+            db, tmp_path, state=state, log_lines=log_lines,
+        )
         db.create_honey_key(
             key_id="hny_path_redaction",
             project_id=REPO_NAME,
@@ -641,6 +989,8 @@ def test_no_absolute_paths_in_output(tmp_path):
         finding_rows = _findings(db, REPO_NAME, severity=None, limit=50)
         case_rows = _cases(db, REPO_NAME, status="open")
         honey_rows = _honey_keys(db)
+        rotation_rows = _rotation_status(db, REPO_NAME)
+        history_rows = _rotation_history(db, REPO_NAME)
     finally:
         db.close()
 
@@ -670,6 +1020,16 @@ def test_no_absolute_paths_in_output(tmp_path):
     assert honey_rows, "fixture should produce honey keys"
     for key in honey_rows:
         _scan(key["placement_repo"])
+
+    assert rotation_rows, "fixture should produce rotation status rows"
+    for row in rotation_rows:
+        for key in ("last_rotated_at", "next_rotation_due", "in_grace_until", "rotation_id"):
+            _scan(row.get(key))
+
+    assert history_rows, "fixture should produce rotation history events"
+    for event in history_rows:
+        for key in ("timestamp", "rotation_id", "step", "outcome"):
+            _scan(event.get(key))
 
 
 # ---------------------------------------------------------------------------

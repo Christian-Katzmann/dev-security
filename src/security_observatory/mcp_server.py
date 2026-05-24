@@ -1,14 +1,16 @@
 """Read-only MCP adapter for the local Security Observatory.
 
-Exposes eight tools over stdio so local agents (Claude Desktop, Cursor, Codex,
+Exposes ten tools over stdio so local agents (Claude Desktop, Cursor, Codex,
 etc.) can ask focused questions about scan history without an HTTP listener,
 write paths, or cloud round-trip. Wraps existing methods on ObservatoryDB,
-small scan-history reads, and the case-builder vocabulary in cases.py.
+small scan-history reads, the case-builder vocabulary in cases.py, and the
+on-disk state files written by the secrets-rotation skill.
 
 See mcp/README.md for connection instructions and the deliberate hard limits.
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 import sys
@@ -53,7 +55,7 @@ Rules:
 - Never shame the developer.
 - No panic, softness, jokes, casual filler, exclamation marks, or emoji.
 - Exception: use ⚠ only for an actively triggered Honey Key.
-- Respect the MCP boundary: this adapter is read-only and stdio-only. It can report scan history, cases, playbooks, dependency trust, and Honey Key state. It cannot delete findings, mark cases resolved, modify the store, install scanners, or rotate credentials.
+- Respect the MCP boundary: this adapter is read-only and stdio-only. It can report scan history, cases, playbooks, dependency trust, Honey Key state, and rotation state for repos where the secrets-rotation skill is scaffolded. It cannot delete findings, mark cases resolved, modify the store, install scanners, or rotate credentials — rotation triggering happens through the dashboard or the /devsec-rotate slash command, not through MCP.
 
 Full doctrine: docs/agent-voice.md. Safety tiers and refusal language: docs/agent-safety.md."""
 
@@ -481,6 +483,296 @@ def _dependency_trust(db: ObservatoryDB | None, repo: str) -> list[dict[str, Any
     return [_trust_payload(row) for row in rows]
 
 
+# ---------------------------------------------------------------------------
+# Rotation tools — read-only wrappers over the secrets-rotation skill's
+# state files. The skill writes data/rotation-state.json and
+# data/rotation-log.jsonl into the scaffolded target repo; these helpers
+# resolve the repo's on-disk path via the scan record and read those files.
+# No path field is ever returned to the agent — only normalized data.
+# ---------------------------------------------------------------------------
+
+# Terminal statuses where the rotation didn't reach IN_GRACE / ROTATED. These
+# drive `needs_attention` in rotation_status output so the dashboard and slash
+# command can highlight what's actually waiting on the operator.
+_ROTATION_FAILURE_STATUSES = frozenset(
+    {
+        "HALTED",
+        "HEALTH_CHECK_FAILED",
+        "CANARY_VERIFY_FAILED",
+        "SOAK_FAILED",
+        "ROLLED_BACK",
+    }
+)
+
+# Statuses that indicate a rotation is mid-flight — neither successful nor a
+# clear failure. The dashboard renders these with a spinner-like affordance.
+_ROTATION_INFLIGHT_STATUSES = frozenset(
+    {
+        "HEALTH_CHECK",
+        "PREFLIGHT",
+        "ACQUIRED",
+        "WAITING_FOR_PASTE",
+        "STAGED_CANARY",
+        "DEPLOYED_CANARY",
+        "IN_CANARY_VERIFY",
+        "VERIFIED_CANARY",
+        "STAGED_PROD",
+        "DEPLOYED_PROD",
+        "VERIFIED",
+        "IN_SOAK",
+        "SOAKED",
+    }
+)
+
+
+def _resolve_repo_path(db: ObservatoryDB | None, repo: str) -> str:
+    """Return the on-disk path for ``repo`` or raise RepoNotFoundError.
+
+    The MCP doesn't track "repos with rotation set up" — it tracks scanned
+    repos. The rotation tools reuse the scan record's `repo_path` as the
+    authoritative resolver so the agent's repo vocabulary stays consistent
+    across all tools.
+    """
+    if db is None:
+        raise RepoNotFoundError(f"No scans found for repo {repo!r}")
+    scan = db.latest_scan_for_repo(repo)
+    if not scan:
+        raise RepoNotFoundError(f"No scans found for repo {repo!r}")
+    repo_path = scan.get("repo_path")
+    if not repo_path:
+        raise RepoNotFoundError(f"No repo path on file for repo {repo!r}")
+    return str(repo_path)
+
+
+def _parse_iso_to_datetime(value: Any):
+    """Parse a permissive ISO-8601 timestamp; return None if unparseable."""
+    if not value:
+        return None
+    import datetime as _dt
+    text = str(value)
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        return _dt.datetime.fromisoformat(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def _add_days_iso(value: Any, days: Any) -> str | None:
+    """Return ISO-8601 of ``value`` + ``days``, or None on bad inputs."""
+    base = _parse_iso_to_datetime(value)
+    if base is None:
+        return None
+    try:
+        delta_days = int(days)
+    except (TypeError, ValueError):
+        return None
+    import datetime as _dt
+    return (base + _dt.timedelta(days=delta_days)).isoformat()
+
+
+def _days_since(value: Any) -> int | None:
+    """Return whole days between ``value`` and now (UTC); None on bad input."""
+    base = _parse_iso_to_datetime(value)
+    if base is None:
+        return None
+    import datetime as _dt
+    now = _dt.datetime.now(_dt.timezone.utc)
+    if base.tzinfo is None:
+        base = base.replace(tzinfo=_dt.timezone.utc)
+    return max((now - base).days, 0)
+
+
+def _normalized_status_entry(
+    secret_name: str,
+    *,
+    secret_class: str | None = None,
+    status: str = "NEVER",
+    last_rotated_at: Any = None,
+    cadence_days: Any = None,
+    rotation_id: str | None = None,
+    in_grace_until: str | None = None,
+) -> dict[str, Any]:
+    """Build the rotation_status row in the locked normalized shape."""
+    next_rotation_due = (
+        _add_days_iso(last_rotated_at, cadence_days)
+        if last_rotated_at and cadence_days
+        else None
+    )
+    days_since = _days_since(last_rotated_at)
+    overdue = (
+        days_since is not None
+        and isinstance(cadence_days, int)
+        and days_since > cadence_days
+    )
+    needs_attention = (
+        status in _ROTATION_FAILURE_STATUSES
+        or status == "NEVER"
+        or status == "unknown"
+        or overdue
+    )
+    return {
+        "secret": secret_name,
+        "class": secret_class,
+        "status": status,
+        "last_rotated_at": str(last_rotated_at) if last_rotated_at else None,
+        "days_since_rotation": days_since,
+        "cadence_days": int(cadence_days) if isinstance(cadence_days, int) else None,
+        "next_rotation_due": next_rotation_due,
+        "rotation_id": rotation_id,
+        "in_grace_until": in_grace_until,
+        "needs_attention": bool(needs_attention),
+    }
+
+
+def _latest_rotation_for(rotations: list[dict[str, Any]], secret_name: str) -> dict[str, Any] | None:
+    """Pick the most recent rotation record for ``secret_name`` by started_at."""
+    matches = [
+        rec for rec in rotations
+        if isinstance(rec, dict) and str(rec.get("secret_name") or "") == secret_name
+    ]
+    if not matches:
+        return None
+    matches.sort(key=lambda r: str(r.get("started_at") or ""), reverse=True)
+    return matches[0]
+
+
+def _rotation_status(db: ObservatoryDB | None, repo: str) -> list[dict[str, Any]]:
+    """Return per-secret rotation status for ``repo``.
+
+    Reads <repo_path>/data/rotation-state.json (the file the secrets-rotation
+    skill writes). Repo not found → RepoNotFoundError. Repo found but rotation
+    not scaffolded → empty list. Corrupt state file → return what's parseable
+    plus an "unknown" entry so the agent can surface that the file is broken.
+    """
+    repo_path = _resolve_repo_path(db, repo)
+    state_path = Path(repo_path).expanduser() / "data" / "rotation-state.json"
+    if not state_path.exists():
+        return []
+    try:
+        raw = state_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        logger.warning("rotation_status: failed to read %s: %s", state_path, exc)
+        return [_normalized_status_entry("(unreadable)", status="unknown")]
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError) as exc:
+        logger.warning(
+            "rotation_status: state file %s is not valid JSON: %s", state_path, exc
+        )
+        return [_normalized_status_entry("(corrupt)", status="unknown")]
+    if not isinstance(parsed, dict):
+        logger.warning(
+            "rotation_status: state file %s has unexpected shape", state_path
+        )
+        return [_normalized_status_entry("(corrupt)", status="unknown")]
+    secrets_raw = parsed.get("secrets")
+    rotations_raw = parsed.get("rotations") or []
+    rotations: list[dict[str, Any]] = [
+        rec for rec in rotations_raw if isinstance(rec, dict)
+    ]
+    rows: list[dict[str, Any]] = []
+    unknown_count = 0
+    if not isinstance(secrets_raw, list):
+        logger.warning(
+            "rotation_status: state file %s missing secrets array", state_path
+        )
+        secrets_raw = []
+        unknown_count += 1
+    for entry in secrets_raw:
+        if not isinstance(entry, dict):
+            unknown_count += 1
+            continue
+        name = entry.get("name")
+        if not name:
+            unknown_count += 1
+            continue
+        name_str = str(name)
+        latest = _latest_rotation_for(rotations, name_str) or {}
+        status = (
+            str(latest.get("status"))
+            if latest.get("status")
+            else "NEVER"
+        )
+        # Prefer the rotation record's completion timestamp; fall back to the
+        # secret entry's last_rotated_at (which the scaffolder may seed from
+        # the catalog before any rotation has run).
+        last_rotated_at = (
+            latest.get("completed_at")
+            or latest.get("last_updated_at")
+            or entry.get("last_rotated_at")
+        )
+        rows.append(
+            _normalized_status_entry(
+                name_str,
+                secret_class=entry.get("class"),
+                status=status,
+                last_rotated_at=last_rotated_at,
+                cadence_days=entry.get("cadence_days"),
+                rotation_id=latest.get("rotation_id"),
+                in_grace_until=latest.get("revoke_scheduled_at"),
+            )
+        )
+    for _ in range(unknown_count):
+        rows.append(_normalized_status_entry("(corrupt)", status="unknown"))
+    return rows
+
+
+def _rotation_history(
+    db: ObservatoryDB | None,
+    repo: str,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """Return recent rotation events for ``repo``, most-recent first.
+
+    Reads <repo_path>/data/rotation-log.jsonl. Default 20 events; capped at
+    100. Repo not found → RepoNotFoundError. Repo found but log absent →
+    empty list. Malformed lines are skipped with a warning.
+    """
+    repo_path = _resolve_repo_path(db, repo)
+    try:
+        bounded_limit = int(limit)
+    except (TypeError, ValueError):
+        bounded_limit = 20
+    bounded_limit = max(1, min(bounded_limit, 100))
+    log_path = Path(repo_path).expanduser() / "data" / "rotation-log.jsonl"
+    if not log_path.exists():
+        return []
+    events: list[dict[str, Any]] = []
+    try:
+        with log_path.open("r", encoding="utf-8") as fh:
+            for line_no, line in enumerate(fh, start=1):
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    entry = json.loads(stripped)
+                except (TypeError, ValueError) as exc:
+                    logger.warning(
+                        "rotation_history: malformed line %d in %s: %s",
+                        line_no, log_path, exc,
+                    )
+                    continue
+                if not isinstance(entry, dict):
+                    continue
+                events.append(
+                    {
+                        "timestamp": entry.get("at"),
+                        "secret": str(entry.get("secret_name") or ""),
+                        "rotation_id": entry.get("rotation_id"),
+                        "step": entry.get("step"),
+                        "outcome": entry.get("outcome"),
+                        "note": entry.get("note"),
+                        "duration_ms": entry.get("duration_ms"),
+                    }
+                )
+    except OSError as exc:
+        logger.warning("rotation_history: failed to read %s: %s", log_path, exc)
+        return []
+    events.sort(key=lambda e: str(e.get("timestamp") or ""), reverse=True)
+    return events[:bounded_limit]
+
+
 def create_server(home: Path | None = None) -> FastMCP:
     """Build a FastMCP server bound to the observatory at ``home``.
 
@@ -589,6 +881,40 @@ def create_server(home: Path | None = None) -> FastMCP:
         empty list when no trust data has been collected for the repo.
         """
         return _with_db(lambda db: _dependency_trust(db, repo))
+
+    @server.tool()
+    def rotation_status(repo: str) -> list[dict[str, Any]]:
+        """Return per-secret rotation state for ``repo``.
+
+        Reads the secrets-rotation skill's `data/rotation-state.json` inside
+        the repo. Each entry: secret name, class (A | B-API | B-human | C),
+        current status (NEVER | HEALTH_CHECK | … | ROTATED | IN_GRACE |
+        HALTED), last rotation timestamp, days since rotation, configured
+        cadence, next-rotation-due timestamp, the in-flight rotation_id (if
+        any), in_grace_until (set when the old key is still valid in the
+        grace window), and a needs_attention flag (true for failed terminals
+        or overdue cadence). Returns an empty list for repos that have scan
+        history but no rotation skill scaffolded — the dashboard reads that
+        empty result as the signal to show a "Set up rotation" CTA. Raises
+        RepoNotFoundError when the repo has no scan history.
+        """
+        return _with_db(lambda db: _rotation_status(db, repo))
+
+    @server.tool()
+    def rotation_history(repo: str, limit: int = 20) -> list[dict[str, Any]]:
+        """Return recent rotation events for ``repo``, most-recent first.
+
+        Reads the secrets-rotation skill's `data/rotation-log.jsonl` inside
+        the repo. Each event: timestamp, secret, rotation_id, step (e.g.,
+        HEALTH_CHECK, PREFLIGHT, ACQUIRE, STAGE_CANARY, DEPLOY_CANARY,
+        VERIFY_CANARY, STAGE_PROD, DEPLOY_PROD, VERIFY_PROD, SOAK, GRACE,
+        REVOKE, HALT, ROLLBACK), outcome (started | succeeded | halted |
+        skipped), optional plain-English note, and optional duration in ms.
+        Default `limit` is 20; capped at 100. Returns an empty list when no
+        log file exists. Raises RepoNotFoundError when the repo has no scan
+        history.
+        """
+        return _with_db(lambda db: _rotation_history(db, repo, limit))
 
     return server
 
