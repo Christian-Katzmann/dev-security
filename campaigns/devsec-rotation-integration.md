@@ -50,11 +50,11 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 1 — Add rotation MCP read tools
 
-- [ ] Step 1.1 — Add `rotation_status(repo)` and `rotation_history(repo)` to the existing devsec MCP server
+- [x] Step 1.1 — Add `rotation_status(repo)` and `rotation_history(repo)` to the existing devsec MCP server
 
 ### Phase 2 — Wire DëvSec dashboard to show + trigger rotations
 
-- [ ] Step 2.1 — Add rotation status card to the dashboard (read-only display + "Set up rotation" CTA)
+- [x] Step 2.1 — Add rotation status card to the dashboard (read-only display + "Set up rotation" CTA)
 - [ ] Step 2.2 — Add "Rotate now" trigger UI (per-secret button, confirmation modal, verification report rendering)
 
 ### Phase 3 — Slash command + case integration

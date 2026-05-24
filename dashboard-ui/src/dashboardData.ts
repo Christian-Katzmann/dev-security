@@ -460,7 +460,103 @@ export type RepositorySummary = {
   dependency_delta?: DependencyDelta;
   dependency_trust?: DependencyTrustRecord[];
   platform_posture?: PlatformPostureSnapshot | null;
+  rotation_state?: RotationStateSignal | null;
 };
+
+// Rotation status vocabulary — mirrors security_observatory/rotation.py.
+// Words, not symbols, per the voice doctrine. The lone ⚠ carve-out is
+// only for IN_GRACE entries inside 4h of revoke (see RotationStatusCard).
+export type RotationStatus =
+  | 'NEVER'
+  | 'HEALTH_CHECK'
+  | 'PREFLIGHT'
+  | 'ACQUIRED'
+  | 'WAITING_FOR_PASTE'
+  | 'STAGED_CANARY'
+  | 'DEPLOYED_CANARY'
+  | 'IN_CANARY_VERIFY'
+  | 'VERIFIED_CANARY'
+  | 'STAGED_PROD'
+  | 'DEPLOYED_PROD'
+  | 'VERIFIED'
+  | 'IN_SOAK'
+  | 'SOAKED'
+  | 'IN_GRACE'
+  | 'ROTATED'
+  | 'HALTED'
+  | 'HEALTH_CHECK_FAILED'
+  | 'CANARY_VERIFY_FAILED'
+  | 'SOAK_FAILED'
+  | 'ROLLED_BACK'
+  | 'MANUAL'
+  | 'unknown';
+
+export type RotationStack = 'vercel' | 'python-cli';
+
+export type RotationStateSignal = {
+  scaffolded: boolean;
+  stack: RotationStack | string | null;
+  stack_supported: boolean;
+  secret_count: number;
+  needs_attention_count: number;
+  in_grace_count: number;
+  last_event_at: string | null;
+};
+
+export type RotationSecretRow = {
+  secret: string;
+  class: string | null;
+  status: RotationStatus | string;
+  last_rotated_at: string | null;
+  days_since_rotation: number | null;
+  cadence_days: number | null;
+  next_rotation_due: string | null;
+  rotation_id: string | null;
+  in_grace_until: string | null;
+  needs_attention: boolean;
+};
+
+export type RotationReceiptMeta = {
+  filename: string;
+  modified_at: string;
+};
+
+export type RotationStatusPayload = {
+  repo: string;
+  rotation_state: RotationStateSignal;
+  secrets: RotationSecretRow[];
+  receipts: RotationReceiptMeta[];
+};
+
+export type RotationEvent = {
+  timestamp: string | null;
+  secret: string;
+  rotation_id: string | null;
+  step: string | null;
+  outcome: string | null;
+  note: string | null;
+  duration_ms: number | null;
+};
+
+export type RotationHistoryPayload = {
+  repo: string;
+  events: RotationEvent[];
+};
+
+export type RotationScaffoldHandoff =
+  | {
+      supported: true;
+      stack: RotationStack | string | null;
+      working_directory: string;
+      command: string;
+      next_steps: string[];
+      why_not_shelled_out: string;
+    }
+  | {
+      supported: false;
+      stack: RotationStack | string | null;
+      message: string;
+    };
 
 export type HoneyKeyStatus = 'active' | 'triggered' | 'archived';
 

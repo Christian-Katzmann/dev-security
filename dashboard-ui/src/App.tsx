@@ -5,6 +5,7 @@ import CatalogToolPage from './components/catalog/CatalogToolPage';
 import CatalogPackPage from './components/catalog/CatalogPackPage';
 import AgentLabView from './components/agent-lab/AgentLabView';
 import NeedsRepoTarget from './components/NeedsRepoTarget';
+import RotationStatusCard from './components/RotationStatusCard';
 import {
   CatalogMutationState,
   CatalogStatusFilter,
@@ -796,7 +797,7 @@ function ActiveView({
   if (target.type === 'repo' && summary.repos.length === 0 && tab !== 'honey-keys' && tab !== 'agent-lab' && tab !== 'settings') {
     return <EmptyRepoView repoName={target.repo.name} onRunQuick={onRunQuick} onChooseChecks={onChooseChecks} />;
   }
-  if (tab === 'overview') return <OverviewView summary={summary} posture={posture} error={error} onOpenTab={onOpenTab} />;
+  if (tab === 'overview') return <OverviewView summary={summary} target={target} posture={posture} error={error} onOpenTab={onOpenTab} />;
   if (tab === 'findings') return <FindingsView summary={summary} search={search} onCaseDecision={onCaseDecision} />;
   if (tab === 'honey-keys') return <HoneyKeysView summary={summary} target={target} onRefresh={onRefresh} />;
   if (tab === 'scanners') return <CatalogRouter route={catalogRoute} summary={summary} onRouteChange={onCatalogRouteChange} onRefresh={onRefresh} onChooseChecks={onChooseChecks} />;
@@ -1121,7 +1122,7 @@ function RunCheckSheet({
   );
 }
 
-function OverviewView({summary, posture, error, onOpenTab}: {summary: DashboardSummary; posture: {score: number; delta: number; week: {label: string; value: number}[]}; error: string | null; onOpenTab: (tab: TabId) => void}) {
+function OverviewView({summary, target, posture, error, onOpenTab}: {summary: DashboardSummary; target: TargetSelection; posture: {score: number; delta: number; week: {label: string; value: number}[]}; error: string | null; onOpenTab: (tab: TabId) => void}) {
   const cases = activeCaseList(summary);
   const counts = severityCounts(summary);
   const honeyCounts = honeyKeyCounts(summary);
@@ -1130,6 +1131,10 @@ function OverviewView({summary, posture, error, onOpenTab}: {summary: DashboardS
   const scannerHealthy = scanners.filter((item) => item.status === 'ran').length;
   const activities = buildActivity(summary);
   const lastScan = latestScanTime(summary);
+  const rotationSignal =
+    target.type === 'repo'
+      ? summary.repos.find((entry) => entry.repo === target.repo.name)?.rotation_state ?? null
+      : null;
   const headline = cases[0]
     ? `${severityLabelForCase(cases[0])}: ${cases[0].title}`
     : summary.repos.length
@@ -1187,6 +1192,10 @@ function OverviewView({summary, posture, error, onOpenTab}: {summary: DashboardS
           </div>
         </PaperCard>
       </section>
+
+      {target.type === 'repo' && (
+        <RotationStatusCard repo={target.repo} precomputed={rotationSignal} />
+      )}
     </div>
   );
 }

@@ -20,6 +20,7 @@ from .model import FAIL_LEVELS, SEVERITY_ORDER, Finding, score_findings, severit
 from .model import read_json_safely
 from .platform_posture import build_platform_posture_snapshot, platform_posture_regression_findings
 from .recency import DEFAULT_RECENCY_WINDOW_DAYS, enrich_ioc_findings_with_rotation_advice
+from .rotation import detect_rotation_state
 from .scanners import run_behavioral_drift_scanner, run_scanner, scanner_catalog, scanner_names_for_profile
 from .sbom import load_sbom_components
 from .silent_upgrades import detect_silent_upgrades, parse_dependency_manifests
@@ -310,6 +311,10 @@ def scan_repo(
         report["behavioral_drift"] = behavioral_drift
     if platform_posture is not None:
         report["platform_posture"] = platform_posture
+    # Rotation-state detection: cheap stat + at most two file reads. Lets the
+    # dashboard render the RotationStatusCard from the scan output without a
+    # second round-trip. The skill itself writes the underlying state files.
+    report["rotation_state"] = detect_rotation_state(repo)
     write_json(report_path, report)
 
     try:

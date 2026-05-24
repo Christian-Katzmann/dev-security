@@ -48,6 +48,15 @@ from .managed_tools import (
     managed_tool_evidence,
     uninstall_managed_tool_files,
 )
+from .rotation import (
+    SUPPORTED_STACKS,
+    detect_rotation_state,
+    detect_stack,
+    list_receipts,
+    read_receipt,
+    read_rotation_history,
+    read_rotation_status,
+)
 from .scanners import scan_profile_catalog, scanner_names_for_profile, security_pack_catalog, tool_catalog
 from .storage import ObservatoryDB
 
@@ -1186,6 +1195,26 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 db.close()
             payload["environment"] = dashboard_environment_signal()
             payload["recovery_playbooks"] = build_recovery_playbooks(payload.get("active_cases") or [])
+            # Per-repo rotation signal — drives the RotationStatusCard on
+            # every repo view, including the "Set up rotation" CTA for repos
+            # without scaffolding. Read fresh on each request because rotation
+            # state lives outside the DB (in each repo's data/ directory).
+            for repo in payload.get("repos") or []:
+                repo_path_raw = repo.get("path")
+                if not repo_path_raw:
+                    continue
+                try:
+                    repo["rotation_state"] = detect_rotation_state(repo_path_raw)
+                except OSError:
+                    repo["rotation_state"] = {
+                        "scaffolded": False,
+                        "stack": None,
+                        "stack_supported": False,
+                        "secret_count": 0,
+                        "needs_attention_count": 0,
+                        "in_grace_count": 0,
+                        "last_event_at": None,
+                    }
             self.send_json(payload)
             return
         if parsed.path == "/api/tool-catalog":
@@ -1314,6 +1343,19 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 return
             self.send_json({"job": job})
             return
+        if parsed.path.startswith("/api/rotation/status/"):
+            repo_name = parsed.path.removeprefix("/api/rotation/status/")
+            self.serve_rotation_status(repo_name)
+            return
+        if parsed.path.startswith("/api/rotation/history/"):
+            repo_name = parsed.path.removeprefix("/api/rotation/history/")
+            limit_raw = parse_qs(parsed.query).get("limit", ["20"])[0]
+            self.serve_rotation_history(repo_name, limit_raw)
+            return
+        if parsed.path.startswith("/api/rotation/receipts/"):
+            tail = parsed.path.removeprefix("/api/rotation/receipts/")
+            self.serve_rotation_receipt(tail)
+            return
         if parsed.path.rstrip("/") == "/report":
             query = parse_qs(parsed.query)
             scan_id = query.get("scanId", [""])[0]
@@ -1397,6 +1439,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/tools/install-via-pkg":
             self.install_via_homebrew()
+            return
+        if parsed.path.startswith("/api/rotation/scaffold/"):
+            repo_name = parsed.path.removeprefix("/api/rotation/scaffold/")
+            self.serve_rotation_scaffold_handoff(repo_name)
             return
         if parsed.path != "/api/run-check":
             self.send_error(404)
@@ -1961,6 +2007,179 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json({"path": str(target_path), "relative_path": placement_path})
         except Exception as exc:
             self.send_error(500, str(exc))
+
+    # ------------------------------------------------------------------
+    # Rotation endpoints — read-only views over the secrets-rotation skill's
+    # on-disk state plus a guarded "Set up rotation" handoff. The Step 2.2
+    # POST /api/rotation/trigger writer endpoint lives in a later step.
+    # ------------------------------------------------------------------
+
+    def _resolve_repo_for_rotation(self, repo_name: str) -> Path | None:
+        """Resolve ``repo_name`` (URL-tail) → on-disk ``Path`` or None.
+
+        Same vocabulary as the MCP rotation tools: looks up the latest scan
+        record for the repo and uses its ``repo_path``. Returns None when the
+        repo has no scan history (the caller maps None → 404).
+        """
+        name = repo_name.strip().strip("/")
+        if not name:
+            return None
+        # URL-decoded names sometimes carry a single trailing slash; strip
+        # nothing else — repo names are validated against scan-history
+        # vocabulary, not against a filesystem glob.
+        db = ObservatoryDB(self.db_path)
+        try:
+            scan = db.latest_scan_for_repo(name)
+        finally:
+            db.close()
+        if not scan:
+            return None
+        repo_path = scan.get("repo_path")
+        if not repo_path:
+            return None
+        try:
+            return Path(str(repo_path)).expanduser()
+        except (OSError, RuntimeError):
+            return None
+
+    def serve_rotation_status(self, repo_name: str) -> None:
+        repo_path = self._resolve_repo_for_rotation(repo_name)
+        if repo_path is None:
+            self.send_json_error(404, "No scan history for that repo yet.")
+            return
+        rows = read_rotation_status(repo_path)
+        receipts = list_receipts(repo_path)
+        signal = detect_rotation_state(repo_path)
+        self.send_json(
+            {
+                "repo": repo_name.strip().strip("/"),
+                "rotation_state": signal,
+                "secrets": rows,
+                "receipts": receipts,
+            }
+        )
+
+    def serve_rotation_history(self, repo_name: str, limit_raw: str) -> None:
+        repo_path = self._resolve_repo_for_rotation(repo_name)
+        if repo_path is None:
+            self.send_json_error(404, "No scan history for that repo yet.")
+            return
+        try:
+            limit = int(limit_raw)
+        except (TypeError, ValueError):
+            limit = 20
+        events = read_rotation_history(repo_path, limit)
+        self.send_json(
+            {
+                "repo": repo_name.strip().strip("/"),
+                "events": events,
+            }
+        )
+
+    def serve_rotation_receipt(self, tail: str) -> None:
+        """Serve ``/api/rotation/receipts/<repo>/<filename>`` as markdown.
+
+        Path-traversal safety: the filename is validated by the shared
+        ``read_receipt`` helper (regex + resolve+relative_to check). The repo
+        segment is resolved through the scan history, not raw user input, so
+        a hostile ``..`` cannot redirect us outside known repos.
+        """
+        cleaned = tail.strip().strip("/")
+        if "/" not in cleaned:
+            self.send_json_error(400, "Receipt path must be <repo>/<filename>.")
+            return
+        repo_name, _, filename = cleaned.partition("/")
+        if not repo_name or not filename:
+            self.send_json_error(400, "Receipt path must be <repo>/<filename>.")
+            return
+        repo_path = self._resolve_repo_for_rotation(repo_name)
+        if repo_path is None:
+            self.send_json_error(404, "No scan history for that repo yet.")
+            return
+        content = read_receipt(repo_path, filename)
+        if content is None:
+            self.send_error(404, "Verification receipt not found.")
+            return
+        body = content.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/markdown; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def serve_rotation_scaffold_handoff(self, repo_name: str) -> None:
+        """Return scaffolding instructions for repos missing rotation setup.
+
+        v0.1 is a guided handoff, not a literal subprocess: the secrets-rotation
+        skill runs inside a Claude Code session (interactive — confirms tier,
+        secret classifications, scaffold plan), so the dashboard cannot launch
+        it headlessly without losing those gates. Instead the dashboard returns
+        the exact command + working directory and the UI shows them with a
+        copy button. Once the skill graduates to a non-interactive
+        bootstrapping mode the handoff payload can grow a ``job_id`` field
+        and the dashboard can shell out for real.
+        """
+        try:
+            payload = self.read_json_body()
+        except (ValueError, json.JSONDecodeError):
+            self.send_json_error(400, "Request body must be valid JSON.")
+            return
+        if not bool(payload.get("confirmed")):
+            self.send_json_error(
+                400,
+                "Confirm the scaffold handoff before requesting setup instructions.",
+            )
+            return
+        repo_path = self._resolve_repo_for_rotation(repo_name)
+        if repo_path is None:
+            self.send_json_error(404, "No scan history for that repo yet.")
+            return
+        if not repo_path.is_dir():
+            self.send_json_error(404, "Repo path is no longer on disk.")
+            return
+        if read_rotation_status(repo_path):
+            self.send_json_error(
+                409,
+                "Rotation is already scaffolded for this repo.",
+            )
+            return
+        stack = detect_stack(repo_path)
+        supported = stack in SUPPORTED_STACKS if stack else False
+        if not supported:
+            self.send_json(
+                {
+                    "supported": False,
+                    "stack": stack,
+                    "message": (
+                        "This repo's stack isn't supported for automated"
+                        " rotation yet. Currently supported: Next.js + Vercel,"
+                        " Python CLI."
+                    ),
+                }
+            )
+            return
+        self.send_json(
+            {
+                "supported": True,
+                "stack": stack,
+                "working_directory": str(repo_path),
+                "command": "claude /secrets-rotation",
+                "next_steps": [
+                    "Open a terminal in the repo above.",
+                    "Run `claude` to start Claude Code in that directory.",
+                    "Type `/secrets-rotation` and follow the prompts.",
+                    "The skill will discover secrets, classify them, and ask"
+                    " for confirmation before writing any files.",
+                ],
+                "why_not_shelled_out": (
+                    "Scaffolding asks interactive questions (tier, secret"
+                    " classifications). The dashboard hands off the command"
+                    " instead of running it blindly so those gates stay in"
+                    " place."
+                ),
+            }
+        )
 
     def trigger_honey_key(self, parsed, *, method: str) -> None:
         length = int(self.headers.get("Content-Length", "0") or "0")
