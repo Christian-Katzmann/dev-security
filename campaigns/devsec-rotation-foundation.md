@@ -58,11 +58,11 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 - [x] Step 2.1 — Implement canary-first staging + pre-rotation health refusal
 - [x] Step 2.2 — Implement soak-test pipeline phase (default-on, per-adapter)
-- [ ] Step 2.3 — Implement unified verification report (file-written, Security Brief format)
+- [x] Step 2.3 — Implement unified verification report (file-written, Security Brief format)
 
 ### Phase 3 — Hardening, demo, receipts
 
-- [ ] Step 3.1 — Update SKILL.md / catalog.json / runbook template; add `--fail-at` failure injection mode to test suite
+- [x] Step 3.1 — Update SKILL.md / catalog.json / runbook template; add `--fail-at` failure injection mode to test suite
 - [ ] Step 3.2 — End-to-end demo on both stacks (real Next.js + Vercel project AND dëv-security with synthetic token), capture receipts
 - [ ] Final review
 
