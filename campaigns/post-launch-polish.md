@@ -32,8 +32,8 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 ### Phase 1 — Launch leftovers (cheap wins)
 
 - [x] Step 1.1 — Add a logic/reasoning diagram to README (v3 §10)
-- [ ] Step 1.2 — Verify and push v0.1.0 release tag
-- [ ] Step 1.3 — Decide pinned-set strategy and act on it
+- [x] Step 1.2 — Verify and push v0.1.0 release tag
+- [x] Step 1.3 — Decide pinned-set strategy and act on it
 
 ### Phase 2 — Pay down Verify CI debt
 
