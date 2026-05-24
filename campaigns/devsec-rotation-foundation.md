@@ -46,11 +46,11 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 0 — Audit and recalibrate
 
-- [ ] Step 0.1 — Read the skill end-to-end, identify exact extraction points, adjust Phase 1's step prompts in place if reality differs
+- [x] Step 0.1 — Read the skill end-to-end, identify exact extraction points, adjust Phase 1's step prompts in place if reality differs
 
 ### Phase 1 — Extract the adapter abstraction
 
-- [ ] Step 1.1 — Sketch adapter interface and extract Vercel adapter
+- [x] Step 1.1 — Sketch adapter interface and extract Vercel adapter
 - [ ] Step 1.2 — Implement Python CLI adapter (stress-tests the abstraction)
 - [ ] Step 1.3 — Reconcile interface based on Phase 1.2 findings; document; add stack-detection
 
