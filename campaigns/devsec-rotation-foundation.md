@@ -51,8 +51,8 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 ### Phase 1 — Extract the adapter abstraction
 
 - [x] Step 1.1 — Sketch adapter interface and extract Vercel adapter
-- [ ] Step 1.2 — Implement Python CLI adapter (stress-tests the abstraction)
-- [ ] Step 1.3 — Reconcile interface based on Phase 1.2 findings; document; add stack-detection
+- [x] Step 1.2 — Implement Python CLI adapter (stress-tests the abstraction)
+- [x] Step 1.3 — Reconcile interface based on Phase 1.2 findings; document; add stack-detection
 
 ### Phase 2 — Close the verification gap
 

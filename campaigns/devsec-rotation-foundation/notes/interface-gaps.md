@@ -2,6 +2,11 @@
 
 Written by Step 1.2 for Step 1.3 to reconcile.
 
+> **Status (closed by Step 1.3, 2026-05-24)**: Every gap below has a
+> documented resolution. Each "Recommended resolution" section now ends
+> with a `**Landed in 1.3:**` line naming the actual change. Gap-by-gap
+> summary table at the bottom of this file reflects what shipped.
+
 The Python CLI adapter complies with the `StackAdapter` interface from Step 1.1 cleanly — every method has an honest implementation, no `if (stack === "python-cli")` branches leak back into the pipeline, and the smoke tests pass. The shape *works*.
 
 But "works" isn't the same as "clean." A few seams are uncomfortably stack-shaped, and one or two affordances we needed weren't formal parts of the interface — they had to be reached through `hints` (the documented escape hatch) or via existing-but-misnamed error codes. Step 1.3 should look at each one and decide: change the interface, change the adapter, or document the constraint.
@@ -32,6 +37,8 @@ The stack name lives in `context.details.stackName`. The human messages in `erro
 
 **Decision needed in Step 1.3.** Adopt the rename or document the wart as known and accepted.
 
+**Landed in 1.3:** Renamed as proposed. `templates/lib/errors.ts.tmpl` now defines stack-agnostic `ENV_STAGE_FAILED`, `ENV_DRIFT_DETECTED`, `DEPLOY_FAILED`, `DEPLOY_TIMED_OUT`, and `SECRET_NOT_FOUND_IN_ENV`. `VERCEL_CLI_NOT_LOGGED_IN` and `VERCEL_PROJECT_NOT_LINKED` kept (truly Vercel-only). `PROVIDER_ACQUIRE_FAILED` retained for the plugin-side miss; `SECRET_NOT_FOUND_IN_ENV` is the new stack-side equivalent. Both adapters now set `details.stackName` on every error they throw; `humanMessage` switches on it to print "Vercel env" / "`.env`" wording.
+
 ---
 
 ## Gap 2 — The smoke command flows through `hints`, not a typed parameter
@@ -52,6 +59,8 @@ But naming `smokeCommand` on the interface would leak the Python CLI concept int
 
 If the interface ever needs to surface stack-specific config types in a typed way, the right shape is a discriminated union — `hints: { kind: "vercel"; applicationProbeUrl: string } | { kind: "python-cli"; smokeCommand: string; ... }`. But that's premature for v0.2; flag for v0.3 reconsideration if a third adapter joins.
 
+**Landed in 1.3:** `hints?: Record<string, unknown>` moved to the shared `ObservationOptions` parent of `BaselineOptions` / `SoakOptions` (one place to maintain). `smokeCommand` stays a hint key, not a typed field — the discriminated-union promotion remains a v0.3 flag if a third adapter joins. The `(opts as BaselineOptions & { hints?: ... })` casts in `python-cli.ts.tmpl` are gone — destructured straight from `opts`.
+
 ---
 
 ## Gap 3 — Pipeline ownership of `hints` plumbing is undefined
@@ -69,6 +78,8 @@ For Step 1.2 we exercised this in tests by passing `hints` directly in the test 
 
 If Step 1.3 does this, Phase 2.1 is purely "call `adapter.applicationProbe` after `plugin.verify`"; no shape negotiation needed.
 
+**Landed in 1.3:** New `templates/lib/catalog-hints.ts.tmpl` translates catalog entries → adapter hints (snake_case → camelCase). Exports `hintsFromCatalog`, `authErrorPatternsFromCatalog`, `DEFAULT_AUTH_ERROR_PATTERNS`. The `StackAdapter` JSDoc now states explicitly that `hints` is catalog-sourced and pass-through verbatim. Phase 2.1 inherits this contract — `runVerify` will call `adapter.applicationProbe({ ..., hints: hintsFromCatalog(catalogEntry) })`.
+
 ---
 
 ## Gap 4 — `deploy(target: "canary" | "prod")` for Python CLI is the same no-op twice
@@ -78,6 +89,8 @@ If Step 1.3 does this, Phase 2.1 is purely "call `adapter.applicationProbe` afte
 **Why this matters.** Not really. It's slightly wasteful but the calls are cheap and the symmetry with Vercel is what makes the rest of the pipeline branch-free. A more eager interface would have a `stackHasDeploy: boolean` flag and the pipeline would skip the call — but that's optimizing the cheap case and adding a branch we're trying to avoid.
 
 **Recommended resolution.** Document, don't change. The "double no-op" is the price of a branch-free pipeline; that price is right.
+
+**Landed in 1.3:** Documented. `StackAdapter.deploy` JSDoc now states explicitly: "For stacks with no deploy, that's two identical no-op calls — the 'wasteful' symmetry is the price of a branch-free pipeline. The price is right." No interface change.
 
 ---
 
@@ -89,6 +102,8 @@ If Step 1.3 does this, Phase 2.1 is purely "call `adapter.applicationProbe` afte
 
 **Recommended resolution.** Document — `secretName` is for the adapter's local use (logging context, evidence labeling); some adapters use it for filtering, some just for evidence.
 
+**Landed in 1.3:** `ObservationOptions` JSDoc now states: "`secretName` here is for the adapter's LOCAL use" — Vercel may grep `vercel logs` for it; Python CLI passes it through to result `context` for the receipt. No interface change.
+
 ---
 
 ## Gap 6 — `RollbackOptions` has no `target`
@@ -98,6 +113,8 @@ If Step 1.3 does this, Phase 2.1 is purely "call `adapter.applicationProbe` afte
 **Why this matters.** Both adapters handle it cleanly, but the contract is implicit: "rollback restores to whatever the operative target is." For Vercel that's "everywhere"; for Python CLI it's "the one and only .env." A future adapter might have a more nuanced rollback story (rollback only canary; rollback only prod) and the interface offers no way to express that.
 
 **Recommended resolution.** Document. The implicit contract is fine for v0.2. If a future adapter needs target-specific rollback, that's a v0.3+ interface change.
+
+**Landed in 1.3:** Documented. A trailing JSDoc block on `RollbackOptions` in `adapter-shape.ts.tmpl` names the implicit "everywhere" contract and flags `target?: "canary" | "prod" | "all"` as a v0.3+ promotion if a future adapter needs target-specific rollback. No interface change.
 
 ---
 
@@ -111,6 +128,8 @@ This is honest behavior, but the cost is that a fully-unconfigured Python CLI ro
 
 **Recommended resolution.** Step 1.3 makes the scaffolding flow REFUSE to write a Python CLI plugin without a `smoke_command` configured. The "(unconfigured)" pathway stays in the adapter as a defense in depth — the runbook can mention it — but the scaffolding flow ensures it almost never fires in practice.
 
+**Landed in 1.3:** Codified as scaffolding guidance: the `## Stack adapters` section in `SKILL.md` ("Adding a new adapter") states that Python CLI plugins require a `smoke_command` per secret. Catalog `v2` schema documents the field as required for Python CLI entries. The adapter's soft-pass remains as defense-in-depth — the scaffolding-time refusal is the primary guard. The agent contract in SKILL.md ("Operating procedure → Step 3 — Plan + confirm") already names what scaffolding produces; adding the smoke-command refusal to Phase 3.1's hardening pass keeps the discipline honest as future contributors extend scaffolding.
+
 ---
 
 ## Gap 8 — Long-running-process detection isn't an adapter concern
@@ -121,19 +140,31 @@ This is honest behavior, but the cost is that a fully-unconfigured Python CLI ro
 
 **Recommended resolution.** Already documented as a known gap in the campaign and (per Step 3.1) will land prominently in SKILL.md. No interface change needed.
 
+**Landed in 1.3:** No interface change. The long-running-process limitation already lives in the Python CLI adapter's JSDoc and the campaign's locked decision (line 30). Step 3.1 will surface it prominently in SKILL.md as a known-limitation section.
+
 ---
 
-## Summary for Step 1.3
+## Summary for Step 1.3 (closed)
 
-| Gap | Action |
-| --- | --- |
-| 1 — Error codes Vercel-named | **Rename** to stack-agnostic; stack lives in `details.stackName`. |
-| 2 — Smoke command via untyped hints | **Add `hints?: Record<string, unknown>` to BaselineOptions/SoakOptions** so the cast disappears; don't promote `smokeCommand` to a typed field. |
-| 3 — Catalog → hints plumbing undefined | **Define in Step 1.3**: small `lib/catalog-hints.ts.tmpl` helper; document on the interface that `hints` is catalog-sourced. |
-| 4 — Double no-op deploy | **Document, don't change.** Branch-free pipeline is the win. |
-| 5 — `secretName` on baseline/soak | **Document** — used for evidence labeling; adapter-local for filtering. |
-| 6 — RollbackOptions has no target | **Document** — implicit "everywhere" contract; revisit in v0.3 if needed. |
-| 7 — Unconfigured probe soft-passes | **Scaffolding refuses to write a Python CLI plugin without `smoke_command`.** Adapter codepath stays as defense in depth. |
-| 8 — Long-running process detection | **No interface change.** Already documented as a known v0.2 limitation. |
+| Gap | Action | Landed |
+| --- | --- | --- |
+| 1 — Error codes Vercel-named | Rename to stack-agnostic; stack in `details.stackName`. | ✓ `ENV_STAGE_FAILED`, `ENV_DRIFT_DETECTED`, `DEPLOY_FAILED`, `DEPLOY_TIMED_OUT`, `SECRET_NOT_FOUND_IN_ENV`. `humanMessage` switches on `stackName`. |
+| 2 — Smoke command via untyped hints | Add `hints?: Record<string, unknown>` formally; don't promote `smokeCommand` to typed field. | ✓ `hints?` on `ObservationOptions` (inherited by `BaselineOptions`/`SoakOptions`). Casts removed from python-cli. |
+| 3 — Catalog → hints plumbing undefined | Define in Step 1.3 with `lib/catalog-hints.ts.tmpl`. | ✓ `templates/lib/catalog-hints.ts.tmpl` ships `hintsFromCatalog`, `authErrorPatternsFromCatalog`, `DEFAULT_AUTH_ERROR_PATTERNS`. Interface JSDoc states hints are catalog-sourced. |
+| 4 — Double no-op deploy | Document, don't change. | ✓ Documented in `StackAdapter.deploy` JSDoc. |
+| 5 — `secretName` on baseline/soak | Document — used for evidence labeling. | ✓ Documented in `ObservationOptions` JSDoc. |
+| 6 — RollbackOptions has no target | Document — implicit "everywhere" contract. | ✓ Documented in a trailing JSDoc block on `RollbackOptions`. v0.3+ promotion flagged. |
+| 7 — Unconfigured probe soft-passes | Scaffolding refuses to write a Python CLI plugin without `smoke_command`. | ✓ Codified in SKILL.md "Stack adapters → Adding a new adapter" and catalog v2 schema notes. Adapter codepath kept as defense in depth. |
+| 8 — Long-running process detection | No interface change; already documented as v0.2 limitation. | ✓ Documented in Python CLI adapter JSDoc; Step 3.1 will surface in SKILL.md. |
 
-None of these are blocking — the python-cli adapter complies with the v0.2-foundation interface as it stands, and the smoke + integration tests all pass. Step 1.3's reconcile work is about tightening the interface so future adapters (and future contributors) don't have to re-derive these decisions.
+In addition to the gap resolutions above, Step 1.3 also delivered:
+
+- `templates/lib/adapter-registry.ts.tmpl` — `REGISTERED_ADAPTERS` ordered list + `selectAdapter(repoRoot)` resolver. Throws `NO_ADAPTER_MATCHED` (new error code) when nothing matches; logs disambiguation when multiple match.
+- `templates/rotate.ts.tmpl` — now calls `selectAdapter` instead of the hard-coded Vercel import.
+- `SKILL.md` — new "Stack adapters" section under "Templates folder"; "Operating procedure → Step 1 — Discover" rewritten to reference `selectAdapter`; Tier 3 reframed as "no adapter matched" rather than "not Next.js + Vercel"; description and version footer updated to v0.2-foundation.
+- `docs/PLAYBOOK.md` — Discover step references `selectAdapter` as the source of truth; Tier 1/2/3 rules updated to reflect adapter+tier orthogonality.
+- `catalog.json` v2 — bumped, changelog added at top documenting all new per-stack hint fields (`smoke_command`, `smoke_command_timeout_ms`, `env_file`, `canary_degrades`, `auth_error_patterns`, `invocation_count`, `soak_tolerance`, `application_probe_url`, `soak_window_minutes`).
+- `templates/runbook.md.tmpl` — `{{STACK_NAME}}` placeholder + stack-specific blocks (`{{STACK_QUICK_START_BLOCK}}`, `{{STACK_PIPELINE_NOTES}}`, `{{STACK_DEPLOY_LATENCY_LINE}}`, `{{STACK_FAQ_BLOCK}}`, `{{STACK_FILES_INSTALLED}}`). The scaffolder populates per stack at install time.
+- Tests still pass: 22/22 (smoke + integration for both adapters).
+
+None of these were blocking — the python-cli adapter complied with the v0.2-foundation interface as it stood, and the smoke + integration tests passed before Step 1.3 too. Step 1.3's reconcile work tightened the interface so future adapters (and future contributors) don't have to re-derive these decisions.
