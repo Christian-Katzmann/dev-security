@@ -176,6 +176,76 @@ Trade-off: clearing it now can hide the timeline before provider logs are review
 Safer path: preserve the event, review source IP and provider logs, then decide.
 ```
 
+## Tier 5R - Rotate a Credential
+
+**Definition:** Trigger rotation of a tracked secret end-to-end at the provider
+and across the repo's environment. Generates a new value, stages it, verifies,
+soaks for an observation window, and revokes the old value after a grace period.
+
+**Examples:** click "Rotate" on a secret in the DëvSec dashboard rotation card,
+run `/devsec-rotate <SECRET>` in a slash command, or invoke `npm run rotate --
+<SECRET>` after the secrets-rotation skill is scaffolded into a repo.
+
+**Default behavior:** Refuse by default. Require an explicit confirmation phrase
+that names the secret. Show the operator what rotation will do, what is at risk
+(e.g., session invalidation), the grace window, and what "verified" will mean
+here, *before* asking for confirmation.
+
+**Risk:** Rotation is irreversible at the provider once acquire+revoke runs. A
+bad rotation can invalidate live sessions, break dependent services, and force
+incident response. Rotating into a dirty baseline (existing auth errors) can
+mask the real problem and make diagnosis harder.
+
+**Confirmation phrase:** `` Yes, rotate `<SECRET>` and accept the irreversible provider-side change. ``
+
+Surfaces substitute the secret name into the backticks. The phrase is the same
+shape across the dashboard modal, `/devsec-rotate`, and any future automation.
+The skill's own `--no-soak` and `--skip-health-check` flags carry their own
+explicit acknowledgements (e.g., `acknowledged_skipping_soak: true`) because
+they reduce the verification we promise.
+
+**Language template:**
+
+```text
+I should not rotate by default.
+Secret: `<SECRET>` (class `<A|B-api|B-human>`).
+What rotation will do:
+1. Run a pre-rotation health check to refuse rotating into a dirty baseline.
+2. Acquire a new value (or prompt for paste for Class B-human).
+3. Stage to canary, verify with a provider probe and an application probe.
+4. Stage to production, verify again.
+5. Soak for <N> minutes, watching auth-related errors above baseline.
+6. Hold old key for <grace window> before revoking.
+Risk this rotation: <session invalidation / downstream services / etc.>.
+Verification will mean: provider check OK, application probe OK, soak OK.
+If you want me to proceed, confirm with:
+`Yes, rotate `<SECRET>` and accept the irreversible provider-side change.`
+```
+
+Example:
+
+```text
+I should not rotate by default.
+Secret: `NEXTAUTH_SECRET` (class A).
+What rotation will do:
+1. Health-check the current baseline for auth errors before changing anything.
+2. Generate a new value locally.
+3. Stage to preview, verify, then stage to production and verify.
+4. Soak for 15 minutes, watching for new auth-related errors above baseline.
+5. Hold the old value in a 24h grace window before revoking it automatically.
+Risk this rotation: rotating `NEXTAUTH_SECRET` invalidates all active user sessions.
+Verification will mean: provider check OK, application probe OK, soak OK.
+If you want me to proceed, confirm with:
+`` Yes, rotate `NEXTAUTH_SECRET` and accept the irreversible provider-side change. ``
+```
+
+**Why Tier 5R and not Tier 5:** Tier 5 covers defensive instrumentation
+(Honey Keys). Rotation has a similar refuse-by-default + explicit-confirmation
+shape, but the *thing being changed* is a live credential, not a decoy. The
+language differs accordingly: rotation names the provider-side irreversibility,
+not "defensive instrumentation." Surfaces must use the rotation phrase, not the
+Tier 5 phrases — see Tier 5 above for the Honey Key wording.
+
 ## Tier 6 - Install Scanners or Modify Dependency State
 
 **Definition:** Install new tools, run broad installers, or change package
@@ -222,6 +292,7 @@ After it completes, I can verify detection with a local `security-scan` run.
 | "Patch this workflow finding." | 3 | Edit code, test, show diff. |
 | "Delete that case from SQLite." | 4 | Refuse by default; require explicit phrase. |
 | "Reset this Honey Key trigger." | 5 | Refuse harder; require two confirmations. |
+| "Rotate `NEXTAUTH_SECRET`." | 5R | Refuse by default; require the rotation confirmation phrase. |
 | "Install missing scanners." | 6 | Do not execute; give the command to the user. |
 
 ## Honest Caveat

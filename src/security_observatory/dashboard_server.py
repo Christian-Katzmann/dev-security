@@ -64,6 +64,301 @@ from .storage import ObservatoryDB
 CHECK_JOBS: dict[str, dict[str, object]] = {}
 CHECK_JOBS_LOCK = threading.Lock()
 
+# Sec-name regex: ENV-style identifiers only. The skill itself rejects anything
+# else, but we want the dashboard to refuse before shelling out.
+_SAFE_SECRET_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
+
+# Cap stdout tail kept in memory per job. The receipt is the source of truth;
+# the tail exists for live progress, not as an archival log.
+_ROTATION_STDOUT_TAIL_MAX = 200
+
+# Wall-clock cap on a single rotation. The skill's own SOAK is ~15 min by
+# default; the canary + verify path adds a few minutes. 45 min leaves headroom
+# for the longest-supported soak (60 min) plus pipeline overhead.
+_ROTATION_SUBPROCESS_TIMEOUT_SECONDS = 60 * 60
+
+
+def _rotation_confirmation_phrase(secret: str) -> str:
+    """Mirror the Tier 5R confirmation phrase from docs/agent-safety.md.
+
+    Surfaces (dashboard modal, /devsec-rotate) must send back this exact string
+    or the trigger endpoint refuses. The single source of truth lives in the
+    safety doctrine; this helper is the literal Python rendering of it.
+    """
+    return (
+        f"Yes, rotate `{secret}` and accept the irreversible provider-side change."
+    )
+
+
+def _append_rotation_audit_event(repo_path: Path, event: dict[str, Any]) -> None:
+    """Append one event to ``data/rotation-log.jsonl``.
+
+    The rotation skill owns this file at runtime; the dashboard appends a single
+    ``DASHBOARD_TRIGGER`` line before the subprocess starts so the audit trail
+    captures human-clicked triggers even if npm never launches. Failures here
+    must NOT block the rotation — they only mean we lose the audit line.
+    """
+    log_path = Path(repo_path) / "data" / "rotation-log.jsonl"
+    try:
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"at": utc_now(), **event}
+        with log_path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(payload, sort_keys=True) + "\n")
+    except OSError:
+        pass
+
+
+def _terminal_phase_from_status(status: str) -> str:
+    """Map the skill's status vocabulary to the dashboard's coarse phase."""
+    if status in ("ROTATED", "IN_GRACE"):
+        return "verified"
+    if status in (
+        "HALTED",
+        "HEALTH_CHECK_FAILED",
+        "CANARY_VERIFY_FAILED",
+        "SOAK_FAILED",
+        "ROLLED_BACK",
+    ):
+        return "halted"
+    return "unknown"
+
+
+def _latest_receipt_filename_for(repo_path: Path, secret: str) -> str | None:
+    """Return the newest receipt file whose name starts with ``<secret>-``."""
+    directory = Path(repo_path) / "data" / "rotation-receipts"
+    if not directory.is_dir():
+        return None
+    candidates: list[tuple[float, str]] = []
+    for entry in directory.iterdir():
+        if not entry.is_file() or entry.suffix.lower() != ".md":
+            continue
+        if not entry.name.startswith(f"{secret}-"):
+            continue
+        try:
+            candidates.append((entry.stat().st_mtime, entry.name))
+        except OSError:
+            continue
+    if not candidates:
+        return None
+    candidates.sort(reverse=True)
+    return candidates[0][1]
+
+
+def _run_rotation_job(
+    job_id: str,
+    repo_path: Path,
+    secret: str,
+    command: list[str],
+    repo_name: str,
+) -> None:
+    """Run ``npm run rotate -- <SECRET> ...`` and stream progress into CHECK_JOBS.
+
+    The job updates four channels:
+      - ``phase`` / ``message`` — coarse pipeline phase for the progress panel.
+      - ``stdout_tail`` — last N lines of npm output (capped) for diagnostics.
+      - ``events_seen`` — count of new entries in ``data/rotation-log.jsonl``;
+        the frontend can re-fetch ``/api/rotation/history`` when it grows.
+      - ``receipt_filename`` / ``receipt_url`` — set when the skill writes a
+        verification receipt for the rotated secret.
+
+    Cancellation is not supported in v1 — the pipeline is safe-to-abandon and a
+    tear-down path would add complexity without value yet.
+    """
+    update_job(
+        job_id,
+        status="running",
+        phase="initiated",
+        message="Shelling out to the rotation skill.",
+        started_at=utc_now(),
+    )
+    npm = shutil.which("npm")
+    if not npm:
+        update_job(
+            job_id,
+            status="failed",
+            phase="halted",
+            message="`npm` was not found on PATH. Install Node.js and retry.",
+            error="npm not on PATH",
+            finished_at=utc_now(),
+        )
+        return
+
+    history_path = Path(repo_path) / "data" / "rotation-log.jsonl"
+    initial_events = _count_jsonl_lines(history_path)
+
+    try:
+        process = subprocess.Popen(
+            [npm, *command[1:]] if command[0] == "npm" else command,
+            cwd=str(repo_path),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+    except OSError as exc:
+        update_job(
+            job_id,
+            status="failed",
+            phase="halted",
+            message=f"Could not start the rotation subprocess: {exc}",
+            error=str(exc),
+            finished_at=utc_now(),
+        )
+        return
+
+    tail: list[str] = []
+    deadline = _dt_now_monotonic() + _ROTATION_SUBPROCESS_TIMEOUT_SECONDS
+    try:
+        assert process.stdout is not None  # for type checkers
+        for raw_line in process.stdout:
+            line = raw_line.rstrip()
+            if line:
+                tail.append(line)
+                if len(tail) > _ROTATION_STDOUT_TAIL_MAX:
+                    del tail[: len(tail) - _ROTATION_STDOUT_TAIL_MAX]
+                phase, message = _classify_stdout_line(line)
+                update_payload: dict[str, object] = {
+                    "stdout_tail": list(tail),
+                    "events_seen": _count_jsonl_lines(history_path) - initial_events,
+                }
+                if phase:
+                    update_payload["phase"] = phase
+                if message:
+                    update_payload["message"] = message
+                update_job(job_id, **update_payload)
+            if _dt_now_monotonic() > deadline:
+                process.kill()
+                update_job(
+                    job_id,
+                    status="failed",
+                    phase="halted",
+                    message=(
+                        "Rotation subprocess exceeded the dashboard time cap"
+                        f" ({_ROTATION_SUBPROCESS_TIMEOUT_SECONDS // 60} min)."
+                        " Verify state with `npm run rotate --status`."
+                    ),
+                    error="timeout",
+                    finished_at=utc_now(),
+                )
+                return
+        exit_code = process.wait()
+    except Exception as exc:
+        update_job(
+            job_id,
+            status="failed",
+            phase="halted",
+            message=f"Subprocess error: {exc}",
+            error=str(exc),
+            finished_at=utc_now(),
+        )
+        return
+
+    # The receipt is the load-bearing trust signal; fish out the newest one for
+    # the rotated secret regardless of exit code (HALTs also write a receipt).
+    receipt_filename = _latest_receipt_filename_for(repo_path, secret)
+    receipt_url: str | None = None
+    if receipt_filename:
+        receipt_url = (
+            f"/api/rotation/receipts/{quote_path(repo_name)}/"
+            f"{quote_path(receipt_filename)}"
+        )
+
+    # Re-read rotation-state to map the final status to our coarse phase.
+    final_status: str | None = None
+    for row in read_rotation_status(repo_path):
+        if isinstance(row, dict) and row.get("secret") == secret:
+            final_status = str(row.get("status") or "")
+            break
+
+    terminal_phase = "verified"
+    if exit_code != 0:
+        terminal_phase = "halted"
+    elif final_status:
+        terminal_phase = _terminal_phase_from_status(final_status)
+
+    if exit_code == 0 and terminal_phase == "verified":
+        outcome_status = "complete"
+        outcome_message = "Rotation completed. Verification receipt available."
+    elif exit_code == 0 and terminal_phase == "halted":
+        # Skill exited cleanly after a HALT (it surfaces the receipt and exits 0
+        # when the HALT was clean and recovery info is preserved).
+        outcome_status = "halted"
+        outcome_message = "Rotation halted. The receipt names the recovery step."
+    else:
+        outcome_status = "failed"
+        outcome_message = (
+            "Rotation subprocess exited non-zero. Inspect stdout_tail and the"
+            " receipt (if any) for the failure mode."
+        )
+
+    update_job(
+        job_id,
+        status=outcome_status,
+        phase=terminal_phase,
+        message=outcome_message,
+        stdout_tail=list(tail),
+        exit_code=exit_code,
+        events_seen=_count_jsonl_lines(history_path) - initial_events,
+        receipt_filename=receipt_filename,
+        receipt_url=receipt_url,
+        verification_status=final_status,
+        finished_at=utc_now(),
+    )
+
+
+def _count_jsonl_lines(path: Path) -> int:
+    """Cheap line-count of a JSONL file. Returns 0 when absent or unreadable."""
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            return sum(1 for line in fh if line.strip())
+    except OSError:
+        return 0
+
+
+def _classify_stdout_line(line: str) -> tuple[str | None, str | None]:
+    """Map a npm-output line to (phase, message) updates for the job.
+
+    The skill prints phase headers like ``=== HEALTH_CHECK ===`` and JSON-style
+    event lines. We don't parse exhaustively; the receipt does that. This is
+    just enough to show the operator coarse progress in the dashboard.
+    """
+    trimmed = line.strip()
+    upper = trimmed.upper()
+    phase_map = {
+        "HEALTH_CHECK": ("health_check", "Pre-rotation health check."),
+        "PREFLIGHT": ("preflight", "Preflight checks."),
+        "ACQUIRE": ("acquire", "Acquiring the new value."),
+        "STAGE_CANARY": ("stage_canary", "Staging to canary."),
+        "VERIFY_CANARY": ("verify_canary", "Verifying canary."),
+        "STAGE_PROD": ("stage_prod", "Staging to production."),
+        "VERIFY_PROD": ("verify_prod", "Verifying production."),
+        "SOAK": ("soak", "Soaking — watching for auth-related errors."),
+        "GRACE": ("grace", "Holding old value during the grace window."),
+        "REVOKE": ("revoke", "Revoking the old value at the provider."),
+    }
+    for key, value in phase_map.items():
+        if key in upper:
+            return value
+    if "HALT" in upper or "HALTED" in upper:
+        return ("halted", trimmed[:200])
+    if "VERIFIED" in upper or "ROTATED" in upper:
+        return ("verified", trimmed[:200])
+    return (None, None)
+
+
+def _dt_now_monotonic() -> float:
+    """Monotonic clock for subprocess deadlines."""
+    import time as _time
+
+    return _time.monotonic()
+
+
+def quote_path(value: str) -> str:
+    """URL-encode one path segment (filenames, repo names)."""
+    from urllib.parse import quote as _quote
+
+    return _quote(value, safe="")
+
 
 SCANNER_LABELS = {
     "ai-static": "Inspecting AI and agent configuration",
@@ -1356,6 +1651,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             tail = parsed.path.removeprefix("/api/rotation/receipts/")
             self.serve_rotation_receipt(tail)
             return
+        if parsed.path.startswith("/api/rotation/jobs/"):
+            job_id = parsed.path.removeprefix("/api/rotation/jobs/").strip("/")
+            self.serve_rotation_job(job_id)
+            return
         if parsed.path.rstrip("/") == "/report":
             query = parse_qs(parsed.query)
             scan_id = query.get("scanId", [""])[0]
@@ -1443,6 +1742,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path.startswith("/api/rotation/scaffold/"):
             repo_name = parsed.path.removeprefix("/api/rotation/scaffold/")
             self.serve_rotation_scaffold_handoff(repo_name)
+            return
+        if parsed.path.startswith("/api/rotation/trigger/"):
+            repo_name = parsed.path.removeprefix("/api/rotation/trigger/")
+            self.serve_rotation_trigger(repo_name)
             return
         if parsed.path != "/api/run-check":
             self.send_error(404)
@@ -2180,6 +2483,184 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 ),
             }
         )
+
+    # ------------------------------------------------------------------
+    # POST /api/rotation/trigger/<repo>  +  GET /api/rotation/jobs/<id>
+    #
+    # Refuse-by-default Tier 5R action. The HTTP body MUST carry the exact
+    # confirmation phrase from docs/agent-safety.md (Tier 5R section). The
+    # dashboard shell-outs to `npm run rotate -- <SECRET> [flags]` inside
+    # the repo's working directory. Pipeline progress is exposed through the
+    # existing polled-job pattern — POST returns a job_id, GET /api/rotation/
+    # jobs/<id> returns the current snapshot. The rotation skill writes the
+    # verification receipt to `data/rotation-receipts/<name>.md`; once the
+    # subprocess exits the job points at the newest receipt for the secret
+    # so the frontend can render it verbatim.
+    #
+    # MCP boundary: rotation triggering does NOT go through MCP. This is the
+    # only write surface; the slash command path mirrors it.
+    # ------------------------------------------------------------------
+
+    def serve_rotation_trigger(self, repo_name: str) -> None:
+        try:
+            payload = self.read_json_body()
+        except (ValueError, json.JSONDecodeError):
+            self.send_json_error(400, "Request body must be valid JSON.")
+            return
+        secret = str(payload.get("secret") or "").strip()
+        if not _SAFE_SECRET_NAME_RE.match(secret):
+            self.send_json_error(
+                400,
+                "Provide a secret name matching ^[A-Z][A-Z0-9_]*$.",
+            )
+            return
+        confirmed = bool(payload.get("confirmed"))
+        confirmation_phrase = str(payload.get("confirmation_phrase") or "").strip()
+        expected_phrase = _rotation_confirmation_phrase(secret)
+        if not confirmed or confirmation_phrase != expected_phrase:
+            self.send_json_error(
+                400,
+                "Rotation requires the Tier 5R confirmation phrase from docs/agent-safety.md.",
+                expected_confirmation_phrase=expected_phrase,
+            )
+            return
+
+        options_raw = payload.get("options")
+        options = options_raw if isinstance(options_raw, dict) else {}
+        no_soak = bool(options.get("no_soak"))
+        ack_skipping_soak = bool(options.get("acknowledged_skipping_soak"))
+        if no_soak and not ack_skipping_soak:
+            self.send_json_error(
+                400,
+                "--no-soak skips the post-rotation soak gate. Set"
+                " options.acknowledged_skipping_soak=true to proceed.",
+            )
+            return
+        skip_health_check = bool(options.get("skip_health_check"))
+        ack_skipping_health = bool(options.get("acknowledged_skipping_health_check"))
+        if skip_health_check and not ack_skipping_health:
+            self.send_json_error(
+                400,
+                "--skip-health-check bypasses the pre-rotation baseline check. Set"
+                " options.acknowledged_skipping_health_check=true to proceed.",
+            )
+            return
+        soak_minutes_raw = options.get("soak_minutes")
+        soak_minutes: int | None
+        if soak_minutes_raw is None:
+            soak_minutes = None
+        else:
+            try:
+                soak_minutes = int(soak_minutes_raw)
+            except (TypeError, ValueError):
+                self.send_json_error(400, "options.soak_minutes must be an integer.")
+                return
+            if not 10 <= soak_minutes <= 60:
+                self.send_json_error(
+                    400,
+                    "options.soak_minutes must be between 10 and 60.",
+                )
+                return
+        test_mode = bool(options.get("test_mode"))
+
+        repo_path = self._resolve_repo_for_rotation(repo_name)
+        if repo_path is None:
+            self.send_json_error(404, "No scan history for that repo yet.")
+            return
+        if not repo_path.is_dir():
+            self.send_json_error(404, "Repo path is no longer on disk.")
+            return
+
+        rows = read_rotation_status(repo_path)
+        known_secrets = {row.get("secret") for row in rows if isinstance(row, dict)}
+        if not rows:
+            self.send_json_error(
+                409,
+                "Rotation isn't set up for this repo. Use 'Set up rotation' first.",
+            )
+            return
+        if secret not in known_secrets:
+            self.send_json_error(
+                404,
+                f"Secret {secret!r} isn't tracked by rotation in this repo.",
+                known_secrets=sorted(s for s in known_secrets if isinstance(s, str)),
+            )
+            return
+
+        command = ["npm", "run", "rotate", "--", secret]
+        if test_mode:
+            command.append("--test")
+        if no_soak:
+            command.append("--no-soak")
+        if skip_health_check:
+            command.append("--skip-health-check")
+        if soak_minutes is not None:
+            command.extend(["--soak-minutes", str(soak_minutes)])
+
+        clean_repo = repo_name.strip().strip("/")
+        job_id = uuid.uuid4().hex[:12]
+        job: dict[str, object] = {
+            "id": job_id,
+            "kind": "rotation",
+            "status": "queued",
+            "repo": clean_repo,
+            "repo_path": str(repo_path),
+            "secret": secret,
+            "command": " ".join(command),
+            "options": {
+                "no_soak": no_soak,
+                "skip_health_check": skip_health_check,
+                "soak_minutes": soak_minutes,
+                "test_mode": test_mode,
+                "acknowledged_skipping_soak": ack_skipping_soak,
+                "acknowledged_skipping_health_check": ack_skipping_health,
+            },
+            "phase": "queued",
+            "message": "Queued; about to shell out to the rotation skill.",
+            "stdout_tail": [],
+            "events_seen": 0,
+            "started_at": utc_now(),
+            "finished_at": None,
+            "exit_code": None,
+            "error": None,
+            "receipt_filename": None,
+            "receipt_url": None,
+            "verification_status": None,
+        }
+        with CHECK_JOBS_LOCK:
+            CHECK_JOBS[job_id] = job
+
+        # Audit-trail line written BEFORE the subprocess starts so the trigger
+        # is visible in `rotation_history` even if npm itself never runs.
+        _append_rotation_audit_event(
+            repo_path,
+            {
+                "rotation_id": None,
+                "secret_name": secret,
+                "step": "DASHBOARD_TRIGGER",
+                "outcome": "initiated",
+                "note": f"dashboard trigger; job_id={job_id}; command={' '.join(command)}",
+                "options": job["options"],
+            },
+        )
+
+        thread = threading.Thread(
+            target=_run_rotation_job,
+            args=(job_id, repo_path, secret, command, clean_repo),
+            daemon=True,
+        )
+        thread.start()
+        self.send_accepted_json({"job": job_snapshot(job_id)})
+
+    def serve_rotation_job(self, job_id: str) -> None:
+        if not job_id:
+            self.send_json_error(400, "Provide a rotation job_id.")
+            return
+        snapshot = job_snapshot(job_id)
+        if not snapshot or str(snapshot.get("kind") or "") != "rotation":
+            self.send_json_error(404, "Rotation job not found.")
+            return
+        self.send_json({"job": snapshot})
 
     def trigger_honey_key(self, parsed, *, method: str) -> None:
         length = int(self.headers.get("Content-Length", "0") or "0")

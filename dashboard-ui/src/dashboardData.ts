@@ -558,6 +558,86 @@ export type RotationScaffoldHandoff =
       message: string;
     };
 
+// Coarse phase vocabulary the dashboard surfaces while a rotation is running.
+// Mirrors dashboard_server._classify_stdout_line in Python. Words, not symbols.
+export type RotationJobPhase =
+  | 'queued'
+  | 'initiated'
+  | 'health_check'
+  | 'preflight'
+  | 'acquire'
+  | 'stage_canary'
+  | 'verify_canary'
+  | 'stage_prod'
+  | 'verify_prod'
+  | 'soak'
+  | 'grace'
+  | 'revoke'
+  | 'verified'
+  | 'halted'
+  | 'unknown';
+
+export type RotationJobStatus =
+  | 'queued'
+  | 'running'
+  | 'complete'
+  | 'halted'
+  | 'failed';
+
+export type RotationJob = {
+  id: string;
+  kind: 'rotation';
+  status: RotationJobStatus;
+  repo: string;
+  repo_path: string;
+  secret: string;
+  command: string;
+  options: {
+    no_soak: boolean;
+    skip_health_check: boolean;
+    soak_minutes: number | null;
+    test_mode: boolean;
+    acknowledged_skipping_soak: boolean;
+    acknowledged_skipping_health_check: boolean;
+  };
+  phase: RotationJobPhase | string;
+  message: string;
+  stdout_tail: string[];
+  events_seen: number;
+  started_at: string | null;
+  finished_at: string | null;
+  exit_code: number | null;
+  error: string | null;
+  receipt_filename: string | null;
+  receipt_url: string | null;
+  verification_status: string | null;
+};
+
+export type RotationTriggerOptions = {
+  no_soak?: boolean;
+  acknowledged_skipping_soak?: boolean;
+  skip_health_check?: boolean;
+  acknowledged_skipping_health_check?: boolean;
+  soak_minutes?: number;
+  test_mode?: boolean;
+};
+
+export type RotationTriggerRequest = {
+  secret: string;
+  confirmed: true;
+  confirmation_phrase: string;
+  options?: RotationTriggerOptions;
+};
+
+/**
+ * Tier 5R confirmation phrase from docs/agent-safety.md. The dashboard modal
+ * and the slash command both substitute the secret name into this string; the
+ * server refuses any other shape. Single source of truth for the wire format.
+ */
+export function rotationConfirmationPhrase(secret: string): string {
+  return `Yes, rotate \`${secret}\` and accept the irreversible provider-side change.`;
+}
+
 export type HoneyKeyStatus = 'active' | 'triggered' | 'archived';
 
 export type HoneyKey = {

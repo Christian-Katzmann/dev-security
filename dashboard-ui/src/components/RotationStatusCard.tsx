@@ -9,6 +9,7 @@ import {
   RotationStatusPayload,
   formatDate,
 } from '../dashboardData';
+import RotationTriggerFlow from './RotationTriggerFlow';
 
 type RotationStatusCardProps = {
   repo: ProjectRepo;
@@ -106,6 +107,7 @@ export default function RotationStatusCard({repo, precomputed}: RotationStatusCa
   const [handoff, setHandoff] = useState<RotationScaffoldHandoff | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [rotateTarget, setRotateTarget] = useState<RotationSecretRow | null>(null);
 
   const loadStatus = useCallback(async () => {
     setIsLoading(true);
@@ -248,7 +250,19 @@ export default function RotationStatusCard({repo, precomputed}: RotationStatusCa
           in this repo to register secrets.
         </p>
       ) : (
-        <RotationSecretsList secrets={secrets} />
+        <RotationSecretsList secrets={secrets} onRotate={setRotateTarget} />
+      )}
+
+      {rotateTarget && (
+        <RotationTriggerFlow
+          repo={repo}
+          secret={rotateTarget}
+          onClose={() => setRotateTarget(null)}
+          onDone={() => {
+            void loadStatus();
+            setHistory(null);
+          }}
+        />
       )}
 
       {signal?.scaffolded && (
@@ -288,11 +302,19 @@ export default function RotationStatusCard({repo, precomputed}: RotationStatusCa
   );
 }
 
-function RotationSecretsList({secrets}: {secrets: RotationSecretRow[]}) {
+function RotationSecretsList({
+  secrets,
+  onRotate,
+}: {
+  secrets: RotationSecretRow[];
+  onRotate: (row: RotationSecretRow) => void;
+}) {
   return (
     <div className="grid gap-2">
       {secrets.map((row) => {
         const imminent = needsImminentRevoke(row);
+        const rotatable =
+          row.status !== 'WAITING_FOR_PASTE' && row.status !== 'unknown';
         return (
           <article
             key={row.secret}
@@ -341,6 +363,22 @@ function RotationSecretsList({secrets}: {secrets: RotationSecretRow[]}) {
                     <span>Due: {formatDate(row.next_rotation_due)}</span>
                   )}
                 </div>
+              </div>
+              <div className="flex md:flex-col items-start md:items-end gap-2">
+                <button
+                  type="button"
+                  disabled={!rotatable}
+                  onClick={() => onRotate(row)}
+                  className="inline-flex items-center justify-center gap-2 border border-black bg-black text-white px-3 py-2 font-mono text-[10px] uppercase tracking-widest hover:bg-[#222] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  title={
+                    rotatable
+                      ? `Rotate ${row.secret}`
+                      : 'This secret is mid-flight or in an unknown state.'
+                  }
+                >
+                  <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.5} />
+                  Rotate
+                </button>
               </div>
             </div>
           </article>
