@@ -65,7 +65,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 ### Phase 4 — End-to-end verification
 
 - [x] Step 4.1 — Manual run-through in a fresh Claude Code session; rotate a synthetic secret from each surface
-- [ ] Final review
+- [x] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
 
