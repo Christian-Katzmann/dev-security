@@ -46,7 +46,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 0 — Self-recalibrate before doing anything
 
-- [ ] Step 0.1 — Verify campaigns 1-3 complete; audit their actual outputs; surgically edit Phase 1-3 prompts to reference real artifacts
+- [x] Step 0.1 — Verify campaigns 1-3 complete; audit their actual outputs; surgically edit Phase 1-3 prompts to reference real artifacts
 
 ### Phase 1 — Add rotation MCP read tools
 
@@ -153,9 +153,18 @@ Do not start any new work. This step is exclusively about ensuring the rest of t
 Model: Opus 4.7 · Extra High / GPT-5.5 · Extra High
 Parallel: NO
 
-(populated by Step 0.1 — required reading and acceptance criteria below assume the post-campaign-1 MCP shape, which may have shifted)
+**Updated by Step 0.1: confirmed post-campaign-1 MCP shape (8 tools), captured the rotation state-file path the new tools read, and named the `instructions`-field update the tool addition implies.** Phase-0 audit lives at `campaigns/devsec-rotation-integration/notes/phase-0-audit.md` — read it first.
 
 Add two read-only tools to the existing devsec MCP server. They expose the rotation skill's state files to agents so the agent can answer "what's the rotation state of X repo?" without shelling out.
+
+The current 8 tools (per the audit): `list_repos`, `latest_scan`, `scan_history`, `findings`, `cases` (with `scan_id=` parameter from campaign 1), `recovery_playbook`, `dependency_trust`, `honey_keys`. All read-only. Adding `rotation_status` + `rotation_history` brings the surface to 10.
+
+The rotation skill writes its state files into the scaffolded target repo at:
+- `data/rotation-state.json` — per-secret state map (read by `rotation_status`).
+- `data/rotation-log.jsonl` — newline-delimited events (read by `rotation_history`).
+- `data/rotation-receipts/<secret>-<timestamp>.md` — verification reports (referenced by path; not parsed by the MCP tools).
+
+The MCP server has no knowledge of "repos with rotation set up" today — it only knows scan-tracked repos. The new tools must resolve `repo` against the same repo-name vocabulary as the existing tools (i.e. `list_repos()` is the authoritative list) and then look for `data/rotation-state.json` inside the repo's path on disk. The scan record carries `repo_path`; reuse it via `_latest_scan` or `db.latest_scan_for_repo(repo).get("repo_path")` rather than inventing a new resolver.
 
 **Tool: `rotation_status(repo)`** — returns the current rotation state for every secret in the named repo. Reads from `<repo>/data/rotation-state.json` (the file the rotation skill writes). Returns:
 
@@ -211,13 +220,13 @@ Commit: one clean commit, `Add rotation_status and rotation_history MCP tools`. 
 SCOPE: Add two MCP read tools to the existing devsec server — rotation_status(repo) and rotation_history(repo). Wrap the rotation skill's state files. Read-only; no rotation triggering through MCP.
 
 REQUIRED READING:
-1. campaigns/devsec-rotation-integration/notes/phase-0-audit.md (audit findings)
-2. src/security_observatory/mcp_server.py (the existing 8-tool surface to extend)
-3. tests/test_mcp_server.py (test pattern)
-4. ~/.claude/skills/secrets-rotation/templates/lib/state.ts.tmpl — the state-file shape the tools read
-5. campaigns/devsec-rotation-foundation/notes/sample-receipts/ — sample state files if available, for fixture inspiration
-6. mcp/README.md — tool table to update
-7. (populated by Step 0.1) — any tool-count or naming shifts from campaigns 1-2
+1. campaigns/devsec-rotation-integration/notes/phase-0-audit.md (audit findings — read FIRST; "MCP tool inventory" section names the 8 existing tools and the `instructions` field text that needs updating)
+2. src/security_observatory/mcp_server.py (the existing 8-tool surface to extend; `DEVSEC_MCP_INSTRUCTIONS` constant at line 33 carries the doctrine distillation that must mention rotation visibility after this step)
+3. tests/test_mcp_server.py (test pattern — the `test_server_lists_expected_tools` assertion is the tool-count gate; was 8, becomes 10)
+4. ~/.claude/skills/secrets-rotation/templates/lib/state.ts.tmpl — the state-file shape the tools read (the skill writes `data/rotation-state.json` and `data/rotation-log.jsonl` into the target repo)
+5. campaigns/devsec-rotation-foundation/notes/sample-receipts/ — sample receipt files (NOT state files); useful for understanding the receipt path shape returned by the tools
+6. mcp/README.md — tool table to update (tool count goes 8 → 10)
+7. ~/.claude/skills/secrets-rotation/SKILL.md — confirms the v0.2 state-file layout and the unified `npm run rotate` entry point for both Vercel and Python CLI repos (no per-stack branching needed in the MCP tools either)
 
 OUTPUT:
 - src/security_observatory/mcp_server.py — two new tools added
@@ -236,7 +245,7 @@ OPEN QUESTIONS:
 Model: Opus 4.7 · Extra High / GPT-5.5 · Extra High
 Parallel: NO
 
-(populated by Step 0.1 — references to existing dashboard components below assume the current React UI layout)
+**Updated by Step 0.1: confirmed dashboard layout (single-file `dashboard_server.py` + React UI under `dashboard-ui/`); named `HoneyKeysView.tsx` as the closest component analog (status list with per-row actions); confirmed no SSE/WebSocket pattern in the dashboard today (Step 2.2 will use a polled-job pattern instead).** No existing "rotation card" in the dashboard — the existing string matches for "rotation" are unrelated (case-level `rotation_surfaces` for install-hooks cases; incident-response checklist items). No duplication risk.
 
 Add a read-only "Rotation Status" card to the DëvSec dashboard. Shows per-secret status (matching the skill's status board UX). For repos where rotation isn't set up, show a "Set up rotation" CTA instead.
 
@@ -283,12 +292,13 @@ Acceptance criteria:
 SCOPE: Add a read-only "Rotation Status" card to the DëvSec dashboard with per-secret status display and a "Set up rotation" CTA for repos where it's not yet scaffolded. Add backend endpoints and scan-time detection.
 
 REQUIRED READING:
-1. src/security_observatory/dashboard_server.py — existing endpoints + pattern
-2. dashboard-ui/ — existing card components (find the closest analog — a stable read-only card to mimic)
-3. src/security_observatory/scanners.py — scan orchestration (where rotation-state detection slots in)
-4. docs/agent-voice.md — voice for all UI strings
-5. campaigns/devsec-rotation-integration/notes/phase-0-audit.md (audit findings)
-6. (populated by Step 0.1) — exact dashboard React component conventions
+1. src/security_observatory/dashboard_server.py — existing endpoints + pattern (single-file ThreadingHTTPServer, ~2055 lines; `/api/<noun>/<action>` route convention; polled-job pattern via `CHECK_JOBS` + `CHECK_JOBS_LOCK` for long-running ops — match this, don't introduce SSE/WebSocket)
+2. dashboard-ui/src/components/HoneyKeysView.tsx — closest component analog; status list with per-row actions; React + lucide-react icons + tailwind + reads from `dashboardData.ts`
+3. dashboard-ui/src/dashboardData.ts — the typed model and fetch layer the new card must extend
+4. src/security_observatory/scanners.py — scan orchestration (where rotation-state detection slots in)
+5. docs/agent-voice.md — voice for all UI strings
+6. campaigns/devsec-rotation-integration/notes/phase-0-audit.md (audit findings)
+7. ~/.claude/skills/secrets-rotation/SKILL.md — the state-file layout the backend tools read (`data/rotation-state.json` per scaffolded repo; absent = "Set up rotation" CTA)
 
 OUTPUT:
 - src/security_observatory/dashboard_server.py — three new endpoints with path-traversal safety
@@ -309,7 +319,9 @@ OPEN QUESTIONS:
 Model: Opus 4.7 · Extra High / GPT-5.5 · Extra High
 Parallel: NO
 
-(populated by Step 0.1 — confirmation language pulled from docs/agent-safety.md Tier 5 template)
+**Updated by Step 0.1: HARD DOCTRINE DIVERGENCE — the current `docs/agent-safety.md` reserves Tier 5 for "Touch Defensive Instrumentation" (Honey Keys), not rotation.** The campaign's locked decision ("Rotation is Tier 5") was written before campaign 2 finalized the doctrine; the Tier 5 confirmation phrases ("I understand this changes defensive instrumentation" / "Yes, modify the defensive instrumentation despite the risk") are about Honey Keys and cannot be reused verbatim for rotation. See `phase-0-audit.md` §"DIVERGENCE — Tier 5 doctrine mismatch" for the full analysis.
+
+**Resolution this step MUST implement:** before writing the rotation modal copy, extend `docs/agent-safety.md` with a rotation-specific subsection (recommended: a new "Rotation" subsection slotted between Tier 4 and Tier 5, OR a documented Tier 3-with-elevated-confirmation subsection — pick the shape that fits cleanest with the existing six-tier structure). The modal then uses the language defined in that subsection. Suggested confirmation phrase: `"Yes, rotate <SECRET> and accept the irreversible provider-side change."` Adapt as the doctrine extension authors it. The streaming pattern is **polled-job** (the dashboard has no SSE/WebSocket infrastructure today): POST returns `job_id`; client polls `GET /api/rotation/jobs/<job_id>` for current pipeline phase.
 
 Add the rotation trigger UI to the dashboard. Per-secret "Rotate now" button. Confirmation modal in DëvSec's voice using the Tier 5 template. Shell-out execution. Verification report rendered inline once complete.
 
@@ -317,7 +329,7 @@ Add the rotation trigger UI to the dashboard. Per-secret "Rotate now" button. Co
 
 Add new endpoint:
 
-- `POST /api/rotation/trigger/<repo>` — accepts JSON body `{ "secret": "AUTH_SECRET", "confirmed": true, "options": { "no_soak": false, "soak_minutes": 15 } }`. Shells out to the rotation skill via subprocess. Streams progress back to the client (server-sent events or WebSocket — match the existing dashboard pattern; if neither exists yet, use long-poll). On completion, returns the verification receipt path + status.
+- `POST /api/rotation/trigger/<repo>` — accepts JSON body `{ "secret": "AUTH_SECRET", "confirmed": true, "options": { "no_soak": false, "soak_minutes": 15 } }`. Shells out to the rotation skill via subprocess (`cd <repo_path> && npm run rotate -- <secret>` — unified entry per the v0.2 skill, no per-stack branch needed). Returns `{ "job_id": "<uuid>" }` immediately. Pipeline phases stream via the existing polled-job pattern (`CHECK_JOBS` + `CHECK_JOBS_LOCK` in `dashboard_server.py`; see `dashboard_environment_signal` and `job_snapshot` for the pattern). A companion `GET /api/rotation/jobs/<job_id>` returns the current pipeline phase + the verification receipt path once terminal.
 
 Safety:
 
@@ -370,18 +382,20 @@ Acceptance criteria:
 SCOPE: Add the rotation trigger UI (button + confirmation modal + progress panel + verification report rendering) to the DëvSec dashboard. Tier 5 confirmation language. Shell-out execution.
 
 REQUIRED READING:
-1. docs/agent-safety.md — Tier 5 confirmation language template (this is the exact copy for the modal)
-2. docs/agent-voice.md — voice principles for the modal copy and progress messages
-3. campaigns/devsec-agent-doctrine/notes/calibration-examples.md #10 — Security Brief format for the verification report rendering
-4. src/security_observatory/dashboard_server.py — existing endpoint + streaming patterns
-5. dashboard-ui/ — existing modal + progress UI components to reuse
-6. ~/.claude/skills/secrets-rotation/templates/lib/errors.ts.tmpl — plain-English error messages for HALT cases
-7. ~/.claude/skills/secrets-rotation/templates/rotate.ts.tmpl — the entry point being shelled out to
-8. campaigns/devsec-rotation-integration/notes/phase-0-audit.md (audit findings)
+1. campaigns/devsec-rotation-integration/notes/phase-0-audit.md — read FIRST; the "DIVERGENCE — Tier 5 doctrine mismatch" section is load-bearing for this step
+2. docs/agent-safety.md — six-tier model; **Tier 5 is HONEY KEYS, not rotation.** Read all six tiers before drafting the modal. The rotation subsection this step adds slots into this doc.
+3. docs/agent-voice.md — voice principles for the modal copy, progress messages, and the rotation subsection language
+4. campaigns/devsec-rotation-foundation/notes/sample-receipts/01-success-class-a-python-cli.md, 02-in-grace-class-b-api-vercel.md, 03-halted-at-health-check-vercel.md — the actual receipt shapes the dashboard renders (markdown, rendered verbatim — no shape translation)
+5. src/security_observatory/dashboard_server.py — `CHECK_JOBS` / `CHECK_JOBS_LOCK` / `job_snapshot` / `update_job` are the polled-job primitives; match this pattern, do not introduce SSE/WebSocket
+6. dashboard-ui/src/components/HoneyKeysView.tsx — closest analog for confirmation-modal + per-row action flow
+7. ~/.claude/skills/secrets-rotation/templates/lib/errors.ts.tmpl — plain-English error messages for HALT cases (the dashboard's HALT panel shows these verbatim)
+8. ~/.claude/skills/secrets-rotation/templates/rotate.ts.tmpl — the entry point being shelled out to
+9. ~/.claude/skills/secrets-rotation/SKILL.md — confirms `npm run rotate -- <SECRET>` is the unified entry for both Vercel and Python CLI
 
 OUTPUT:
-- src/security_observatory/dashboard_server.py — POST /api/rotation/trigger endpoint
-- dashboard-ui/ — RotateButton, RotationConfirmationModal, RotationProgressPanel, VerificationReportRenderer components
+- docs/agent-safety.md — NEW rotation subsection (added BEFORE the modal is written; the doctrine is the source of truth)
+- src/security_observatory/dashboard_server.py — POST /api/rotation/trigger + GET /api/rotation/jobs/<id> (polled-job pattern, not SSE)
+- dashboard-ui/ — RotateButton, RotationConfirmationModal (copy from the new agent-safety.md subsection), RotationProgressPanel, VerificationReportRenderer components
 - Audit log integration (rotation triggers captured in scan history)
 - One git commit; do not push
 
@@ -397,7 +411,7 @@ OPEN QUESTIONS:
 Model: Opus 4.7 · Extra High / GPT-5.5 · Extra High
 Parallel: NO
 
-(populated by Step 0.1 — references to other slash commands and the doctrine voice section will be exact paths post-campaign-2)
+**Updated by Step 0.1:** (1) confirmed slash-command convention from `~/.claude/commands/devsec-pr.md` — YAML frontmatter (`name`, `description`, `argument-hint`) → named body sections → mandatory `## Voice` section → optional Tier note → `## Rules`. (2) The unified entry point is `npm run rotate -- <SECRET>` (the v0.2 skill's `selectAdapter` dispatches per-stack inside `rotate.ts.tmpl`; no per-stack branching in the slash command). The `rotate <SECRET>` zsh alias is the operator-friendly form and may be offered by the command but the raw `npm run rotate -- <SECRET>` form is the one to invoke programmatically (handles the npm flag-eating quirk explicitly). (3) **Tier divergence:** as called out in Step 2.2's update, `docs/agent-safety.md` does NOT have a rotation tier today — Tier 5 is Honey Keys. If Step 2.2 has already extended the doctrine, this step uses that subsection verbatim. If Step 2.2 ran in parallel and the doctrine has not yet been extended, this step performs the doctrine extension first.
 
 Add a new slash command at `~/.claude/commands/devsec-rotate.md` that triggers rotation via shell-out to the skill, in the agent context. Same architectural pattern as the planned `/devsec-watch`.
 
@@ -411,7 +425,7 @@ Behavior:
   - The grace window (default 24h for Class B).
   - What "verified" will mean here (provider ✓, application probe ✓, soak ✓).
 - Wait for the user's explicit confirmation (in chat, as a typed "yes" or equivalent).
-- On confirm, shell out to the rotation skill: `cd <repo> && npm run rotate <secret>` (or the appropriate Python CLI command per the v0.2 adapter unification — populated by Step 0.1).
+- On confirm, shell out to the rotation skill: `cd <repo> && npm run rotate -- <secret>`. The `--` separator is required (npm consumes flags before passing to the script). The v0.2 skill's `selectAdapter` dispatches Vercel vs Python CLI internally — no per-stack branching in the slash command.
 - Tail the subprocess output. Render pipeline steps as they happen in the agent's voice.
 - When the verification receipt is written, read it and surface the contents to the user (NOT a wall of subprocess output; the receipt is the curated version).
 
@@ -445,14 +459,15 @@ Acceptance criteria:
 SCOPE: Write ~/.claude/commands/devsec-rotate.md slash command that shells out to the rotation skill, with full Tier 5 confirmation per docs/agent-safety.md. Update /devsec menu to surface it.
 
 REQUIRED READING:
-1. ~/.claude/commands/devsec.md (home dashboard; menu update target)
-2. ~/.claude/commands/devsec-fix.md (closest sibling — reference handoff command)
-3. ~/.claude/commands/devsec-pr.md (similar pattern — write-action command with confirmation gates)
-4. docs/agent-voice.md (voice for all command output)
-5. docs/agent-safety.md (Tier 5 template — exact confirmation language)
-6. campaigns/devsec-agent-doctrine/notes/calibration-examples.md #10 (Security Brief format for surfacing the receipt)
-7. ~/.claude/skills/secrets-rotation/SKILL.md (the skill being shelled out to)
-8. campaigns/devsec-rotation-integration/notes/phase-0-audit.md (audit findings — exact entry point command per adapter)
+1. campaigns/devsec-rotation-integration/notes/phase-0-audit.md — read FIRST; "Tier 5 doctrine mismatch" and "Skill invocation entry point" sections inform the modal language and shell-out command
+2. ~/.claude/commands/devsec.md (home dashboard; menu update target — add the new row to its commands menu table)
+3. ~/.claude/commands/devsec-pr.md (closest sibling — write-action command with frontmatter + confirmation gate + Voice section + Tier note + Rules)
+4. ~/.claude/commands/devsec-fix.md (reference handoff command, simpler shape)
+5. docs/agent-voice.md (voice for all command output)
+6. docs/agent-safety.md — six-tier model; **the new rotation subsection** (added in Step 2.2 OR added by this step if 2.2 didn't run yet) is where the confirmation language lives. Do NOT use Tier 5 verbatim — Tier 5 is Honey Keys.
+7. campaigns/devsec-agent-doctrine/notes/calibration-examples.md #10 (Security Brief format for surfacing the receipt)
+8. campaigns/devsec-rotation-foundation/notes/sample-receipts/01-success-class-a-python-cli.md, 02-in-grace-class-b-api-vercel.md, 03-halted-at-health-check-vercel.md — actual receipt shapes to surface verbatim
+9. ~/.claude/skills/secrets-rotation/SKILL.md — the skill being shelled out to; entry point is `npm run rotate -- <SECRET>` (unified across stacks)
 
 OUTPUT:
 - ~/.claude/commands/devsec-rotate.md (new)
@@ -461,7 +476,7 @@ OUTPUT:
 OPEN QUESTIONS:
 - How to handle the case where the secret name is ambiguous across multiple repos (e.g., AUTH_SECRET in two of Christian's repos)? Lean: list all matches, ask the user to pick by repo:secret.
 - The agent's chat output during rotation should be live (each pipeline step surfaced as it happens) or summary (only the final receipt)? Lean: live, but pruned — surface step names and outcomes as one-liners, not raw subprocess output.
-- Tier 5 confirmation: in slash commands the user types confirmation in chat ("yes, rotate"). What's the exact phrase per agent-safety.md? Pull it verbatim. Don't paraphrase.
+- Confirmation language: in slash commands the user types confirmation in chat. The exact phrase comes from the **rotation subsection of docs/agent-safety.md** (added in Step 2.2, or added here if 2.2 hasn't run yet). Tier 5 verbatim is wrong — Tier 5 is Honey Keys. Use the rotation subsection's phrase verbatim once it exists.
 ```
 
 ## Step 3.2 — Case rendering: secrets-category cases get "Rotate this" affordance
@@ -469,7 +484,7 @@ OPEN QUESTIONS:
 Model: Opus 4.7 · Extra High / GPT-5.5 · Extra High
 Parallel: NO
 
-(populated by Step 0.1 — case shape and rendering surfaces per the post-campaign-1 cases tool)
+**Updated by Step 0.1: case payload shape (post-campaign-1) is locked in `src/security_observatory/mcp_server.py` _case_payload — it exposes `id`, `title`, `plain_english_risk`, `severity`, `category`, `action_level`, `confidence`, `affected_files`, `suggested_steps`, `agent_handoff_prompt`, `status`. There is NO `env_var_name` or `package_name` field at the case level today.** Secret-name inference must work from `affected_files` paths + `agent_handoff_prompt` text + the rotation catalog (`~/.claude/skills/secrets-rotation/catalog.json`), and ASK the user when inference is uncertain. Same Tier-5 doctrine note applies: the dashboard "Rotate this" button reuses the modal from Step 2.2 with its rotation-subsection language, not Tier 5 verbatim.
 
 Update case rendering across surfaces so when a case is in the `secrets` category AND rotation is available for the repo, the case carries a "Rotate this" affordance. Three surfaces:
 
@@ -478,8 +493,9 @@ Update case rendering across surfaces so when a case is in the `secrets` categor
 3. **`/devsec-fix` slash command.** When the user asks for the playbook for the `secrets` category, the playbook output should include "If rotation is set up: `/devsec-rotate <secret>` collapses these manual steps into one click."
 
 The inference from "exposed secret finding" → "rotatable secret name" needs care:
-- If the finding includes `package_name` or `env_var_name` metadata, use that.
-- If the finding only has a file path and a redacted evidence excerpt, ask the user which env var this maps to.
+- The case payload (per audit) exposes `affected_files`, `agent_handoff_prompt`, `plain_english_risk`. There is NO `env_var_name` or `package_name` field at the case level — those would need to be parsed from the prompt text or read from the underlying finding.
+- Cross-reference against the rotation catalog (`~/.claude/skills/secrets-rotation/catalog.json`) using known prefixes (e.g., `sk-ant-` → ANTHROPIC_API_KEY, `ghp_` → GITHUB_TOKEN). The catalog ships with `key_prefix` entries for this purpose.
+- If only a file path and a redacted evidence excerpt are available, ask the user which env var this maps to.
 - Don't guess. Wrong-secret rotation is worse than no rotation.
 
 Acceptance criteria:
@@ -488,7 +504,7 @@ Acceptance criteria:
 - Dashboard case card shows the "Rotate this" button conditionally.
 - `/devsec-fix secrets` playbook output mentions the rotation path.
 - The secret-name inference is conservative — never silently picks the wrong secret. When ambiguous, asks the user.
-- All three surfaces follow the voice doctrine and Tier 5 confirmation language.
+- All three surfaces follow the voice doctrine and the rotation-subsection confirmation language from docs/agent-safety.md (NOT Tier 5 — Tier 5 is Honey Keys).
 
 ```text
 /skill-creator
