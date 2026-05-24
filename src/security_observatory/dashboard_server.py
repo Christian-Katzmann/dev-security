@@ -10,7 +10,9 @@ import html
 import json
 import os
 import re
+import shutil
 import sqlite3
+import subprocess
 import threading
 import uuid
 import webbrowser
@@ -1393,6 +1395,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/managed-tools/uninstall":
             self.uninstall_managed_tool()
             return
+        if parsed.path == "/api/tools/install-via-pkg":
+            self.install_via_homebrew()
+            return
         if parsed.path != "/api/run-check":
             self.send_error(404)
             return
@@ -1505,6 +1510,70 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             )
         except ManagedToolInstallError as exc:
             self.send_error(400, str(exc))
+        except Exception as exc:
+            self.send_error(500, str(exc))
+
+    def install_via_homebrew(self) -> None:
+        # Catalog declares each tool's install method (homebrew, uv tool, manual, ...).
+        # For method=homebrew we can run `brew install <binary>` on the user's behalf
+        # because the binary name is part of the catalog contract — not user input.
+        try:
+            payload = self.read_json_body()
+            tool_id = str(payload.get("toolId") or payload.get("tool_id") or "").strip()
+            if not payload.get("confirmHomebrewInstall"):
+                self.send_error(400, "Confirm Homebrew install before running brew.")
+                return
+            db = ObservatoryDB(self.db_path)
+            try:
+                managed_tool_records = db.list_managed_tools()
+            finally:
+                db.close()
+            tool = _catalog_tool(tool_id, managed_tool_records)
+            if tool is None:
+                self.send_error(404, f"Tool {tool_id!r} not in catalog.")
+                return
+            install = tool.get("install") or {}
+            if install.get("method") != "homebrew":
+                self.send_error(400, f"Tool {tool_id!r} is not a Homebrew install (method={install.get('method')!r}).")
+                return
+            binary = str(install.get("binary") or "").strip()
+            if not re.match(r"^[a-z0-9][a-z0-9._-]*$", binary):
+                self.send_error(400, f"Refusing to run brew with binary name {binary!r}.")
+                return
+            brew = shutil.which("brew")
+            if not brew:
+                self.send_error(500, "Homebrew is not installed. Install Homebrew first: https://brew.sh")
+                return
+            env = {
+                **os.environ,
+                "HOMEBREW_NO_AUTO_UPDATE": "1",
+                "HOMEBREW_NO_ANALYTICS": "1",
+                "HOMEBREW_NO_ENV_HINTS": "1",
+            }
+            result = subprocess.run(
+                [brew, "install", binary],
+                capture_output=True,
+                text=True,
+                timeout=600,
+                env=env,
+            )
+            success = result.returncode == 0
+            db = ObservatoryDB(self.db_path)
+            try:
+                managed_tool_records = db.list_managed_tools()
+            finally:
+                db.close()
+            refreshed = _catalog_tool(tool_id, managed_tool_records)
+            self.send_json({
+                "tool": refreshed,
+                "success": success,
+                "returncode": result.returncode,
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "command": f"brew install {binary}",
+            })
+        except subprocess.TimeoutExpired:
+            self.send_error(504, "brew install timed out after 600s.")
         except Exception as exc:
             self.send_error(500, str(exc))
 

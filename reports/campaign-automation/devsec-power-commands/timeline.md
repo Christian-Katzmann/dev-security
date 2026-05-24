@@ -1,0 +1,71 @@
+# Campaign Automation Timeline
+
+- Campaign: `devsec-power-commands`
+- Title: `1 · Three differentiator commands for the DëvSec MCP`
+- Repo: `/Users/christiankatzmann/Dev/Projects/dëv-security`
+- Campaign file: `/Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/devsec-power-commands.md`
+- Created: `2026-05-24T12:28:53+00:00`
+- Model: `gpt-5.5`
+- Reasoning effort: `xhigh`
+
+- `2026-05-24T12:29:46+00:00` Verified automation `campaign-devsec-power-commands` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T12:29:52+00:00` Created automation `campaign-devsec-power-commands` for step 1.1 Add `honey_keys`, `scan_history`, and `scan_id`-aware `cases` to mcp_server.py (tool + tests + docs + commit).
+- `2026-05-24T12:31:33+00:00` Automation `campaign-devsec-power-commands` has no scheduler run in the Codex app registry.
+- `2026-05-24T12:31:53+00:00` Automation `campaign-devsec-power-commands` has no scheduler run in the Codex app registry.
+- `2026-05-24T12:32:13+00:00` Automation `campaign-devsec-power-commands` has no scheduler run in the Codex app registry.
+- `2026-05-24T12:32:33+00:00` Verified automation `campaign-devsec-power-commands` launched thread `019e59f8-dcb3-7e90-a658-2d18c967cf00` with status `IN_PROGRESS`.
+- `2026-05-24T12:42:03+00:00` Completed Step 1.1; parser advanced to Step 2.1.
+- `2026-05-24T12:43:28+00:00` Registered fallback automation `campaign-devsec-power-commands-step-2-1-20260524T124243Z` for Step 2.1 at 2026-05-24T14:45:00+02:00.
+- `2026-05-24T12:43:37+00:00` Verified fallback automation campaign-devsec-power-commands-step-2-1-20260524T124243Z is ACTIVE in the Codex app registry.
+- `2026-05-24T12:43:44+00:00` Recorded next automation campaign-devsec-power-commands-step-2-1-20260524T124243Z for Step 2.1.
+- `2026-05-24T12:43:54+00:00` Released current-run lock before observing fallback scheduler launch for Step 2.1.
+- `2026-05-24T12:45:33+00:00` Verified fallback automation campaign-devsec-power-commands-step-2-1-20260524T124243Z launched from the scheduler.
+- `2026-05-24T12:45:44+00:00` Paused current automation campaign-devsec-power-commands after Step 2.1 fallback launch was verified.
+- `2026-05-24T12:45:54+00:00` Recorded current automation campaign-devsec-power-commands as PAUSED in campaign state.
+- `2026-05-24T12:45:54+00:00` Verified current automation campaign-devsec-power-commands is PAUSED in the Codex app registry.
+- `2026-05-24T12:48:35+00:00` Completed Step 2.1 (/devsec-diff); parser advanced to Step 2.2.
+- `2026-05-24T12:49:48+00:00` Registered fallback automation `campaign-devsec-power-commands-step-2-2-20260524T124948Z` for Step 2.2 at 2026-05-24T14:51:00+02:00.
+- `2026-05-24T12:49:55+00:00` Verified fallback automation campaign-devsec-power-commands-step-2-2-20260524T124948Z is ACTIVE in the Codex app registry.
+- `2026-05-24T12:49:55+00:00` Recorded automation campaign-devsec-power-commands-step-2-2-20260524T124948Z for Step 2.2.
+- `2026-05-24T12:50:02+00:00` Released Step 2.1 lock before fallback run observation so the Step 2.2 scheduler launch can acquire the campaign.
+- `2026-05-24T12:51:59+00:00` Verified fallback automation campaign-devsec-power-commands-step-2-2-20260524T124948Z launched a scheduler run for Step 2.2.
+- `2026-05-24T12:51:59+00:00` Paused current automation campaign-devsec-power-commands-step-2-1-20260524T124243Z after Step 2.2 launch was proven.
+- `2026-05-24T12:51:59+00:00` Verified current automation campaign-devsec-power-commands-step-2-1-20260524T124243Z is PAUSED in the Codex app registry.
+- `2026-05-24T12:54:39+00:00` Completed Step 2.2 (/devsec-pr); parser advanced to Step 2.3.
+- `2026-05-24T12:55:26+00:00` Registered fallback automation `campaign-devsec-power-commands-step-2-3-20260524T125526Z` for Step 2.3 at 2026-05-24T14:57:00+02:00.
+- `2026-05-24T12:55:37+00:00` Verified fallback automation campaign-devsec-power-commands-step-2-3-20260524T125526Z is ACTIVE in the Codex app registry.
+- `2026-05-24T12:55:44+00:00` Recorded automation campaign-devsec-power-commands-step-2-3-20260524T125526Z for Step 2.3.
+- `2026-05-24T12:56:03+00:00` Released Step 2.2 lock before fallback run observation so the Step 2.3 scheduler launch can acquire the campaign.
+- `2026-05-24T12:57:08+00:00` Automation `campaign-devsec-power-commands-step-2-3-20260524T125526Z` has no scheduler run since `1779627326000` in the Codex app registry.
+- `2026-05-24T12:57:28+00:00` Verified fallback automation campaign-devsec-power-commands-step-2-3-20260524T125526Z launched a scheduler run for Step 2.3.
+- `2026-05-24T12:57:38+00:00` Paused current automation campaign-devsec-power-commands-step-2-2-20260524T124948Z after Step 2.3 launch was proven.
+- `2026-05-24T12:57:52+00:00` Recorded current automation campaign-devsec-power-commands-step-2-2-20260524T124948Z as PAUSED in campaign state.
+- `2026-05-24T12:57:52+00:00` Verified automation `campaign-devsec-power-commands-step-2-3-20260524T125526Z` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T12:57:52+00:00` Verified current automation campaign-devsec-power-commands-step-2-2-20260524T124948Z is PAUSED in the Codex app registry.
+- `2026-05-24T13:00:17+00:00` Completed step 2.3 (/devsec-honey); parser now points to step 3.1.
+- `2026-05-24T13:00:47+00:00` Registered fallback automation for step 3.1 at 2026-05-24T15:02:00+02:00.
+- `2026-05-24T13:00:53+00:00` Verified fallback automation campaign-devsec-power-commands-step-3-1-20260524T130047Z is ACTIVE in the registry.
+- `2026-05-24T13:00:58+00:00` Recorded next automation for step 3.1 after registry verification.
+- `2026-05-24T13:01:19+00:00` Automation `campaign-devsec-power-commands-step-3-1-20260524T130047Z` has no scheduler run since `1779627558979` in the Codex app registry.
+- `2026-05-24T13:01:39+00:00` Automation `campaign-devsec-power-commands-step-3-1-20260524T130047Z` has no scheduler run since `1779627558979` in the Codex app registry.
+- `2026-05-24T13:01:59+00:00` Automation `campaign-devsec-power-commands-step-3-1-20260524T130047Z` has no scheduler run since `1779627558979` in the Codex app registry.
+- `2026-05-24T13:02:19+00:00` Automation `campaign-devsec-power-commands-step-3-1-20260524T130047Z` has no scheduler run since `1779627558979` in the Codex app registry.
+- `2026-05-24T13:02:39+00:00` Verified scheduler launched campaign-devsec-power-commands-step-3-1-20260524T130047Z.
+- `2026-05-24T13:03:03+00:00` Paused current automation after verifying step 3.1 scheduler launch.
+- `2026-05-24T13:03:03+00:00` Verified current automation is PAUSED in the registry.
+- `2026-05-24T13:03:47+00:00` Released Step 2.3 campaign lock; no dev servers or watchers were started.
+- `2026-05-24T13:04:24+00:00` Completed step 3.1 and advanced parser to whole-campaign final_review.
+- `2026-05-24T13:05:49+00:00` Registered final-review automation `campaign-devsec-power-commands-final-review-20260524T130549Z` for 2026-05-24T15:07:00+02:00.
+- `2026-05-24T13:05:55+00:00` Verified final-review automation campaign-devsec-power-commands-final-review-20260524T130549Z as ACTIVE in the Codex app registry.
+- `2026-05-24T13:06:00+00:00` Recorded final-review automation campaign-devsec-power-commands-final-review-20260524T130549Z after registry verification.
+- `2026-05-24T13:06:08+00:00` Released step 3.1 lock before fallback scheduler proof for final-review automation.
+- `2026-05-24T13:06:58+00:00` Automation `campaign-devsec-power-commands-final-review-20260524T130549Z` has no scheduler run since `1779627900000` in the Codex app registry.
+- `2026-05-24T13:07:49+00:00` Verified fallback-created final-review automation campaign-devsec-power-commands-final-review-20260524T130549Z launched a scheduler run.
+- `2026-05-24T13:08:01+00:00` Paused current automation campaign-devsec-power-commands-step-3-1-20260524T130047Z after final-review scheduler launch was verified.
+- `2026-05-24T13:08:10+00:00` Verified current automation campaign-devsec-power-commands-step-3-1-20260524T130047Z is PAUSED in the Codex app registry.
+- `2026-05-24T13:08:21+00:00` Recorded current automation campaign-devsec-power-commands-step-3-1-20260524T130047Z as PAUSED in campaign state.
+- `2026-05-24T13:11:17+00:00` Whole-campaign final review approved; campaign complete.
+- `2026-05-24T13:11:41+00:00` Automation `campaign-devsec-power-commands-final-review-20260524T130549Z` is missing from the Codex app registry or is not PAUSED with model gpt-5.5/xhigh.
+- `2026-05-24T13:11:41+00:00` Paused final-review automation after approved campaign completion.
+- `2026-05-24T13:11:49+00:00` Verified final-review automation is PAUSED in the Codex app registry.
+- `2026-05-24T13:12:12+00:00` Final-review pause verification retry succeeded; prior PAUSED check raced the registry update.

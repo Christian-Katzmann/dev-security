@@ -1,4 +1,4 @@
-# Three differentiator commands for the DëvSec MCP
+# 1 · Three differentiator commands for the DëvSec MCP
 
 > Adds three smart shortcuts to the local security tool — see what changed since last time, turn a security finding into a ready-to-review fix in one move, and check on the honeypot traps you've planted to catch attackers.
 
@@ -35,18 +35,18 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 1 — Extend the MCP read surface
 
-- [ ] Step 1.1 — Add `honey_keys`, `scan_history`, and `scan_id`-aware `cases` to mcp_server.py (tool + tests + docs + commit)
+- [x] Step 1.1 — Add `honey_keys`, `scan_history`, and `scan_id`-aware `cases` to mcp_server.py (tool + tests + docs + commit)
 
 ### Phase 2 — Build the three slash commands
 
-- [ ] Step 2.1 — Write `/devsec-diff` (temporal delta)
-- [ ] Step 2.2 — Write `/devsec-pr` (case → PR via `gh pr create`)
-- [ ] Step 2.3 — Write `/devsec-honey` (Honey Key visibility)
+- [x] Step 2.1 — Write `/devsec-diff` (temporal delta)
+- [x] Step 2.2 — Write `/devsec-pr` (case → PR via `gh pr create`)
+- [x] Step 2.3 — Write `/devsec-honey` (Honey Key visibility)
 
 ### Phase 3 — Wire-up and end-to-end verification
 
-- [ ] Step 3.1 — Update `/devsec` dashboard menu to surface the three new commands; manual verification in a fresh Claude Code session
-- [ ] Final review
+- [x] Step 3.1 — Update `/devsec` dashboard menu to surface the three new commands; manual verification in a fresh Claude Code session
+- [x] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
 
@@ -135,7 +135,7 @@ Behavior:
 
 Format (target — adjust as the prompt drafts):
 
-```
+~~~
 DëvSec — changes since <since-description>
 
 | Repo | Δ | Sev | Category | Title |
@@ -143,7 +143,7 @@ DëvSec — changes since <since-description>
 | ... | new | critical | secrets | ... |
 | ... | resolved | high | dependencies | ... |
 | ... | ↑ med→high | medium | code-security | ... |
-```
+~~~
 
 Below the table: one line summarizing counts ("3 new, 1 resolved, 1 severity shift across 2 repos. 0 recurring shown.").
 
@@ -234,7 +234,7 @@ Behavior:
 
 Format:
 
-```
+~~~
 Honey Keys — <project filter description if any>
 
 ⚠ Triggered:
@@ -247,7 +247,7 @@ Placements:
 | --- | --- | --- | --- | --- |
 | ... | 3 | 0 | 14d ago | — |
 | ... | 1 | 1 | 22d ago | 2h ago ⚠ |
-```
+~~~
 
 Below the table: if any project has zero Honey Keys, suggest placing some via the dashboard. If all projects have ≥1 Honey Key with no triggers, say "no triggers, all decoys in place" — calmly, no celebration.
 

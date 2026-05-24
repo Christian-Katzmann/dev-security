@@ -33,6 +33,7 @@ export type UseCatalogDataResult = {
   runtime: Map<string, ScannerDoctorItem>;
   mutation: CatalogMutationState;
   installManagedTool: (toolId: string) => Promise<void>;
+  installViaHomebrew: (toolId: string) => Promise<void>;
   uninstallManagedTool: (toolId: string, ownershipId?: string | null) => Promise<void>;
   resetMutation: () => void;
 };
@@ -62,6 +63,28 @@ export function useCatalogData(
     }
   }, [onRefresh]);
 
+  const installViaHomebrew = useCallback(async (toolId: string) => {
+    setMutation({toolId, kind: 'install', status: 'running', message: 'Running brew install...'});
+    try {
+      const response = await fetch('/api/tools/install-via-pkg', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({toolId, confirmHomebrewInstall: true}),
+      });
+      if (!response.ok) throw new Error(await responseErrorMessage(response, 'Homebrew install failed.'));
+      const body = await response.json().catch(() => ({}));
+      await onRefresh();
+      if (body && body.success === false) {
+        const tail = String(body.stderr || body.stdout || '').trim().split('\n').slice(-3).join('\n');
+        setMutation({toolId, kind: 'install', status: 'error', message: tail || 'brew install returned non-zero.'});
+        return;
+      }
+      setMutation({toolId, kind: 'install', status: 'complete', message: 'Installed via Homebrew. Catalog refreshed.'});
+    } catch (err) {
+      setMutation({toolId, kind: 'install', status: 'error', message: err instanceof Error ? err.message : 'Homebrew install failed.'});
+    }
+  }, [onRefresh]);
+
   const uninstallManagedTool = useCallback(async (toolId: string, ownershipId?: string | null) => {
     if (!ownershipId) {
       setMutation({toolId, kind: 'uninstall', status: 'error', message: 'DëvSec ownership evidence is missing, so uninstall is blocked.'});
@@ -84,5 +107,5 @@ export function useCatalogData(
 
   const resetMutation = useCallback(() => setMutation(null), []);
 
-  return {catalog, packs, runtime, mutation, installManagedTool, uninstallManagedTool, resetMutation};
+  return {catalog, packs, runtime, mutation, installManagedTool, installViaHomebrew, uninstallManagedTool, resetMutation};
 }

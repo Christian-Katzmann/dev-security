@@ -451,6 +451,14 @@ export function previewCanInstall(preview?: ToolInstallPreview): boolean {
   return Boolean(preview?.tool_id && preview.action === 'managed-install-preview' && preview.execution_available);
 }
 
+// Tools with install.method === 'homebrew' that are missing can be installed
+// via the /api/tools/install-via-pkg endpoint, which shells out to
+// `brew install <binary>`. The binary name is part of the catalog contract,
+// not user-supplied, so it isn't shell-injectable.
+export function canInstallViaHomebrew(tool: ToolCatalogItem): boolean {
+  return tool.install_state === 'missing' && tool.install.method === 'homebrew';
+}
+
 // State-aware action verb for catalog cards and banner CTAs. Built-in and
 // already-detected tools never get an "Install plugin" label — there is
 // nothing for the user to install. Display-only tools have no action surface.
@@ -465,6 +473,7 @@ export function catalogCardAction(tool: ToolCatalogItem): CatalogCardAction {
   // detail page will refuse.
   if (tool.install_state === 'built-in' || tool.install_state === 'detected') return 'view';
   if (previewCanInstall(tool.install_preview)) return 'install';
+  if (canInstallViaHomebrew(tool)) return 'install';
   return 'view';
 }
 

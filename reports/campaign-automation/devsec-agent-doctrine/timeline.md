@@ -1,0 +1,85 @@
+# Campaign Automation Timeline
+
+- Campaign: `devsec-agent-doctrine`
+- Title: `2 · DëvSec agent — voice doctrine and safety tiers`
+- Repo: `/Users/christiankatzmann/Dev/Projects/dëv-security`
+- Campaign file: `/Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/devsec-agent-doctrine.md`
+- Created: `2026-05-24T13:16:49+00:00`
+- Model: `gpt-5.5`
+- Reasoning effort: `xhigh`
+
+- `2026-05-24T13:17:34+00:00` Verified automation `campaign-devsec-agent-doctrine` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T13:17:40+00:00` Created automation `campaign-devsec-agent-doctrine` for step 1.1 Write `docs/agent-voice.md` (DëvSec-customized voice doctrine).
+- `2026-05-24T13:19:36+00:00` Automation `campaign-devsec-agent-doctrine` has no scheduler run in the Codex app registry.
+- `2026-05-24T13:22:06+00:00` Verified automation `campaign-devsec-agent-doctrine` launched thread `019e5a25-443e-7e30-8cc1-b86a42d501a6` with status `IN_PROGRESS`.
+- `2026-05-24T13:26:45+00:00` Completed Step 1.1: committed docs/agent-voice.md at 6eb838c; parser now points to Step 1.2.
+- `2026-05-24T13:28:27+00:00` Registered fallback automation `campaign-devsec-agent-doctrine-step-1-2-20260524-152827` for Step 1.2 at 2026-05-24T15:30:00+02:00.
+- `2026-05-24T13:28:27+00:00` Verified next automation `campaign-devsec-agent-doctrine-step-1-2-20260524-152827` is ACTIVE and pinned to gpt-5.5/xhigh.
+- `2026-05-24T13:28:27+00:00` Recorded next automation `campaign-devsec-agent-doctrine-step-1-2-20260524-152827` for step 1.2 Write `docs/agent-safety.md` (six risk tiers + language templates).
+- `2026-05-24T13:28:27+00:00` Paused current automation `campaign-devsec-agent-doctrine` after recording `campaign-devsec-agent-doctrine-step-1-2-20260524-152827`.
+- `2026-05-24T13:28:27+00:00` Verified current automation `campaign-devsec-agent-doctrine` is PAUSED in the registry.
+- `2026-05-24T13:28:27+00:00` Recorded `campaign-devsec-agent-doctrine` as PAUSED after registry verification.
+- `2026-05-24T13:31:14+00:00` Verified fallback automation `campaign-devsec-agent-doctrine-step-1-2-20260524-152827` produced a scheduler run.
+- `2026-05-24T13:34:55+00:00` Completed Step 1.2: committed docs/agent-safety.md at d60bd23; parser now points to Step 2.1.
+- `2026-05-24T13:36:44+00:00` Registered fallback automation `campaign-devsec-agent-doctrine-step-2-1-20260524-1537` for Step 2.1 at 2026-05-24T15:38:00+02:00.
+- `2026-05-24T13:36:54+00:00` Verified next automation `campaign-devsec-agent-doctrine-step-2-1-20260524-1537` is ACTIVE and pinned to gpt-5.5/xhigh.
+- `2026-05-24T13:37:04+00:00` Verified next automation campaign-devsec-agent-doctrine-step-2-1-20260524-1537 is ACTIVE and pinned to gpt-5.5/xhigh.
+- `2026-05-24T13:37:14+00:00` Recorded next automation campaign-devsec-agent-doctrine-step-2-1-20260524-1537 for step 2.1 Update MCP instructions field and slash command bodies.
+- `2026-05-24T13:37:24+00:00` Paused current automation campaign-devsec-agent-doctrine-step-1-2-20260524-152827 after recording Step 2.1 automation.
+- `2026-05-24T13:37:34+00:00` Verified current automation campaign-devsec-agent-doctrine-step-1-2-20260524-152827 is PAUSED in the registry.
+- `2026-05-24T13:37:40+00:00` Recorded campaign-devsec-agent-doctrine-step-1-2-20260524-152827 as PAUSED after registry verification.
+- `2026-05-24T13:38:27+00:00` Verified fallback automation campaign-devsec-agent-doctrine-step-2-1-20260524-1537 produced a scheduler run.
+- `2026-05-24T13:45:08+00:00` Step 2.1 completed: MCP instructions, MCP docs, tests, and eight /devsec-* slash commands now reference the voice doctrine; commit 97f23a8.
+- `2026-05-24T13:46:05+00:00` Registered next automation `campaign-devsec-agent-doctrine-step-2-2-20260524-1547` for Step 2.2 at 2026-05-24T15:48:00+02:00.
+- `2026-05-24T13:46:19+00:00` Verified Step 2.2 automation in Codex app registry as ACTIVE.
+- `2026-05-24T13:46:25+00:00` Recorded verified Step 2.2 automation in campaign state.
+- `2026-05-24T13:46:37+00:00` Released Step 2.1 lock before fallback launch verification so Step 2.2 can acquire the campaign lock.
+- `2026-05-24T13:46:50+00:00` Automation `campaign-devsec-agent-doctrine-step-2-2-20260524-1547` has no scheduler run since `1779630420000` in the Codex app registry.
+- `2026-05-24T13:47:00+00:00` Automation `campaign-devsec-agent-doctrine-step-2-2-20260524-1547` has no scheduler run since `1779630420000` in the Codex app registry.
+- `2026-05-24T13:47:10+00:00` Automation `campaign-devsec-agent-doctrine-step-2-2-20260524-1547` has no scheduler run since `1779630420000` in the Codex app registry.
+- `2026-05-24T13:47:20+00:00` Automation `campaign-devsec-agent-doctrine-step-2-2-20260524-1547` has no scheduler run since `1779630420000` in the Codex app registry.
+- `2026-05-24T13:47:30+00:00` Automation `campaign-devsec-agent-doctrine-step-2-2-20260524-1547` has no scheduler run since `1779630420000` in the Codex app registry.
+- `2026-05-24T13:47:40+00:00` Automation `campaign-devsec-agent-doctrine-step-2-2-20260524-1547` has no scheduler run since `1779630420000` in the Codex app registry.
+- `2026-05-24T13:47:51+00:00` Automation `campaign-devsec-agent-doctrine-step-2-2-20260524-1547` has no scheduler run since `1779630420000` in the Codex app registry.
+- `2026-05-24T13:48:01+00:00` Automation `campaign-devsec-agent-doctrine-step-2-2-20260524-1547` has no scheduler run since `1779630420000` in the Codex app registry.
+- `2026-05-24T13:48:11+00:00` Automation `campaign-devsec-agent-doctrine-step-2-2-20260524-1547` has no scheduler run since `1779630420000` in the Codex app registry.
+- `2026-05-24T13:48:21+00:00` Automation `campaign-devsec-agent-doctrine-step-2-2-20260524-1547` has no scheduler run since `1779630420000` in the Codex app registry.
+- `2026-05-24T13:48:31+00:00` Verified Step 2.2 fallback automation launched via scheduler at 2026-05-24T13:48:31+00:00.
+- `2026-05-24T13:48:43+00:00` Paused current Step 2.1 automation after verified Step 2.2 fallback launch.
+- `2026-05-24T13:48:54+00:00` Verified current Step 2.1 automation is PAUSED in Codex registry.
+- `2026-05-24T15:10:32+00:00` Verified automation `campaign-devsec-agent-doctrine-step-2-2-20260524-1547` in Codex app registry as PAUSED with model gpt-5.5/xhigh.
+- `2026-05-24T15:10:32+00:00` Verified automation `campaign-devsec-agent-doctrine-step-2-2-retry-20260524-1709` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T15:10:42+00:00` Kickstarted fresh Step 2.2 retry automation `campaign-devsec-agent-doctrine-step-2-2-retry-20260524-1709` for 2026-05-24T17:11:00+02:00.
+- `2026-05-24T15:10:42+00:00` Paused stale interrupted Step 2.2 automation `campaign-devsec-agent-doctrine-step-2-2-20260524-1547` before retry kickstart.
+- `2026-05-24T15:11:03+00:00` Recorded fresh Step 2.2 retry automation `campaign-devsec-agent-doctrine-step-2-2-retry-20260524-1709` after stale-run pause.
+- `2026-05-24T15:13:12+00:00` Verified automation `campaign-devsec-agent-doctrine-step-2-2-retry-20260524-1709` launched thread `019e5a8a-e58f-7750-9cdb-f6fc8ceaf75a` with status `IN_PROGRESS`.
+- `2026-05-24T15:14:51+00:00` Completed step 2.2; parser now points at step 3.1 manual verification.
+- `2026-05-24T15:15:20+00:00` Registered fallback automation campaign-devsec-agent-doctrine-step-3-1-20260524-1717 for step 3.1 manual verification.
+- `2026-05-24T15:15:31+00:00` Verified automation `campaign-devsec-agent-doctrine-step-3-1-20260524-1717` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T15:15:31+00:00` Recorded verified fallback automation for step 3.1.
+- `2026-05-24T15:17:20+00:00` Automation `campaign-devsec-agent-doctrine-step-3-1-20260524-1717` has no scheduler run since `1779635700000` in the Codex app registry.
+- `2026-05-24T15:17:34+00:00` Verified automation `campaign-devsec-agent-doctrine-step-3-1-20260524-1717` launched thread `019e5a8f-edab-7801-a915-e43f713c3f13` with status `IN_PROGRESS`.
+- `2026-05-24T15:18:08+00:00` Verified automation `campaign-devsec-agent-doctrine-step-3-1-20260524-1717` launched thread `019e5a8f-edab-7801-a915-e43f713c3f13` with status `IN_PROGRESS`.
+- `2026-05-24T15:18:27+00:00` Paused current Step 2.2 retry automation after verified Step 3.1 fallback launch.
+- `2026-05-24T15:18:27+00:00` Verified current Step 2.2 retry automation is PAUSED in Codex registry.
+
+- 2026-05-24T15:18:33Z skipped: lock exists for campaign-devsec-agent-doctrine Step 3.1 (age 338s).
+- `2026-05-24T15:19:07+00:00` Released Step 2.2 retry lock after detecting Step 3.1 fallback run skipped on the young lock; creating fresh Step 3.1 retry.
+- `2026-05-24T15:19:07+00:00` Paused skipped Step 3.1 automation after its scheduler run exited on the Step 2.2 retry lock.
+- `2026-05-24T15:19:26+00:00` Registered fresh Step 3.1 retry automation campaign-devsec-agent-doctrine-step-3-1-retry-20260524-1721 after lock-skip recovery.
+- `2026-05-24T15:19:34+00:00` Verified automation `campaign-devsec-agent-doctrine-step-3-1-retry-20260524-1721` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-24T15:19:34+00:00` Recorded fresh verified Step 3.1 retry automation after lock-skip recovery.
+- `2026-05-24T15:21:20+00:00` Automation `campaign-devsec-agent-doctrine-step-3-1-retry-20260524-1721` has no scheduler run since `1779635960000` in the Codex app registry.
+- `2026-05-24T15:21:57+00:00` Verified automation `campaign-devsec-agent-doctrine-step-3-1-retry-20260524-1721` launched thread `019e5a93-9722-7911-8a45-7e25801d3175` with status `IN_PROGRESS`.
+- `2026-05-24T15:41:50+00:00` Step 3.1 completed: fresh-session command run-through documented in campaigns/devsec-agent-doctrine/notes/observed-output.md; next unit is whole-campaign final review.
+- `2026-05-24T15:43:20+00:00` Registered fallback final-review automation `campaign-devsec-agent-doctrine-final-review-20260524-1745` for 2026-05-24T17:45:00+02:00.
+- `2026-05-24T15:43:25+00:00` Verified final-review automation campaign-devsec-agent-doctrine-final-review-20260524-1745 is ACTIVE and pinned to gpt-5.5/xhigh.
+- `2026-05-24T15:43:31+00:00` Recorded verified final-review automation campaign-devsec-agent-doctrine-final-review-20260524-1745 in campaign state.
+- `2026-05-24T15:43:40+00:00` Released Step 3.1 retry lock before fallback final-review launch verification so the final-review automation can acquire the campaign lock.
+- `2026-05-24T15:45:28+00:00` Verified final-review fallback automation campaign-devsec-agent-doctrine-final-review-20260524-1745 produced a scheduler run.
+- `2026-05-24T15:45:41+00:00` Paused current Step 3.1 retry automation after verified final-review fallback launch.
+- `2026-05-24T15:45:49+00:00` Verified current Step 3.1 retry automation is PAUSED in Codex registry.
+- `2026-05-24T15:49:56+00:00` Whole-campaign final review approved; campaign marked complete.
+- `2026-05-24T15:50:05+00:00` Verified current automation active before pause.
+- `2026-05-24T15:50:14+00:00` Paused final-review automation after approved campaign completion.
+- `2026-05-24T15:50:23+00:00` Verified final-review automation is PAUSED in Codex registry.

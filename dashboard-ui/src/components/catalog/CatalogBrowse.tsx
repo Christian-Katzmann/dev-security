@@ -127,13 +127,18 @@ export default function CatalogBrowse({summary, onRefresh, onOpenTool, onBack}: 
     return browsable.filter((tool) => tool.category === activeCategory);
   }, [browsable, activeCategory]);
 
-  // Coming-soon tools sort to the bottom so installable tools own the top of
-  // the grid — but they stay on the page so future coverage is still visible.
+  // Sort order: missing tools first (so install candidates are immediately
+  // visible without scanning), then installed tools alphabetically, then
+  // coming-soon at the bottom (still visible for future coverage).
   const sortedGrid = useMemo(() => {
+    const rank = (tool: ToolCatalogItem): number => {
+      if (isComingSoon(tool)) return 2;
+      if (tool.install_state === 'missing') return 0;
+      return 1;
+    };
     return [...filtered].sort((a, b) => {
-      const aSoon = isComingSoon(a) ? 1 : 0;
-      const bSoon = isComingSoon(b) ? 1 : 0;
-      if (aSoon !== bSoon) return aSoon - bSoon;
+      const diff = rank(a) - rank(b);
+      if (diff !== 0) return diff;
       return a.label.localeCompare(b.label);
     });
   }, [filtered]);

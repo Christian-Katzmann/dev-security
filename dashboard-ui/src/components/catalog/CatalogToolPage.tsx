@@ -66,14 +66,16 @@ function isDisplayOnly(tool: ToolCatalogItem): boolean {
 }
 
 // Tools that are already on the user's machine — either built into DëvSec,
-// detected on PATH, or owned by a verified DëvSec-managed install. None of
-// these need a hero Install CTA; an Install button on a tool that's already
-// installed is the F-004 lie.
+// detected on PATH, owned by a verified DëvSec-managed install, or installed
+// but needing further config (e.g. an env-var credential). None of these need
+// a hero Install CTA; an Install button on a tool that's already installed is
+// the F-004 lie.
 function isAlreadyInstalled(tool: ToolCatalogItem): boolean {
   return (
     tool.install_state === 'built-in' ||
     tool.install_state === 'detected' ||
-    tool.install_state === 'managed'
+    tool.install_state === 'managed' ||
+    tool.install_state === 'not-configured'
   );
 }
 
@@ -99,23 +101,38 @@ function specsFor(tool: ToolCatalogItem): Spec[] {
 }
 
 export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: CatalogToolPageProps) {
-  const {catalog, runtime, mutation, installManagedTool} = useCatalogData(summary, onRefresh);
+  const {catalog, runtime, mutation, installManagedTool, installViaHomebrew} = useCatalogData(summary, onRefresh);
   const tool = useMemo(() => catalog.find((item) => item.id === toolId), [catalog, toolId]);
   const runtimeItem = useMemo(
     () => (tool?.scanner_key ? runtime.get(tool.scanner_key) : undefined),
     [runtime, tool],
   );
 
-  const installEnabled = tool ? previewCanInstall(tool.install_preview) : false;
+  // Homebrew-method tools that are missing can be installed via `brew install`
+  // on the user's behalf. The binary name comes from the catalog, not from
+  // user input, so it isn't shell-injectable.
+  const homebrewInstallable = Boolean(
+    tool && tool.install_state === 'missing' && tool.install.method === 'homebrew',
+  );
+  const managedInstallable = tool ? previewCanInstall(tool.install_preview) : false;
+  const installEnabled = managedInstallable || homebrewInstallable;
   const displayOnly = tool ? isDisplayOnly(tool) : false;
   const alreadyInstalled = tool ? isAlreadyInstalled(tool) : false;
   const mutating = tool && mutation?.toolId === tool.id && mutation.status === 'running';
-  const installLabel = mutating ? 'Installing...' : 'Install plugin';
+  const installLabel = mutating
+    ? 'Installing...'
+    : homebrewInstallable
+      ? `Install with Homebrew (brew install ${tool!.install.binary ?? tool!.id})`
+      : 'Install plugin';
 
   const onInstall = useCallback(() => {
     if (!tool || !installEnabled) return;
+    if (homebrewInstallable) {
+      void installViaHomebrew(tool.id);
+      return;
+    }
     void installManagedTool(tool.id);
-  }, [tool, installEnabled, installManagedTool]);
+  }, [tool, installEnabled, homebrewInstallable, installManagedTool, installViaHomebrew]);
 
   if (!tool) {
     return (
@@ -188,6 +205,8 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
                   ? 'Built in — no install needed.'
                   : tool.install_state === 'managed'
                   ? 'Managed by DëvSec.'
+                  : tool.install_state === 'not-configured'
+                  ? 'Installed — needs setup.'
                   : 'Detected locally.'}
               </span>
             ) : (
