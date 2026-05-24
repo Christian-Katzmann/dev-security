@@ -451,6 +451,14 @@ export type RepositorySummary = {
   raw_counts?: SeverityCounts;
   raw_categories?: CategoryCounts;
   scanners: ScannerStatus[];
+  cases?: SecurityCase[];
+  active_cases?: SecurityCase[];
+  suppressed_cases?: SecurityCase[];
+  case_counts?: {
+    action_level?: Record<string, number>;
+    severity?: Record<string, number>;
+    category?: Record<string, number>;
+  };
   suppressed_counts?: SuppressedCounts;
   suppression_reasons?: SuppressionReason[];
   previous_scan_id?: string | null;
@@ -1102,9 +1110,11 @@ export type ProjectsPayload = {
   repos: ProjectRepo[];
 };
 
+export type DashboardMode = 'all-repos' | 'repo';
+
 export type TargetSelection =
-  | {type: 'dashboard'}
-  | {type: 'repo'; repo: ProjectRepo};
+  | {mode: 'all-repos'}
+  | {mode: 'repo'; repo: ProjectRepo};
 
 export const emptySummary: DashboardSummary = {
   repos: [],
@@ -1359,6 +1369,34 @@ export function severityTotal(summary: DashboardSummary, severity: Severity): nu
   return summary.repos.reduce((sum, repo) => sum + (repo.counts[severity] ?? 0), 0);
 }
 
+function severityCountTotal(counts?: SeverityCounts): number {
+  return severities.reduce((sum, severity) => sum + (counts?.[severity] ?? 0), 0);
+}
+
+export function activeRawFindingCount(summary: DashboardSummary): number {
+  return summary.repos.reduce((sum, repo) => sum + severityCountTotal(repo.counts), 0);
+}
+
+export function repoHasPreCaseScan(repo: RepositorySummary): boolean {
+  const activeRaw = severityCountTotal(repo.counts);
+  const caseCount = (repo.active_cases ?? repo.cases ?? []).length + (repo.suppressed_cases ?? []).length;
+  return activeRaw > 0 && caseCount === 0;
+}
+
+export function preCaseScanRepos(summary: DashboardSummary): RepositorySummary[] {
+  return summary.repos.filter(repoHasPreCaseScan);
+}
+
+export function preCaseRawFindingCount(summary: DashboardSummary): number {
+  return preCaseScanRepos(summary).reduce((sum, repo) => sum + severityCountTotal(repo.counts), 0);
+}
+
+export function caseBackedRawFindingCount(summary: DashboardSummary): number {
+  return summary.repos
+    .filter((repo) => !repoHasPreCaseScan(repo))
+    .reduce((sum, repo) => sum + severityCountTotal(repo.counts), 0);
+}
+
 function activeFindingRecords(summary: DashboardSummary): Finding[] {
   return summary.active_findings ?? summary.findings.filter((finding) => !finding.suppressed);
 }
@@ -1542,8 +1580,8 @@ function sortDisplayCases(items: DisplayCase[]): DisplayCase[] {
 }
 
 export function displayCases(summary: DashboardSummary): DisplayCase[] {
-  if (summary.cases?.length || summary.active_cases?.length || summary.suppressed_cases?.length) {
-    const sourceCases = summary.cases ?? summary.active_cases ?? [];
+  if (summary.cases !== undefined || summary.active_cases !== undefined || summary.suppressed_cases !== undefined) {
+    const sourceCases = summary.cases?.length ? summary.cases : summary.active_cases ?? [];
     return sortDisplayCases(sourceCases.filter((item) => !item.suppressed).map(caseToDisplayCase));
   }
 
@@ -1554,6 +1592,9 @@ export function suppressedDisplayCases(summary: DashboardSummary): DisplayCase[]
   const suppressedCases = summary.suppressed_cases?.length
     ? summary.suppressed_cases
     : (summary.cases ?? []).filter((item) => item.suppressed);
+  if (summary.cases !== undefined || summary.active_cases !== undefined || summary.suppressed_cases !== undefined) {
+    return suppressedCases.length ? sortDisplayCases(suppressedCases.map(caseToDisplayCase)) : [];
+  }
   if (suppressedCases.length) return sortDisplayCases(suppressedCases.map(caseToDisplayCase));
   return (summary.suppressed_findings ?? summary.findings.filter((finding) => finding.suppressed)).map(findingToDisplayCase);
 }
@@ -1968,11 +2009,11 @@ export function repoKeyFromPath(path: string): string {
 }
 
 export function targetValue(target: TargetSelection): string {
-  return target.type === 'dashboard' ? 'dashboard' : `repo:${target.repo.path}`;
+  return target.mode === 'all-repos' ? 'all-repos' : `repo:${target.repo.path}`;
 }
 
 export function targetLabel(target: TargetSelection): string {
-  return target.type === 'dashboard' ? 'Dashboard' : target.repo.name;
+  return target.mode === 'all-repos' ? 'All repos' : target.repo.name;
 }
 
 export function mergeProjectRepos(discovered: ProjectRepo[], custom: ProjectRepo[], scanned: RepositorySummary[]): ProjectRepo[] {
@@ -1986,35 +2027,72 @@ export function mergeProjectRepos(discovered: ProjectRepo[], custom: ProjectRepo
   return [...byPath.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, {sensitivity: 'base'}));
 }
 
+function mergedSuppressionCounts(repos: RepositorySummary[], fallback?: SuppressedCounts): SuppressedCounts | undefined {
+  if (!repos.length) return fallback;
+  const reasons = new Map<string, SuppressionReason>();
+  let cases = 0;
+  let findings = 0;
+  for (const repo of repos) {
+    const counts = repo.suppressed_counts;
+    cases += counts?.cases ?? 0;
+    findings += counts?.findings ?? 0;
+    for (const item of counts?.reasons ?? repo.suppression_reasons ?? []) {
+      const key = `${item.reason}:${item.decision_status}:${item.vex_status}`;
+      const current = reasons.get(key) ?? {
+        reason: item.reason,
+        decision_status: item.decision_status,
+        vex_status: item.vex_status,
+        cases: 0,
+        findings: 0,
+      };
+      current.cases += item.cases;
+      current.findings += item.findings;
+      reasons.set(key, current);
+    }
+  }
+  return {
+    cases,
+    findings,
+    reasons: [...reasons.values()],
+  };
+}
+
 export function filterSummaryByTarget(summary: DashboardSummary, target: TargetSelection): DashboardSummary {
-  if (target.type === 'dashboard') return summary;
+  if (target.mode === 'all-repos') return summary;
   const repoKey = repoKeyFromPath(target.repo.path);
   const repos = summary.repos.filter((repo) => repo.path === target.repo.path || repo.repo === repoKey);
   const repoNames = new Set(repos.map((repo) => repo.repo));
   repoNames.add(repoKey);
   const targetKeys = summary.honey_keys?.filter((key) => key.repo_id === target.repo.path || key.project_id === repoKey) ?? [];
   const targetProjectIds = new Set([repoKey, ...targetKeys.map((key) => key.project_id)]);
+  const findings = summary.findings.filter((finding) => repoNames.has(finding.repo_name));
+  const activeFindings = summary.active_findings?.filter((finding) => repoNames.has(finding.repo_name));
+  const suppressedFindings = summary.suppressed_findings?.filter((finding) => repoNames.has(finding.repo_name));
+  const cases = summary.cases?.filter((item) => {
+    const caseRepo = item.repo_name ?? item.repo;
+    return !caseRepo || repoNames.has(caseRepo) || targetProjectIds.has(String(caseRepo));
+  });
+  const activeCases = summary.active_cases?.filter((item) => {
+    const caseRepo = item.repo_name ?? item.repo;
+    return !caseRepo || repoNames.has(caseRepo) || targetProjectIds.has(String(caseRepo));
+  });
+  const suppressedCases = summary.suppressed_cases?.filter((item) => {
+    const caseRepo = item.repo_name ?? item.repo;
+    return !caseRepo || repoNames.has(caseRepo) || targetProjectIds.has(String(caseRepo));
+  });
+  const suppressedCounts = mergedSuppressionCounts(repos, summary.suppressed_counts);
   return {
     repos,
     history: summary.history.filter((item) => repoNames.has(item.repo_name)),
-    findings: summary.findings.filter((finding) => repoNames.has(finding.repo_name)),
-    active_findings: summary.active_findings?.filter((finding) => repoNames.has(finding.repo_name)),
-    suppressed_findings: summary.suppressed_findings?.filter((finding) => repoNames.has(finding.repo_name)),
-    cases: summary.cases?.filter((item) => {
-      const caseRepo = item.repo_name ?? item.repo;
-      return !caseRepo || repoNames.has(caseRepo) || targetProjectIds.has(String(caseRepo));
-    }),
-    active_cases: summary.active_cases?.filter((item) => {
-      const caseRepo = item.repo_name ?? item.repo;
-      return !caseRepo || repoNames.has(caseRepo) || targetProjectIds.has(String(caseRepo));
-    }),
-    suppressed_cases: summary.suppressed_cases?.filter((item) => {
-      const caseRepo = item.repo_name ?? item.repo;
-      return !caseRepo || repoNames.has(caseRepo) || targetProjectIds.has(String(caseRepo));
-    }),
+    findings,
+    active_findings: activeFindings,
+    suppressed_findings: suppressedFindings,
+    cases,
+    active_cases: activeCases,
+    suppressed_cases: suppressedCases,
     case_decisions: summary.case_decisions?.filter((decision) => repoNames.has(decision.repo_name) || targetProjectIds.has(decision.repo_name)),
-    suppressed_counts: summary.suppressed_counts,
-    suppression_reasons: summary.suppression_reasons,
+    suppressed_counts: suppressedCounts,
+    suppression_reasons: suppressedCounts?.reasons,
     honey_keys: targetKeys,
     honey_key_events: summary.honey_key_events?.filter((event) => targetProjectIds.has(event.project_id)),
     project_statuses: summary.project_statuses?.filter((status) => targetProjectIds.has(status.project_id)),
@@ -2029,7 +2107,9 @@ export function filterSummaryByTarget(summary: DashboardSummary, target: TargetS
       const proposalRepoPath = String(proposal.repo_path ?? '');
       return repoNames.has(proposalRepoName) || proposalRepoPath === target.repo.path || repoKeyFromPath(proposalRepoPath) === repoKey;
     }),
+    recovery_playbooks: summary.recovery_playbooks?.filter((playbook) => playbook.items.some((item) => repoNames.has(item.repo))),
     completeness: summary.completeness,
     scan_completeness: summary.scan_completeness,
+    environment: summary.environment,
   };
 }

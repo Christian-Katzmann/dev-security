@@ -6,7 +6,7 @@ import {
   HoneyKeyEvent,
   HoneyKey,
   HoneyKeyStatus,
-  ProjectRepo,
+  TargetSelection,
   formatDate,
   honeyKeyById,
   latestOpenHoneyKeyEvent,
@@ -14,7 +14,7 @@ import {
 
 type HoneyKeysViewProps = {
   summary: DashboardSummary;
-  target: {type: 'dashboard'} | {type: 'repo'; repo: ProjectRepo};
+  target: TargetSelection;
   onRefresh: () => Promise<void>;
 };
 
@@ -22,7 +22,7 @@ type CreatedHoneyKey = {
   key: HoneyKey;
   raw_token: string;
   snippets: Record<string, string>;
-  warning: string;
+  notice: string;
 };
 
 const placementTemplates = ['.env.backup', 'legacy-prod-config.json', 'internal-admin-notes.md'];
@@ -85,7 +85,7 @@ export default function HoneyKeysView({summary, target, onRefresh}: HoneyKeysVie
   const latestEventKey = latestEvent ? honeyKeyById(summary, latestEvent.honey_key_id) : undefined;
 
   async function createHoneyKey() {
-    if (target.type !== 'repo') return;
+    if (target.mode !== 'repo') return;
     setIsCreating(true);
     setError(null);
     setCreated(null);
@@ -181,7 +181,7 @@ export default function HoneyKeysView({summary, target, onRefresh}: HoneyKeysVie
   }
 
   async function insertDecoyFile() {
-    if (target.type !== 'repo' || !created) return;
+    if (target.mode !== 'repo' || !created) return;
     const snippet = created.snippets[placementPath] ?? created.snippets['.env.backup'];
     if (!snippet) return;
     const safePlacementPath = `.devsec/honeykeys/${created.key.id}-${placementPath.replace(/[^A-Za-z0-9_.-]+/g, '-')}`;
@@ -255,7 +255,7 @@ export default function HoneyKeysView({summary, target, onRefresh}: HoneyKeysVie
               </p>
             </div>
             <dl className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 text-sm min-w-0 xl:max-w-[760px]">
-              <Metadata label="Repo" value={target.type === 'repo' ? target.repo.name : latestEvent.project_id} />
+              <Metadata label="Repo" value={target.mode === 'repo' ? target.repo.name : latestEvent.project_id} />
               <Metadata label="Key" value={latestEventKey?.name ?? latestEvent.honey_key_id} />
               <Metadata label="Last triggered" value={formatDate(latestEvent.triggered_at)} />
               <Metadata label="Trigger count" value={String(latestEventKey?.trigger_count ?? 1)} />
@@ -280,7 +280,7 @@ export default function HoneyKeysView({summary, target, onRefresh}: HoneyKeysVie
             Honey Keys are powerless decoy secrets that act as tripwires. If anyone — such as a hostile actor — tries to use them, DëvSec alerts you that a sensitive location in your codebase may have been accessed.
           </p>
 
-          {target.type !== 'repo' ? (
+          {target.mode !== 'repo' ? (
             <div className="mt-5 border border-black/10 bg-white/70 p-4 text-sm text-black/60">
               Select a repo target before creating a Honey Key. DëvSec will not place files in a repo automatically.
             </div>
@@ -339,7 +339,7 @@ export default function HoneyKeysView({summary, target, onRefresh}: HoneyKeysVie
                   </div>
                 ))}
               </div>
-              {target.type === 'repo' && (
+              {target.mode === 'repo' && (
                 <div className="mt-5 border border-black/10 bg-[#fbfbfb] p-4">
                   <h4 className="font-mono text-[10px] uppercase tracking-widest text-black/45 mb-3">Safe file insert</h4>
                   <p className="text-sm leading-relaxed text-black/60">
