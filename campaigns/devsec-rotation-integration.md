@@ -55,11 +55,11 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 ### Phase 2 — Wire DëvSec dashboard to show + trigger rotations
 
 - [x] Step 2.1 — Add rotation status card to the dashboard (read-only display + "Set up rotation" CTA)
-- [ ] Step 2.2 — Add "Rotate now" trigger UI (per-secret button, confirmation modal, verification report rendering)
+- [x] Step 2.2 — Add "Rotate now" trigger UI (per-secret button, confirmation modal, verification report rendering)
 
 ### Phase 3 — Slash command + case integration
 
-- [ ] Step 3.1 — Write `/devsec-rotate <secret>` slash command and update `/devsec` menu
+- [x] Step 3.1 — Write `/devsec-rotate <secret>` slash command and update `/devsec` menu
 - [ ] Step 3.2 — Update case rendering across surfaces so secrets-category cases offer "Rotate this"
 
 ### Phase 4 — End-to-end verification
