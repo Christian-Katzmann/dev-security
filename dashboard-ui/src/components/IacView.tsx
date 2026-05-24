@@ -116,11 +116,11 @@ export default function IacView({summary}: IacViewProps) {
             <div className="flex flex-col gap-3 font-mono text-xs">
                <div className="flex justify-between p-2 bg-[#f9f9f9] border border-black/10">
                   <span className="text-black/60">Infrastructure rules</span>
-                  <span className="text-graph-gold font-medium">{iacFindings.length ? `Violated (${iacFindings.length})` : 'No active findings'}</span>
+                  <span className="text-graph-gold font-medium">{iacFindings.length ? `Violated (${iacFindings.length})` : 'No active raw findings'}</span>
                </div>
                <div className="flex justify-between p-2 bg-[#f9f9f9] border border-black/10">
                   <span className="text-black/60">Workflow surfaces</span>
-                  <span className="text-black font-medium">{workflowFindings.length ? `Flagged (${workflowFindings.length})` : 'No active findings'}</span>
+                  <span className="text-black font-medium">{workflowFindings.length ? `Flagged (${workflowFindings.length})` : 'No active raw findings'}</span>
                </div>
                <div className="flex justify-between p-2 bg-[#f9f9f9] border border-black/10">
                   <span className="text-black/60">Platform posture</span>
@@ -140,7 +140,7 @@ export default function IacView({summary}: IacViewProps) {
               {driftFinding ? 'State Drift Detected' : 'State Drift Watch'}
             </h3>
             <p className="text-sm text-white/70 leading-relaxed font-sans">
-               {driftFinding?.evidence_summary ?? first?.remediation ?? (platformChecked ? 'Platform and infrastructure findings appear here when posture weakens.' : 'Platform posture has not been checked for this repo. Connected checks require legitify and SCM_TOKEN.')}
+               {driftFinding?.evidence_summary ?? first?.remediation ?? (platformChecked ? 'Platform and infrastructure raw findings appear here when posture weakens.' : 'Platform posture has not been checked for this repo. Connected checks require legitify and SCM_TOKEN.')}
             </p>
             <button className="self-start font-mono text-[10px] uppercase border border-white/20 bg-white/5 py-2 px-4 hover:bg-white hover:text-black transition-colors">
                <KeyRound className="inline-block w-3 h-3 mr-2" />

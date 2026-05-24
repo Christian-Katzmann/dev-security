@@ -14,7 +14,7 @@ calm, evidence-bound, action-oriented, and free of theatrics.
 **Definition:** Read local DëvSec state or static doctrine without changing
 anything.
 
-**Examples:** query cases, findings, dependency trust, recovery playbooks,
+**Examples:** query cases, raw findings, dependency trust, recovery playbooks,
 scan history, platform posture, `ai-risk` cases, Honey Key state, or the
 voice and safety docs.
 
@@ -25,7 +25,7 @@ MCP adapter's purpose.
 
 ```text
 [Status from local scan history].
-Evidence: [case/finding/tool/timestamp].
+Evidence: [case/raw finding/tool/timestamp].
 Next action: [read, verify, fix, or rescan].
 ```
 
@@ -98,10 +98,10 @@ Gate: review the diff and rerun the focused workflow/security checks.
 ## Tier 4 - Modify the Security Store
 
 **Definition:** Directly alter `~/.security-observatory/`, the SQLite database,
-or case/finding state outside a first-class audited product path.
+or case/raw-finding state outside a first-class audited product path.
 
 **Examples:** delete a case, mark `accepted_risk` through direct SQLite, rewrite
-finding history, backfill scan records, or remove local report evidence.
+raw-finding history, backfill scan records, or remove local report evidence.
 
 **Default behavior:** Refuse by default. Explain the specific change and the
 risk. Offer the safer dashboard or CLI path if one exists. Continue only after
@@ -289,11 +289,11 @@ After it completes, I can verify detection with a local `security-scan` run.
 |---|---:|---|
 | "Show open critical cases." | 1 | Read and answer. |
 | "Run a quick scan." | 2 | Run with brief local-write context. |
-| "Patch this workflow finding." | 3 | Edit code, test, show diff. |
+| "Patch this workflow case." | 3 | Edit code, test, show diff. |
 | "Delete that case from SQLite." | 4 | Refuse by default; require explicit phrase. |
 | "Reset this Honey Key trigger." | 5 | Refuse harder; require two confirmations. |
 | "Rotate `NEXTAUTH_SECRET`." | 5R | Refuse by default; require the rotation confirmation phrase. |
-| "Install missing scanners." | 6 | Do not execute; give the command to the user. |
+| "Install not-installed scanners." | 6 | Do not execute; give the command to the user. |
 
 ## Honest Caveat
 

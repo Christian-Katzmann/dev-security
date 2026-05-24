@@ -3732,14 +3732,9 @@ a.button,
   opacity: 0.85;
 }
 
-.catalog-browse-pill.elevated {
-  color: var(--sev-high-ink);
-  background: var(--sev-high-soft);
-}
-
-.catalog-browse-pill.warn {
-  color: var(--sev-warn-ink);
-  background: var(--sev-warn-soft);
+.catalog-browse-pill.info {
+  color: var(--sev-info-ink);
+  background: var(--sev-info-soft);
 }
 
 .catalog-browse-pill.low {

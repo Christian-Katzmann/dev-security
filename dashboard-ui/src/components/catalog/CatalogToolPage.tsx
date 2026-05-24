@@ -108,7 +108,7 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
     [runtime, tool],
   );
 
-  // Homebrew-method tools that are missing can be installed via `brew install`
+  // Homebrew-method tools that are not installed can be installed via `brew install`
   // on the user's behalf. The binary name comes from the catalog, not from
   // user input, so it isn't shell-injectable.
   const homebrewInstallable = Boolean(

@@ -3,8 +3,8 @@
 ## Mission
 
 Build the read-only MCP (Model Context Protocol) adapter for DëvSec so local
-agents can call this project's security findings instead of treating it as an
-island. Ship a pro-grade, smoke-tested MVP in one focused pass.
+agents can call this project's cases and raw findings instead of treating it as
+an island. Ship a pro-grade, smoke-tested MVP in one focused pass.
 
 This work was scoped during a `/repo-craft` re-run and pre-approved. The path
 is decided; this session executes it. Do not redesign the tool surface, the
@@ -34,7 +34,7 @@ The adapter is a thin wrapper over methods that already exist. **Do not build
 new query methods.** Use what's in:
 
 - `src/security_observatory/storage.py` — `ObservatoryDB` class (~1600 lines).
-  The substantial read API. Methods cover scan history, findings, cases,
+  The substantial read API. Methods cover scan history, raw findings, cases,
   dependency trust, platform posture. Read the public method signatures
   before designing tool implementations.
 - `src/security_observatory/cases.py` — `build_security_cases()` and case
@@ -60,21 +60,22 @@ Python exception bubbling to MCP).
 2. **`latest_scan(repo: str)`** — most recent scan summary for a repo.
    Returns: `{scan_id, started_at, finished_at, scanner_count, finding_count, health_score, status}`
 
-3. **`findings(repo: str, severity: str | None = None, limit: int = 50)`** — findings for a repo.
+3. **`raw_findings(repo: str, severity: str | None = None, limit: int = 50)`** — raw scanner evidence for a repo.
+4. **`findings(repo: str, severity: str | None = None, limit: int = 50)`** — compatibility alias for `raw_findings`.
    `severity` filter: `critical|high|medium|low|info` (None = all).
    Returns: `[{id, title, severity, category, scanner, path, line, evidence_excerpt}]`
 
-4. **`cases(repo: str, status: str | None = None)`** — action-level cases. This is the
+5. **`cases(repo: str, status: str | None = None)`** — action-level cases. This is the
    load-bearing tool — cases are the project's primary unit of value, not raw
    findings. `status` filter: `open|resolved|verified|accepted_risk` (None = open by default).
    Returns: `[{id, title, plain_english_risk, severity, category, action_level, confidence, affected_files, suggested_steps, agent_handoff_prompt, status}]`
 
-5. **`recovery_playbook(category: str)`** — playbook content for a finding category.
+6. **`recovery_playbook(category: str)`** — playbook content for a raw-finding category.
    Categories come from the existing case-builder vocabulary in `cases.py` —
    do not invent new ones.
    Returns: `{category, title, steps, estimated_minutes, agent_prompt}`
 
-6. **`dependency_trust(repo: str)`** — dependency trust records.
+7. **`dependency_trust(repo: str)`** — dependency trust records.
    Returns: `[{package, version, trust_score, sources, last_updated}]`
 
 ## Hard rejections — do not ship any of these
@@ -207,7 +208,7 @@ Add one line under `## Operating Rules` near the bottom:
 1. `uv sync --extra mcp` completes successfully (the `mcp` SDK installs).
 2. `uv run pytest tests/test_mcp_server.py -v` is fully green (all 9+ tests pass).
 3. `uv run devsec-mcp` starts the server without error. Verify with a single
-   JSON-RPC `tools/list` request via stdin — the response should list exactly 6 tools.
+   JSON-RPC `tools/list` request via stdin — the response should list exactly 11 tools.
    (One way: `echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | uv run devsec-mcp` —
    adjust to whatever the SDK expects for stdio one-shot calls.)
 4. The full test suite `uv run pytest` does not regress beyond the existing
@@ -232,7 +233,7 @@ Final output should include, in order:
 - Files created (list with line counts)
 - Files modified (list)
 - Test results: `X passed, Y failed in Z.Zs`
-- Confirmation that `devsec-mcp` starts and responds to `tools/list` with 6 tools (paste the actual response)
+- Confirmation that `devsec-mcp` starts and responds to `tools/list` with 11 tools (paste the actual response)
 - Confirmation that full suite has the same pre-existing failures (no new regressions)
 - Two commit SHAs with one-line subjects
 - Any decisions deferred or scope tensions encountered, in one paragraph

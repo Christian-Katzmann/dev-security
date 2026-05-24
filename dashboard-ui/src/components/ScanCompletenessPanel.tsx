@@ -79,7 +79,7 @@ export default function ScanCompletenessPanel({completeness, summary, hasScan}: 
         />
         <ListBlock
           icon={CircleSlash}
-          title="Skipped or missing"
+          title="Skipped or not installed"
           items={hasScan ? completeness.checksMissing : []}
           empty="No skipped checks were reported."
         />
@@ -97,7 +97,7 @@ export default function ScanCompletenessPanel({completeness, summary, hasScan}: 
           Fix scanner coverage
         </div>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-black/55">
-          Missing tools are grouped by the kind of risk they would check. Install or rerun the right profile, then scan again.
+          Not-installed tools are grouped by the kind of risk they would check. Install or rerun the right profile, then scan again.
         </p>
 
         <div className="mt-4 grid grid-cols-1 xl:grid-cols-2 gap-3">
@@ -120,7 +120,7 @@ export default function ScanCompletenessPanel({completeness, summary, hasScan}: 
 function ScannerDoctorRow({item}: {item: ScannerDoctorItem}) {
   const statusStyle = {
     ran: 'border-black/10 bg-[#fbfbfb] text-black/55',
-    missing: 'border-graph-gold bg-white text-black shadow-[inset_3px_0_0_#cca43b]',
+    missing: 'border-black/10 bg-white text-black shadow-[inset_3px_0_0_var(--sev-info)]',
     error: 'border-black bg-white text-black',
     'not-run': 'border-black/10 bg-white/60 text-black/45',
   }[item.status];
@@ -139,7 +139,7 @@ function ScannerDoctorRow({item}: {item: ScannerDoctorItem}) {
         </div>
         {item.status === 'ran' && (
           <span className="shrink-0 font-mono text-[9px] uppercase tracking-widest text-black/35">
-            {item.findings} signals
+            {item.findings} raw signals
           </span>
         )}
       </div>
@@ -150,7 +150,7 @@ function ScannerDoctorRow({item}: {item: ScannerDoctorItem}) {
         <div className="mt-2 flex flex-wrap gap-1.5">
           {item.recommendedPacks.slice(0, 3).map((pack) => (
             <span key={pack.id} className="border border-black/10 bg-[#fbfbfb] px-2 py-1 font-mono text-[9px] uppercase tracking-widest text-black/45">
-              {pack.label} · {pack.ready_count} ready · {pack.missing_count} missing
+              {pack.label} · {pack.ready_count} ready · {pack.missing_count} not installed
             </span>
           ))}
         </div>

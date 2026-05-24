@@ -1176,7 +1176,7 @@ export const dependencyMatchLabels: Record<DependencyMatchConfidence, string> = 
 
 export const scannerStatusLabels: Record<ScannerDoctorStatus, string> = {
   ran: 'Ran',
-  missing: 'Missing',
+  missing: 'Not installed',
   error: 'Error',
   'not-run': 'Not run',
 };
@@ -1219,7 +1219,7 @@ export const defaultScannerCatalog: ScannerCatalogItem[] = [
     covers: 'GitHub Actions pins, fetch-and-exec patterns, secret handling, token permissions, and pull_request_target risk.',
     profile: 'default, quick, iac, full',
     install: 'Built in. No install needed.',
-    next_step: 'Run a default, quick, IaC, or full scan to include workflow surface findings.',
+    next_step: 'Run a default, quick, IaC, or full scan to include workflow surface raw findings.',
     built_in: true,
   },
   {
@@ -1731,7 +1731,7 @@ export function scannerCoverageSummary(summary: DashboardSummary): string {
   const ran = items.filter((item) => item.status === 'ran').length;
   const notRun = items.filter((item) => item.status === 'not-run').length;
   if (missing || errors) {
-    return `Trust is limited: ${missing + errors} scanner${missing + errors === 1 ? '' : 's'} need attention before clean results mean much.`;
+    return `Coverage is limited: ${missing + errors} scanner${missing + errors === 1 ? '' : 's'} need setup or repair before clean results mean much.`;
   }
   if (notRun) {
     return `${ran} scanner${ran === 1 ? '' : 's'} ran for this profile. Use the relevant opt-in profile when you need broader trust.`;
@@ -1779,9 +1779,9 @@ function scannerAction(
   const installState = tool?.install_state ?? item.install_state;
   const readyNow = installState === 'built-in' || installState === 'managed' || installState === 'detected';
   const packReadiness = recommendedPacks.length
-    ? ` Pack readiness: ${recommendedPacks.map((pack) => `${pack.label} ${pack.ready_count} ready/${pack.missing_count} missing`).join('; ')}.`
+    ? ` Pack readiness: ${recommendedPacks.map((pack) => `${pack.label} ${pack.ready_count} ready/${pack.missing_count} not installed`).join('; ')}.`
     : '';
-  if (status === 'ran') return `Covered by ${item.profile}.${packReadiness} Findings: review the cases above.`;
+  if (status === 'ran') return `Covered by ${item.profile}.${packReadiness} Raw findings are grouped into the cases above.`;
   if (status === 'not-run') {
     if (readyNow) return `${tool?.label ?? item.label} is ${installStateLabel(installState)}${packText}; run ${profileText} when you need this evidence.`;
     return `${item.next_step}${packText ? ` Pack context: open ${recommendedPacks.map((pack) => pack.label).join(', ')} before trusting a clean result.` : ''}`;
@@ -1800,7 +1800,7 @@ function installStateLabel(state?: ToolInstallState | string): string {
   if (state === 'not-configured') return 'installed but not configured';
   if (state === 'coming-soon') return 'display-only';
   if (state === 'unavailable') return 'unavailable';
-  return 'missing';
+  return 'not installed';
 }
 
 function scannerStatusRank(status: ScannerDoctorStatus): number {

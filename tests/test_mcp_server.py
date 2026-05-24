@@ -172,6 +172,7 @@ def test_server_lists_expected_tools(tmp_path):
         "honey_keys",
         "latest_scan",
         "scan_history",
+        "raw_findings",
         "findings",
         "cases",
         "recovery_playbook",

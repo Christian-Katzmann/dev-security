@@ -216,7 +216,7 @@ const navGroups: {title: string; items: {id: TabId; label: string; icon: typeof 
     title: 'Workspace',
     items: [
       {id: 'overview', label: 'Overview', icon: Home},
-      {id: 'findings', label: 'Findings', icon: ShieldAlert},
+      {id: 'findings', label: 'Cases', icon: ShieldAlert},
       {id: 'honey-keys', label: 'Honey keys', icon: ShieldCheck},
     ],
   },
@@ -240,7 +240,7 @@ const navGroups: {title: string; items: {id: TabId; label: string; icon: typeof 
 
 const tabTitles: Record<TabId, string> = {
   overview: 'Overview',
-  findings: 'Findings',
+  findings: 'Cases',
   'honey-keys': 'Honey keys',
   scanners: 'Tool Catalog',
   'agent-lab': 'Agent Lab',
@@ -514,7 +514,7 @@ function formatConfidenceValue(value: number): string {
 function suppressionReasons(summary: DashboardSummary) {
   const direct = summary.suppression_reasons ?? summary.suppressed_counts?.reasons ?? [];
   const fromRepos = summary.repos.flatMap((repo) => repo.suppression_reasons ?? repo.suppressed_counts?.reasons ?? []);
-  const grouped = new Map<string, {reason: string; decision_status: string; vex_status: string; cases: number; findings: number}>();
+  const grouped = new Map<string, {reason: string; decision_status: string; vex_status: string; cases: number; rawFindings: number}>();
   for (const item of [...direct, ...fromRepos]) {
     const key = `${item.reason}:${item.decision_status}:${item.vex_status}`;
     const current = grouped.get(key) ?? {
@@ -522,13 +522,13 @@ function suppressionReasons(summary: DashboardSummary) {
       decision_status: item.decision_status,
       vex_status: item.vex_status,
       cases: 0,
-      findings: 0,
+      rawFindings: 0,
     };
     current.cases += item.cases;
-    current.findings += item.findings;
+    current.rawFindings += item.findings;
     grouped.set(key, current);
   }
-  return [...grouped.values()].sort((a, b) => b.findings - a.findings || b.cases - a.cases);
+  return [...grouped.values()].sort((a, b) => b.rawFindings - a.rawFindings || b.cases - a.cases);
 }
 
 function activeFindingCount(summary: DashboardSummary): number {
@@ -537,6 +537,20 @@ function activeFindingCount(summary: DashboardSummary): number {
 
 function suppressedFindingCount(summary: DashboardSummary): number {
   return summary.suppressed_findings?.length ?? summary.findings.filter((finding) => finding.suppressed).length;
+}
+
+function caseSeverityCounts(cases: DisplayCase[]) {
+  return cases.reduce(
+    (counts, item) => {
+      const tone = toneForCase(item);
+      if (tone === 'crit') counts.critical += 1;
+      else if (tone === 'high') counts.elevated += 1;
+      else if (tone === 'warn') counts.warning += 1;
+      else counts.low += 1;
+      return counts;
+    },
+    {critical: 0, elevated: 0, warning: 0, low: 0},
+  );
 }
 
 export default function App() {
@@ -1008,7 +1022,7 @@ function Toolbar({
   canRun: boolean;
   runAllHint: string;
 }) {
-  const searchPlaceholder = title === 'Tool Catalog' ? 'Search tools, packs' : title === 'Agent Lab' ? 'Search proposals, tools' : 'Search findings, manifests';
+  const searchPlaceholder = title === 'Tool Catalog' ? 'Search tools, packs' : title === 'Agent Lab' ? 'Search proposals, tools' : 'Search cases, manifests';
   const runAllLabel = canRun ? 'Run all' : 'Run all (pick a repo)';
   const runQuickLabel = canRun ? 'Run quick' : 'Run quick (pick a repo)';
   return (
@@ -1113,7 +1127,7 @@ function RunCheckSheet({
           {activeJob?.status === 'complete' ? (
             <>
               <Button variant="secondary" onClick={onNewCheck}>New check</Button>
-              <Button onClick={onViewResults}>View findings</Button>
+              <Button onClick={onViewResults}>View cases</Button>
             </>
           ) : (
             <>
@@ -1182,8 +1196,8 @@ function RunCheckSheet({
       {activeJob?.status === 'complete' && (
         <div className="complete-grid">
           <MetricBlock label="Health" value={String(activeJob.scan?.health_score ?? 100)} />
-          <MetricBlock label="Saved issues" value={String(activeJob.scan?.findings.length ?? 0)} />
-          <MetricBlock label="Missing checks" value={String(incompleteToolCount(activeJob.scan))} />
+          <MetricBlock label="Raw findings saved" value={String(activeJob.scan?.findings.length ?? 0)} />
+          <MetricBlock label="Setup gaps" value={String(incompleteToolCount(activeJob.scan))} />
           <MetricBlock label="Duration" value={formatDuration(activeJob.scan?.started_at, activeJob.scan?.finished_at)} />
           {activeJob.scan?.scan_id && (
             <a className="report-link wide" href={reportViewUrl(activeJob.scan.scan_id, 'raw')}>Open raw report <ChevronRight size={15} /></a>
@@ -1197,14 +1211,15 @@ function RunCheckSheet({
 
 function OverviewView({summary, target, posture, error, onOpenTab}: {summary: DashboardSummary; target: TargetSelection; posture: {score: number; delta: number; week: {label: string; value: number}[]}; error: string | null; onOpenTab: (tab: TabId) => void}) {
   const cases = activeCaseList(summary);
-  const counts = severityCounts(summary);
-  const rawFindingTotal = counts.critical + counts.elevated + counts.warning + counts.low;
+  const rawCounts = severityCounts(summary);
+  const caseCounts = caseSeverityCounts(cases);
+  const rawFindingTotal = rawCounts.critical + rawCounts.elevated + rawCounts.warning + rawCounts.low;
   const loadedFindingRows = totalFindings(summary);
-  const nonLowFindings = counts.critical + counts.elevated + counts.warning;
-  const openFindingValue = String(rawFindingTotal || loadedFindingRows);
-  const openFindingDetail = rawFindingTotal > loadedFindingRows
-    ? `${loadedFindingRows} rows loaded · ${nonLowFindings} non-low`
-    : `${nonLowFindings} non-low`;
+  const nonLowFindings = rawCounts.critical + rawCounts.elevated + rawCounts.warning;
+  const openCaseValue = String(cases.length);
+  const rawFindingDetail = rawFindingTotal > loadedFindingRows
+    ? `${rawFindingTotal} raw findings · ${loadedFindingRows} rows loaded`
+    : `${rawFindingTotal || loadedFindingRows} raw findings · ${nonLowFindings} non-low`;
   const honeyCounts = honeyKeyCounts(summary);
   const scanners = topScannerItems(summary);
   const catalogCount = toolCatalogItems(summary).length || scanners.length;
@@ -1233,7 +1248,7 @@ function OverviewView({summary, target, posture, error, onOpenTab}: {summary: Da
           <Eyebrow onSurface>Today · {new Intl.DateTimeFormat(undefined, {weekday: 'long', month: 'long', day: 'numeric'}).format(new Date())}</Eyebrow>
           <h1>{headline}</h1>
           <div className="hero-actions">
-            <Button variant="glassOnGlass" onClick={() => onOpenTab('findings')}>Open digest</Button>
+            <Button variant="glassOnGlass" onClick={() => onOpenTab('findings')}>Open cases</Button>
             <Button variant="glass" icon={<Activity size={15} />} onClick={() => onOpenTab('activity')}>See activity</Button>
           </div>
         </div>
@@ -1252,7 +1267,7 @@ function OverviewView({summary, target, posture, error, onOpenTab}: {summary: Da
       </section>
 
       <section className="kpi-grid">
-        <KpiCard title="Open findings" value={openFindingValue} detail={openFindingDetail} icon={<ShieldAlert size={18} />} onClick={() => onOpenTab('findings')} />
+        <KpiCard title="Open cases" value={openCaseValue} detail={rawFindingDetail} icon={<ShieldAlert size={18} />} onClick={() => onOpenTab('findings')} />
         <KpiCard title="Honey keys armed" value={String(honeyCounts.active)} detail={honeyCounts.triggered ? `${honeyCounts.triggered} tripped` : 'all quiet'} icon={<ShieldCheck size={18} />} onClick={() => onOpenTab('honey-keys')} />
         <KpiCard title="Tool Catalog" value={`${scannerHealthy} / ${Math.max(scanners.length, 1)}`} detail={`${catalogCount} catalog entries`} icon={<ScanIcon size={18} />} onClick={() => onOpenTab('scanners')} />
       </section>
@@ -1261,8 +1276,8 @@ function OverviewView({summary, target, posture, error, onOpenTab}: {summary: Da
 
       <section className="split-grid wide-left">
         <PaperCard>
-          <SectionHeader title="Open findings" right={<button onClick={() => onOpenTab('findings')}>All {cases.length} <ChevronRight size={14} /></button>} />
-          <SeverityDistribution counts={counts} />
+          <SectionHeader title="Open cases" right={<button onClick={() => onOpenTab('findings')}>All {cases.length} <ChevronRight size={14} /></button>} />
+          <SeverityDistribution counts={caseCounts} />
           <div className="soft-list">
             {cases.slice(0, 5).map((item, index) => <FindingLine key={item.id} item={item} index={index} onClick={() => onOpenTab('findings')} />)}
             {!cases.length && <EmptyLine title="No active cases" detail={lastScan ? `Latest scan ${formatDate(lastScan)}` : 'No scan has run yet'} />}
@@ -1294,7 +1309,7 @@ function FindingsView({summary, search, onCaseDecision}: {summary: DashboardSumm
   const cases = displayCases(summary);
   const suppressed = suppressedDisplayCases(summary);
   const reasons = suppressionReasons(summary);
-  const counts = severityCounts(summary);
+  const counts = caseSeverityCounts(cases);
   const categories = [...new Set(cases.map((item) => item.category).filter(Boolean) as string[])];
   // Map case.repoName → rotation context. The "Rotate this" affordance only
   // appears when the case's repo has rotation scaffolded; the path comes
@@ -1355,7 +1370,7 @@ function FindingsView({summary, search, onCaseDecision}: {summary: DashboardSumm
   return (
     <div className="view-stack">
       <section className="summary-strip">
-        <MetricBlock label="Findings" value={String(cases.length)} detail="open · all sources" />
+        <MetricBlock label="Cases" value={String(cases.length)} detail="open · grouped from raw findings" />
         <MetricBlock label="Critical" value={String(counts.critical)} tone="crit" />
         <MetricBlock label="Elevated" value={String(counts.elevated)} tone="high" />
         <MetricBlock label="Warning" value={String(counts.warning)} tone="warn" />
@@ -1367,7 +1382,7 @@ function FindingsView({summary, search, onCaseDecision}: {summary: DashboardSumm
         </div>
       )}
       <PaperCard className="landscape-card">
-        <SectionHeader title="Risk landscape · severity × age" right={<span>{cases.filter((item) => toneForCase(item) !== 'low' && relativeAge(item.createdAt).includes('d')).length} non-low findings aged past 24 h</span>} />
+        <SectionHeader title="Risk landscape · severity × age" right={<span>{cases.filter((item) => toneForCase(item) !== 'low' && relativeAge(item.createdAt).includes('d')).length} non-low cases aged past 24 h</span>} />
         <RiskLandscape items={cases} onPick={setSelectedId} />
       </PaperCard>
       <div className="chip-row">
@@ -1398,7 +1413,7 @@ function FindingsView({summary, search, onCaseDecision}: {summary: DashboardSumm
       </section>
       {!!suppressed.length && (
         <PaperCard>
-          <SectionHeader title="Suppressed findings" right={<span>{suppressed.length} cases</span>} />
+          <SectionHeader title="Suppressed cases" right={<span>{suppressed.length} cases</span>} />
           <div className="soft-list">
             {suppressed.slice(0, 5).map((item, index) => <FindingLine key={item.id} item={item} index={index} muted />)}
           </div>
@@ -1638,7 +1653,7 @@ function PlaybooksView({summary, target, targetRepos, onChooseChecks, onTargetCh
   const [activeId, setActiveId] = useState(playbooks[0]?.id ?? '');
   const active = playbooks.find((item) => item.id === activeId) ?? playbooks[0];
   const needsRepo = target.type !== 'repo';
-  const rerunHint = needsRepo ? 'Switch to the repo where the finding lives to rerun its check' : undefined;
+  const rerunHint = needsRepo ? 'Switch to the repo where the case lives to rerun its check' : undefined;
 
   if (!playbooks.length || !active) {
     return (
@@ -1662,7 +1677,7 @@ function PlaybooksView({summary, target, targetRepos, onChooseChecks, onTargetCh
         <NeedsRepoTarget
           targetRepos={targetRepos}
           onTargetChange={onTargetChange}
-          message="Switch to the repo where the finding lives to rerun its check."
+          message="Switch to the repo where the case lives to rerun its check."
         />
       )}
       <div className="playbook-grid">
@@ -1746,7 +1761,7 @@ function VerificationView({summary, target, targetRepos, onChooseChecks, onTarge
       </section>
       <section className="triple-grid">
         <CoverageCard title="Checks that ran" icon={<CheckCircle2 size={18} />} items={completeness.checksRan} empty="No completed checks reported." />
-        <CoverageCard title="Skipped or missing" icon={<CircleSlash size={18} />} items={completeness.checksMissing} empty="No skipped checks reported." />
+        <CoverageCard title="Skipped or not installed" icon={<CircleSlash size={18} />} items={completeness.checksMissing} empty="No skipped checks reported." />
         <CoverageCard title="Cannot prove" icon={<Stethoscope size={18} />} items={completeness.cannotProve} empty="No limits reported." />
       </section>
       <PaperCard>
@@ -1770,8 +1785,8 @@ function ActivityView({summary, search}: {summary: DashboardSummary; search: str
       <section className="summary-strip">
         <MetricBlock label="Audit history" value={String(summary.history.length)} detail="runs saved locally" />
         <MetricBlock label="Storage" value={`${Math.max(0.1, summary.history.length * 0.04).toFixed(1)} MB`} detail="local · sqlite" />
-        <MetricBlock label="Findings · 7 d" value={String(totalFindings(summary))} detail={`${suppressedDisplayCases(summary).length} suppressed`} />
-        <MetricBlock label="Honey hits" value={String(honeyHits)} tone={honeyHits ? 'warn' : 'low'} />
+        <MetricBlock label="Raw findings · 7 d" value={String(totalFindings(summary))} detail={`${suppressedDisplayCases(summary).length} suppressed cases`} />
+        <MetricBlock label="Honey hits" value={String(honeyHits)} tone={honeyHits ? 'crit' : 'neutral'} />
       </section>
       <section className="split-grid align-start">
         <PaperCard>
@@ -1785,7 +1800,7 @@ function ActivityView({summary, search}: {summary: DashboardSummary; search: str
       <PaperCard padded={false}>
         <div className="event-feed-head">
           <Eyebrow>Event feed · Today</Eyebrow>
-          <div className="chip-row compact"><Chip active>All</Chip><Chip>Scanner runs</Chip><Chip>Findings</Chip><Chip>Honey keys</Chip></div>
+          <div className="chip-row compact"><Chip active>All</Chip><Chip>Scanner runs</Chip><Chip>Cases</Chip><Chip>Honey keys</Chip></div>
         </div>
         <div className="activity-list feed">
           {activities.map((item) => <ActivityRow key={item.id} item={item} showTone />)}
@@ -1901,15 +1916,15 @@ function RepositorySnapshotCard({summary}: {summary: DashboardSummary}) {
       <SectionHeader title="Repository snapshots" right={<span>{summary.repos.length} current targets</span>} />
       <div className="data-table repo-table">
         <div className="data-head">
-          <span>Repo</span><span>Health</span><span>Previous</span><span>Active</span><span>Raw</span><span>Suppressed</span><span>Reports</span>
+          <span>Repo</span><span>Health</span><span>Previous</span><span>Active raw</span><span>Total raw</span><span>Suppressed</span><span>Reports</span>
         </div>
         {summary.repos.map((repo) => (
           <div key={`${repo.repo}-${repo.scan_id ?? repo.path}`} className="data-row">
             <strong>{repo.repo}<em>{repo.path}</em></strong>
             <span>{repo.health}/100</span>
             <span>{repo.previous_health ?? 'none'}{typeof repo.health_delta === 'number' ? ` (${repo.health_delta >= 0 ? '+' : ''}${repo.health_delta})` : ''}</span>
-            <span>{countRecord(repo.counts)} findings</span>
-            <span>{countRecord(repo.raw_counts)} raw</span>
+            <span>{countRecord(repo.counts)} raw findings</span>
+            <span>{countRecord(repo.raw_counts)} raw total</span>
             <span>{repo.suppressed_counts?.findings ?? 0} hidden</span>
             <span>{repo.scan_id ? <a href={reportViewUrl(repo.scan_id, 'raw')}>Raw</a> : 'No report'}</span>
           </div>
@@ -1929,7 +1944,7 @@ function PlatformPostureCard({
 }) {
   return (
     <PaperCard>
-      <SectionHeader title="Platform posture" right={<span>{snapshots.length} snapshots · {findings.length} findings</span>} />
+        <SectionHeader title="Platform posture" right={<span>{snapshots.length} snapshots · {findings.length} raw findings</span>} />
       <div className="data-table platform-table">
         <div className="data-head">
           <span>Target</span><span>Status</span><span>Records</span><span>Failed</span><span>Source</span>
@@ -2003,8 +2018,8 @@ function DataCoverageCard({summary}: {summary: DashboardSummary}) {
   const rows = [
     ['Repository snapshots', summary.repos.length, 'current scan state'],
     ['History records', summary.history.length, 'saved scans'],
-    ['Active findings', activeFindingCount(summary), 'shown in Findings'],
-    ['Suppressed findings', suppressedFindingCount(summary), 'shown with reasons'],
+    ['Active raw findings', activeFindingCount(summary), 'scanner evidence behind cases'],
+    ['Suppressed raw findings', suppressedFindingCount(summary), 'shown with reasons'],
     ['Cases', (summary.cases ?? []).length || (summary.active_cases ?? []).length + (summary.suppressed_cases ?? []).length, 'decision workflow'],
     ['Case decisions', (summary.case_decisions ?? []).length, 'stored review state'],
     ['Honey Keys', (summary.honey_keys ?? []).length, 'create, insert, archive'],
@@ -2057,7 +2072,7 @@ function EmptyRepoView({repoName, onRunQuick, onChooseChecks}: {repoName: string
       <div className="workspace-mark large"><FolderGit2 size={34} /></div>
       <Eyebrow>No saved scan</Eyebrow>
       <h1>No scan yet for {repoName}</h1>
-      <p>Run a quick safety sweep first. DëvSec will turn scanner output into local findings, reports, and next actions.</p>
+      <p>Run a quick safety sweep first. DëvSec will turn scanner output into cases, reports, and next actions.</p>
       <div className="button-row">
         <Button icon={<Play size={15} />} onClick={onRunQuick}>Run quick sweep</Button>
         <Button variant="secondary" icon={<SlidersHorizontal size={15} />} onClick={onChooseChecks}>Choose checks</Button>
@@ -2192,7 +2207,7 @@ function FindingsTable({items, selectedId, onPick}: {items: DisplayCase[]; selec
   return (
     <div className="findings-table">
       <div className="findings-head">
-        <span>ID</span><span>Finding</span><span>Category</span><span>Scanner</span><span>Severity</span><span>Age</span><span />
+        <span>ID</span><span>Case</span><span>Category</span><span>Scanner</span><span>Severity</span><span>Age</span><span />
       </div>
       {items.map((item, index) => (
         <button key={item.id} type="button" className={`finding-row ${selectedId === item.id ? 'selected' : ''}`} onClick={() => onPick(item.id)}>
@@ -2205,7 +2220,7 @@ function FindingsTable({items, selectedId, onPick}: {items: DisplayCase[]; selec
           <ChevronRight size={16} />
         </button>
       ))}
-      {!items.length && <div className="empty-table"><EmptyLine title="No findings match" detail="Try another filter or search term." /></div>}
+      {!items.length && <div className="empty-table"><EmptyLine title="No cases match" detail="Try another filter or search term." /></div>}
     </div>
   );
 }
@@ -2216,7 +2231,7 @@ function SuppressionReasonsCard({reasons}: {reasons: ReturnType<typeof suppressi
       <SectionHeader title="Suppression reasons" right={<span>{reasons.length} decision groups</span>} />
       <div className="data-table suppression-table">
         <div className="data-head">
-          <span>Reason</span><span>Decision</span><span>VEX</span><span>Cases</span><span>Findings</span>
+          <span>Reason</span><span>Decision</span><span>VEX</span><span>Cases</span><span>Raw findings</span>
         </div>
         {reasons.map((reason) => (
           <div key={`${reason.reason}-${reason.decision_status}-${reason.vex_status}`} className="data-row">
@@ -2224,7 +2239,7 @@ function SuppressionReasonsCard({reasons}: {reasons: ReturnType<typeof suppressi
             <span>{reason.decision_status}</span>
             <span>{reason.vex_status}</span>
             <span>{reason.cases}</span>
-            <span>{reason.findings}</span>
+            <span>{reason.rawFindings}</span>
           </div>
         ))}
       </div>
@@ -2477,7 +2492,7 @@ function ScannerDetail({item, onChooseChecks}: {item: ScannerDoctorItem; onChoos
       <KV label="Status" value={item.status} />
       <KV label="Profile" value={item.profile} />
       <KV label="Recommended packs" value={item.recommendedPacks.map((pack) => pack.label).join(', ') || 'No pack recommendation'} />
-      <KV label="Findings" value={String(item.findings)} />
+      <KV label="Raw findings" value={String(item.findings)} />
       <KV label="Repos" value={item.repoNames.join(', ') || 'Not run'} />
       <div className="next-step"><Eyebrow>Next action</Eyebrow><p>{item.action}</p></div>
       <div className="button-row wrap">
@@ -2498,7 +2513,7 @@ function DoctorRow({item}: {item: ScannerDoctorItem}) {
         <span>{item.action}</span>
         {!!item.recommendedPacks.length && <span>{item.recommendedPacks.map((pack) => `${pack.label}: ${pack.ready_count} ready`).join(' · ')}</span>}
       </div>
-      <em>{item.findings} signals</em>
+      <em>{item.findings} raw signals</em>
     </div>
   );
 }
@@ -2558,11 +2573,11 @@ function AuditsPerDay({history}: {history: DashboardSummary['history']}) {
 
 function EventMix({summary}: {summary: DashboardSummary}) {
   const rows = [
-    ['Scanner runs', summary.history.length, 'low'],
-    ['Findings opened', totalFindings(summary), 'warn'],
-    ['Findings suppressed', suppressedDisplayCases(summary).length, 'info'],
+    ['Scanner runs', summary.history.length, 'neutral'],
+    ['Raw findings opened', totalFindings(summary), 'info'],
+    ['Cases suppressed', suppressedDisplayCases(summary).length, 'info'],
     ['Honey-key hits', (summary.honey_key_events ?? []).length, 'crit'],
-    ['Verification gaps', topScannerItems(summary).filter((item) => item.status === 'missing' || item.status === 'error').length, 'high'],
+    ['Verification gaps', topScannerItems(summary).filter((item) => item.status === 'missing' || item.status === 'error').length, 'info'],
   ] as const;
   const max = Math.max(1, ...rows.map((row) => row[1]));
   return (

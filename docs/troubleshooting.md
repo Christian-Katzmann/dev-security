@@ -1,6 +1,6 @@
 # Troubleshooting
 
-## A Scanner Is Missing
+## A Scanner Is Not Installed
 
 Run:
 
@@ -30,7 +30,7 @@ Medusa can be slow on some TypeScript/agent-heavy repos. The observatory runs it
 
 Start with the normalized report and suppress at the scanner layer where possible. Prefer narrow allowlists over broad folder exclusions.
 
-## Secret Findings
+## Secret Raw Findings
 
 Do not paste secret values into issues or chat. Rotate the credential first, then clean history or add a specific allowlist entry if it is a false positive.
 

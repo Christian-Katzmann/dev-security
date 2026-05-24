@@ -29,14 +29,14 @@ export function topScannerItems(summary: DashboardSummary): ScannerDoctorItem[] 
 export function scannerStatusTone(status: ScannerDoctorItem['status']): Tone {
   if (status === 'ran') return 'low';
   if (status === 'not-run') return 'info';
-  if (status === 'missing') return 'warn';
-  return 'crit';
+  if (status === 'missing') return 'info';
+  return 'info';
 }
 
 export function safetyLabelTone(label: string): Tone {
   const normalized = label.toLowerCase();
-  if (normalized.includes('sends source') || normalized.includes('destructive')) return 'crit';
-  if (normalized.includes('network required') || normalized.includes('needs credentials') || normalized.includes('approval required') || normalized.includes('writes files')) return 'warn';
+  if (normalized.includes('sends source') || normalized.includes('destructive')) return 'info';
+  if (normalized.includes('network required') || normalized.includes('needs credentials') || normalized.includes('approval required') || normalized.includes('writes files')) return 'info';
   if (normalized.includes('optional network') || normalized.includes('blocked')) return 'info';
   return normalized.includes('display only') ? 'neutral' : 'low';
 }

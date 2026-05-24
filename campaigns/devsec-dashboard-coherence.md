@@ -43,12 +43,12 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 0 — Salvage and bug bash
 
-- [ ] Step 0.1 — Verify, polish, and commit the in-session Homebrew install button
-- [ ] Step 0.2 — Bug-bash sweep (visual and information quick wins)
+- [x] Step 0.1 — Verify, polish, and commit the in-session Homebrew install button
+- [x] Step 0.2 — Bug-bash sweep (visual and information quick wins)
 
 ### Phase 1 — Vocabulary lock
 
-- [ ] Step 1.1 — Lock severity and findings/cases vocabulary across UI, CLI, docs, AI handoffs
+- [x] Step 1.1 — Lock severity and findings/cases vocabulary across UI, CLI, docs, AI handoffs
 
 ### Phase 2 — Two-mode dashboard model
 

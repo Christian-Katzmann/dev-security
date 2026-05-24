@@ -8,7 +8,7 @@ A practical security sweep for repos you actually work in. DëvSec runs establis
 
 https://github.com/user-attachments/assets/9df30c29-a9fc-40f2-83c4-3530b08c4818
 
-*The dashboard groups raw scanner output into action-level cases — each carries plain-English risk, severity, and an agent-ready handoff prompt. The 0.0 / 10 posture is real: this is DëvSec scanning itself. Source MP4: [design/trailer/trailer.mp4](design/trailer/trailer.mp4).*
+*The dashboard groups raw scanner output into cases — each carries plain-English risk, severity, and an agent-ready handoff prompt. The 0.0 / 10 posture is real: this is DëvSec scanning itself. Source MP4: [design/trailer/trailer.mp4](design/trailer/trailer.mp4).*
 
 ## Why this exists
 
@@ -42,7 +42,7 @@ DëvSec's status line says *"the dashboard is honest about what's still partial.
 - A local SQLite history store under `~/.security-observatory`
 - An MCP server for local agent access (optional install: `uv sync --extra mcp`). See [mcp/README.md](mcp/README.md).
 - A scanner orchestration layer around established open-source tools
-- A normalizer that converts scanner output into one consistent finding shape
+- A normalizer that converts scanner output into one consistent raw-finding shape
 - A case builder that groups raw findings into human-readable remediation cases
 - A honeytoken system for defensive decoy secrets called Honey Keys
 
@@ -58,7 +58,7 @@ DëvSec's status line says *"the dashboard is honest about what's still partial.
 
 ![Recovery playbooks page showing three category-level playbooks and a detailed dependency upgrade playbook](design/screenshots/02-recovery-playbooks.png)
 
-*Cases roll up into category-level playbooks — 41 stdlib CVE findings become one "Upgrade vulnerable dependencies" playbook with steps, a wall-clock estimate, and an AI-prompt handoff, not 41 separate tickets.*
+*Cases roll up into category-level playbooks — 41 stdlib CVE raw findings become one "Upgrade vulnerable dependencies" playbook with steps, a wall-clock estimate, and an AI-prompt handoff, not 41 separate tickets.*
 
 ![Tool Catalog home page with featured security packs](design/screenshots/03-tool-catalog.png)
 
@@ -66,7 +66,7 @@ DëvSec's status line says *"the dashboard is honest about what's still partial.
 
 ![Settings page showing workspace controls, privacy and storage panel, and data coverage](design/screenshots/04-settings.png)
 
-*Repository snapshots, history records, and active findings are stored in local SQLite under `~/.security-observatory`; the Settings page shows you what the dashboard has on hand and reinforces that reports never leave the machine unless you export them.*
+*Repository snapshots, history records, and active raw findings are stored in local SQLite under `~/.security-observatory`; the Settings page shows you what the dashboard has on hand and reinforces that reports never leave the machine unless you export them.*
 
 ## From scanner to next action
 
@@ -84,9 +84,9 @@ DëvSec's status line says *"the dashboard is honest about what's still partial.
 |   |                                                                |
 |   | raw output, deduped by stable fingerprint                      |
 |   v                                                                |
-| findings -> cases -> action level                                  |
-| atomic      decision   fix_now | verify | watch | info             |
-| evidence    units              |                                   |
+| raw findings -> cases -> action level                              |
+| scanner       decision   fix_now | verify | watch | info           |
+| evidence      units              |                                 |
 |                                v                                   |
 |                       recovery playbook                            |
 |                       + agent-ready follow-up                      |
@@ -161,7 +161,7 @@ Every scan saves:
 - A repo health score from 0 to 100
 - Human-readable security cases with fix guidance
 
-Findings are deduplicated by stable fingerprints so repeated scanner evidence does not inflate the result.
+Raw findings are deduplicated by stable fingerprints so repeated scanner evidence does not inflate the result.
 
 ### Security Cases
 
@@ -187,7 +187,7 @@ The dashboard is a React/Vite app served by the Python CLI. It runs locally on `
 Current dashboard views:
 
 - Overview: top risks, best next action, scan coverage, and health movement
-- Findings: searchable and filterable security cases
+- Cases: searchable and filterable security cases
 - Honey keys: create, insert, archive, and investigate decoy secrets
 - Tool Catalog: local scanner inventory, security packs, install state, and setup guidance
 - Agent Lab: bounded local-agent proposals and approval records
@@ -234,7 +234,7 @@ Each scan can be opened as:
 - A local HTML report page
 - A Markdown prompt for an AI coding agent
 
-The AI handoff prompt is generated locally from saved cases and findings. It asks the agent to verify findings before fixing them and includes guardrails for secrets, dependency upgrades, and destructive actions.
+The AI handoff prompt is generated locally from saved cases and raw findings. It asks the agent to verify scanner evidence before fixing anything and includes guardrails for secrets, dependency upgrades, and destructive actions.
 
 ### Optional Desktop Launcher
 
@@ -362,7 +362,7 @@ Opt into connected platform posture checks:
 SCM_TOKEN=<github-or-gitlab-token> security-scan --platform-posture
 ```
 
-Platform posture is deliberately outside default, quick, local, and full scans. It asks legitify to inspect SCM settings for the resolved repository target, then stores only sanitized posture state and findings locally. If legitify, credentials, or a repository target are missing, the scan is saved as partial/skipped instead of failing the whole run.
+Platform posture is deliberately outside default, quick, local, and full scans. It asks legitify to inspect SCM settings for the resolved repository target, then stores only sanitized posture state and raw findings locally. If legitify, credentials, or a repository target are unavailable, the scan is saved as partial/skipped instead of failing the whole run.
 
 Fail non-zero when a severity threshold is reached:
 
@@ -544,7 +544,7 @@ scripts/                        Dashboard and desktop launcher scripts
 ## Operational Notes
 
 - Treat scanner output as evidence, not truth. Verify before changing code.
-- A partial scan is still useful, but the missing tools limit what the app can prove.
-- Secret findings should be handled carefully: rotate first, then clean code or history.
+- A partial scan is still useful, but not-installed or unavailable tools limit what the app can prove.
+- Secret raw findings should be handled carefully: rotate first, then clean code or history.
 - Honey Keys alert when touched; they do not block access or identify the person behind a request.
 - Full scans can be slow on large repositories. Start with `--quick` when you want a fast baseline.
