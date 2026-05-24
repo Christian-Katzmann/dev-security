@@ -2208,7 +2208,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         "key": key,
                         "raw_token": material.token,
                         "snippets": snippets,
-                        "warning": "Honey Keys are fake, powerless decoy secrets. They alert you when touched. They do not prevent breaches by themselves.",
+                        "notice": "Honey Keys are fake, powerless decoy secrets. They alert you when touched. They do not prevent breaches by themselves.",
                     }
                 )
             finally:

@@ -341,7 +341,7 @@ function RotationSecretsList({
                     )}`}
                   >
                     {imminent && (
-                      <span aria-label="warning" className="mr-1">
+                      <span aria-label="attention" className="mr-1">
                         ⚠
                       </span>
                     )}
