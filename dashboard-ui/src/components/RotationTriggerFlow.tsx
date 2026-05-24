@@ -8,6 +8,7 @@ import {
   RotationSecretRow,
   RotationTriggerOptions,
   formatDate,
+  repoKeyFromPath,
   rotationConfirmationPhrase,
 } from '../dashboardData';
 
@@ -106,7 +107,7 @@ export default function RotationTriggerFlow({
     }
     try {
       const response = await fetch(
-        `/api/rotation/trigger/${encodeURIComponent(repo.name)}`,
+        `/api/rotation/trigger/${encodeURIComponent(repoKeyFromPath(repo.path))}`,
         {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},

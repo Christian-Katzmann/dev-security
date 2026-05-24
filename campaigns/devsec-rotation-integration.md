@@ -60,11 +60,11 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 ### Phase 3 — Slash command + case integration
 
 - [x] Step 3.1 — Write `/devsec-rotate <secret>` slash command and update `/devsec` menu
-- [ ] Step 3.2 — Update case rendering across surfaces so secrets-category cases offer "Rotate this"
+- [x] Step 3.2 — Update case rendering across surfaces so secrets-category cases offer "Rotate this"
 
 ### Phase 4 — End-to-end verification
 
-- [ ] Step 4.1 — Manual run-through in a fresh Claude Code session; rotate a synthetic secret from each surface
+- [x] Step 4.1 — Manual run-through in a fresh Claude Code session; rotate a synthetic secret from each surface
 - [ ] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).

@@ -140,6 +140,7 @@ import {
   mergeProjectRepos,
   platformPostureFindings,
   platformPostureSnapshots,
+  repoKeyFromPath,
   reportViewUrl,
   scanCompleteness,
   scannerCoverageSummary,
@@ -1133,9 +1134,13 @@ function OverviewView({summary, target, posture, error, onOpenTab}: {summary: Da
   const scannerHealthy = scanners.filter((item) => item.status === 'ran').length;
   const activities = buildActivity(summary);
   const lastScan = latestScanTime(summary);
+  // summary.repos[].repo is the slugified scan-history key (e.g.
+  // ``besk-ftigelse.dk``); ProjectRepo.name is the un-slugified display name
+  // (``beskæftigelse.dk``). Match against the slug so per-repo rotation state
+  // resolves for repos whose name contains non-ASCII characters.
   const rotationSignal =
     target.type === 'repo'
-      ? summary.repos.find((entry) => entry.repo === target.repo.name)?.rotation_state ?? null
+      ? summary.repos.find((entry) => entry.repo === repoKeyFromPath(target.repo.path))?.rotation_state ?? null
       : null;
   const headline = cases[0]
     ? `${severityLabelForCase(cases[0])}: ${cases[0].title}`

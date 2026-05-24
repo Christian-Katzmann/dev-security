@@ -8,6 +8,7 @@ import {
   RotationStateSignal,
   RotationStatusPayload,
   formatDate,
+  repoKeyFromPath,
 } from '../dashboardData';
 import RotationTriggerFlow from './RotationTriggerFlow';
 
@@ -109,12 +110,18 @@ export default function RotationStatusCard({repo, precomputed}: RotationStatusCa
   const [copied, setCopied] = useState<string | null>(null);
   const [rotateTarget, setRotateTarget] = useState<RotationSecretRow | null>(null);
 
+  // The dashboard's rotation endpoints are keyed by the slugified scan-history
+  // repo name (e.g. ``besk-ftigelse.dk``), not by the un-slugified display name
+  // from ``ProjectRepo.name`` (e.g. ``beskæftigelse.dk``). Derive the slug from
+  // the on-disk path the same way the summary builder does.
+  const repoKey = repoKeyFromPath(repo.path);
+
   const loadStatus = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       const response = await fetch(
-        `/api/rotation/status/${encodeURIComponent(repo.name)}`,
+        `/api/rotation/status/${encodeURIComponent(repoKey)}`,
         {cache: 'no-store'},
       );
       if (response.status === 404) {
@@ -129,7 +136,7 @@ export default function RotationStatusCard({repo, precomputed}: RotationStatusCa
     } finally {
       setIsLoading(false);
     }
-  }, [repo.name]);
+  }, [repoKey]);
 
   useEffect(() => {
     void loadStatus();
@@ -143,7 +150,7 @@ export default function RotationStatusCard({repo, precomputed}: RotationStatusCa
     setIsHistoryLoading(true);
     try {
       const response = await fetch(
-        `/api/rotation/history/${encodeURIComponent(repo.name)}?limit=20`,
+        `/api/rotation/history/${encodeURIComponent(repoKey)}?limit=20`,
         {cache: 'no-store'},
       );
       if (!response.ok) throw new Error(await response.text());
@@ -162,7 +169,7 @@ export default function RotationStatusCard({repo, precomputed}: RotationStatusCa
     setError(null);
     try {
       const response = await fetch(
-        `/api/rotation/scaffold/${encodeURIComponent(repo.name)}`,
+        `/api/rotation/scaffold/${encodeURIComponent(repoKey)}`,
         {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
@@ -575,7 +582,7 @@ function RotationReceiptsList({
             className="flex items-center justify-between gap-3"
           >
             <a
-              href={`/api/rotation/receipts/${encodeURIComponent(repo.name)}/${encodeURIComponent(receipt.filename)}`}
+              href={`/api/rotation/receipts/${encodeURIComponent(repoKeyFromPath(repo.path))}/${encodeURIComponent(receipt.filename)}`}
               target="_blank"
               rel="noreferrer"
               className="font-mono text-black hover:text-black/60 truncate"
