@@ -774,3 +774,85 @@ def test_rediscovered_running_job_returns_job_id_on_trigger_conflict(harness):
     finally:
         with CHECK_JOBS_LOCK:
             CHECK_JOBS.pop("discovered-rot-inflight", None)
+
+
+# ---------------------------------------------------------------------------
+# Emergency mode gating
+# ---------------------------------------------------------------------------
+
+
+def test_trigger_refuses_emergency_without_cached_caller_ack(harness):
+    """Emergency mode requires acknowledged_cached_caller_risk=true."""
+    status, body, _ct = _http(
+        harness["port"],
+        f"/api/rotation/trigger/{REPO_NAME}",
+        method="POST",
+        body={
+            "secret": "AUTH_SECRET",
+            "confirmed": True,
+            "confirmation_phrase": _rotation_confirmation_phrase(
+                "AUTH_SECRET", emergency=True
+            ),
+            "options": {"emergency_mode": True},
+        },
+    )
+    assert status == HTTPStatus.BAD_REQUEST
+    payload = json.loads(body)
+    assert "cached caller" in payload["error"].lower()
+
+
+def test_trigger_emergency_requires_emergency_phrase(harness):
+    """Emergency mode uses a different confirmation phrase; the normal one is rejected."""
+    status, body, _ct = _http(
+        harness["port"],
+        f"/api/rotation/trigger/{REPO_NAME}",
+        method="POST",
+        body={
+            "secret": "AUTH_SECRET",
+            "confirmed": True,
+            "confirmation_phrase": _rotation_confirmation_phrase("AUTH_SECRET"),
+            "options": {
+                "emergency_mode": True,
+                "acknowledged_cached_caller_risk": True,
+            },
+        },
+    )
+    assert status == HTTPStatus.BAD_REQUEST
+    payload = json.loads(body)
+    assert "confirmation phrase" in payload["error"].lower()
+
+
+def test_trigger_accepts_emergency_with_ack_and_phrase(npm_on_path):
+    harness = npm_on_path
+    status, body, _ct = _http(
+        harness["port"],
+        f"/api/rotation/trigger/{REPO_NAME}",
+        method="POST",
+        body={
+            "secret": "AUTH_SECRET",
+            "confirmed": True,
+            "confirmation_phrase": _rotation_confirmation_phrase(
+                "AUTH_SECRET", emergency=True
+            ),
+            "options": {
+                "emergency_mode": True,
+                "acknowledged_cached_caller_risk": True,
+            },
+        },
+    )
+    assert status == HTTPStatus.ACCEPTED
+    job = json.loads(body)["job"]
+    assert "--emergency" in job["command"]
+    assert job["options"]["emergency_mode"] is True
+    assert job["options"]["acknowledged_cached_caller_risk"] is True
+
+    terminal = _wait_terminal(harness["port"], job["id"])
+    assert terminal["status"] == "complete"
+
+    log_path = harness["repo_root"] / "data" / "rotation-log.jsonl"
+    triggers = [
+        json.loads(line)
+        for line in log_path.read_text(encoding="utf-8").splitlines()
+        if line.strip() and json.loads(line).get("step") == "DASHBOARD_TRIGGER"
+    ]
+    assert triggers[-1]["options"]["emergency_mode"] is True

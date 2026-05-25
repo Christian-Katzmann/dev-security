@@ -138,6 +138,7 @@ def _normalized_status_entry(
     in_grace_until: str | None = None,
     manually_marked: bool = False,
     override_kind: str | None = None,
+    emergency_mode: bool = False,
 ) -> dict[str, Any]:
     next_due = (
         _add_days_iso(last_rotated_at, cadence_days)
@@ -171,6 +172,7 @@ def _normalized_status_entry(
         "needs_attention": bool(needs_attention),
         "manually_marked": bool(manually_marked),
         "override_kind": override_kind,
+        "emergency_mode": bool(emergency_mode),
     }
 
 
@@ -348,6 +350,7 @@ def read_rotation_status(repo_path: Path | str) -> list[dict[str, Any]]:
                 in_grace_until=latest.get("revoke_scheduled_at"),
                 manually_marked=bool(latest.get("manually_marked")),
                 override_kind=latest.get("override_kind"),
+                emergency_mode=bool(latest.get("emergency_mode")),
             )
         )
     for _ in range(unknown_count):

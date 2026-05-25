@@ -139,14 +139,16 @@ export default function RotationTriggerFlow({
   const [skipHealthCheck, setSkipHealthCheck] = useState(false);
   const [healthCheckAck, setHealthCheckAck] = useState(false);
   const [soakMinutes, setSoakMinutes] = useState('');
+  const [emergencyMode, setEmergencyMode] = useState(false);
+  const [emergencyAck, setEmergencyAck] = useState(false);
   const [job, setJob] = useState<RotationJob | null>(null);
   const [pollError, setPollError] = useState<string | null>(null);
   const [receiptText, setReceiptText] = useState<string | null>(null);
   const [receiptCopied, setReceiptCopied] = useState(false);
 
   const expectedPhrase = useMemo(
-    () => rotationConfirmationPhrase(secret.secret),
-    [secret.secret],
+    () => rotationConfirmationPhrase(secret.secret, {emergencyMode}),
+    [secret.secret, emergencyMode],
   );
 
   const phraseMatches = typedPhrase.trim() === expectedPhrase;
@@ -158,6 +160,7 @@ export default function RotationTriggerFlow({
   const optionsValid =
     (!noSoak || soakAck) &&
     (!skipHealthCheck || healthCheckAck) &&
+    (!emergencyMode || emergencyAck) &&
     (noSoak || soakMinutesValid);
   const canSubmit = phraseMatches && optionsValid && step === 'confirm';
 
@@ -174,6 +177,10 @@ export default function RotationTriggerFlow({
     if (skipHealthCheck) {
       options.skip_health_check = true;
       options.acknowledged_skipping_health_check = true;
+    }
+    if (emergencyMode) {
+      options.emergency_mode = true;
+      options.acknowledged_cached_caller_risk = true;
     }
     const parsedSoakMinutes = normalisedSoakMinutes(soakMinutes);
     if (parsedSoakMinutes !== null && !noSoak) {
@@ -360,6 +367,10 @@ export default function RotationTriggerFlow({
               onHealthCheckAck={setHealthCheckAck}
               soakMinutes={soakMinutes}
               onSoakMinutes={setSoakMinutes}
+              emergencyMode={emergencyMode}
+              onEmergencyMode={setEmergencyMode}
+              emergencyAck={emergencyAck}
+              onEmergencyAck={setEmergencyAck}
               submitError={submitError}
             />
           )}
@@ -392,9 +403,13 @@ export default function RotationTriggerFlow({
                 onClick={() => {
                   void submitTrigger();
                 }}
-                className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black bg-black text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#222] transition-colors"
+                className={`px-4 py-2 font-mono text-[10px] uppercase tracking-widest border disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
+                  emergencyMode
+                    ? 'border-[#b91c1c] bg-[#b91c1c] text-white hover:bg-[#991b1b]'
+                    : 'border-black bg-black text-white hover:bg-[#222]'
+                }`}
               >
-                Rotate now
+                {emergencyMode ? 'Emergency rotate' : 'Rotate now'}
               </button>
             </>
           )}
@@ -441,6 +456,10 @@ function ConfirmStep({
   onHealthCheckAck,
   soakMinutes,
   onSoakMinutes,
+  emergencyMode,
+  onEmergencyMode,
+  emergencyAck,
+  onEmergencyAck,
   submitError,
 }: {
   secret: RotationSecretRow;
@@ -459,6 +478,10 @@ function ConfirmStep({
   onHealthCheckAck: (value: boolean) => void;
   soakMinutes: string;
   onSoakMinutes: (value: string) => void;
+  emergencyMode: boolean;
+  onEmergencyMode: (value: boolean) => void;
+  emergencyAck: boolean;
+  onEmergencyAck: (value: boolean) => void;
   submitError: string | null;
 }) {
   const warning = classWarning(secret);
@@ -634,6 +657,19 @@ function ConfirmStep({
                 : 'Override the soak window. Leave empty to use the catalog default; allowed range is 10 to 60 minutes.'}
             </span>
           </label>
+
+          <div className="border-t border-black/10 pt-3 mt-1">
+            <div className="font-mono text-[10px] uppercase tracking-widest text-[#b91c1c]/70 mb-2">
+              Incident response
+            </div>
+            <EmergencyModeSection
+              secret={secret}
+              emergencyMode={emergencyMode}
+              onEmergencyMode={onEmergencyMode}
+              emergencyAck={emergencyAck}
+              onEmergencyAck={onEmergencyAck}
+            />
+          </div>
         </div>
       </details>
 
@@ -641,6 +677,76 @@ function ConfirmStep({
         <div className="border border-[#b91c1c]/40 bg-white p-3 text-xs text-[#7f1d1d]">
           {submitError}
         </div>
+      )}
+    </div>
+  );
+}
+
+function EmergencyModeSection({
+  secret,
+  emergencyMode,
+  onEmergencyMode,
+  emergencyAck,
+  onEmergencyAck,
+}: {
+  secret: RotationSecretRow;
+  emergencyMode: boolean;
+  onEmergencyMode: (value: boolean) => void;
+  emergencyAck: boolean;
+  onEmergencyAck: (value: boolean) => void;
+}) {
+  const isClassA = normalisedSecretClass(secret) === 'A';
+  return (
+    <div className="grid gap-3 leading-relaxed">
+      <label
+        className={`flex items-start gap-2 ${isClassA ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+        title={
+          isClassA
+            ? 'Class A secrets have no grace window. The old value dies the moment the new one deploys. Use the standard Rotate button.'
+            : undefined
+        }
+      >
+        <input
+          type="checkbox"
+          checked={emergencyMode}
+          disabled={isClassA}
+          onChange={(event) => {
+            onEmergencyMode(event.target.checked);
+            if (!event.target.checked) onEmergencyAck(false);
+          }}
+          className="mt-0.5"
+        />
+        <span>
+          <span className="font-mono text-[#b91c1c]">Emergency mode</span>
+          {' '}<span className="text-black/40">(Class B only)</span>
+          {' '}&mdash; skip the 24h grace window. The old key dies immediately
+          when this rotation completes.
+        </span>
+      </label>
+      {emergencyMode && (
+        <>
+          <div className="border border-[#b91c1c]/30 bg-white p-3 text-xs leading-relaxed text-[#7f1d1d]">
+            <AlertTriangle className="w-4 h-4 mb-1 inline-block mr-1.5 align-text-bottom" strokeWidth={1.5} />
+            Use this when you have reason to believe the key is being actively
+            used by an attacker. Cached callers (background workers, retry
+            queues, webhook handlers) will fail until they pick up the new
+            value &mdash; usually within minutes, but they fail loudly. That
+            loud failure is itself a diagnostic signal: it tells you which
+            surfaces were still using the old credential.
+          </div>
+          <label className="flex items-start gap-2 cursor-pointer text-[#7f1d1d]">
+            <input
+              type="checkbox"
+              checked={emergencyAck}
+              onChange={(event) => onEmergencyAck(event.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              I understand the old key dies immediately and cached callers will
+              fail loudly until they refresh.
+            </span>
+          </label>
+        </>
       )}
     </div>
   );

@@ -3126,9 +3126,13 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 "Provide a secret name matching ^[A-Z][A-Z0-9_]*$.",
             )
             return
+        options_raw_early = payload.get("options")
+        options_early = options_raw_early if isinstance(options_raw_early, dict) else {}
+        emergency_mode = bool(options_early.get("emergency_mode"))
+
         confirmed = bool(payload.get("confirmed"))
         confirmation_phrase = str(payload.get("confirmation_phrase") or "").strip()
-        expected_phrase = _rotation_confirmation_phrase(secret)
+        expected_phrase = _rotation_confirmation_phrase(secret, emergency=emergency_mode)
         if not confirmed or confirmation_phrase != expected_phrase:
             self.send_json_error(
                 400,
@@ -3174,6 +3178,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 )
                 return
         test_mode = bool(options.get("test_mode"))
+        ack_cached_caller_risk = bool(options.get("acknowledged_cached_caller_risk"))
+        if emergency_mode and not ack_cached_caller_risk:
+            self.send_json_error(
+                400,
+                "Emergency mode skips the grace window and revokes the old key"
+                " immediately. Cached callers will fail loudly. Set"
+                " options.acknowledged_cached_caller_risk=true to proceed.",
+            )
+            return
 
         repo_path = self._resolve_repo_for_rotation(repo_name)
         if repo_path is None:
@@ -3229,6 +3242,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             command.append("--skip-health-check")
         if soak_minutes is not None:
             command.extend(["--soak-minutes", str(soak_minutes)])
+        if emergency_mode:
+            command.append("--emergency")
 
         job_id = uuid.uuid4().hex[:12]
         job: dict[str, object] = {
@@ -3246,6 +3261,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 "test_mode": test_mode,
                 "acknowledged_skipping_soak": ack_skipping_soak,
                 "acknowledged_skipping_health_check": ack_skipping_health,
+                "emergency_mode": emergency_mode,
+                "acknowledged_cached_caller_risk": ack_cached_caller_risk,
             },
             "phase": "queued",
             "message": "Queued; about to shell out to the rotation skill.",

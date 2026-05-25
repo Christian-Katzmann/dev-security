@@ -436,6 +436,11 @@ function RotationSecretsList({
                         : 'Marked by operator'}
                     </span>
                   )}
+                  {row.emergency_mode && (
+                    <span className="font-mono text-[9px] uppercase tracking-widest border px-2 py-1 border-[#b91c1c]/40 text-[#b91c1c]">
+                      Emergency rotated
+                    </span>
+                  )}
                 </div>
                 <h4 className="text-base font-medium text-black break-words font-mono">
                   {row.secret}

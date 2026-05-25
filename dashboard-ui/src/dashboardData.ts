@@ -550,6 +550,7 @@ export type RotationSecretRow = {
   needs_attention: boolean;
   manually_marked: boolean;
   override_kind: string | null;
+  emergency_mode: boolean;
   active_job_id: string | null;
 };
 
@@ -654,6 +655,8 @@ export type RotationJob = {
     test_mode: boolean;
     acknowledged_skipping_soak: boolean;
     acknowledged_skipping_health_check: boolean;
+    emergency_mode: boolean;
+    acknowledged_cached_caller_risk: boolean;
   };
   phase: RotationJobPhase | string;
   message: string;
@@ -677,6 +680,8 @@ export type RotationTriggerOptions = {
   acknowledged_skipping_health_check?: boolean;
   soak_minutes?: number;
   test_mode?: boolean;
+  emergency_mode?: boolean;
+  acknowledged_cached_caller_risk?: boolean;
 };
 
 export type RotationTriggerRequest = {
