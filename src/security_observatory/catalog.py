@@ -131,6 +131,28 @@ class ToolPackRole(StrEnum):
     COMING_SOON = "coming-soon"
 
 
+class SetupKind(StrEnum):
+    NONE = "none"
+    ENV_VAR = "env-var"
+    API_KEY = "api-key"
+    OAUTH = "oauth"
+    FILE_PATH = "file-path"
+    CONFIG_BLOCK = "config-block"
+
+
+class SetupProbeKind(StrEnum):
+    SHELL = "shell"
+    HTTP = "http"
+    BINARY_VERSION = "binary-version"
+    DIRECTORY_EXISTS = "directory-exists"
+
+
+@dataclass(frozen=True, slots=True)
+class SetupProbe:
+    kind: SetupProbeKind
+    spec: dict[str, str]
+
+
 @dataclass(frozen=True, slots=True)
 class ToolInstallContract:
     method: ToolInstallMethod
@@ -203,6 +225,9 @@ class ToolCatalogEntry:
     description: str | None = None
     docs_path: str | None = None
     homepage_url: str | None = None
+    setup_kind: SetupKind = SetupKind.NONE
+    setup_requirement: str | None = None
+    setup_probe: SetupProbe | None = None
 
     def with_install_state(self, install_state: ToolInstallState) -> ToolCatalogEntry:
         return replace(self, install_state=install_state)
@@ -882,6 +907,9 @@ def _scanner_entry(
     packs: tuple[ToolPackMembership, ...],
     docs_path: str | None = None,
     homepage_url: str | None = None,
+    setup_kind: SetupKind = SetupKind.NONE,
+    setup_requirement: str | None = None,
+    setup_probe: SetupProbe | None = None,
 ) -> ToolCatalogEntry:
     legacy = _legacy(
         label=label,
@@ -909,6 +937,9 @@ def _scanner_entry(
         legacy_scanner=legacy,
         docs_path=docs_path,
         homepage_url=homepage_url,
+        setup_kind=setup_kind,
+        setup_requirement=setup_requirement,
+        setup_probe=setup_probe,
     )
 
 
@@ -1412,7 +1443,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         covers="Advanced diffing of old and new dependency artifacts for suspicious behavior changes.",
         profile="behavioral-drift",
         install_text="Install malcontent separately, then provide local package artifacts under the behavioral artifact cache.",
-        next_step="Run security-scan --behavioral-drift after at least two SBOM-backed dependency scans.",
+        next_step="Set the behavioral artifact cache directory via the catalog setup card, then run security-scan --behavioral-drift after at least two SBOM-backed dependency scans.",
         built_in=False,
         category=ToolCategory.DEPENDENCIES,
         lifecycle=ToolLifecycle.ADVANCED,
@@ -1422,7 +1453,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             binary="malcontent",
             alternate_binaries=("mal",),
             instructions="Install malcontent separately, then provide local package artifacts under the behavioral artifact cache.",
-            next_step="Run security-scan --behavioral-drift after at least two SBOM-backed dependency scans.",
+            next_step="Set the behavioral artifact cache directory via the catalog setup card, then run security-scan --behavioral-drift after at least two SBOM-backed dependency scans.",
             uninstall_posture=ToolUninstallPosture.MANUAL_ONLY,
         ),
         policy=_policy(
@@ -1442,6 +1473,12 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         ),
         packs=(_pack(ToolPackId.ADVANCED_DEPENDENCY, ToolPackRole.COMING_SOON, False),),
         homepage_url="https://github.com/chainguard-dev/malcontent#readme",
+        setup_kind=SetupKind.FILE_PATH,
+        setup_requirement="Path to behavioral artifact cache directory holding old and new dependency artifacts for diffing.",
+        setup_probe=SetupProbe(
+            kind=SetupProbeKind.DIRECTORY_EXISTS,
+            spec={"config_key": "artifact_cache_dir"},
+        ),
     ),
     _scanner_entry(
         scanner="legitify",
@@ -1449,8 +1486,8 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         area="Platform posture",
         covers="Optional connected checks for repository branch protection, Actions permissions, webhooks, and SCM settings.",
         profile="platform-posture",
-        install_text="brew install legitify, then set SCM_TOKEN for the platform posture profile.",
-        next_step="Run security-scan --platform-posture only when you want a token-backed platform check.",
+        install_text="brew install legitify, then connect a GitHub Personal Access Token via the catalog setup card.",
+        next_step="Connect a GitHub Personal Access Token (repo + admin:repo_hook scopes) via the catalog setup card, then run security-scan --platform-posture.",
         built_in=False,
         category=ToolCategory.PLATFORM_POSTURE,
         lifecycle=ToolLifecycle.ADVANCED,
@@ -1458,8 +1495,8 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         install=_path_install(
             method=ToolInstallMethod.HOMEBREW,
             binary="legitify",
-            instructions="brew install legitify, then set SCM_TOKEN for the platform posture profile.",
-            next_step="Run security-scan --platform-posture only when you want a token-backed platform check.",
+            instructions="brew install legitify, then connect a GitHub Personal Access Token via the catalog setup card.",
+            next_step="Connect a GitHub Personal Access Token (repo + admin:repo_hook scopes) via the catalog setup card, then run security-scan --platform-posture.",
             uninstall_posture=ToolUninstallPosture.MANUAL_ONLY,
         ),
         policy=_policy(
@@ -1480,6 +1517,16 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         ),
         packs=(_pack(ToolPackId.PLATFORM_POSTURE, ToolPackRole.COMING_SOON, False),),
         homepage_url="https://github.com/Legit-Labs/legitify#readme",
+        setup_kind=SetupKind.API_KEY,
+        setup_requirement="GitHub Personal Access Token with `repo` + `admin:repo_hook` scopes (stored locally in macOS Keychain).",
+        setup_probe=SetupProbe(
+            kind=SetupProbeKind.SHELL,
+            spec={
+                "command": "legitify analyze --repository Legit-Labs/legitify",
+                "env_from_credential": "SCM_TOKEN",
+                "timeout_seconds": "60",
+            },
+        ),
     ),
 )
 
