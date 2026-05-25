@@ -49,7 +49,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 - [x] Step 3.1 — Skill: every override CLI flag writes a JSONL entry AND an `OPERATOR_OVERRIDE` receipt
 - [x] Step 3.2 — Repo: surface `manually_marked` in normalization, MCP, dashboard payload, and `RotationStatusCard`
 - [x] Step 3.3 — End-to-end verification: reset besk, force a halt, override it, confirm both artifacts land and the UI shows the marker
-- [ ] Final review
+- [x] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
 

@@ -80,6 +80,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--input", "-i", help="Input JSON path for vex-import.")
     parser.add_argument("--output", "-o", help="Output JSON path for vex-export.")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    # Reset-only flags. Hidden from --help so they don't clutter the scan
+    # surface; reset_command surfaces them via its own usage line.
+    parser.add_argument("--include-rotation-scaffold", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--backup-to", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--yes", action="store_true", help=argparse.SUPPRESS)
     return parser
 
 
