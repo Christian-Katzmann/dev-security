@@ -118,6 +118,8 @@ def _normalized_status_entry(
     cadence_days: Any = None,
     rotation_id: str | None = None,
     in_grace_until: str | None = None,
+    manually_marked: bool = False,
+    override_kind: str | None = None,
 ) -> dict[str, Any]:
     next_due = (
         _add_days_iso(last_rotated_at, cadence_days)
@@ -146,6 +148,8 @@ def _normalized_status_entry(
         "rotation_id": rotation_id,
         "in_grace_until": in_grace_until,
         "needs_attention": bool(needs_attention),
+        "manually_marked": bool(manually_marked),
+        "override_kind": override_kind,
     }
 
 
@@ -230,6 +234,8 @@ def read_rotation_status(repo_path: Path | str) -> list[dict[str, Any]]:
                 cadence_days=entry.get("cadence_days"),
                 rotation_id=latest.get("rotation_id"),
                 in_grace_until=latest.get("revoke_scheduled_at"),
+                manually_marked=bool(latest.get("manually_marked")),
+                override_kind=latest.get("override_kind"),
             )
         )
     for _ in range(unknown_count):
@@ -275,6 +281,7 @@ def read_rotation_history(
                         "outcome": entry.get("outcome"),
                         "note": entry.get("note"),
                         "duration_ms": entry.get("duration_ms"),
+                        "override_kind": entry.get("override_kind"),
                     }
                 )
     except OSError as exc:

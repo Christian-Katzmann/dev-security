@@ -664,10 +664,14 @@ def create_server(home: Path | None = None) -> FastMCP:
         HALTED), last rotation timestamp, days since rotation, configured
         cadence, next-rotation-due timestamp, the in-flight rotation_id (if
         any), in_grace_until (set when the old key is still valid in the
-        grace window), and a needs_attention flag (true for failed terminals
-        or overdue cadence). Returns an empty list for repos that have scan
-        history but no rotation skill scaffolded — the dashboard reads that
-        empty result as the signal to show a "Set up rotation" CTA. Raises
+        grace window), a needs_attention flag (true for failed terminals
+        or overdue cadence), manually_marked (true when the rotation's
+        terminal status came from an operator override rather than the
+        pipeline), and override_kind (the CLI flag used, e.g.
+        ``--mark-rotated``, or null for pipeline-completed rotations).
+        Returns an empty list for repos that have scan history but no
+        rotation skill scaffolded — the dashboard reads that empty result
+        as the signal to show a "Set up rotation" CTA. Raises
         RepoNotFoundError when the repo has no scan history.
         """
         return _with_db(lambda db: _rotation_status(db, repo))

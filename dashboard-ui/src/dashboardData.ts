@@ -545,6 +545,8 @@ export type RotationSecretRow = {
   rotation_id: string | null;
   in_grace_until: string | null;
   needs_attention: boolean;
+  manually_marked: boolean;
+  override_kind: string | null;
 };
 
 export type RotationReceiptMeta = {
@@ -567,6 +569,7 @@ export type RotationEvent = {
   outcome: string | null;
   note: string | null;
   duration_ms: number | null;
+  override_kind: string | null;
 };
 
 export type RotationHistoryPayload = {

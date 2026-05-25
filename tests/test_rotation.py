@@ -140,8 +140,67 @@ def test_read_rotation_status_never_rotated_needs_attention(tmp_path):
     assert rows[0]["needs_attention"] is True
 
 
+def test_read_rotation_status_surfaces_manually_marked_fields(tmp_path):
+    completed = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=2)).isoformat()
+    _seed_state(
+        tmp_path,
+        {
+            "secrets": [
+                {"name": "OVERRIDDEN_KEY", "class": "B-API", "cadence_days": 90},
+                {"name": "PIPELINE_KEY", "class": "A", "cadence_days": 30},
+            ],
+            "rotations": [
+                {
+                    "secret_name": "OVERRIDDEN_KEY",
+                    "rotation_id": "rot-override",
+                    "started_at": completed,
+                    "completed_at": completed,
+                    "status": "ROTATED",
+                    "manually_marked": True,
+                    "override_kind": "--mark-rotated",
+                },
+                {
+                    "secret_name": "PIPELINE_KEY",
+                    "rotation_id": "rot-pipe",
+                    "started_at": completed,
+                    "completed_at": completed,
+                    "status": "ROTATED",
+                },
+            ],
+        },
+    )
+    rows = read_rotation_status(tmp_path)
+    by_name = {row["secret"]: row for row in rows}
+    assert by_name["OVERRIDDEN_KEY"]["manually_marked"] is True
+    assert by_name["OVERRIDDEN_KEY"]["override_kind"] == "--mark-rotated"
+    assert by_name["PIPELINE_KEY"]["manually_marked"] is False
+    assert by_name["PIPELINE_KEY"]["override_kind"] is None
+
+
+def test_read_rotation_status_defaults_manually_marked_for_legacy_state(tmp_path):
+    completed = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=5)).isoformat()
+    _seed_state(
+        tmp_path,
+        {
+            "secrets": [{"name": "LEGACY_KEY", "class": "A", "cadence_days": 30}],
+            "rotations": [
+                {
+                    "secret_name": "LEGACY_KEY",
+                    "rotation_id": "rot-old",
+                    "started_at": completed,
+                    "completed_at": completed,
+                    "status": "ROTATED",
+                },
+            ],
+        },
+    )
+    rows = read_rotation_status(tmp_path)
+    assert rows[0]["manually_marked"] is False
+    assert rows[0]["override_kind"] is None
+
+
 # ---------------------------------------------------------------------------
-# read_rotation_history — recency, limit, malformed lines
+# read_rotation_history — recency, limit, malformed lines, override_kind
 # ---------------------------------------------------------------------------
 
 
@@ -160,6 +219,32 @@ def test_read_rotation_history_returns_most_recent_first(tmp_path):
         "2026-05-02T10:00:00+00:00",
         "2026-05-01T10:00:00+00:00",
     ]
+
+
+def test_read_rotation_history_surfaces_override_kind(tmp_path):
+    _seed_log(
+        tmp_path,
+        [
+            {
+                "at": "2026-05-01T10:00:00+00:00",
+                "secret_name": "A",
+                "step": "OPERATOR_OVERRIDE",
+                "outcome": "applied",
+                "override_kind": "--mark-rotated",
+                "note": "Operator marked rotation as complete",
+            },
+            {
+                "at": "2026-05-01T09:00:00+00:00",
+                "secret_name": "A",
+                "step": "HALTED",
+                "outcome": "halted",
+            },
+        ],
+    )
+    events = read_rotation_history(tmp_path)
+    assert events[0]["step"] == "OPERATOR_OVERRIDE"
+    assert events[0]["override_kind"] == "--mark-rotated"
+    assert events[1]["override_kind"] is None
 
 
 def test_read_rotation_history_skips_malformed_lines(tmp_path):

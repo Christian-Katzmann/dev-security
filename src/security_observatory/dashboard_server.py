@@ -2704,6 +2704,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return None
 
     def serve_rotation_status(self, repo_name: str) -> None:
+        """Serve ``GET /api/rotation/status/<repo>``.
+
+        Each secret row includes ``manually_marked`` (bool) and
+        ``override_kind`` (string | null) so the dashboard can annotate
+        rotations completed via operator override.
+        """
         repo_path = self._resolve_repo_for_rotation(repo_name)
         if repo_path is None:
             self.send_json_error(404, "No scan history for that repo yet.")

@@ -371,6 +371,19 @@ function ConfirmStep({
         </div>
       )}
 
+      {secret.manually_marked && (
+        <div className="border border-[#7d4d10]/30 bg-[#fbfbfb] p-3 text-xs leading-relaxed text-[#7d4d10] flex gap-2">
+          <AlertTriangle className="w-4 h-4 mt-0.5 flex-none" strokeWidth={1.5} />
+          <span>
+            Previous rotation was completed via operator override
+            {secret.override_kind ? (
+              <> (<span className="font-mono">{secret.override_kind}</span>)</>
+            ) : null}.
+            The new rotation will run the full pipeline.
+          </span>
+        </div>
+      )}
+
       <div className="border border-black/10 bg-[#fbfbfb] p-3 text-xs text-black/55 leading-relaxed">
         <div className="font-mono text-[9px] uppercase tracking-widest text-black/40 mb-1">
           Verification will mean

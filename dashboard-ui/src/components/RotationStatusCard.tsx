@@ -352,6 +352,13 @@ function RotationSecretsList({
                       Class {row.class}
                     </span>
                   )}
+                  {row.manually_marked && (
+                    <span className="font-mono text-[9px] uppercase tracking-widest border px-2 py-1 border-[#7d4d10]/30 text-[#7d4d10]">
+                      {row.override_kind
+                        ? `Operator override (${row.override_kind})`
+                        : 'Marked by operator'}
+                    </span>
+                  )}
                 </div>
                 <h4 className="text-base font-medium text-black break-words font-mono">
                   {row.secret}
@@ -550,11 +557,23 @@ function RotationHistoryPanel({history}: {history: RotationHistoryPayload}) {
             <span>
               <span className="font-mono text-black">{event.secret}</span>{' '}
               <span className="text-black/45">·</span>{' '}
-              {event.step ?? 'unknown step'}
+              {event.step === 'OPERATOR_OVERRIDE' ? (
+                <span className="text-[#7d4d10]">
+                  operator override{event.override_kind ? ` (${event.override_kind})` : ''}
+                </span>
+              ) : (
+                event.step ?? 'unknown step'
+              )}
               {event.note ? ` — ${event.note}` : ''}
             </span>
-            <span className="font-mono text-[10px] uppercase tracking-widest text-black/45">
-              {event.outcome ?? 'unknown'}
+            <span className={`font-mono text-[10px] uppercase tracking-widest ${
+              event.step === 'OPERATOR_OVERRIDE'
+                ? 'text-[#7d4d10]'
+                : 'text-black/45'
+            }`}>
+              {event.step === 'OPERATOR_OVERRIDE'
+                ? 'override'
+                : (event.outcome ?? 'unknown')}
             </span>
           </li>
         ))}
