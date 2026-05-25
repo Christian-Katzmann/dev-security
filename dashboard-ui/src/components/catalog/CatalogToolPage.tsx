@@ -21,19 +21,23 @@
 // is unknown. We surface what's real and show "—" with a TODO for the rest
 // rather than fabricate plausible-looking values.
 
-import {useCallback, useMemo} from 'react';
+import {useCallback, useMemo, useState} from 'react';
 import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
   CheckCircle2,
   CircleSlash,
+  Clipboard,
+  ClipboardCheck,
   Download,
+  RefreshCw,
   ShieldCheck,
 } from 'lucide-react';
 import {DashboardSummary, ToolCatalogItem, formatRelativeTime} from '../../dashboardData';
 import {humanizeKey} from '../../uiHelpers';
 import {
+  canInstallViaPackageManager,
   catalogCapabilityLabels,
   catalogCategoryLabels,
   catalogCredentialLabels,
@@ -48,6 +52,8 @@ import {
   catalogProfileRole,
   catalogTargetLabels,
   catalogUninstallLabels,
+  isManualInstall,
+  packageManagerCommand,
   previewCanInstall,
 } from './catalogHelpers';
 import {useCatalogData} from './useCatalogData';
@@ -101,38 +107,76 @@ function specsFor(tool: ToolCatalogItem): Spec[] {
 }
 
 export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: CatalogToolPageProps) {
-  const {catalog, runtime, mutation, installManagedTool, installViaHomebrew} = useCatalogData(summary, onRefresh);
+  const {
+    catalog,
+    runtime,
+    mutation,
+    installManagedTool,
+    installViaPackageManager,
+    markManualInstall,
+  } = useCatalogData(summary, onRefresh);
   const tool = useMemo(() => catalog.find((item) => item.id === toolId), [catalog, toolId]);
   const runtimeItem = useMemo(
     () => (tool?.scanner_key ? runtime.get(tool.scanner_key) : undefined),
     [runtime, tool],
   );
 
-  // Homebrew-method tools that are not installed can be installed via `brew install`
-  // on the user's behalf. The binary name comes from the catalog, not from
-  // user input, so it isn't shell-injectable.
-  const homebrewInstallable = Boolean(
-    tool && tool.install_state === 'missing' && tool.install.method === 'homebrew',
-  );
+  // Package-manager tools (homebrew, uv-tool) that are not installed can be
+  // installed via /api/tools/install-via-pkg on the user's behalf. The
+  // binary name comes from the catalog, not user input, so it isn't
+  // shell-injectable.
+  const packageInstallable = tool ? canInstallViaPackageManager(tool) : false;
   const managedInstallable = tool ? previewCanInstall(tool.install_preview) : false;
-  const installEnabled = managedInstallable || homebrewInstallable;
+  const manualInstallable = tool ? isManualInstall(tool) : false;
+  const installEnabled = managedInstallable || packageInstallable;
+  const pkgCommand = tool ? packageManagerCommand(tool) : null;
   const displayOnly = tool ? isDisplayOnly(tool) : false;
   const alreadyInstalled = tool ? isAlreadyInstalled(tool) : false;
   const mutating = tool && mutation?.toolId === tool.id && mutation.status === 'running';
   const installLabel = mutating
     ? 'Installing...'
-    : homebrewInstallable
-      ? `Install with Homebrew (brew install ${tool!.install.binary ?? tool!.id})`
+    : packageInstallable && pkgCommand
+      ? `Install (${pkgCommand})`
       : 'Install plugin';
 
   const onInstall = useCallback(() => {
     if (!tool || !installEnabled) return;
-    if (homebrewInstallable) {
-      void installViaHomebrew(tool.id);
+    if (packageInstallable) {
+      void installViaPackageManager(tool.id);
       return;
     }
     void installManagedTool(tool.id);
-  }, [tool, installEnabled, homebrewInstallable, installManagedTool, installViaHomebrew]);
+  }, [tool, installEnabled, packageInstallable, installManagedTool, installViaPackageManager]);
+
+  const onMarkInstalled = useCallback(() => {
+    if (!tool || !manualInstallable) return;
+    void markManualInstall(tool.id);
+  }, [tool, manualInstallable, markManualInstall]);
+
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle');
+  const manualCommandText = useMemo(() => {
+    if (!tool) return '';
+    return tool.install.instructions ?? tool.install.next_step ?? '';
+  }, [tool]);
+  const onCopyCommand = useCallback(() => {
+    if (!manualCommandText) return;
+    const reset = () => window.setTimeout(() => setCopyState('idle'), 2000);
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(manualCommandText).then(
+        () => {
+          setCopyState('copied');
+          reset();
+        },
+        () => {
+          setCopyState('error');
+          reset();
+        },
+      );
+      return;
+    }
+    setCopyState('error');
+    reset();
+  }, [manualCommandText]);
 
   if (!tool) {
     return (
@@ -209,6 +253,11 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
                   ? 'Installed — needs setup.'
                   : 'Detected locally.'}
               </span>
+            ) : manualInstallable ? (
+              <span className="catalog-tool-display-note">
+                <Download size={14} />
+                Manual install — see steps below.
+              </span>
             ) : (
               <button
                 type="button"
@@ -223,7 +272,7 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
             )}
           </div>
         </div>
-        {!displayOnly && !alreadyInstalled && !installEnabled && installHelp && (
+        {!displayOnly && !alreadyInstalled && !manualInstallable && !installEnabled && installHelp && (
           <p className="catalog-tool-hero-help">{installHelp}</p>
         )}
         {alreadyInstalled && alreadyInstalledNote && (
@@ -233,6 +282,38 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
           <p className={`catalog-tool-hero-message ${mutation.status}`}>{mutation.message}</p>
         )}
       </section>
+
+      {manualInstallable && (
+        <section className="catalog-tool-manual-install">
+          <header className="catalog-tool-card-head">
+            <h2>Install manually</h2>
+          </header>
+          <p className="catalog-tool-manual-instructions">{manualCommandText || 'See upstream documentation for install steps.'}</p>
+          <div className="catalog-tool-manual-actions">
+            <button
+              type="button"
+              className="catalog-tool-manual-button"
+              onClick={onCopyCommand}
+              disabled={!manualCommandText}
+            >
+              {copyState === 'copied' ? <ClipboardCheck size={14} /> : <Clipboard size={14} />}
+              {copyState === 'copied' ? 'Copied' : copyState === 'error' ? 'Copy unavailable' : 'Copy install command'}
+            </button>
+            <button
+              type="button"
+              className="catalog-tool-manual-button primary"
+              onClick={onMarkInstalled}
+              disabled={Boolean(mutating)}
+            >
+              <RefreshCw size={14} />
+              {mutating ? 'Re-detecting…' : 'Mark installed'}
+            </button>
+          </div>
+          <p className="catalog-tool-manual-hint">
+            DëvSec waits for you to install the binary out-of-band. After install, click <strong>Mark installed</strong> so the catalog re-detects it on PATH.
+          </p>
+        </section>
+      )}
 
       <div className="catalog-tool-body">
         <div className="catalog-tool-body-main">

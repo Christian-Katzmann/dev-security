@@ -4672,6 +4672,83 @@ a.button,
   color: var(--mist-surface-700);
 }
 
+.catalog-tool-manual-install {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 22px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  background: var(--paper-soft);
+}
+
+.catalog-tool-manual-instructions {
+  margin: 0;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-strong);
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 12px 14px;
+  background: var(--paper);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+}
+
+.catalog-tool-manual-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.catalog-tool-manual-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: var(--paper);
+  color: var(--ink-strong);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 140ms ease, opacity 140ms ease, background 140ms ease;
+}
+
+.catalog-tool-manual-button:hover:not(:disabled) {
+  background: var(--paper-soft);
+}
+
+.catalog-tool-manual-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.catalog-tool-manual-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.catalog-tool-manual-button.primary {
+  background: var(--ink-strong);
+  border-color: var(--ink-strong);
+  color: var(--on-surface-strong);
+}
+
+.catalog-tool-manual-button.primary:hover:not(:disabled) {
+  opacity: 0.92;
+  background: var(--ink-strong);
+}
+
+.catalog-tool-manual-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+}
+
 .catalog-tool-body {
   display: grid;
   grid-template-columns: minmax(0, 8fr) minmax(280px, 4fr);

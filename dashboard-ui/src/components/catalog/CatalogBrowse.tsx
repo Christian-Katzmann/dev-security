@@ -37,12 +37,13 @@ import {
   ToolCategory,
 } from '../../dashboardData';
 import {
-  catalogCardAction,
+  canInstallViaPackageManager,
   catalogCategoryLabels,
   catalogCategoryOrder,
   catalogIcon,
   catalogInstallLabels,
   catalogInstallMethodLabels,
+  previewCanInstall,
 } from './catalogHelpers';
 import {useCatalogData} from './useCatalogData';
 
@@ -106,7 +107,7 @@ function bottomMonoLeft(tool: ToolCatalogItem): string {
 }
 
 export default function CatalogBrowse({summary, onRefresh, onOpenTool, onBack}: CatalogBrowseProps) {
-  const {catalog, mutation, installManagedTool} = useCatalogData(summary, onRefresh);
+  const {catalog, mutation, installManagedTool, installViaPackageManager} = useCatalogData(summary, onRefresh);
   const [activeCategory, setActiveCategory] = useState<ToolCategory | 'all'>('all');
 
   const browsable = useMemo(
@@ -142,17 +143,24 @@ export default function CatalogBrowse({summary, onRefresh, onOpenTool, onBack}: 
     });
   }, [filtered]);
 
-  // The Featured Install button must reflect the *runtime* install state, not
-  // the catalog default. A tool with a managed install path may still be
-  // already detected on the user's machine — in which case there is nothing
-  // to install and the button is hidden, leaving only "View tool".
-  const featuredInstallEnabled = featured ? catalogCardAction(featured) === 'install' : false;
+  // The Featured Install button must reflect the *runtime* install state and
+  // dispatch to the install path that actually fits the tool. Managed and
+  // package-manager (homebrew, uv-tool) tools can be installed in one click
+  // from the banner; manual-install tools need the tool page (copy command
+  // + mark installed) so the banner falls through to "View tool" for them.
+  const featuredPackageInstallable = featured ? canInstallViaPackageManager(featured) : false;
+  const featuredManagedInstallable = featured ? previewCanInstall(featured.install_preview) : false;
+  const featuredInstallEnabled = featuredPackageInstallable || featuredManagedInstallable;
   const featuredMutating = featured && mutation?.toolId === featured.id && mutation.status === 'running';
 
   const installFeatured = useCallback(() => {
     if (!featured || !featuredInstallEnabled) return;
+    if (featuredPackageInstallable) {
+      void installViaPackageManager(featured.id);
+      return;
+    }
     void installManagedTool(featured.id);
-  }, [featured, featuredInstallEnabled, installManagedTool]);
+  }, [featured, featuredInstallEnabled, featuredPackageInstallable, installManagedTool, installViaPackageManager]);
 
   const openFeaturedTool = useCallback(() => {
     if (!featured) return;

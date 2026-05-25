@@ -33,7 +33,8 @@ export type UseCatalogDataResult = {
   runtime: Map<string, ScannerDoctorItem>;
   mutation: CatalogMutationState;
   installManagedTool: (toolId: string) => Promise<void>;
-  installViaHomebrew: (toolId: string) => Promise<void>;
+  installViaPackageManager: (toolId: string) => Promise<void>;
+  markManualInstall: (toolId: string) => Promise<void>;
   uninstallManagedTool: (toolId: string, ownershipId?: string | null) => Promise<void>;
   resetMutation: () => void;
 };
@@ -63,25 +64,64 @@ export function useCatalogData(
     }
   }, [onRefresh]);
 
-  const installViaHomebrew = useCallback(async (toolId: string) => {
-    setMutation({toolId, kind: 'install', status: 'running', message: 'Running brew install...'});
+  // Drives /api/tools/install-via-pkg, which dispatches by the tool's
+  // catalog-declared install method (homebrew → brew install, uv-tool → uv
+  // tool install). Manual-install tools have their own affordance through
+  // `markManualInstall` and never flow through this helper.
+  const installViaPackageManager = useCallback(async (toolId: string) => {
+    setMutation({toolId, kind: 'install', status: 'running', message: 'Running package install...'});
     try {
       const response = await fetch('/api/tools/install-via-pkg', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({toolId, confirmHomebrewInstall: true}),
+        body: JSON.stringify({toolId, confirmPackageInstall: true}),
       });
-      if (!response.ok) throw new Error(await responseErrorMessage(response, 'Homebrew install failed.'));
+      if (!response.ok) throw new Error(await responseErrorMessage(response, 'Package install failed.'));
       const body = await response.json().catch(() => ({}));
       await onRefresh();
       if (body && body.success === false) {
         const tail = String(body.stderr || body.stdout || '').trim().split('\n').slice(-3).join('\n');
-        setMutation({toolId, kind: 'install', status: 'error', message: tail || 'brew install returned non-zero.'});
+        const command = typeof body.command === 'string' && body.command ? `${body.command}: ` : '';
+        setMutation({toolId, kind: 'install', status: 'error', message: tail || `${command}returned non-zero.`});
         return;
       }
-      setMutation({toolId, kind: 'install', status: 'complete', message: 'Installed via Homebrew. Catalog refreshed.'});
+      const command = typeof body.command === 'string' && body.command ? `via \`${body.command}\`` : 'via package manager';
+      setMutation({toolId, kind: 'install', status: 'complete', message: `Installed ${command}. Catalog refreshed.`});
     } catch (err) {
-      setMutation({toolId, kind: 'install', status: 'error', message: err instanceof Error ? err.message : 'Homebrew install failed.'});
+      setMutation({toolId, kind: 'install', status: 'error', message: err instanceof Error ? err.message : 'Package install failed.'});
+    }
+  }, [onRefresh]);
+
+  // Drives /api/tools/recheck-install-state for manual-install tools. The
+  // user installs the tool out-of-band (e.g. for malcontent: download
+  // artifacts, place in PATH), then clicks "Mark installed" and the backend
+  // re-runs detection so the card state can flip from `missing` to
+  // `detected` (or stay `missing` with a clear message if the binary is
+  // still not on PATH).
+  const markManualInstall = useCallback(async (toolId: string) => {
+    setMutation({toolId, kind: 'install', status: 'running', message: 'Re-detecting install state...'});
+    try {
+      const response = await fetch('/api/tools/recheck-install-state', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({toolId}),
+      });
+      if (!response.ok) throw new Error(await responseErrorMessage(response, 'Re-detect failed.'));
+      const body = await response.json().catch(() => ({}));
+      await onRefresh();
+      const state = body?.tool?.install_state;
+      if (state === 'missing') {
+        setMutation({
+          toolId,
+          kind: 'install',
+          status: 'error',
+          message: 'Still not detected on PATH. Install the tool, open a new shell, then try again.',
+        });
+        return;
+      }
+      setMutation({toolId, kind: 'install', status: 'complete', message: 'Detected locally. Catalog refreshed.'});
+    } catch (err) {
+      setMutation({toolId, kind: 'install', status: 'error', message: err instanceof Error ? err.message : 'Re-detect failed.'});
     }
   }, [onRefresh]);
 
@@ -107,5 +147,15 @@ export function useCatalogData(
 
   const resetMutation = useCallback(() => setMutation(null), []);
 
-  return {catalog, packs, runtime, mutation, installManagedTool, installViaHomebrew, uninstallManagedTool, resetMutation};
+  return {
+    catalog,
+    packs,
+    runtime,
+    mutation,
+    installManagedTool,
+    installViaPackageManager,
+    markManualInstall,
+    uninstallManagedTool,
+    resetMutation,
+  };
 }

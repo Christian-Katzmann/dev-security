@@ -1386,6 +1386,37 @@ def _update_agent_lab_plan_item_statuses(plan: dict[str, Any], execution: dict[s
             item["report_path"] = report_path
 
 
+# Catalog-declared install methods this server can drive automatically. Each
+# entry is a tiny dispatch record consumed by `install_via_package_manager`.
+# Binary names come from the catalog contract, not user input — the regex
+# below makes the shell-injection refusal explicit anyway.
+_PACKAGE_BINARY_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
+
+_PACKAGE_MANAGER_DISPATCH: dict[str, dict[str, Any]] = {
+    "homebrew": {
+        "program": "brew",
+        "args": ("install", "{binary}"),
+        "env": {
+            "HOMEBREW_NO_AUTO_UPDATE": "1",
+            "HOMEBREW_NO_ANALYTICS": "1",
+            "HOMEBREW_NO_ENV_HINTS": "1",
+        },
+        "timeout": 600,
+        "missing_prereq_hint": "Homebrew is not installed. Install Homebrew first: https://brew.sh",
+    },
+    "uv-tool": {
+        "program": "uv",
+        "args": ("tool", "install", "{binary}"),
+        "env": {},
+        "timeout": 600,
+        "missing_prereq_hint": (
+            "uv is not installed. Install uv first: "
+            "https://docs.astral.sh/uv/getting-started/installation/"
+        ),
+    },
+}
+
+
 class DashboardHandler(SimpleHTTPRequestHandler):
     db_path: Path
     assets_dir: Path
@@ -1768,7 +1799,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.uninstall_managed_tool()
             return
         if parsed.path == "/api/tools/install-via-pkg":
-            self.install_via_homebrew()
+            self.install_via_package_manager()
+            return
+        if parsed.path == "/api/tools/recheck-install-state":
+            self.recheck_install_state()
             return
         if parsed.path.startswith("/api/rotation/scaffold/"):
             repo_name = parsed.path.removeprefix("/api/rotation/scaffold/")
@@ -1893,15 +1927,22 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         except Exception as exc:
             self.send_error(500, str(exc))
 
-    def install_via_homebrew(self) -> None:
-        # Catalog declares each tool's install method (homebrew, uv tool, manual, ...).
-        # For method=homebrew we can run `brew install <binary>` on the user's behalf
-        # because the binary name is part of the catalog contract — not user input.
+    def install_via_package_manager(self) -> None:
+        # Catalog declares each tool's install method. For automatable methods
+        # (homebrew, uv-tool) we dispatch to the matching package manager with
+        # the same binary-name regex validation and timeout. The binary name is
+        # part of the catalog contract — not user input — so the dispatched
+        # command is never shell-injectable.
+        #
+        # Manual-install tools (method=manual) do not flow through this
+        # endpoint; they use /api/tools/recheck-install-state after the user
+        # installs the tool out-of-band.
+        dispatch: dict[str, Any] | None = None
         try:
             payload = self.read_json_body()
             tool_id = str(payload.get("toolId") or payload.get("tool_id") or "").strip()
-            if not payload.get("confirmHomebrewInstall"):
-                self.send_error(400, "Confirm Homebrew install before running brew.")
+            if not payload.get("confirmPackageInstall"):
+                self.send_error(400, "Confirm package install before running the package manager.")
                 return
             db = ObservatoryDB(self.db_path)
             try:
@@ -1913,28 +1954,30 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self.send_error(404, f"Tool {tool_id!r} not in catalog.")
                 return
             install = tool.get("install") or {}
-            if install.get("method") != "homebrew":
-                self.send_error(400, f"Tool {tool_id!r} is not a Homebrew install (method={install.get('method')!r}).")
+            method = str(install.get("method") or "")
+            dispatch = _PACKAGE_MANAGER_DISPATCH.get(method)
+            if dispatch is None:
+                self.send_error(
+                    400,
+                    f"Tool {tool_id!r} install method {method!r} cannot be automated. "
+                    "Supported methods: " + ", ".join(sorted(_PACKAGE_MANAGER_DISPATCH)) + ".",
+                )
                 return
             binary = str(install.get("binary") or "").strip()
-            if not re.match(r"^[a-z0-9][a-z0-9._-]*$", binary):
-                self.send_error(400, f"Refusing to run brew with binary name {binary!r}.")
+            if not _PACKAGE_BINARY_RE.match(binary):
+                self.send_error(400, f"Refusing to run {dispatch['program']} with binary name {binary!r}.")
                 return
-            brew = shutil.which("brew")
-            if not brew:
-                self.send_error(500, "Homebrew is not installed. Install Homebrew first: https://brew.sh")
+            program_path = shutil.which(dispatch["program"])
+            if not program_path:
+                self.send_error(500, dispatch["missing_prereq_hint"])
                 return
-            env = {
-                **os.environ,
-                "HOMEBREW_NO_AUTO_UPDATE": "1",
-                "HOMEBREW_NO_ANALYTICS": "1",
-                "HOMEBREW_NO_ENV_HINTS": "1",
-            }
+            env = {**os.environ, **dispatch["env"]}
+            args = [program_path, *(arg.format(binary=binary) for arg in dispatch["args"])]
             result = subprocess.run(
-                [brew, "install", binary],
+                args,
                 capture_output=True,
                 text=True,
-                timeout=600,
+                timeout=dispatch["timeout"],
                 env=env,
             )
             success = result.returncode == 0
@@ -1944,16 +1987,44 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             finally:
                 db.close()
             refreshed = _catalog_tool(tool_id, managed_tool_records)
+            command_label = " ".join([dispatch["program"], *(arg.format(binary=binary) for arg in dispatch["args"])])
             self.send_json({
                 "tool": refreshed,
                 "success": success,
                 "returncode": result.returncode,
                 "stdout": result.stdout,
                 "stderr": result.stderr,
-                "command": f"brew install {binary}",
+                "command": command_label,
             })
         except subprocess.TimeoutExpired:
-            self.send_error(504, "brew install timed out after 600s.")
+            label = dispatch["program"] if dispatch else "package install"
+            timeout = dispatch["timeout"] if dispatch else 600
+            self.send_error(504, f"{label} install timed out after {timeout}s.")
+        except Exception as exc:
+            self.send_error(500, str(exc))
+
+    def recheck_install_state(self) -> None:
+        # For manual-install tools (and any other tool the user wants to
+        # re-detect), this endpoint just re-runs the catalog's install-state
+        # detection and returns the refreshed entry. No subprocess; no
+        # filesystem polling; the user clicks "Mark installed" after running
+        # the manual command and the catalog re-discovers the binary on PATH.
+        try:
+            payload = self.read_json_body()
+            tool_id = str(payload.get("toolId") or payload.get("tool_id") or "").strip()
+            if not tool_id:
+                self.send_error(400, "Tool id is required.")
+                return
+            db = ObservatoryDB(self.db_path)
+            try:
+                managed_tool_records = db.list_managed_tools()
+            finally:
+                db.close()
+            tool = _catalog_tool(tool_id, managed_tool_records)
+            if tool is None:
+                self.send_error(404, f"Tool {tool_id!r} not in catalog.")
+                return
+            self.send_json({"tool": tool})
         except Exception as exc:
             self.send_error(500, str(exc))
 

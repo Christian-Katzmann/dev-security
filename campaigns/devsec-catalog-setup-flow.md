@@ -48,8 +48,8 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 0 — Self-recalibrate and generalize the install button
 
-- [ ] Step 0.1 — Self-recalibrate against shipped campaigns 5, 4, 3; edit later step prompts in place
-- [ ] Step 0.2 — Generalize the install button beyond Homebrew (uv-tool, manual-with-copy)
+- [x] Step 0.1 — Self-recalibrate against shipped campaigns 5, 4, 3; edit later step prompts in place
+- [x] Step 0.2 — Generalize the install button beyond Homebrew (uv-tool, manual-with-copy)
 
 ### Phase 1 — Setup foundation
 
