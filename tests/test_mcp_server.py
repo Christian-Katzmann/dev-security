@@ -752,6 +752,7 @@ def test_rotation_status_returns_normalized_shape(tmp_path):
         "needs_attention",
         "manually_marked",
         "override_kind",
+        "emergency_mode",
     }
     for row in result:
         assert set(row.keys()) == expected_keys

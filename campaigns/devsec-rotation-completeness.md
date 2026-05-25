@@ -58,7 +58,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 ### Phase 4 — Batch operations
 
 - [x] Step 4.1 — Skill + dashboard backend for Rotate-all (sequential, halt-resume, batch receipt)
-- [ ] Step 4.2 — Dashboard UI for Rotate-all (filter chips, live progress panel)
+- [x] Step 4.2 — Dashboard UI for Rotate-all (filter chips, live progress panel)
 
 ### Phase 5 — End-to-end verification
 
