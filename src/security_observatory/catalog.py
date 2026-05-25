@@ -606,11 +606,75 @@ def detect_install_state_for_tool(
         detected = any(shutil.which(binary) for binary in candidates)
         if not detected:
             return ToolInstallState.MISSING
+        if entry.setup_kind != SetupKind.NONE:
+            # Setup-aware tools (legitify PAT, malcontent artifact cache, …)
+            # flip between not-configured and detected based on whether their
+            # SetupCard inputs have been filled. The static
+            # ``requires_human_setup`` flag stays as a fallback for tools that
+            # haven't populated ``setup_kind`` yet.
+            return (
+                ToolInstallState.DETECTED
+                if _is_setup_satisfied(entry)
+                else ToolInstallState.NOT_CONFIGURED
+            )
         if entry.policy.requires_human_setup or entry.capabilities.requires_artifacts or entry.capabilities.requires_repo_remote:
             return ToolInstallState.NOT_CONFIGURED
         return ToolInstallState.DETECTED
 
     return entry.install_state
+
+
+def _is_setup_satisfied(entry: ToolCatalogEntry) -> bool:
+    """Return True when the tool's SetupCard inputs are populated.
+
+    The shape of "satisfied" depends on ``setup_kind``:
+
+    * ``api-key`` / ``env-var`` / ``oauth`` — the Keychain holds an entry under
+      ``(DëvSec, <tool_id>:<env_from_credential>)``. The probe spec carries the
+      credential key name; we never read the value here, just check presence
+      via the local credential index (no Keychain prompt).
+    * ``file-path`` / ``config-block`` — the on-disk tool config file holds a
+      non-empty value for the spec's ``config_key`` (file-path) or any value at
+      all (config-block).
+    * ``none`` — never reached (callers guard).
+    """
+    probe = entry.setup_probe
+    if probe is None:
+        return False
+    spec = probe.spec or {}
+    kind = entry.setup_kind
+    if kind in (SetupKind.API_KEY, SetupKind.ENV_VAR, SetupKind.OAUTH):
+        credential_key = spec.get("env_from_credential") or spec.get("env_var")
+        if not credential_key:
+            return False
+        try:
+            from .credentials import list_credentials
+        except ImportError:  # pragma: no cover - defensive
+            return False
+        try:
+            stored_keys = list_credentials(entry.id)
+        except Exception:  # pragma: no cover - defensive
+            return False
+        return credential_key in stored_keys
+    if kind == SetupKind.FILE_PATH:
+        config_key = spec.get("config_key")
+        if not config_key:
+            return False
+        # Lazy import: setup_runner imports catalog at module top, so the
+        # reverse import must stay function-scoped.
+        try:
+            from .setup_runner import read_tool_config
+        except ImportError:  # pragma: no cover - defensive
+            return False
+        stored = read_tool_config(entry.id).get(config_key, "").strip()
+        return bool(stored)
+    if kind == SetupKind.CONFIG_BLOCK:
+        try:
+            from .setup_runner import read_tool_config
+        except ImportError:  # pragma: no cover - defensive
+            return False
+        return bool(read_tool_config(entry.id))
+    return False
 
 
 def _managed_evidence_by_tool(managed_tool_records: Iterable[dict[str, Any]] | None) -> dict[str, ManagedToolEvidence]:
@@ -1524,15 +1588,26 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             requires_repo_remote=True,
         ),
         packs=(_pack(ToolPackId.PLATFORM_POSTURE, ToolPackRole.COMING_SOON, False),),
+        docs_path="/docs/tools/legitify-setup.md",
         homepage_url="https://github.com/Legit-Labs/legitify#readme",
         setup_kind=SetupKind.API_KEY,
         setup_requirement="GitHub Personal Access Token with `repo` + `admin:repo_hook` scopes (stored locally in macOS Keychain).",
         setup_probe=SetupProbe(
             kind=SetupProbeKind.SHELL,
             spec={
-                "command": "legitify analyze --repository Legit-Labs/legitify",
+                # Single namespace + one tiny public repo keeps the probe
+                # under ~15s on a warm token. legitify exits 1 when it found
+                # policy violations on the target (which is normal — the
+                # repo isn't ours), so success_returncodes includes 1.
+                # Auth failures surface as a non-{0,1} exit code or
+                # stderr-only output, both of which the runner will flag.
+                "command": (
+                    "legitify analyze --scm github --namespace repository "
+                    "--repo Legit-Labs/legitify --color false"
+                ),
                 "env_from_credential": "SCM_TOKEN",
-                "timeout_seconds": "60",
+                "timeout_seconds": "90",
+                "success_returncodes": "0,1",
             },
         ),
         setup_token_create_url=(

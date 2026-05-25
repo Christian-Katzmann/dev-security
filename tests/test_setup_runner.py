@@ -131,3 +131,69 @@ def test_truncate_respects_byte_cap() -> None:
     raw = "x" * 20000
     out = _truncate(raw)
     assert len(out.encode("utf-8")) <= 9000  # bytes cap + small overhead
+
+
+def test_shell_probe_honours_success_returncodes(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A probe that exits 1 still counts as success when the spec allows it.
+
+    legitify exits 1 when it finds policy violations on the target repo —
+    that proves the token works. Setting ``success_returncodes: "0,1"``
+    teaches the runner to read both as success without losing the actual
+    returncode in the result body.
+    """
+    from security_observatory import setup_runner
+
+    fake_entry = type(
+        "Entry",
+        (),
+        {
+            "id": "demo",
+            "install": type("Install", (), {"binary": "false"})(),
+            "setup_kind": SetupKind.API_KEY,
+            "setup_probe": SetupProbe(
+                kind=SetupProbeKind.SHELL,
+                spec={"command": "false", "success_returncodes": "0,1"},
+            ),
+        },
+    )
+    monkeypatch.setattr(setup_runner, "_find_entry", lambda _id: fake_entry)
+    result = run_setup_probe("demo")
+    assert result.success is True
+    assert result.returncode == 1
+
+
+def test_shell_probe_returncode_outside_allowed_set_fails(
+    isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An exit code outside success_returncodes is still a failure."""
+    from security_observatory import setup_runner
+
+    fake_entry = type(
+        "Entry",
+        (),
+        {
+            "id": "demo",
+            "install": type("Install", (), {"binary": "sh"})(),
+            "setup_kind": SetupKind.API_KEY,
+            "setup_probe": SetupProbe(
+                kind=SetupProbeKind.SHELL,
+                spec={"command": "exit 7", "success_returncodes": "0,1"},
+            ),
+        },
+    )
+    monkeypatch.setattr(setup_runner, "_find_entry", lambda _id: fake_entry)
+    result = run_setup_probe("demo")
+    assert result.success is False
+    assert result.returncode == 7
+
+
+def test_resolve_success_returncodes_handles_malformed_input() -> None:
+    """Garbled or empty spec values fall back to the conservative default {0}."""
+    from security_observatory.setup_runner import _resolve_success_returncodes
+
+    assert _resolve_success_returncodes({}) == frozenset({0})
+    assert _resolve_success_returncodes({"success_returncodes": ""}) == frozenset({0})
+    assert _resolve_success_returncodes({"success_returncodes": "abc,,xy"}) == frozenset({0})
+    assert _resolve_success_returncodes({"success_returncodes": "0, 1, 2"}) == frozenset({0, 1, 2})

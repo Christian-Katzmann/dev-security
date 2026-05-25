@@ -255,6 +255,30 @@ def _resolve_timeout(spec: Mapping[str, str]) -> float:
     return max(1.0, min(value, _PROBE_HARD_TIMEOUT_SECONDS))
 
 
+def _resolve_success_returncodes(spec: Mapping[str, str]) -> frozenset[int]:
+    """Return the set of returncodes that should count as probe success.
+
+    Defaults to ``{0}``. Some tools (legitify, semgrep) use exit 1 to signal
+    "ran successfully but found things" — for a probe that only cares about
+    whether the credential/binary works, that counts as success. The catalog
+    spec carries a comma-separated string (``"0,1"``); we keep parsing lenient
+    so a malformed value falls back to the conservative default.
+    """
+    raw = (spec.get("success_returncodes") or "").strip()
+    if not raw:
+        return frozenset({0})
+    parsed: set[int] = set()
+    for token in raw.split(","):
+        token = token.strip()
+        if not token:
+            continue
+        try:
+            parsed.add(int(token))
+        except ValueError:
+            continue
+    return frozenset(parsed) if parsed else frozenset({0})
+
+
 def _run_shell_probe(entry: ToolCatalogEntry, probe: SetupProbe) -> ProbeResult:
     spec = probe.spec
     command = spec.get("command", "").strip()
@@ -289,7 +313,12 @@ def _run_shell_probe(entry: ToolCatalogEntry, probe: SetupProbe) -> ProbeResult:
                 duration_seconds=None,
             )
 
-    return _run_subprocess(command, env=env, timeout=timeout)
+    return _run_subprocess(
+        command,
+        env=env,
+        timeout=timeout,
+        success_returncodes=_resolve_success_returncodes(spec),
+    )
 
 
 def _run_binary_version_probe(entry: ToolCatalogEntry, probe: SetupProbe) -> ProbeResult:
@@ -298,7 +327,12 @@ def _run_binary_version_probe(entry: ToolCatalogEntry, probe: SetupProbe) -> Pro
     if not command:
         binary = entry.install.binary or entry.id
         command = f"{binary} --version"
-    return _run_subprocess(command, env=dict(os.environ), timeout=_resolve_timeout(spec))
+    return _run_subprocess(
+        command,
+        env=dict(os.environ),
+        timeout=_resolve_timeout(spec),
+        success_returncodes=_resolve_success_returncodes(spec),
+    )
 
 
 def _run_directory_exists_probe(entry: ToolCatalogEntry, probe: SetupProbe) -> ProbeResult:
@@ -388,10 +422,17 @@ def _run_http_probe(entry: ToolCatalogEntry, probe: SetupProbe) -> ProbeResult:
 # ---------------------------------------------------------------------------
 
 
-def _run_subprocess(command: str, *, env: Mapping[str, str], timeout: float) -> ProbeResult:
+def _run_subprocess(
+    command: str,
+    *,
+    env: Mapping[str, str],
+    timeout: float,
+    success_returncodes: frozenset[int] = frozenset({0}),
+) -> ProbeResult:
     # Run via /bin/sh -c so catalog probes can use simple inline commands
-    # (``legitify analyze --repository ...``). The command is authored by the
-    # catalog, not by user input — it cannot be steered by a paste.
+    # (``legitify analyze --scm github --namespace repository …``). The
+    # command is authored by the catalog, not by user input — it cannot be
+    # steered by a paste.
     try:
         completed = subprocess.run(
             command,
@@ -425,7 +466,7 @@ def _run_subprocess(command: str, *, env: Mapping[str, str], timeout: float) -> 
     stdout = completed.stdout or ""
     stderr = completed.stderr or ""
     combined = stdout + ("\n" + stderr if stderr and stdout else stderr)
-    success = completed.returncode == 0
+    success = completed.returncode in success_returncodes
     summary = (
         "Probe succeeded."
         if success
