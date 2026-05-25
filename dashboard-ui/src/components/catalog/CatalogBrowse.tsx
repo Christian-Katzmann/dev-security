@@ -40,10 +40,11 @@ import {
   canInstallViaPackageManager,
   catalogCategoryLabels,
   catalogCategoryOrder,
-  catalogIcon,
   catalogInstallLabels,
   catalogInstallMethodLabels,
   previewCanInstall,
+  toolAccent,
+  toolLogo,
 } from './catalogHelpers';
 import {useCatalogData} from './useCatalogData';
 
@@ -205,8 +206,12 @@ export default function CatalogBrowse({summary, onRefresh, onOpenTool, onBack}: 
             )}
           </div>
           <div className="catalog-browse-featured-art" aria-hidden>
-            <div className="catalog-browse-featured-mark" data-category={featured.category}>
-              {catalogIcon(featured.category)}
+            <div
+              className="catalog-browse-featured-mark"
+              data-category={featured.category}
+              style={{['--tool-accent' as string]: toolAccent(featured)}}
+            >
+              {toolLogo(featured)}
             </div>
           </div>
         </section>
@@ -246,6 +251,7 @@ export default function CatalogBrowse({summary, onRefresh, onOpenTool, onBack}: 
               key={tool.id}
               className={`catalog-browse-card ${soon ? 'muted' : ''}`}
               data-category={tool.category}
+              style={{['--tool-accent' as string]: toolAccent(tool)}}
             >
               <button
                 type="button"
@@ -254,7 +260,7 @@ export default function CatalogBrowse({summary, onRefresh, onOpenTool, onBack}: 
                 aria-label={`View ${tool.label}`}
               >
                 <header className="catalog-browse-card-head">
-                  <div className="catalog-browse-card-icon">{catalogIcon(tool.category)}</div>
+                  <div className="catalog-browse-card-icon">{toolLogo(tool)}</div>
                   {soon ? (
                     <span className="catalog-browse-pill neutral">Coming soon</span>
                   ) : priority ? (

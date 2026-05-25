@@ -252,5 +252,6 @@ function mockTool({
       spec: probeSpec,
     },
     setup_token_create_url: tokenUrl,
+    branding: {accent_color: '#3c4b48'},
   };
 }

@@ -4241,12 +4241,25 @@ a.button,
   background: var(--paper-deep);
   border: 1px solid var(--border-hair);
   color: var(--mist-surface-700);
+  overflow: hidden;
 }
 
 .catalog-browse-featured-mark > svg {
   width: 56px;
   height: 56px;
   stroke-width: 1.5;
+}
+
+.catalog-browse-featured-mark > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 12%;
+}
+
+.catalog-browse-featured-mark:has(> img) {
+  background: transparent;
+  border-color: transparent;
 }
 
 .catalog-browse-filters {
@@ -4318,6 +4331,28 @@ a.button,
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-1);
   transition: box-shadow 140ms ease, transform 140ms ease;
+  overflow: hidden;
+}
+
+/* Per-tool accent stripe — 4px on the left edge, sampled from the tool's
+ * brand (catalog branding.accent_color). Sits inside the card border so
+ * card chrome stays uniform; only the stripe changes per tool. Discipline:
+ * one stripe, one underline (see CatalogToolPage). No background or shape
+ * change per tool. */
+.catalog-browse-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--tool-accent, var(--mist-surface-700));
+  border-top-left-radius: var(--r-lg);
+  border-bottom-left-radius: var(--r-lg);
+}
+
+.catalog-browse-card.muted::before {
+  opacity: 0.35;
 }
 
 .catalog-browse-card:hover {
@@ -4364,6 +4399,22 @@ a.button,
   background: var(--paper-soft);
   border: 1px solid var(--border-hair);
   color: var(--mist-surface-700);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* When a tool ships a logo it fills the tile edge-to-edge — the SVG carries
+ * its own background. Category-icon fallbacks keep the paper-soft tile. */
+.catalog-browse-card-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.catalog-browse-card-icon:has(> img) {
+  background: transparent;
+  border-color: transparent;
 }
 
 .catalog-browse-card.muted .catalog-browse-card-icon {
@@ -4555,6 +4606,29 @@ a.button,
   background: var(--paper-deep);
   border: 1px solid var(--border-hair);
   color: var(--mist-surface-700);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.catalog-tool-hero-icon img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.catalog-tool-hero-icon:has(> img) {
+  background: transparent;
+  border-color: transparent;
+}
+
+/* 1px accent underline beneath the tool name — the detail-page counterpart
+ * to the card stripe. Subtraction principle: this is the only branded mark
+ * on the title; no per-tool font, weight, or hero background change. */
+.catalog-tool-hero-title {
+  display: inline-block;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--tool-accent, var(--mist-surface-700));
 }
 
 .catalog-tool-hero-copy {

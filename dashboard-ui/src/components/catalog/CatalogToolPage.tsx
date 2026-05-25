@@ -41,7 +41,6 @@ import {
   catalogCapabilityLabels,
   catalogCategoryLabels,
   catalogCredentialLabels,
-  catalogIcon,
   catalogInstallDetectionLabels,
   catalogInstallLabels,
   catalogInstallMethodLabels,
@@ -55,6 +54,8 @@ import {
   isManualInstall,
   packageManagerCommand,
   previewCanInstall,
+  toolAccent,
+  toolLogo,
 } from './catalogHelpers';
 import {useCatalogData} from './useCatalogData';
 import SetupCard from './SetupCard';
@@ -229,9 +230,12 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
         Back to catalog
       </button>
 
-      <section className="catalog-tool-hero">
+      <section
+        className="catalog-tool-hero"
+        style={{['--tool-accent' as string]: toolAccent(tool)}}
+      >
         <div className="catalog-tool-hero-head">
-          <div className="catalog-tool-hero-icon">{catalogIcon(tool.category)}</div>
+          <div className="catalog-tool-hero-icon">{toolLogo(tool)}</div>
           <div className="catalog-tool-hero-copy">
             <div className="catalog-tool-eyebrow">
               <span className="catalog-tool-verified">
@@ -240,7 +244,7 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
               </span>
               <span>by DëvSec Core</span>
             </div>
-            <h1>{tool.label}</h1>
+            <h1 className="catalog-tool-hero-title">{tool.label}</h1>
             <p>{tool.summary}</p>
           </div>
           <div className="catalog-tool-hero-actions">

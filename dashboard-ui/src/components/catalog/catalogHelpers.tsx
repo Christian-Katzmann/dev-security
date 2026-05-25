@@ -221,6 +221,24 @@ export function catalogIcon(category: ToolCategory): ReactNode {
   return <Shield size={18} />;
 }
 
+// Render the tool's branded logo when one is bundled under
+// ``dashboard-ui/public/tool-logos/``. Falls back to the generic category
+// icon for built-ins and any tool without a vetted upstream mark — the
+// catalog grid never shows a broken image. ``alt=""`` because the tool
+// label is always rendered next to the logo (decorative, not informational).
+export function toolLogo(tool: ToolCatalogItem): ReactNode {
+  const logo = tool.branding?.logo;
+  if (!logo) return catalogIcon(tool.category);
+  return <img src={`/tool-logos/${logo}`} alt="" loading="lazy" />;
+}
+
+// Accent color in hex. Used by the 4px card stripe and the 1px detail-page
+// underline. Defaults to DëvSec's neutral accent so existing card chrome
+// never goes naked while branding rolls out.
+export function toolAccent(tool: ToolCatalogItem): string {
+  return tool.branding?.accent_color ?? '#3c4b48';
+}
+
 export function catalogPackIconCategory(pack: ToolPackId): ToolCategory {
   if (pack === 'external-surface') return 'external-surface';
   if (pack === 'ai-agent') return 'ai-agent';

@@ -153,6 +153,27 @@ class SetupProbe:
     spec: dict[str, str]
 
 
+# DëvSec's own accent — used by built-in scanners and any tool without a
+# vetted upstream brand color. Matches ``--mist-surface-700`` in
+# ``dashboard-ui/src/index.css``, the existing chrome accent. Keeping it as
+# a string here (rather than reaching for a token) keeps catalog.py free of
+# UI-layer dependencies.
+DEVSEC_ACCENT = "#3c4b48"
+
+
+@dataclass(frozen=True, slots=True)
+class ToolBranding:
+    # Hex color sampled from the tool's wordmark, used as a 4px stripe on the
+    # left edge of catalog cards and a 1px underline beneath the tool name on
+    # the detail page. Discipline (docs/branding.md): logo + one accent only.
+    # No background, font, or shape changes. Tools without a vetted upstream
+    # mark fall back to the DëvSec neutral accent.
+    accent_color: str
+    # Filename under ``dashboard-ui/public/tool-logos/`` (e.g.
+    # ``semgrep.svg``). ``None`` falls back to the category icon.
+    logo: str | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class ToolInstallContract:
     method: ToolInstallMethod
@@ -234,6 +255,7 @@ class ToolCatalogEntry:
     # ``https://github.com/settings/tokens/new?scopes=repo,admin:repo_hook&description=...``).
     # ``None`` hides the link.
     setup_token_create_url: str | None = None
+    branding: ToolBranding = ToolBranding(accent_color=DEVSEC_ACCENT)
 
     def with_install_state(self, install_state: ToolInstallState) -> ToolCatalogEntry:
         return replace(self, install_state=install_state)
@@ -981,6 +1003,7 @@ def _scanner_entry(
     setup_requirement: str | None = None,
     setup_probe: SetupProbe | None = None,
     setup_token_create_url: str | None = None,
+    branding: ToolBranding = ToolBranding(accent_color=DEVSEC_ACCENT),
 ) -> ToolCatalogEntry:
     legacy = _legacy(
         label=label,
@@ -1012,6 +1035,7 @@ def _scanner_entry(
         setup_requirement=setup_requirement,
         setup_probe=setup_probe,
         setup_token_create_url=setup_token_create_url,
+        branding=branding,
     )
 
 
@@ -1224,6 +1248,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         ),
         packs=(_pack(ToolPackId.STARTER, ToolPackRole.INCLUDED, True),),
         homepage_url="https://semgrep.dev/docs/",
+        branding=ToolBranding(accent_color="#4D40A1", logo="semgrep.svg"),
     ),
     _scanner_entry(
         scanner="gitleaks",
@@ -1261,6 +1286,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.SECRETS, ToolPackRole.INCLUDED, True),
         ),
         homepage_url="https://github.com/gitleaks/gitleaks#readme",
+        branding=ToolBranding(accent_color="#E2453C", logo="gitleaks.svg"),
     ),
     _scanner_entry(
         scanner="trufflehog",
@@ -1295,6 +1321,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         ),
         packs=(_pack(ToolPackId.SECRETS, ToolPackRole.INCLUDED, False),),
         homepage_url="https://github.com/trufflesecurity/trufflehog#readme",
+        branding=ToolBranding(accent_color="#FF4F00", logo="trufflehog.svg"),
     ),
     _scanner_entry(
         scanner="trivy",
@@ -1333,6 +1360,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.IAC, ToolPackRole.COMING_SOON, False),
         ),
         homepage_url="https://trivy.dev/",
+        branding=ToolBranding(accent_color="#1C7DD9", logo="trivy.svg"),
     ),
     _scanner_entry(
         scanner="osv-scanner",
@@ -1370,6 +1398,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.STARTER, ToolPackRole.OPTIONAL, False),
         ),
         homepage_url="https://google.github.io/osv-scanner/",
+        branding=ToolBranding(accent_color="#1A73E8", logo="osv-scanner.svg"),
     ),
     _scanner_entry(
         scanner="syft",
@@ -1404,6 +1433,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         ),
         packs=(_pack(ToolPackId.DEPENDENCIES, ToolPackRole.INCLUDED, True),),
         homepage_url="https://github.com/anchore/syft#readme",
+        branding=ToolBranding(accent_color="#E55B2B", logo="syft.svg"),
     ),
     _scanner_entry(
         scanner="grype",
@@ -1439,6 +1469,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         ),
         packs=(_pack(ToolPackId.DEPENDENCIES, ToolPackRole.INCLUDED, True),),
         homepage_url="https://github.com/anchore/grype#readme",
+        branding=ToolBranding(accent_color="#00ACC1", logo="grype.svg"),
     ),
     _scanner_entry(
         scanner="checkov",
@@ -1473,6 +1504,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         ),
         packs=(_pack(ToolPackId.IAC, ToolPackRole.COMING_SOON, False),),
         homepage_url="https://www.checkov.io/",
+        branding=ToolBranding(accent_color="#6F4FF2", logo="checkov.svg"),
     ),
     _scanner_entry(
         scanner="medusa",
@@ -1507,6 +1539,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         ),
         packs=(_pack(ToolPackId.AI_AGENT, ToolPackRole.INCLUDED, False),),
         homepage_url="https://github.com/Pantheon-Security/medusa#readme",
+        branding=ToolBranding(accent_color="#1B5A6E", logo="medusa.svg"),
     ),
     _scanner_entry(
         scanner="malcontent",
@@ -1551,6 +1584,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             kind=SetupProbeKind.DIRECTORY_EXISTS,
             spec={"config_key": "artifact_cache_dir"},
         ),
+        branding=ToolBranding(accent_color="#4C44B3", logo="malcontent.svg"),
     ),
     _scanner_entry(
         scanner="legitify",
@@ -1615,6 +1649,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             "?scopes=repo,admin:repo_hook"
             "&description=D%C3%ABvSec%20legitify"
         ),
+        branding=ToolBranding(accent_color="#E63946", logo="legitify.svg"),
     ),
 )
 

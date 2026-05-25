@@ -59,11 +59,11 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 ### Phase 2 — SetupCard component and first concrete case
 
 - [x] Step 2.1 — Typed `SetupCard` component (renders by `setup_kind`)
-- [ ] Step 2.2 — legitify Connect-GitHub PAT/OAuth flow (first instantiation)
+- [x] Step 2.2 — legitify Connect-GitHub PAT/OAuth flow (first instantiation)
 
 ### Phase 3 — Per-tool branding
 
-- [ ] Step 3.1 — Source logos, define accent palette, render on cards and detail pages
+- [x] Step 3.1 — Source logos, define accent palette, render on cards and detail pages
 
 ### Close
 

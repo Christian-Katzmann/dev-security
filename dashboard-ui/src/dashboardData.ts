@@ -194,6 +194,17 @@ export type ToolCatalogItem = {
   setup_requirement?: string;
   setup_probe?: SetupProbe;
   setup_token_create_url?: string;
+  branding: ToolBranding;
+};
+
+export type ToolBranding = {
+  // Hex string sampled from the tool's wordmark. Rendered as a 4px left-edge
+  // stripe on cards and a 1px underline beneath the tool name on the detail
+  // page. Tools without a vetted upstream mark inherit DëvSec's accent.
+  accent_color: string;
+  // Filename under ``/tool-logos/`` (served from ``dashboard-ui/public``).
+  // ``null`` falls back to the category icon.
+  logo?: string | null;
 };
 
 export type ToolCatalogPayload = {
