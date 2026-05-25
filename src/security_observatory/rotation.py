@@ -14,6 +14,8 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import logging
+import re
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -54,9 +56,22 @@ ROTATION_INFLIGHT_STATUSES = frozenset(
     }
 )
 
+ROTATION_TERMINAL_STATUSES = ROTATION_FAILURE_STATUSES | frozenset(
+    {
+        "IN_GRACE",
+        "MANUAL",
+        "ROLLED_BACK",
+        "ROTATED",
+    }
+)
+
 # Stacks the v0.2 skill knows how to scaffold. Anything else → "Stack not
 # supported yet" message in the dashboard, no shell-out attempted.
 SUPPORTED_STACKS = ("vercel", "python-cli")
+GLOBAL_ROTATION_CATALOG_PATH = (
+    Path.home() / ".claude" / "skills" / "secrets-rotation" / "catalog.json"
+)
+LOCAL_ROTATION_CATALOG_PATH = Path("src/lib/rotation/catalog.local.json")
 
 
 def state_file_path(repo_path: Path | str) -> Path:
@@ -113,6 +128,9 @@ def _normalized_status_entry(
     secret_name: str,
     *,
     secret_class: str | None = None,
+    rotation_warning: str | None = None,
+    soak_window_minutes: int | None = None,
+    console_url: str | None = None,
     status: str = "NEVER",
     last_rotated_at: Any = None,
     cadence_days: Any = None,
@@ -140,6 +158,9 @@ def _normalized_status_entry(
     return {
         "secret": secret_name,
         "class": secret_class,
+        "rotation_warning": rotation_warning,
+        "soak_window_minutes": soak_window_minutes,
+        "console_url": console_url,
         "status": status,
         "last_rotated_at": str(last_rotated_at) if last_rotated_at else None,
         "days_since_rotation": days_since,
@@ -168,12 +189,99 @@ def _latest_rotation_for(
     return matches[0]
 
 
+@lru_cache(maxsize=128)
+def _read_catalog_entries(path: Path) -> tuple[dict[str, Any], ...]:
+    if not path.is_file():
+        return ()
+    try:
+        parsed = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, TypeError, ValueError) as exc:
+        logger.warning("rotation_catalog: failed to read %s: %s", path, exc)
+        return ()
+    entries = parsed.get("entries") if isinstance(parsed, dict) else None
+    if not isinstance(entries, list):
+        logger.warning("rotation_catalog: %s has no entries array", path)
+        return ()
+    return tuple(entry for entry in entries if isinstance(entry, dict))
+
+
+def _catalog_entry_matches(entry: dict[str, Any], secret_name: str) -> bool:
+    name = entry.get("name")
+    if isinstance(name, str) and name == secret_name:
+        return True
+    pattern = entry.get("name_regex")
+    if not isinstance(pattern, str) or not pattern.strip():
+        return False
+    try:
+        return re.search(pattern, secret_name) is not None
+    except re.error as exc:
+        logger.warning("rotation_catalog: invalid name_regex %r: %s", pattern, exc)
+        return False
+
+
+def _matching_catalog_entry(
+    entries: tuple[dict[str, Any], ...],
+    secret_name: str,
+) -> dict[str, Any] | None:
+    for entry in entries:
+        name = entry.get("name")
+        if isinstance(name, str) and name == secret_name:
+            return entry
+    for entry in entries:
+        name = entry.get("name")
+        if isinstance(name, str):
+            continue
+        if _catalog_entry_matches(entry, secret_name):
+            return entry
+    return None
+
+
+def _rotation_catalog_entry(repo_path: Path | str, secret_name: str) -> dict[str, Any]:
+    root = Path(repo_path).expanduser()
+    local_path = root / LOCAL_ROTATION_CATALOG_PATH
+    merged: dict[str, Any] = {}
+    for entries in (
+        _read_catalog_entries(GLOBAL_ROTATION_CATALOG_PATH),
+        _read_catalog_entries(local_path),
+    ):
+        entry = _matching_catalog_entry(entries, secret_name)
+        if entry:
+            merged.update(entry)
+    return merged
+
+
+def _catalog_rotation_warning(entry: dict[str, Any]) -> str | None:
+    warning = entry.get("rotation_warning")
+    if isinstance(warning, str) and warning.strip():
+        return warning.strip()
+    return None
+
+
+def _catalog_soak_window_minutes(entry: dict[str, Any]) -> int | None:
+    value = entry.get("soak_window_minutes")
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    return None
+
+
+def _catalog_console_url(entry: dict[str, Any]) -> str | None:
+    url = entry.get("console_url")
+    if isinstance(url, str) and url.strip():
+        return url.strip()
+    return None
+
+
 def read_rotation_status(repo_path: Path | str) -> list[dict[str, Any]]:
     """Return per-secret rotation status for the repo at ``repo_path``.
 
     Empty list when the state file is absent — i.e. rotation isn't scaffolded
     yet. Corrupt files yield "unknown" rows so callers can surface that the
     operator's state file is broken instead of pretending everything is fine.
+    Known secrets are enriched with catalog warning/default-soak metadata when
+    available; per-repo catalog.local.json entries take precedence over the
+    global secrets-rotation catalog.
     """
     state_path = state_file_path(repo_path)
     if not state_path.exists():
@@ -218,6 +326,7 @@ def read_rotation_status(repo_path: Path | str) -> list[dict[str, Any]]:
             unknown_count += 1
             continue
         name_str = str(name)
+        catalog_entry = _rotation_catalog_entry(repo_path, name_str)
         latest = _latest_rotation_for(rotations, name_str) or {}
         status = str(latest.get("status")) if latest.get("status") else "NEVER"
         last_rotated_at = (
@@ -229,6 +338,9 @@ def read_rotation_status(repo_path: Path | str) -> list[dict[str, Any]]:
             _normalized_status_entry(
                 name_str,
                 secret_class=entry.get("class"),
+                rotation_warning=_catalog_rotation_warning(catalog_entry),
+                soak_window_minutes=_catalog_soak_window_minutes(catalog_entry),
+                console_url=_catalog_console_url(catalog_entry),
                 status=status,
                 last_rotated_at=last_rotated_at,
                 cadence_days=entry.get("cadence_days"),
@@ -289,6 +401,185 @@ def read_rotation_history(
         return []
     events.sort(key=lambda e: str(e.get("timestamp") or ""), reverse=True)
     return events[:bounded_limit]
+
+
+# ---------------------------------------------------------------------------
+# State/history consistency
+# ---------------------------------------------------------------------------
+
+
+def _read_state_rotations(repo_path: Path | str) -> list[dict[str, Any]]:
+    state_path = state_file_path(repo_path)
+    if not state_path.exists():
+        return []
+    try:
+        parsed = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, TypeError, ValueError):
+        return []
+    if not isinstance(parsed, dict):
+        return []
+    rotations_raw = parsed.get("rotations") or []
+    return [rec for rec in rotations_raw if isinstance(rec, dict)]
+
+
+def _read_history_events(repo_path: Path | str) -> list[dict[str, Any]]:
+    log_path = history_file_path(repo_path)
+    if not log_path.exists():
+        return []
+    events: list[dict[str, Any]] = []
+    try:
+        with log_path.open("r", encoding="utf-8") as fh:
+            for line_no, line in enumerate(fh, start=1):
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    parsed = json.loads(stripped)
+                except (TypeError, ValueError) as exc:
+                    logger.warning(
+                        "rotation_consistency: malformed line %d in %s: %s",
+                        line_no,
+                        log_path,
+                        exc,
+                    )
+                    continue
+                if isinstance(parsed, dict):
+                    events.append(parsed)
+    except OSError as exc:
+        logger.warning("rotation_consistency: failed to read %s: %s", log_path, exc)
+        return []
+    events.sort(key=lambda e: str(e.get("at") or ""), reverse=True)
+    return events
+
+
+def _terminal_status_from_event(event: dict[str, Any]) -> set[str]:
+    step = str(event.get("step") or "").upper()
+    outcome = str(event.get("outcome") or "").lower()
+    details = event.get("details") if isinstance(event.get("details"), dict) else {}
+    if step == "OPERATOR_OVERRIDE" and outcome == "succeeded":
+        resulting = str(details.get("resulting_status") or "")
+        return {resulting} if resulting in ROTATION_TERMINAL_STATUSES else set()
+    if outcome == "halted":
+        if step == "HEALTH_CHECK":
+            return {"HEALTH_CHECK_FAILED"}
+        if step == "VERIFY_CANARY":
+            return {"CANARY_VERIFY_FAILED"}
+        if step == "SOAK":
+            return {"SOAK_FAILED"}
+        return {"HALTED"}
+    if step == "GRACE" and outcome in {"started", "succeeded"}:
+        return {"IN_GRACE"}
+    if step == "REVOKE" and outcome == "succeeded":
+        return {"ROTATED"}
+    if step == "ROLLBACK" and outcome == "succeeded":
+        return {"ROLLED_BACK"}
+    return set()
+
+
+def rotation_consistency_check(repo_path: Path | str) -> dict[str, Any]:
+    """Compare terminal state rows with the append-only rotation trail.
+
+    The state file is the dashboard/MCP source of truth. The JSONL trail is the
+    trust trail. A warning here means the operator should inspect the rotation
+    receipt/history before treating the status row as authoritative.
+    """
+    rows = read_rotation_status(repo_path)
+    events = _read_history_events(repo_path)
+    rotations = _read_state_rotations(repo_path)
+    warnings: list[dict[str, Any]] = []
+
+    state_rotation_ids = {
+        str(rec.get("rotation_id"))
+        for rec in rotations
+        if rec.get("rotation_id")
+    }
+    state_secret_names = {
+        str(row.get("secret"))
+        for row in rows
+        if row.get("secret") and str(row.get("secret")) not in {"(corrupt)", "(unreadable)"}
+    }
+    event_rotation_ids = {
+        str(event.get("rotation_id"))
+        for event in events
+        if event.get("rotation_id")
+    }
+
+    warned_history_records: set[tuple[str, str]] = set()
+    for event in events:
+        step = str(event.get("step") or "")
+        rotation_id = str(event.get("rotation_id") or "")
+        secret = str(event.get("secret_name") or "")
+        if step == "DASHBOARD_TRIGGER" and not rotation_id:
+            continue
+        if rotation_id and rotation_id not in state_rotation_ids:
+            key = (rotation_id, secret)
+            if key not in warned_history_records:
+                warnings.append(
+                    {
+                        "kind": "history_missing_state_record",
+                        "secret": secret or None,
+                        "rotation_id": rotation_id,
+                        "detail": "Rotation history has events with no matching state record.",
+                    }
+                )
+                warned_history_records.add(key)
+        elif not rotation_id and secret and secret not in state_secret_names:
+            key = ("", secret)
+            if key not in warned_history_records:
+                warnings.append(
+                    {
+                        "kind": "history_unknown_secret",
+                        "secret": secret,
+                        "rotation_id": None,
+                        "detail": "Rotation history references a secret missing from state.",
+                    }
+                )
+                warned_history_records.add(key)
+
+    for rec in rotations:
+        rotation_id = str(rec.get("rotation_id") or "")
+        if rotation_id and rotation_id not in event_rotation_ids:
+            warnings.append(
+                {
+                    "kind": "state_missing_history",
+                    "secret": rec.get("secret_name"),
+                    "rotation_id": rotation_id,
+                    "state_status": rec.get("status"),
+                    "detail": "Rotation state has a record with no matching history events.",
+                }
+            )
+
+    latest_row_by_secret = {
+        str(row.get("secret")): row
+        for row in rows
+        if row.get("secret") and str(row.get("status") or "") in ROTATION_TERMINAL_STATUSES
+    }
+    for secret, row in latest_row_by_secret.items():
+        state_status = str(row.get("status") or "")
+        matching = [
+            event
+            for event in events
+            if str(event.get("secret_name") or "") == secret
+            and _terminal_status_from_event(event)
+        ]
+        if not matching:
+            continue
+        latest_event = matching[0]
+        history_statuses = _terminal_status_from_event(latest_event)
+        if state_status not in history_statuses:
+            warnings.append(
+                {
+                    "kind": "status_mismatch",
+                    "secret": secret,
+                    "rotation_id": latest_event.get("rotation_id"),
+                    "state_status": state_status,
+                    "history_status": sorted(history_statuses),
+                    "history_step": latest_event.get("step"),
+                    "detail": "Latest terminal state does not match the terminal history event.",
+                }
+            )
+
+    return {"ok": not warnings, "warnings": warnings}
 
 
 # ---------------------------------------------------------------------------
@@ -455,12 +746,14 @@ def detect_rotation_state(repo_path: Path | str) -> dict[str, Any]:
 __all__ = (
     "ROTATION_FAILURE_STATUSES",
     "ROTATION_INFLIGHT_STATUSES",
+    "ROTATION_TERMINAL_STATUSES",
     "SUPPORTED_STACKS",
     "state_file_path",
     "history_file_path",
     "receipts_dir",
     "read_rotation_status",
     "read_rotation_history",
+    "rotation_consistency_check",
     "list_receipts",
     "read_receipt",
     "detect_stack",

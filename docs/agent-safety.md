@@ -198,11 +198,30 @@ mask the real problem and make diagnosis harder.
 
 **Confirmation phrase:** `` Yes, rotate `<SECRET>` and accept the irreversible provider-side change. ``
 
+**Emergency rotation confirmation phrase:** `` Yes, rotate `<SECRET>` emergency-mode and accept that the old key dies immediately with no grace. ``
+
 Surfaces substitute the secret name into the backticks. The phrase is the same
 shape across the dashboard modal, `/devsec-rotate`, and any future automation.
 The skill's own `--no-soak` and `--skip-health-check` flags carry their own
 explicit acknowledgements (e.g., `acknowledged_skipping_soak: true`) because
 they reduce the verification we promise.
+
+### Emergency rotation
+
+Emergency rotation is the incident-response variant for Class B provider keys.
+It is intentionally sharper than normal rotation: the operator has decided the
+old key is likely compromised, so the old provider key is revoked immediately
+after the new key passes provider and application verification. There is no
+grace window, no soak window, and no pre-rotation health-check refusal gate.
+
+Class A secrets refuse emergency mode because no external provider holds the old
+key. Standard Class A rotation already replaces the value without a provider
+grace period; calling that "emergency" would overstate what happened.
+
+The operator must acknowledge the cached-caller trade-off. Any process that
+cached the old key may fail loudly after the revoke; during an incident, that
+failure is diagnostic signal, not an accident. Receipts for this path are
+labelled `EMERGENCY_ROTATION` and include the acknowledgement.
 
 **Language template:**
 

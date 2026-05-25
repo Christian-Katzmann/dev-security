@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "campaign": {
+    "slug": "devsec-rotation-completeness",
+    "title": "8 · DëvSec rotation completeness — close the trust, UX, incident-response, and batch-operation gaps",
+    "repo_path": "/Users/christiankatzmann/Dev/Projects/dëv-security",
+    "campaign_path": "/Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/devsec-rotation-completeness.md",
+    "run_dir": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/devsec-rotation-completeness",
+    "created_at": "2026-05-25T15:34:21+00:00",
+    "updated_at": "2026-05-25T16:51:35+00:00",
+    "status": "active",
+    "model": "gpt-5.5",
+    "reasoning_effort": "xhigh",
+    "execution_environment": "worktree",
+    "rrule": "FREQ=HOURLY;INTERVAL=1",
+    "schedule_mode": "fast-chain",
+    "fast_chain_delay_minutes": 2
+  },
+  "phase": "step",
+  "cursor": {
+    "step_id": "3.2",
+    "phase": "3",
+    "attempt": 0
+  },
+  "policy": {
+    "one_step_per_run": true,
+    "create_fresh_automation_each_step": true,
+    "pause_current_automation_after_chaining": true,
+    "campaign_markdown_is_progress_source": true,
+    "run_step_reviews": false,
+    "run_phase_reviews": false,
+    "require_final_review": true,
+    "final_review": {
+      "mode": "whole-campaign",
+      "verdict_path": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/devsec-rotation-completeness/final-review.md",
+      "rework_receipt_path": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/devsec-rotation-completeness/final-rework.md"
+    },
+    "auto_commit": false,
+    "safety_source": "campaign_prompt"
+  },
+  "campaign_chain": {
+    "enabled": false,
+    "next_state_path": null
+  },
+  "automations": [
+    {
+      "id": "campaign-devsec-rotation-completeness",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-25T15:35:17+00:00",
+      "expected_next": "step 1.1 Fix Tier 1 audit-emit broken on Next.js stacks (RSC import boundary)",
+      "updated_at": "2026-05-25T15:48:45+00:00"
+    },
+    {
+      "id": "campaign-devsec-rotation-completeness-step-1-2",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-25T15:47:15+00:00",
+      "expected_next": "step 1.2 Status-vs-history consistency check + job state persistence + confirmation phrase drift test",
+      "updated_at": "2026-05-25T16:06:35+00:00"
+    },
+    {
+      "id": "campaign-devsec-rotation-completeness-step-2-1",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-25T16:05:27+00:00",
+      "expected_next": "step 2.1 Test-mode toggle, advanced options exposure, per-secret rotation_warning plumbing",
+      "updated_at": "2026-05-25T16:18:58+00:00"
+    },
+    {
+      "id": "campaign-devsec-rotation-completeness-step-2-2",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-25T16:16:53+00:00",
+      "expected_next": "step 2.2 Class-aware phase track, B-human paste-resume affordance, cancellation guidance",
+      "updated_at": "2026-05-25T16:40:40+00:00"
+    },
+    {
+      "id": "campaign-devsec-rotation-completeness-step-3-1",
+      "status": "PAUSED",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-25T16:38:21+00:00",
+      "expected_next": "step 3.1 Skill: `--no-grace` / `--emergency` flag with new Tier 5R variant",
+      "updated_at": "2026-05-25T16:51:35+00:00"
+    },
+    {
+      "id": "campaign-devsec-rotation-completeness-step-3-2",
+      "status": "ACTIVE",
+      "kind": "cron",
+      "execution_environment": "worktree",
+      "model": "gpt-5.5",
+      "reasoning_effort": "xhigh",
+      "created_at": "2026-05-25T16:49:39+00:00",
+      "expected_next": "step 3.2 Dashboard surface for emergency rotation"
+    }
+  ],
+  "blockers": []
+}

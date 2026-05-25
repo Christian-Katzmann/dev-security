@@ -12,10 +12,15 @@ import {
   rotationConfirmationPhrase,
 } from '../dashboardData';
 
-// Coarse phase order. The progress panel renders this as a vertical track so
-// the operator can see where the pipeline is. Mirrors the skill's pipeline
-// shape; the panel updates "current" as the server emits phase changes.
-const PIPELINE_PHASES: {phase: RotationJobPhase; label: string}[] = [
+type PipelinePhase = {
+  phase: RotationJobPhase;
+  label: string;
+  matches?: string[];
+};
+
+// Coarse phase order. The progress panel renders a class-aware track so Class A
+// rotations do not look like they skipped Class B provider stages.
+const CLASS_B_API_PHASES: PipelinePhase[] = [
   {phase: 'health_check', label: 'Pre-rotation health check'},
   {phase: 'preflight', label: 'Preflight checks'},
   {phase: 'acquire', label: 'Acquire new value'},
@@ -26,22 +31,60 @@ const PIPELINE_PHASES: {phase: RotationJobPhase; label: string}[] = [
   {phase: 'soak', label: 'Soak — watch for auth errors'},
 ];
 
-const PHASE_INDEX: Record<string, number> = Object.fromEntries(
-  PIPELINE_PHASES.map((entry, index) => [entry.phase, index]),
-);
+const CLASS_A_PHASES: PipelinePhase[] = [
+  {phase: 'health_check', label: 'Pre-rotation health check'},
+  {phase: 'preflight', label: 'Preflight checks'},
+  {
+    phase: 'acquire',
+    label: 'Acquire and stage new value',
+    matches: ['acquire', 'stage_canary', 'stage_prod'],
+  },
+  {
+    phase: 'verify_prod',
+    label: 'Deploy and verify',
+    matches: ['verify_canary', 'verify_prod', 'soak', 'grace', 'revoke'],
+  },
+];
 
-function phasePosition(job: RotationJob | null): number {
+const CLASS_B_HUMAN_PHASES: PipelinePhase[] = [
+  ...CLASS_B_API_PHASES.slice(0, 3),
+  {
+    phase: 'waiting_for_paste',
+    label: 'Paste value from provider console',
+  },
+  ...CLASS_B_API_PHASES.slice(3),
+];
+
+function normalisedSecretClass(secret: RotationSecretRow): string {
+  return (secret.class ?? '').trim().toUpperCase();
+}
+
+function pipelinePhasesForSecret(secret: RotationSecretRow): PipelinePhase[] {
+  const secretClass = normalisedSecretClass(secret);
+  if (secretClass === 'A') return CLASS_A_PHASES;
+  if (secretClass === 'B-HUMAN') return CLASS_B_HUMAN_PHASES;
+  return CLASS_B_API_PHASES;
+}
+
+function phaseMatches(entry: PipelinePhase, phase: string): boolean {
+  return entry.phase === phase || Boolean(entry.matches?.includes(phase));
+}
+
+function phasePosition(job: RotationJob | null, phases: PipelinePhase[]): number {
   if (!job) return -1;
-  if (job.phase === 'verified') return PIPELINE_PHASES.length;
+  if (job.phase === 'verified') return phases.length;
   if (job.phase === 'halted') return -1;
-  const index = PHASE_INDEX[job.phase];
+  const index = phases.findIndex((entry) => phaseMatches(entry, String(job.phase)));
   return Number.isInteger(index) ? index : -1;
 }
 
-function classWarning(secretClass: string | null): string | null {
+function classWarning(secret: RotationSecretRow): string | null {
+  const catalogWarning = secret.rotation_warning?.trim();
+  if (catalogWarning) return catalogWarning;
   // Surface the secret-class consequence the operator needs to know BEFORE
-  // confirming. The skill catalog encodes these as `rotation_warning` strings;
-  // until we ferry that field across, hard-code the two we know about.
+  // confirming. Prefer the per-secret catalog copy above; fall back to the
+  // class-level contract when a repo has no explicit warning.
+  const secretClass = secret.class;
   if (!secretClass) return null;
   if (secretClass.toUpperCase() === 'A') {
     return (
@@ -64,6 +107,14 @@ function classWarning(secretClass: string | null): string | null {
   return `Class ${secretClass} — review the catalog before confirming.`;
 }
 
+function normalisedSoakMinutes(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isInteger(parsed)) return null;
+  return Math.min(60, Math.max(10, parsed));
+}
+
 export type RotationTriggerFlowProps = {
   repo: ProjectRepo;
   secret: RotationSecretRow;
@@ -82,8 +133,12 @@ export default function RotationTriggerFlow({
   const [step, setStep] = useState<Step>('confirm');
   const [typedPhrase, setTypedPhrase] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [testMode, setTestMode] = useState(false);
   const [noSoak, setNoSoak] = useState(false);
   const [soakAck, setSoakAck] = useState(false);
+  const [skipHealthCheck, setSkipHealthCheck] = useState(false);
+  const [healthCheckAck, setHealthCheckAck] = useState(false);
+  const [soakMinutes, setSoakMinutes] = useState('');
   const [job, setJob] = useState<RotationJob | null>(null);
   const [pollError, setPollError] = useState<string | null>(null);
   const [receiptText, setReceiptText] = useState<string | null>(null);
@@ -95,15 +150,34 @@ export default function RotationTriggerFlow({
   );
 
   const phraseMatches = typedPhrase.trim() === expectedPhrase;
-  const optionsValid = !noSoak || soakAck;
+  const soakMinutesTrimmed = soakMinutes.trim();
+  const soakMinutesNumber = Number(soakMinutesTrimmed);
+  const soakMinutesValid =
+    !soakMinutesTrimmed ||
+    (Number.isInteger(soakMinutesNumber) && soakMinutesNumber >= 10 && soakMinutesNumber <= 60);
+  const optionsValid =
+    (!noSoak || soakAck) &&
+    (!skipHealthCheck || healthCheckAck) &&
+    (noSoak || soakMinutesValid);
   const canSubmit = phraseMatches && optionsValid && step === 'confirm';
 
   async function submitTrigger() {
     setSubmitError(null);
     const options: RotationTriggerOptions = {};
+    if (testMode) {
+      options.test_mode = true;
+    }
     if (noSoak) {
       options.no_soak = true;
       options.acknowledged_skipping_soak = true;
+    }
+    if (skipHealthCheck) {
+      options.skip_health_check = true;
+      options.acknowledged_skipping_health_check = true;
+    }
+    const parsedSoakMinutes = normalisedSoakMinutes(soakMinutes);
+    if (parsedSoakMinutes !== null && !noSoak) {
+      options.soak_minutes = parsedSoakMinutes;
     }
     try {
       const response = await fetch(
@@ -125,6 +199,16 @@ export default function RotationTriggerFlow({
           try {
             const body = await response.json();
             if (body.job_id) {
+              const jobResponse = await fetch(
+                `/api/rotation/jobs/${encodeURIComponent(String(body.job_id))}`,
+                {cache: 'no-store'},
+              );
+              if (jobResponse.ok) {
+                const payload = (await jobResponse.json()) as {job: RotationJob};
+                setJob(payload.job);
+                setStep('running');
+                return;
+              }
               detail += ` (job: ${body.job_id})`;
             } else if (body.error) {
               detail = body.error;
@@ -264,15 +348,23 @@ export default function RotationTriggerFlow({
               expectedPhrase={expectedPhrase}
               typedPhrase={typedPhrase}
               onTypedPhrase={setTypedPhrase}
+              testMode={testMode}
+              onTestMode={setTestMode}
               noSoak={noSoak}
               onNoSoak={setNoSoak}
               soakAck={soakAck}
               onSoakAck={setSoakAck}
+              skipHealthCheck={skipHealthCheck}
+              onSkipHealthCheck={setSkipHealthCheck}
+              healthCheckAck={healthCheckAck}
+              onHealthCheckAck={setHealthCheckAck}
+              soakMinutes={soakMinutes}
+              onSoakMinutes={setSoakMinutes}
               submitError={submitError}
             />
           )}
           {step === 'running' && job && (
-            <RunningStep job={job} pollError={pollError} />
+            <RunningStep secret={secret} job={job} pollError={pollError} />
           )}
           {step === 'done' && job && (
             <DoneStep
@@ -307,8 +399,14 @@ export default function RotationTriggerFlow({
             </>
           )}
           {step === 'running' && (
-            <span className="font-mono text-[10px] uppercase tracking-widest text-black/40">
+            <span className="text-right text-[11px] leading-relaxed text-black/45">
               Cancellation isn't supported in v1. The pipeline is safe to abandon.
+              <br />
+              If you must abort:{' '}
+              <span className="font-mono text-black/60">
+                pkill -f 'npm run rotate -- {secret.secret}'
+              </span>
+              . Re-clicking Rotate resumes from disk.
             </span>
           )}
           {step === 'done' && (
@@ -331,23 +429,46 @@ function ConfirmStep({
   expectedPhrase,
   typedPhrase,
   onTypedPhrase,
+  testMode,
+  onTestMode,
   noSoak,
   onNoSoak,
   soakAck,
   onSoakAck,
+  skipHealthCheck,
+  onSkipHealthCheck,
+  healthCheckAck,
+  onHealthCheckAck,
+  soakMinutes,
+  onSoakMinutes,
   submitError,
 }: {
   secret: RotationSecretRow;
   expectedPhrase: string;
   typedPhrase: string;
   onTypedPhrase: (value: string) => void;
+  testMode: boolean;
+  onTestMode: (value: boolean) => void;
   noSoak: boolean;
   onNoSoak: (value: boolean) => void;
   soakAck: boolean;
   onSoakAck: (value: boolean) => void;
+  skipHealthCheck: boolean;
+  onSkipHealthCheck: (value: boolean) => void;
+  healthCheckAck: boolean;
+  onHealthCheckAck: (value: boolean) => void;
+  soakMinutes: string;
+  onSoakMinutes: (value: string) => void;
   submitError: string | null;
 }) {
-  const warning = classWarning(secret.class);
+  const warning = classWarning(secret);
+  const defaultSoakMinutes = secret.soak_window_minutes ?? 15;
+  const soakMinutesTrimmed = soakMinutes.trim();
+  const soakMinutesNumber = Number(soakMinutesTrimmed);
+  const soakMinutesInvalid =
+    !noSoak &&
+    soakMinutesTrimmed !== '' &&
+    (!Number.isInteger(soakMinutesNumber) || soakMinutesNumber < 10 || soakMinutesNumber > 60);
   return (
     <div className="grid gap-4">
       <div>
@@ -384,6 +505,22 @@ function ConfirmStep({
         </div>
       )}
 
+      <div className="border border-black/10 bg-[#fbfbfb] p-3 text-xs text-black/60 leading-relaxed">
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={testMode}
+            onChange={(event) => onTestMode(event.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            <span className="font-mono text-black">Test mode</span>: runs every
+            pipeline step without changing the secret value. Recommended for a
+            first rotation on a new secret.
+          </span>
+        </label>
+      </div>
+
       <div className="border border-black/10 bg-[#fbfbfb] p-3 text-xs text-black/55 leading-relaxed">
         <div className="font-mono text-[9px] uppercase tracking-widest text-black/40 mb-1">
           Verification will mean
@@ -409,36 +546,96 @@ function ConfirmStep({
         />
       </div>
 
-      <div className="border border-black/10 bg-[#fbfbfb] p-3 text-xs text-black/55">
-        <label className="flex items-start gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={noSoak}
-            onChange={(event) => onNoSoak(event.target.checked)}
-            className="mt-0.5"
-          />
-          <span>
-            <span className="font-mono text-black">--no-soak</span> — skip the
-            post-rotation soak gate. Reaches ROTATED without verifying under real
-            traffic. Only safe when an independent verification path covers the
-            secret.
-          </span>
-        </label>
-        {noSoak && (
-          <label className="mt-2 flex items-start gap-2 cursor-pointer text-[#7f1d1d]">
+      <details className="border border-black/10 bg-[#fbfbfb] p-3 text-xs text-black/55">
+        <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-widest text-black/45">
+          Advanced options
+        </summary>
+        <div className="mt-3 grid gap-3 leading-relaxed">
+          <label className="flex items-start gap-2 cursor-pointer">
             <input
               type="checkbox"
-              checked={soakAck}
-              onChange={(event) => onSoakAck(event.target.checked)}
+              checked={noSoak}
+              onChange={(event) => onNoSoak(event.target.checked)}
               className="mt-0.5"
             />
             <span>
-              I understand skipping soak removes the verification gate; the
-              receipt will surface this loud override.
+              <span className="font-mono text-black">--no-soak</span>: skip the
+              post-rotation soak gate. Only safe when an independent verification
+              path covers this secret.
             </span>
           </label>
-        )}
-      </div>
+          {noSoak && (
+            <label className="flex items-start gap-2 cursor-pointer text-[#7f1d1d]">
+              <input
+                type="checkbox"
+                checked={soakAck}
+                onChange={(event) => onSoakAck(event.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                I understand skipping soak removes the verification gate; the
+                receipt will surface this loud override.
+              </span>
+            </label>
+          )}
+
+          <label className="flex items-start gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={skipHealthCheck}
+              onChange={(event) => onSkipHealthCheck(event.target.checked)}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="font-mono text-black">--skip-health-check</span>:
+              bypasses the pre-rotation baseline observation. Recorded loudly in
+              the receipt.
+            </span>
+          </label>
+          {skipHealthCheck && (
+            <label className="flex items-start gap-2 cursor-pointer text-[#7f1d1d]">
+              <input
+                type="checkbox"
+                checked={healthCheckAck}
+                onChange={(event) => onHealthCheckAck(event.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                I understand this bypasses the baseline observation; the receipt
+                will record the override.
+              </span>
+            </label>
+          )}
+
+          <label className="grid gap-1">
+            <span className="font-mono text-[10px] uppercase tracking-widest text-black/45">
+              Soak minutes
+            </span>
+            <input
+              type="number"
+              min={10}
+              max={60}
+              step={1}
+              value={soakMinutes}
+              disabled={noSoak}
+              onChange={(event) => onSoakMinutes(event.target.value)}
+              onBlur={() => {
+                const clamped = normalisedSoakMinutes(soakMinutes);
+                if (clamped !== null) onSoakMinutes(String(clamped));
+              }}
+              placeholder={`Default: ${defaultSoakMinutes} min`}
+              className={`w-36 border bg-white px-3 py-2 font-mono text-xs text-black focus:outline-none disabled:opacity-40 ${
+                soakMinutesInvalid ? 'border-[#b91c1c]' : 'border-black/20 focus:border-black'
+              }`}
+            />
+            <span className={soakMinutesInvalid ? 'text-[#7f1d1d]' : 'text-black/45'}>
+              {noSoak
+                ? 'Disabled while the soak gate is skipped.'
+                : 'Override the soak window. Leave empty to use the catalog default; allowed range is 10 to 60 minutes.'}
+            </span>
+          </label>
+        </div>
+      </details>
 
       {submitError && (
         <div className="border border-[#b91c1c]/40 bg-white p-3 text-xs text-[#7f1d1d]">
@@ -450,13 +647,16 @@ function ConfirmStep({
 }
 
 function RunningStep({
+  secret,
   job,
   pollError,
 }: {
+  secret: RotationSecretRow;
   job: RotationJob;
   pollError: string | null;
 }) {
-  const position = phasePosition(job);
+  const phases = pipelinePhasesForSecret(secret);
+  const position = phasePosition(job, phases);
   return (
     <div className="grid gap-4">
       <div>
@@ -464,7 +664,7 @@ function RunningStep({
           Pipeline · {job.phase}
         </div>
         <ol className="grid gap-1.5">
-          {PIPELINE_PHASES.map((entry, index) => {
+          {phases.map((entry, index) => {
             const state =
               job.phase === 'halted'
                 ? index < position

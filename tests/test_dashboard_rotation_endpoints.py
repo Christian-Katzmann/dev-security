@@ -19,7 +19,7 @@ from urllib.request import Request, urlopen
 
 import pytest
 
-from security_observatory.dashboard_server import DashboardHandler
+from security_observatory.dashboard_server import CHECK_JOBS, CHECK_JOBS_LOCK, DashboardHandler
 from security_observatory.storage import ObservatoryDB
 
 
@@ -115,6 +115,14 @@ def _seed_receipt(repo_root: Path, filename: str, body: str) -> None:
     (receipts / filename).write_text(body, encoding="utf-8")
 
 
+def _seed_local_catalog(repo_root: Path, entries: list[dict]) -> None:
+    catalog_dir = repo_root / "src" / "lib" / "rotation"
+    catalog_dir.mkdir(parents=True, exist_ok=True)
+    (catalog_dir / "catalog.local.json").write_text(
+        json.dumps({"entries": entries}), encoding="utf-8"
+    )
+
+
 # ---------------------------------------------------------------------------
 # /api/rotation/status/<repo>
 # ---------------------------------------------------------------------------
@@ -132,6 +140,17 @@ def test_status_endpoint_returns_empty_when_no_scaffold(harness):
 
 def test_status_endpoint_returns_seeded_secrets(harness):
     completed = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=2)).isoformat()
+    _seed_local_catalog(
+        harness["repo_root"],
+        [
+            {
+                "name": "AUTH_SECRET",
+                "rotation_warning": "Local AUTH_SECRET warning.",
+                "soak_window_minutes": 25,
+                "console_url": "https://example.test/auth-secret",
+            }
+        ],
+    )
     _seed_state(
         harness["repo_root"],
         {
@@ -147,12 +166,104 @@ def test_status_endpoint_returns_seeded_secrets(harness):
             ],
         },
     )
+    _seed_log(
+        harness["repo_root"],
+        [
+            {
+                "at": completed,
+                "rotation_id": "rot-1",
+                "secret_name": "AUTH_SECRET",
+                "step": "REVOKE",
+                "outcome": "succeeded",
+            }
+        ],
+    )
     status, body, _ct = _http(harness["port"], f"/api/rotation/status/{REPO_NAME}")
     assert status == HTTPStatus.OK
     payload = json.loads(body)
     assert payload["rotation_state"]["scaffolded"] is True
     assert payload["secrets"][0]["secret"] == "AUTH_SECRET"
     assert payload["secrets"][0]["status"] == "ROTATED"
+    assert payload["secrets"][0]["rotation_warning"] == "Local AUTH_SECRET warning."
+    assert payload["secrets"][0]["soak_window_minutes"] == 25
+    assert payload["secrets"][0]["console_url"] == "https://example.test/auth-secret"
+    assert payload["secrets"][0]["active_job_id"] is None
+    assert payload["consistency"]["ok"] is True
+
+
+def test_status_endpoint_attaches_waiting_paste_job_id(harness):
+    now = _dt.datetime.now(_dt.timezone.utc).isoformat()
+    job_id = "job-waiting-paste"
+    _seed_state(
+        harness["repo_root"],
+        {
+            "secrets": [{"name": "ANTHROPIC_API_KEY", "class": "B-human", "cadence_days": 90}],
+            "rotations": [
+                {
+                    "secret_name": "ANTHROPIC_API_KEY",
+                    "rotation_id": "rot-waiting",
+                    "started_at": now,
+                    "last_updated_at": now,
+                    "status": "WAITING_FOR_PASTE",
+                }
+            ],
+        },
+    )
+    with CHECK_JOBS_LOCK:
+        CHECK_JOBS[job_id] = {
+            "id": job_id,
+            "kind": "rotation",
+            "status": "running",
+            "repo": REPO_NAME,
+            "repo_path": str(harness["repo_root"]),
+            "secret": "ANTHROPIC_API_KEY",
+        }
+    try:
+        status, body, _ct = _http(harness["port"], f"/api/rotation/status/{REPO_NAME}")
+        assert status == HTTPStatus.OK
+        payload = json.loads(body)
+        assert payload["secrets"][0]["status"] == "WAITING_FOR_PASTE"
+        assert payload["secrets"][0]["active_job_id"] == job_id
+    finally:
+        with CHECK_JOBS_LOCK:
+            CHECK_JOBS.pop(job_id, None)
+
+
+def test_status_endpoint_surfaces_consistency_warning(harness):
+    now = _dt.datetime.now(_dt.timezone.utc).isoformat()
+    _seed_state(
+        harness["repo_root"],
+        {
+            "secrets": [{"name": "AUTH_SECRET", "class": "A", "cadence_days": 30}],
+            "rotations": [
+                {
+                    "secret_name": "AUTH_SECRET",
+                    "rotation_id": "rot-1",
+                    "started_at": now,
+                    "completed_at": now,
+                    "status": "ROTATED",
+                }
+            ],
+        },
+    )
+    _seed_log(
+        harness["repo_root"],
+        [
+            {
+                "at": now,
+                "rotation_id": "rot-1",
+                "secret_name": "AUTH_SECRET",
+                "step": "HEALTH_CHECK",
+                "outcome": "halted",
+            }
+        ],
+    )
+    status, body, _ct = _http(harness["port"], f"/api/rotation/status/{REPO_NAME}")
+
+    assert status == HTTPStatus.OK
+    payload = json.loads(body)
+    assert payload["consistency"]["ok"] is False
+    assert payload["consistency"]["warnings"][0]["kind"] == "status_mismatch"
 
 
 def test_status_endpoint_404s_for_unknown_repo(harness):

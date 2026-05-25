@@ -27,6 +27,7 @@ from security_observatory.dashboard_server import (
     CHECK_JOBS,
     CHECK_JOBS_LOCK,
     DashboardHandler,
+    _rediscover_rotation_jobs,
     _rotation_confirmation_phrase,
 )
 from security_observatory.storage import ObservatoryDB
@@ -133,7 +134,12 @@ def harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     server, port = _serve(db_path, assets_dir)
     try:
-        yield {"port": port, "repo_root": repo_root, "tmp_path": tmp_path}
+        yield {
+            "port": port,
+            "repo_root": repo_root,
+            "tmp_path": tmp_path,
+            "db_path": db_path,
+        }
     finally:
         server.shutdown()
 
@@ -174,6 +180,44 @@ def _install_fake_npm(tmp_path: Path, repo_root: Path, *, exit_code: int = 0, wr
             "EOF\n"
         )
     script += f"exit {exit_code}\n"
+    npm_path = bin_dir / "npm"
+    npm_path.write_text(script, encoding="utf-8")
+    os.chmod(npm_path, npm_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+
+
+def _install_fake_paste_npm(tmp_path: Path, repo_root: Path) -> None:
+    """Fake resume command that reads the pasted secret from stdin."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    receipt_dir = repo_root / "data" / "rotation-receipts"
+    receipt_dir.mkdir(parents=True, exist_ok=True)
+    receipt_path = receipt_dir / "AUTH_SECRET-2026-05-25T120000Z.md"
+    state_path = repo_root / "data" / "rotation-state.json"
+    pasted_path = repo_root / "data" / "pasted-value.txt"
+    script = (
+        "#!/bin/sh\n"
+        "read PASTE\n"
+        f"printf '%s' \"$PASTE\" > {pasted_path!s}\n"
+        "echo '=== ACQUIRE ==='\n"
+        "echo 'VERIFIED ok'\n"
+        f"cat > {state_path!s} <<'EOF'\n"
+        "{"
+        "\"secrets\":[{\"name\":\"AUTH_SECRET\",\"class\":\"B-human\",\"cadence_days\":90}],"
+        "\"rotations\":[{"
+        "\"secret_name\":\"AUTH_SECRET\","
+        "\"rotation_id\":\"rot-waiting\","
+        "\"started_at\":\"2026-05-25T12:00:00+00:00\","
+        "\"completed_at\":\"2026-05-25T12:01:00+00:00\","
+        "\"status\":\"ROTATED\""
+        "}]"
+        "}\n"
+        "EOF\n"
+        f"cat > {receipt_path!s} <<'EOF'\n"
+        "# Rotation verified — `AUTH_SECRET`\n\n"
+        "- **Status:** ROTATED\n"
+        "EOF\n"
+        "exit 0\n"
+    )
     npm_path = bin_dir / "npm"
     npm_path.write_text(script, encoding="utf-8")
     os.chmod(npm_path, npm_path.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
@@ -254,6 +298,23 @@ def test_trigger_refuses_no_soak_without_ack(harness):
     assert status == HTTPStatus.BAD_REQUEST
     payload = json.loads(body)
     assert "no-soak" in payload["error"].lower()
+
+
+def test_trigger_refuses_skip_health_check_without_ack(harness):
+    status, body, _ct = _http(
+        harness["port"],
+        f"/api/rotation/trigger/{REPO_NAME}",
+        method="POST",
+        body={
+            "secret": "AUTH_SECRET",
+            "confirmed": True,
+            "confirmation_phrase": _rotation_confirmation_phrase("AUTH_SECRET"),
+            "options": {"skip_health_check": True},
+        },
+    )
+    assert status == HTTPStatus.BAD_REQUEST
+    payload = json.loads(body)
+    assert "skip-health-check" in payload["error"].lower()
 
 
 def test_trigger_refuses_unknown_secret(harness):
@@ -396,6 +457,166 @@ def test_trigger_writes_dashboard_trigger_audit_event(npm_on_path):
     assert audit["options"]["no_soak"] is False
 
 
+def test_trigger_forwards_advanced_options_to_command_and_audit(npm_on_path):
+    harness = npm_on_path
+    status, body, _ct = _http(
+        harness["port"],
+        f"/api/rotation/trigger/{REPO_NAME}",
+        method="POST",
+        body={
+            "secret": "AUTH_SECRET",
+            "confirmed": True,
+            "confirmation_phrase": _rotation_confirmation_phrase("AUTH_SECRET"),
+            "options": {
+                "test_mode": True,
+                "skip_health_check": True,
+                "acknowledged_skipping_health_check": True,
+                "soak_minutes": 25,
+            },
+        },
+    )
+    assert status == HTTPStatus.ACCEPTED
+    job = json.loads(body)["job"]
+    assert job["command"] == (
+        "npm run rotate -- AUTH_SECRET --test --skip-health-check --soak-minutes 25"
+    )
+    assert job["options"]["test_mode"] is True
+    assert job["options"]["skip_health_check"] is True
+    assert job["options"]["acknowledged_skipping_health_check"] is True
+    assert job["options"]["soak_minutes"] == 25
+
+    _wait_terminal(harness["port"], job["id"])
+    log_path = harness["repo_root"] / "data" / "rotation-log.jsonl"
+    triggers = []
+    for line in log_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        event = json.loads(line)
+        if event.get("step") == "DASHBOARD_TRIGGER":
+            triggers.append(event)
+    assert triggers[-1]["options"]["test_mode"] is True
+    assert triggers[-1]["options"]["skip_health_check"] is True
+    assert triggers[-1]["options"]["soak_minutes"] == 25
+
+
+def test_paste_endpoint_404s_for_unknown_job(harness):
+    status, body, _ct = _http(
+        harness["port"],
+        "/api/rotation/paste/no-such-job",
+        method="POST",
+        body={"paste_value": "sk-ant-test"},
+    )
+    assert status == HTTPStatus.NOT_FOUND
+    payload = json.loads(body)
+    assert "not found" in payload["error"].lower()
+
+
+def test_paste_endpoint_refuses_when_rotation_is_not_waiting(harness):
+    job_id = "fake-running-not-waiting"
+    with CHECK_JOBS_LOCK:
+        CHECK_JOBS[job_id] = {
+            "id": job_id,
+            "kind": "rotation",
+            "status": "running",
+            "repo": REPO_NAME,
+            "repo_path": str(harness["repo_root"]),
+            "secret": "AUTH_SECRET",
+        }
+    try:
+        status, body, _ct = _http(
+            harness["port"],
+            f"/api/rotation/paste/{job_id}",
+            method="POST",
+            body={"paste_value": "sk-ant-test"},
+        )
+        assert status == HTTPStatus.CONFLICT
+        payload = json.loads(body)
+        assert "not waiting" in payload["error"].lower()
+        assert payload["current_status"] == "ROTATED"
+    finally:
+        with CHECK_JOBS_LOCK:
+            CHECK_JOBS.pop(job_id, None)
+
+
+def test_paste_endpoint_feeds_waiting_job_stdin(harness, monkeypatch: pytest.MonkeyPatch):
+    _install_fake_paste_npm(harness["tmp_path"], harness["repo_root"])
+    bin_dir = harness["tmp_path"] / "bin"
+    monkeypatch.setenv("PATH", f"{bin_dir!s}:{os.environ.get('PATH', '')}")
+    waiting_at = _dt.datetime.now(_dt.timezone.utc).isoformat()
+    (harness["repo_root"] / "data" / "rotation-state.json").write_text(
+        json.dumps(
+            {
+                "secrets": [
+                    {"name": "AUTH_SECRET", "class": "B-human", "cadence_days": 90}
+                ],
+                "rotations": [
+                    {
+                        "secret_name": "AUTH_SECRET",
+                        "rotation_id": "rot-waiting",
+                        "started_at": waiting_at,
+                        "last_updated_at": waiting_at,
+                        "status": "WAITING_FOR_PASTE",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    job_id = "fake-waiting-paste"
+    with CHECK_JOBS_LOCK:
+        CHECK_JOBS[job_id] = {
+            "id": job_id,
+            "kind": "rotation",
+            "status": "running",
+            "repo": REPO_NAME,
+            "repo_path": str(harness["repo_root"]),
+            "secret": "AUTH_SECRET",
+            "command": "rediscovered from data/rotation-log.jsonl",
+            "phase": "waiting_for_paste",
+            "message": "Waiting for paste.",
+            "stdout_tail": [],
+            "events_seen": 0,
+            "started_at": waiting_at,
+            "finished_at": None,
+            "exit_code": None,
+            "error": None,
+            "receipt_filename": None,
+            "receipt_url": None,
+            "verification_status": "WAITING_FOR_PASTE",
+        }
+    try:
+        status, body, _ct = _http(
+            harness["port"],
+            f"/api/rotation/paste/{job_id}",
+            method="POST",
+            body={"paste_value": "sk-ant-from-dashboard"},
+        )
+        assert status == HTTPStatus.ACCEPTED
+        assert json.loads(body)["job"]["id"] == job_id
+
+        terminal = _wait_terminal(harness["port"], job_id)
+        assert terminal["status"] == "complete"
+        assert terminal["verification_status"] == "ROTATED"
+        assert terminal["receipt_filename"] == "AUTH_SECRET-2026-05-25T120000Z.md"
+        assert (
+            harness["repo_root"] / "data" / "pasted-value.txt"
+        ).read_text(encoding="utf-8") == "sk-ant-from-dashboard"
+
+        events = [
+            json.loads(line)
+            for line in (harness["repo_root"] / "data" / "rotation-log.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        paste_events = [event for event in events if event.get("step") == "DASHBOARD_PASTE"]
+        assert paste_events
+        assert "sk-ant-from-dashboard" not in json.dumps(paste_events)
+    finally:
+        with CHECK_JOBS_LOCK:
+            CHECK_JOBS.pop(job_id, None)
+
+
 def test_trigger_job_snapshot_404s_for_unknown_id(harness):
     status, _body, _ct = _http(harness["port"], "/api/rotation/jobs/no-such-id")
     assert status == HTTPStatus.NOT_FOUND
@@ -497,3 +718,59 @@ def test_trigger_409s_when_check_jobs_has_running_job(harness):
     finally:
         with CHECK_JOBS_LOCK:
             CHECK_JOBS.pop(fake_job_id, None)
+
+
+def test_rediscovered_running_job_returns_job_id_on_trigger_conflict(harness):
+    repo_root = harness["repo_root"]
+    now = _dt.datetime.now(_dt.timezone.utc)
+    (repo_root / "data" / "rotation-state.json").write_text(
+        json.dumps(
+            {
+                "secrets": [{"name": "AUTH_SECRET", "class": "A", "cadence_days": 30}],
+                "rotations": [
+                    {
+                        "secret_name": "AUTH_SECRET",
+                        "rotation_id": "rot-inflight",
+                        "started_at": now.isoformat(),
+                        "last_updated_at": now.isoformat(),
+                        "status": "IN_SOAK",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (repo_root / "data" / "rotation-log.jsonl").write_text(
+        json.dumps(
+            {
+                "at": now.isoformat(),
+                "rotation_id": "rot-inflight",
+                "secret_name": "AUTH_SECRET",
+                "step": "SOAK",
+                "outcome": "started",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    try:
+        discovered = _rediscover_rotation_jobs(harness["db_path"], now=now)
+
+        assert discovered == 1
+        status, body, _ct = _http(
+            harness["port"],
+            f"/api/rotation/trigger/{REPO_NAME}",
+            method="POST",
+            body={
+                "secret": "AUTH_SECRET",
+                "confirmed": True,
+                "confirmation_phrase": _rotation_confirmation_phrase("AUTH_SECRET"),
+            },
+        )
+        payload = json.loads(body)
+        assert status == HTTPStatus.CONFLICT
+        assert payload["job_id"] == "discovered-rot-inflight"
+    finally:
+        with CHECK_JOBS_LOCK:
+            CHECK_JOBS.pop("discovered-rot-inflight", None)

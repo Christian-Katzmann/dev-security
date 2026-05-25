@@ -739,6 +739,9 @@ def test_rotation_status_returns_normalized_shape(tmp_path):
     expected_keys = {
         "secret",
         "class",
+        "rotation_warning",
+        "soak_window_minutes",
+        "console_url",
         "status",
         "last_rotated_at",
         "days_since_rotation",
@@ -747,6 +750,8 @@ def test_rotation_status_returns_normalized_shape(tmp_path):
         "rotation_id",
         "in_grace_until",
         "needs_attention",
+        "manually_marked",
+        "override_kind",
     }
     for row in result:
         assert set(row.keys()) == expected_keys

@@ -10,6 +10,7 @@ import datetime as _dt
 import json
 from pathlib import Path
 
+import security_observatory.rotation as rotation_module
 from security_observatory.rotation import (
     detect_rotation_state,
     detect_stack,
@@ -17,6 +18,7 @@ from security_observatory.rotation import (
     read_receipt,
     read_rotation_history,
     read_rotation_status,
+    rotation_consistency_check,
 )
 
 
@@ -37,6 +39,14 @@ def _seed_log(repo: Path, events: list[dict] | str) -> Path:
         path.write_text(events, encoding="utf-8")
     else:
         path.write_text("\n".join(json.dumps(event) for event in events), encoding="utf-8")
+    return path
+
+
+def _seed_local_catalog(repo: Path, entries: list[dict]) -> Path:
+    catalog_dir = repo / "src" / "lib" / "rotation"
+    catalog_dir.mkdir(parents=True, exist_ok=True)
+    path = catalog_dir / "catalog.local.json"
+    path.write_text(json.dumps({"entries": entries}), encoding="utf-8")
     return path
 
 
@@ -87,6 +97,79 @@ def test_read_rotation_status_returns_normalized_shape(tmp_path):
     assert by_name["AUTH_SECRET"]["needs_attention"] is False
     assert by_name["API_KEY"]["status"] == "IN_GRACE"
     assert by_name["API_KEY"]["in_grace_until"] == revoke_at
+
+
+def test_read_rotation_status_enriches_from_local_catalog(tmp_path):
+    _seed_local_catalog(
+        tmp_path,
+        [
+            {
+                "name": "NEXTAUTH_SECRET",
+                "rotation_warning": "Local warning: active sessions will be invalidated.",
+                "soak_window_minutes": 30,
+                "console_url": "https://example.test/secrets",
+            }
+        ],
+    )
+    _seed_state(
+        tmp_path,
+        {
+            "secrets": [
+                {"name": "NEXTAUTH_SECRET", "class": "A", "cadence_days": 30},
+                {"name": "UNLISTED_SECRET", "class": "A", "cadence_days": 30},
+            ],
+            "rotations": [],
+        },
+    )
+
+    rows = read_rotation_status(tmp_path)
+    by_name = {row["secret"]: row for row in rows}
+
+    assert by_name["NEXTAUTH_SECRET"]["rotation_warning"] == (
+        "Local warning: active sessions will be invalidated."
+    )
+    assert by_name["NEXTAUTH_SECRET"]["soak_window_minutes"] == 30
+    assert by_name["NEXTAUTH_SECRET"]["console_url"] == "https://example.test/secrets"
+    assert by_name["UNLISTED_SECRET"]["rotation_warning"] is None
+    assert by_name["UNLISTED_SECRET"]["soak_window_minutes"] is None
+    assert by_name["UNLISTED_SECRET"]["console_url"] is None
+
+
+def test_read_rotation_status_merges_local_catalog_over_global(tmp_path, monkeypatch):
+    global_catalog = tmp_path / "global-catalog.json"
+    global_catalog.write_text(
+        json.dumps(
+            {
+                "entries": [
+                    {
+                        "name": "MERGED_SECRET",
+                        "rotation_warning": "Global warning.",
+                        "soak_window_minutes": 45,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    _seed_local_catalog(
+        tmp_path,
+        [{"name": "MERGED_SECRET", "rotation_warning": "Local warning wins."}],
+    )
+    _seed_state(
+        tmp_path,
+        {
+            "secrets": [{"name": "MERGED_SECRET", "class": "A", "cadence_days": 30}],
+            "rotations": [],
+        },
+    )
+    monkeypatch.setattr(rotation_module, "GLOBAL_ROTATION_CATALOG_PATH", global_catalog)
+    rotation_module._read_catalog_entries.cache_clear()
+
+    rows = read_rotation_status(tmp_path)
+
+    assert rows[0]["rotation_warning"] == "Local warning wins."
+    assert rows[0]["soak_window_minutes"] == 45
+    rotation_module._read_catalog_entries.cache_clear()
 
 
 def test_read_rotation_status_corrupt_json_returns_unknown(tmp_path):
@@ -276,6 +359,135 @@ def test_read_rotation_history_limit_caps_at_100(tmp_path):
     )
     capped = read_rotation_history(tmp_path, limit=9999)
     assert len(capped) == 60  # all 60 returned; cap kicks in above 100.
+
+
+# ---------------------------------------------------------------------------
+# rotation_consistency_check — state/history trust trail drift
+# ---------------------------------------------------------------------------
+
+
+def test_rotation_consistency_check_ok_for_matching_terminal_state(tmp_path):
+    completed = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(minutes=5)).isoformat()
+    _seed_state(
+        tmp_path,
+        {
+            "secrets": [{"name": "AUTH_SECRET", "class": "A", "cadence_days": 30}],
+            "rotations": [
+                {
+                    "secret_name": "AUTH_SECRET",
+                    "rotation_id": "rot-1",
+                    "started_at": completed,
+                    "completed_at": completed,
+                    "status": "ROTATED",
+                }
+            ],
+        },
+    )
+    _seed_log(
+        tmp_path,
+        [
+            {
+                "at": completed,
+                "rotation_id": "rot-1",
+                "secret_name": "AUTH_SECRET",
+                "step": "REVOKE",
+                "outcome": "succeeded",
+            }
+        ],
+    )
+
+    assert rotation_consistency_check(tmp_path) == {"ok": True, "warnings": []}
+
+
+def test_rotation_consistency_check_warns_on_status_mismatch(tmp_path):
+    now = _dt.datetime.now(_dt.timezone.utc).isoformat()
+    _seed_state(
+        tmp_path,
+        {
+            "secrets": [{"name": "AUTH_SECRET", "class": "A", "cadence_days": 30}],
+            "rotations": [
+                {
+                    "secret_name": "AUTH_SECRET",
+                    "rotation_id": "rot-1",
+                    "started_at": now,
+                    "completed_at": now,
+                    "status": "ROTATED",
+                }
+            ],
+        },
+    )
+    _seed_log(
+        tmp_path,
+        [
+            {
+                "at": now,
+                "rotation_id": "rot-1",
+                "secret_name": "AUTH_SECRET",
+                "step": "HEALTH_CHECK",
+                "outcome": "halted",
+            }
+        ],
+    )
+
+    result = rotation_consistency_check(tmp_path)
+
+    assert result["ok"] is False
+    assert any(warning["kind"] == "status_mismatch" for warning in result["warnings"])
+
+
+def test_rotation_consistency_check_warns_on_history_without_state(tmp_path):
+    now = _dt.datetime.now(_dt.timezone.utc).isoformat()
+    _seed_state(
+        tmp_path,
+        {
+            "secrets": [{"name": "AUTH_SECRET", "class": "A", "cadence_days": 30}],
+            "rotations": [],
+        },
+    )
+    _seed_log(
+        tmp_path,
+        [
+            {
+                "at": now,
+                "rotation_id": "rot-ghost",
+                "secret_name": "API_KEY",
+                "step": "SOAK",
+                "outcome": "succeeded",
+            }
+        ],
+    )
+
+    result = rotation_consistency_check(tmp_path)
+
+    assert result["ok"] is False
+    assert any(
+        warning["kind"] == "history_missing_state_record"
+        for warning in result["warnings"]
+    )
+
+
+def test_rotation_consistency_check_warns_on_state_without_history(tmp_path):
+    now = _dt.datetime.now(_dt.timezone.utc).isoformat()
+    _seed_state(
+        tmp_path,
+        {
+            "secrets": [{"name": "AUTH_SECRET", "class": "A", "cadence_days": 30}],
+            "rotations": [
+                {
+                    "secret_name": "AUTH_SECRET",
+                    "rotation_id": "rot-lost",
+                    "started_at": now,
+                    "status": "IN_SOAK",
+                }
+            ],
+        },
+    )
+    _seed_log(tmp_path, [])
+
+    result = rotation_consistency_check(tmp_path)
+
+    assert result["ok"] is False
+    assert any(warning["kind"] == "state_missing_history" for warning in result["warnings"])
 
 
 # ---------------------------------------------------------------------------

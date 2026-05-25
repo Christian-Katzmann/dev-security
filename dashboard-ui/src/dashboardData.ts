@@ -537,6 +537,9 @@ export type RotationStateSignal = {
 export type RotationSecretRow = {
   secret: string;
   class: string | null;
+  rotation_warning: string | null;
+  soak_window_minutes: number | null;
+  console_url: string | null;
   status: RotationStatus | string;
   last_rotated_at: string | null;
   days_since_rotation: number | null;
@@ -547,6 +550,7 @@ export type RotationSecretRow = {
   needs_attention: boolean;
   manually_marked: boolean;
   override_kind: string | null;
+  active_job_id: string | null;
 };
 
 export type RotationReceiptMeta = {
@@ -554,11 +558,27 @@ export type RotationReceiptMeta = {
   modified_at: string;
 };
 
+export type RotationConsistencyWarning = {
+  kind: string;
+  secret?: string | null;
+  rotation_id?: string | null;
+  state_status?: string | null;
+  history_status?: string[] | string | null;
+  history_step?: string | null;
+  detail: string;
+};
+
+export type RotationConsistency = {
+  ok: boolean;
+  warnings: RotationConsistencyWarning[];
+};
+
 export type RotationStatusPayload = {
   repo: string;
   rotation_state: RotationStateSignal;
   secrets: RotationSecretRow[];
   receipts: RotationReceiptMeta[];
+  consistency: RotationConsistency;
 };
 
 export type RotationEvent = {
@@ -600,6 +620,7 @@ export type RotationJobPhase =
   | 'health_check'
   | 'preflight'
   | 'acquire'
+  | 'waiting_for_paste'
   | 'stage_canary'
   | 'verify_canary'
   | 'stage_prod'
@@ -645,6 +666,8 @@ export type RotationJob = {
   receipt_filename: string | null;
   receipt_url: string | null;
   verification_status: string | null;
+  paste_in_progress?: boolean;
+  paste_submitted_at?: string | null;
 };
 
 export type RotationTriggerOptions = {
@@ -668,7 +691,10 @@ export type RotationTriggerRequest = {
  * and the slash command both substitute the secret name into this string; the
  * server refuses any other shape. Single source of truth for the wire format.
  */
-export function rotationConfirmationPhrase(secret: string): string {
+export function rotationConfirmationPhrase(secret: string, options: { emergencyMode?: boolean } = {}): string {
+  if (options.emergencyMode) {
+    return `Yes, rotate \`${secret}\` emergency-mode and accept that the old key dies immediately with no grace.`;
+  }
   return `Yes, rotate \`${secret}\` and accept the irreversible provider-side change.`;
 }
 

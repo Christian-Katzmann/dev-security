@@ -1,8 +1,19 @@
-import {Copy, FileText, RefreshCw, RotateCcw, Settings2} from 'lucide-react';
+import {
+  AlertTriangle,
+  Copy,
+  ExternalLink,
+  FileText,
+  KeyRound,
+  RefreshCw,
+  RotateCcw,
+  Settings2,
+  X,
+} from 'lucide-react';
 import {useCallback, useEffect, useState} from 'react';
 import {
   ProjectRepo,
   RotationHistoryPayload,
+  RotationConsistencyWarning,
   RotationScaffoldHandoff,
   RotationSecretRow,
   RotationStateSignal,
@@ -90,6 +101,19 @@ function formatCadence(row: RotationSecretRow): string {
   return `${row.days_since_rotation}d ago · cadence ${row.cadence_days}d`;
 }
 
+function formatConsistencyWarning(warning: RotationConsistencyWarning): string {
+  if (warning.kind === 'status_mismatch' && warning.secret) {
+    return `${warning.secret}: state says ${warning.state_status ?? 'unknown'}, history says ${Array.isArray(warning.history_status) ? warning.history_status.join(' / ') : warning.history_status ?? 'unknown'}.`;
+  }
+  if (warning.kind === 'history_missing_state_record' && warning.secret) {
+    return `${warning.secret}: history has no matching state record.`;
+  }
+  if (warning.kind === 'state_missing_history' && warning.secret) {
+    return `${warning.secret}: state has no matching history event.`;
+  }
+  return warning.detail;
+}
+
 async function safeJson<T>(response: Response): Promise<T | null> {
   try {
     return (await response.json()) as T;
@@ -109,6 +133,7 @@ export default function RotationStatusCard({repo, precomputed}: RotationStatusCa
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [rotateTarget, setRotateTarget] = useState<RotationSecretRow | null>(null);
+  const [pasteTarget, setPasteTarget] = useState<RotationSecretRow | null>(null);
 
   // The dashboard's rotation endpoints are keyed by the slugified scan-history
   // repo name (e.g. ``besk-ftigelse.dk``), not by the un-slugified display name
@@ -199,10 +224,32 @@ export default function RotationStatusCard({repo, precomputed}: RotationStatusCa
     }
   }
 
+  async function submitPasteResume(secret: RotationSecretRow, pasteValue: string) {
+    if (!secret.active_job_id) {
+      throw new Error('Refresh status to rediscover the waiting rotation job.');
+    }
+    const response = await fetch(
+      `/api/rotation/paste/${encodeURIComponent(secret.active_job_id)}`,
+      {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({paste_value: pasteValue}),
+      },
+    );
+    if (!response.ok) {
+      const payload = await safeJson<{error?: string}>(response);
+      throw new Error(payload?.error ?? 'Unable to resume rotation.');
+    }
+    await safeJson(response);
+    setHistory(null);
+    await loadStatus();
+  }
+
   const signal: RotationStateSignal | null =
     status?.rotation_state ?? precomputed ?? null;
   const secrets = status?.secrets ?? [];
   const receipts = status?.receipts ?? [];
+  const consistencyWarnings = status?.consistency?.warnings ?? [];
 
   return (
     <section className="border border-black/10 bg-white/70 p-5 md:p-6 shadow-[0_18px_60px_rgba(0,0,0,0.04)]">
@@ -241,6 +288,21 @@ export default function RotationStatusCard({repo, precomputed}: RotationStatusCa
         </div>
       )}
 
+      {consistencyWarnings.length > 0 && (
+        <div className="mb-4 border border-[#7d4d10]/30 bg-[#fbfbfb] p-3 text-xs leading-relaxed text-[#7d4d10]">
+          <div className="mb-1 flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest">
+            <AlertTriangle className="h-3.5 w-3.5" strokeWidth={1.5} />
+            Trust trail inconsistent
+          </div>
+          <p className="text-black/55">
+            {formatConsistencyWarning(consistencyWarnings[0])}
+            {consistencyWarnings.length > 1
+              ? ` ${consistencyWarnings.length - 1} more warning${consistencyWarnings.length === 2 ? '' : 's'}.`
+              : ''}
+          </p>
+        </div>
+      )}
+
       {!signal?.scaffolded ? (
         <ScaffoldEmptyState
           signal={signal}
@@ -257,7 +319,11 @@ export default function RotationStatusCard({repo, precomputed}: RotationStatusCa
           in this repo to register secrets.
         </p>
       ) : (
-        <RotationSecretsList secrets={secrets} onRotate={setRotateTarget} />
+        <RotationSecretsList
+          secrets={secrets}
+          onRotate={setRotateTarget}
+          onResumePaste={setPasteTarget}
+        />
       )}
 
       {rotateTarget && (
@@ -269,6 +335,14 @@ export default function RotationStatusCard({repo, precomputed}: RotationStatusCa
             void loadStatus();
             setHistory(null);
           }}
+        />
+      )}
+
+      {pasteTarget && (
+        <PasteResumeDialog
+          secret={pasteTarget}
+          onClose={() => setPasteTarget(null)}
+          onSubmit={(pasteValue) => submitPasteResume(pasteTarget, pasteValue)}
         />
       )}
 
@@ -312,16 +386,19 @@ export default function RotationStatusCard({repo, precomputed}: RotationStatusCa
 function RotationSecretsList({
   secrets,
   onRotate,
+  onResumePaste,
 }: {
   secrets: RotationSecretRow[];
   onRotate: (row: RotationSecretRow) => void;
+  onResumePaste: (row: RotationSecretRow) => void;
 }) {
   return (
     <div className="grid gap-2">
       {secrets.map((row) => {
         const imminent = needsImminentRevoke(row);
+        const waitingForPaste = row.status === 'WAITING_FOR_PASTE';
         const rotatable =
-          row.status !== 'WAITING_FOR_PASTE' && row.status !== 'unknown';
+          !waitingForPaste && row.status !== 'unknown';
         return (
           <article
             key={row.secret}
@@ -379,6 +456,22 @@ function RotationSecretsList({
                 </div>
               </div>
               <div className="flex md:flex-col items-start md:items-end gap-2">
+                {waitingForPaste && (
+                  <button
+                    type="button"
+                    disabled={!row.active_job_id}
+                    onClick={() => onResumePaste(row)}
+                    className="inline-flex items-center justify-center gap-2 border border-[#7d4d10]/40 bg-white text-[#7d4d10] px-3 py-2 font-mono text-[10px] uppercase tracking-widest hover:border-[#7d4d10] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    title={
+                      row.active_job_id
+                        ? `Resume ${row.secret} with a pasted provider value`
+                        : 'Refresh status to rediscover the waiting rotation job.'
+                    }
+                  >
+                    <KeyRound className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    Resume + paste
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={!rotatable}
@@ -398,6 +491,128 @@ function RotationSecretsList({
           </article>
         );
       })}
+    </div>
+  );
+}
+
+function PasteResumeDialog({
+  secret,
+  onClose,
+  onSubmit,
+}: {
+  secret: RotationSecretRow;
+  onClose: () => void;
+  onSubmit: (pasteValue: string) => Promise<void>;
+}) {
+  const [pasteValue, setPasteValue] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const trimmed = pasteValue.trim();
+
+  async function submit() {
+    if (!trimmed) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await onSubmit(trimmed);
+      setPasteValue('');
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to resume rotation.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Resume ${secret.secret}`}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+    >
+      <div className="w-full max-w-lg border border-black/10 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
+        <header className="flex items-start justify-between gap-3 border-b border-black/10 px-5 py-4">
+          <div>
+            <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-black/40">
+              <KeyRound className="h-3.5 w-3.5" strokeWidth={1.5} />
+              Waiting for paste
+            </div>
+            <h3 className="mt-1 text-lg font-medium text-black">
+              Resume <span className="font-mono">{secret.secret}</span>
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-black/40 hover:text-black"
+            aria-label="Close paste dialog"
+          >
+            <X className="h-5 w-5" strokeWidth={1.5} />
+          </button>
+        </header>
+        <div className="grid gap-4 px-5 py-4">
+          <p className="text-sm leading-relaxed text-black/60">
+            Paste the new provider value generated in the console. The value is
+            sent to the waiting rotation process and is not shown again.
+          </p>
+          {secret.console_url ? (
+            <a
+              href={secret.console_url}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 self-start border border-black/10 bg-[#fbfbfb] px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-black hover:border-black/40"
+            >
+              <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} />
+              Provider console
+            </a>
+          ) : (
+            <p className="text-xs leading-relaxed text-black/45">
+              Open the provider console for this secret, create the replacement
+              value, then paste it here.
+            </p>
+          )}
+          <label className="grid gap-1">
+            <span className="font-mono text-[10px] uppercase tracking-widest text-black/45">
+              New secret value
+            </span>
+            <input
+              type="password"
+              value={pasteValue}
+              autoComplete="off"
+              spellCheck={false}
+              onChange={(event) => setPasteValue(event.target.value)}
+              className="w-full border border-black/20 bg-white px-3 py-2 font-mono text-sm text-black focus:border-black focus:outline-none"
+              placeholder="Paste provider value"
+            />
+          </label>
+          {error && (
+            <div className="border border-[#b91c1c]/40 bg-white p-3 text-xs text-[#7f1d1d]">
+              {error}
+            </div>
+          )}
+        </div>
+        <footer className="flex flex-col-reverse gap-2 border-t border-black/10 px-5 py-4 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black/10 hover:border-black/40"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!trimmed || isSubmitting}
+            onClick={() => {
+              void submit();
+            }}
+            className="inline-flex items-center justify-center gap-2 border border-black bg-black px-4 py-2 font-mono text-[10px] uppercase tracking-widest text-white transition-colors hover:bg-[#222] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <KeyRound className="h-3.5 w-3.5" strokeWidth={1.5} />
+            {isSubmitting ? 'Submitting' : 'Submit paste'}
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }
@@ -622,4 +837,3 @@ function RotationReceiptsList({
     </div>
   );
 }
-

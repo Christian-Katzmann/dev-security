@@ -73,6 +73,7 @@ from .rotation import (
     read_receipt,
     read_rotation_history,
     read_rotation_status,
+    rotation_consistency_check,
 )
 from .rotation_inference import infer_secret_name, load_catalog_secret_names
 from .scanners import scan_profile_catalog, scanner_names_for_profile, security_pack_catalog, tool_catalog
@@ -86,6 +87,7 @@ _TERMINAL_JOB_STATUSES = frozenset({"complete", "halted", "failed"})
 # Sec-name regex: ENV-style identifiers only. The skill itself rejects anything
 # else, but we want the dashboard to refuse before shelling out.
 _SAFE_SECRET_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
+_SAFE_JOB_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 # Cap stdout tail kept in memory per job. The receipt is the source of truth;
 # the tail exists for live progress, not as an archival log.
@@ -95,18 +97,22 @@ _ROTATION_STDOUT_TAIL_MAX = 200
 # default; the canary + verify path adds a few minutes. 45 min leaves headroom
 # for the longest-supported soak (60 min) plus pipeline overhead.
 _ROTATION_SUBPROCESS_TIMEOUT_SECONDS = 60 * 60
+_ROTATION_JOB_REDISCOVERY_WINDOW_SECONDS = _ROTATION_SUBPROCESS_TIMEOUT_SECONDS * 2
 
 
-def _rotation_confirmation_phrase(secret: str) -> str:
+def _rotation_confirmation_phrase(secret: str, *, emergency: bool = False) -> str:
     """Mirror the Tier 5R confirmation phrase from docs/agent-safety.md.
 
     Surfaces (dashboard modal, /devsec-rotate) must send back this exact string
     or the trigger endpoint refuses. The single source of truth lives in the
     safety doctrine; this helper is the literal Python rendering of it.
     """
-    return (
-        f"Yes, rotate `{secret}` and accept the irreversible provider-side change."
-    )
+    if emergency:
+        return (
+            f"Yes, rotate `{secret}` emergency-mode and accept that the old key "
+            "dies immediately with no grace."
+        )
+    return f"Yes, rotate `{secret}` and accept the irreversible provider-side change."
 
 
 def _append_rotation_audit_event(repo_path: Path, event: dict[str, Any]) -> None:
@@ -142,6 +148,24 @@ def _terminal_phase_from_status(status: str) -> str:
     return "unknown"
 
 
+def _rotation_job_phase_from_status(status: str) -> str:
+    return {
+        "HEALTH_CHECK": "health_check",
+        "PREFLIGHT": "preflight",
+        "ACQUIRED": "acquire",
+        "WAITING_FOR_PASTE": "waiting_for_paste",
+        "STAGED_CANARY": "stage_canary",
+        "DEPLOYED_CANARY": "stage_canary",
+        "IN_CANARY_VERIFY": "verify_canary",
+        "VERIFIED_CANARY": "verify_canary",
+        "STAGED_PROD": "stage_prod",
+        "DEPLOYED_PROD": "stage_prod",
+        "VERIFIED": "verify_prod",
+        "IN_SOAK": "soak",
+        "SOAKED": "soak",
+    }.get(status, "unknown")
+
+
 def _latest_receipt_filename_for(repo_path: Path, secret: str) -> str | None:
     """Return the newest receipt file whose name starts with ``<secret>-``."""
     directory = Path(repo_path) / "data" / "rotation-receipts"
@@ -169,6 +193,7 @@ def _run_rotation_job(
     secret: str,
     command: list[str],
     repo_name: str,
+    stdin_text: str | None = None,
 ) -> None:
     """Run ``npm run rotate -- <SECRET> ...`` and stream progress into CHECK_JOBS.
 
@@ -209,6 +234,7 @@ def _run_rotation_job(
         process = subprocess.Popen(
             [npm, *command[1:]] if command[0] == "npm" else command,
             cwd=str(repo_path),
+            stdin=subprocess.PIPE if stdin_text is not None else None,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -229,6 +255,31 @@ def _run_rotation_job(
     deadline = _dt_now_monotonic() + _ROTATION_SUBPROCESS_TIMEOUT_SECONDS
     try:
         assert process.stdout is not None  # for type checkers
+        if stdin_text is not None:
+            try:
+                assert process.stdin is not None
+                process.stdin.write(f"{stdin_text}\n")
+                process.stdin.close()
+                update_job(
+                    job_id,
+                    phase="waiting_for_paste",
+                    message=(
+                        "Pasted value submitted to the rotation skill. Waiting for"
+                        " verification."
+                    ),
+                    paste_submitted_at=utc_now(),
+                )
+            except OSError as exc:
+                process.kill()
+                update_job(
+                    job_id,
+                    status="failed",
+                    phase="halted",
+                    message=f"Could not submit pasted value to rotation subprocess: {exc}",
+                    error=str(exc),
+                    finished_at=utc_now(),
+                )
+                return
         for raw_line in process.stdout:
             line = raw_line.rstrip()
             if line:
@@ -295,12 +346,30 @@ def _run_rotation_job(
     elif final_status:
         terminal_phase = _terminal_phase_from_status(final_status)
 
+    if exit_code == 0 and final_status == "WAITING_FOR_PASTE":
+        update_job(
+            job_id,
+            status="running",
+            phase="waiting_for_paste",
+            message=(
+                "Waiting for a provider-console paste. Use Resume + paste to"
+                " continue this rotation."
+            ),
+            stdout_tail=list(tail),
+            exit_code=exit_code,
+            events_seen=_count_jsonl_lines(history_path) - initial_events,
+            receipt_filename=receipt_filename,
+            receipt_url=receipt_url,
+            verification_status=final_status,
+            finished_at=None,
+        )
+        return
+
     if exit_code == 0 and terminal_phase == "verified":
         outcome_status = "complete"
         outcome_message = "Rotation completed. Verification receipt available."
     elif exit_code == 0 and terminal_phase == "halted":
-        # Skill exited cleanly after a HALT (it surfaces the receipt and exits 0
-        # when the HALT was clean and recovery info is preserved).
+        # Skill exits 0 after a clean HALT when recovery info is preserved.
         outcome_status = "halted"
         outcome_message = "Rotation halted. The receipt names the recovery step."
     else:
@@ -325,6 +394,164 @@ def _run_rotation_job(
     )
 
 
+def _parse_event_timestamp(value: object) -> datetime | None:
+    if not value:
+        return None
+    text = str(value)
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
+
+
+def _history_event_is_terminal(event: dict[str, object]) -> bool:
+    step = str(event.get("step") or "").upper()
+    outcome = str(event.get("outcome") or "").lower()
+    return (
+        step in {"OPERATOR_OVERRIDE", "ROLLBACK"}
+        or outcome == "halted"
+        or (step == "REVOKE" and outcome == "succeeded")
+        or (step == "GRACE" and outcome in {"started", "succeeded"})
+    )
+
+
+def _recent_enough_for_rediscovery(
+    event: dict[str, object],
+    *,
+    now: datetime | None = None,
+) -> bool:
+    timestamp = _parse_event_timestamp(event.get("timestamp"))
+    if timestamp is None:
+        return False
+    reference = now or datetime.now(timezone.utc)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=timezone.utc)
+    age = (reference - timestamp).total_seconds()
+    return 0 <= age <= _ROTATION_JOB_REDISCOVERY_WINDOW_SECONDS
+
+
+def _latest_scanned_repos(db_path: Path) -> list[dict[str, object]]:
+    db = ObservatoryDB(db_path)
+    try:
+        rows = db.conn.execute(
+            """
+            select s.repo_name, s.repo_path
+            from scans s
+            join (
+              select repo_name, max(started_at) as started_at
+              from scans
+              group by repo_name
+            ) last on last.repo_name = s.repo_name and last.started_at = s.started_at
+            order by s.repo_name asc
+            """
+        ).fetchall()
+        return [dict(row) for row in rows]
+    finally:
+        db.close()
+
+
+def _discovered_rotation_job_id(repo_name: str, secret: str, rotation_id: object) -> str:
+    seed = str(rotation_id or f"{repo_name}-{secret}")
+    safe = re.sub(r"[^A-Za-z0-9_-]+", "-", seed).strip("-")[:32]
+    return f"discovered-{safe or uuid.uuid4().hex[:12]}"
+
+
+def _active_rotation_job(repo_name: str, secret: str) -> dict[str, object] | None:
+    with CHECK_JOBS_LOCK:
+        for job in CHECK_JOBS.values():
+            if (
+                job.get("kind") == "rotation"
+                and job.get("repo") == repo_name
+                and job.get("secret") == secret
+                and job.get("status") not in _TERMINAL_JOB_STATUSES
+            ):
+                return dict(job)
+    return None
+
+
+def _rediscover_rotation_jobs(
+    db_path: Path,
+    *,
+    now: datetime | None = None,
+) -> int:
+    """Rehydrate recent in-flight rotation jobs after a dashboard restart."""
+    discovered = 0
+    for scan in _latest_scanned_repos(db_path):
+        repo_name = str(scan.get("repo_name") or "").strip()
+        repo_path_raw = scan.get("repo_path")
+        if not repo_name or not repo_path_raw:
+            continue
+        repo_path = Path(str(repo_path_raw)).expanduser()
+        rows = read_rotation_status(repo_path)
+        history = read_rotation_history(repo_path, limit=100)
+        for row in rows:
+            secret = str(row.get("secret") or "")
+            status = str(row.get("status") or "")
+            if not secret or status not in ROTATION_INFLIGHT_STATUSES:
+                continue
+            rotation_id = row.get("rotation_id")
+            latest_event = next(
+                (
+                    event
+                    for event in history
+                    if (
+                        rotation_id
+                        and str(event.get("rotation_id") or "") == str(rotation_id)
+                    )
+                    or str(event.get("secret") or "") == secret
+                ),
+                None,
+            )
+            if latest_event is None:
+                continue
+            if _history_event_is_terminal(latest_event):
+                continue
+            if not _recent_enough_for_rediscovery(latest_event, now=now):
+                continue
+            if _active_rotation_job(repo_name, secret):
+                continue
+
+            job_id = _discovered_rotation_job_id(repo_name, secret, rotation_id)
+            job: dict[str, object] = {
+                "id": job_id,
+                "kind": "rotation",
+                "status": "running",
+                "repo": repo_name,
+                "repo_path": str(repo_path),
+                "secret": secret,
+                "command": "rediscovered from data/rotation-log.jsonl",
+                "options": {
+                    "no_soak": False,
+                    "skip_health_check": False,
+                    "soak_minutes": None,
+                    "test_mode": False,
+                    "acknowledged_skipping_soak": False,
+                    "acknowledged_skipping_health_check": False,
+                },
+                "phase": _rotation_job_phase_from_status(status),
+                "message": f"Rediscovered in-flight rotation from disk ({status}).",
+                "stdout_tail": [],
+                "events_seen": _count_jsonl_lines(repo_path / "data" / "rotation-log.jsonl"),
+                "started_at": latest_event.get("timestamp") or utc_now(),
+                "finished_at": None,
+                "exit_code": None,
+                "error": None,
+                "receipt_filename": None,
+                "receipt_url": None,
+                "verification_status": status,
+            }
+            with CHECK_JOBS_LOCK:
+                if job_id not in CHECK_JOBS:
+                    CHECK_JOBS[job_id] = job
+                    discovered += 1
+    return discovered
+
+
 def _count_jsonl_lines(path: Path) -> int:
     """Cheap line-count of a JSONL file. Returns 0 when absent or unreadable."""
     try:
@@ -347,6 +574,10 @@ def _classify_stdout_line(line: str) -> tuple[str | None, str | None]:
         "HEALTH_CHECK": ("health_check", "Pre-rotation health check."),
         "PREFLIGHT": ("preflight", "Preflight checks."),
         "ACQUIRE": ("acquire", "Acquiring the new value."),
+        "WAITING_FOR_PASTE": (
+            "waiting_for_paste",
+            "Waiting for a provider-console paste.",
+        ),
         "STAGE_CANARY": ("stage_canary", "Staging to canary."),
         "VERIFY_CANARY": ("verify_canary", "Verifying canary."),
         "STAGE_PROD": ("stage_prod", "Staging to production."),
@@ -1866,6 +2097,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             repo_name = parsed.path.removeprefix("/api/rotation/trigger/")
             self.serve_rotation_trigger(repo_name)
             return
+        if parsed.path.startswith("/api/rotation/paste/"):
+            job_id = parsed.path.removeprefix("/api/rotation/paste/").strip("/")
+            self.serve_rotation_paste(job_id)
+            return
         credentials_post_match = _CREDENTIALS_TOOL_PATH_RE.match(parsed.path)
         if credentials_post_match:
             self.store_tool_credential(credentials_post_match.group("tool_id"))
@@ -2706,23 +2941,36 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def serve_rotation_status(self, repo_name: str) -> None:
         """Serve ``GET /api/rotation/status/<repo>``.
 
-        Each secret row includes ``manually_marked`` (bool) and
-        ``override_kind`` (string | null) so the dashboard can annotate
-        rotations completed via operator override.
+        Each secret row includes ``manually_marked``/``override_kind`` for
+        operator overrides plus catalog-derived ``rotation_warning``,
+        ``soak_window_minutes``, and ``console_url`` metadata for the trigger
+        modal. WAITING_FOR_PASTE rows are enriched with the active dashboard
+        ``job_id`` so the paste-resume endpoint has a safe key.
         """
         repo_path = self._resolve_repo_for_rotation(repo_name)
         if repo_path is None:
             self.send_json_error(404, "No scan history for that repo yet.")
             return
         rows = read_rotation_status(repo_path)
+        clean_repo = repo_name.strip().strip("/")
+        rows = [dict(row, active_job_id=None) for row in rows]
+        for row in rows:
+            if row.get("status") != "WAITING_FOR_PASTE":
+                continue
+            secret = str(row.get("secret") or "")
+            active_job = _active_rotation_job(clean_repo, secret)
+            if active_job:
+                row["active_job_id"] = active_job.get("id")
         receipts = list_receipts(repo_path)
         signal = detect_rotation_state(repo_path)
+        consistency = rotation_consistency_check(repo_path)
         self.send_json(
             {
-                "repo": repo_name.strip().strip("/"),
+                "repo": clean_repo,
                 "rotation_state": signal,
                 "secrets": rows,
                 "receipts": receipts,
+                "consistency": consistency,
             }
         )
 
@@ -2953,27 +3201,24 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         # --- concurrency gate: refuse if this secret already has in-flight work ---
         clean_repo = repo_name.strip().strip("/")
+        active_job = _active_rotation_job(clean_repo, secret)
         for row in rows:
             if row.get("secret") == secret and row.get("status") in ROTATION_INFLIGHT_STATUSES:
+                extra = {"job_id": active_job["id"]} if active_job else {}
                 self.send_json_error(
                     409,
                     f"Rotation for {secret!r} is already in progress (status: {row['status']}).",
+                    **extra,
                 )
                 return
-        with CHECK_JOBS_LOCK:
-            for existing in CHECK_JOBS.values():
-                if (
-                    existing.get("repo") == clean_repo
-                    and existing.get("secret") == secret
-                    and existing.get("status") not in _TERMINAL_JOB_STATUSES
-                ):
-                    self.send_json_error(
-                        409,
-                        f"Rotation for {secret!r} is already in progress"
-                        f" (job_id: {existing['id']}).",
-                        job_id=existing["id"],
-                    )
-                    return
+        if active_job:
+            self.send_json_error(
+                409,
+                f"Rotation for {secret!r} is already in progress"
+                f" (job_id: {active_job['id']}).",
+                job_id=active_job["id"],
+            )
+            return
 
         command = ["npm", "run", "rotate", "--", secret]
         if test_mode:
@@ -3034,6 +3279,107 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         thread = threading.Thread(
             target=_run_rotation_job,
             args=(job_id, repo_path, secret, command, clean_repo),
+            daemon=True,
+        )
+        thread.start()
+        self.send_accepted_json({"job": job_snapshot(job_id)})
+
+    def serve_rotation_paste(self, job_id: str) -> None:
+        """Resume a WAITING_FOR_PASTE rotation by stdin-feeding the skill.
+
+        The URL key is the dashboard job id, not a filesystem path. The repo path
+        comes from the existing CHECK_JOBS snapshot, which was created either by
+        the guarded trigger endpoint or by startup rediscovery from scan history.
+        The pasted secret value is never written to CHECK_JOBS or the audit log.
+        """
+        if not _SAFE_JOB_ID_RE.match(job_id):
+            self.send_json_error(400, "Provide a valid rotation job_id.")
+            return
+        try:
+            payload = self.read_json_body()
+        except (ValueError, json.JSONDecodeError):
+            self.send_json_error(400, "Request body must be valid JSON.")
+            return
+        raw_value = payload.get("paste_value", payload.get("value"))
+        if not isinstance(raw_value, str) or not raw_value.strip():
+            self.send_json_error(400, "paste_value is required.")
+            return
+        paste_value = raw_value.strip()
+        if len(paste_value.encode("utf-8")) > 16_384:
+            self.send_json_error(400, "paste_value is too large.")
+            return
+
+        with CHECK_JOBS_LOCK:
+            job = dict(CHECK_JOBS.get(job_id) or {})
+        if not job or str(job.get("kind") or "") != "rotation":
+            self.send_json_error(404, "Rotation job not found.")
+            return
+        if str(job.get("status") or "") in _TERMINAL_JOB_STATUSES:
+            self.send_json_error(409, "Rotation job is already terminal.")
+            return
+
+        secret = str(job.get("secret") or "").strip()
+        if not _SAFE_SECRET_NAME_RE.match(secret):
+            self.send_json_error(409, "Rotation job has an invalid secret name.")
+            return
+        repo_path = Path(str(job.get("repo_path") or "")).expanduser()
+        if not repo_path.is_dir():
+            self.send_json_error(404, "Repo path is no longer on disk.")
+            return
+
+        rows = read_rotation_status(repo_path)
+        row = next(
+            (
+                item
+                for item in rows
+                if isinstance(item, dict) and item.get("secret") == secret
+            ),
+            None,
+        )
+        current_status = str(row.get("status") or "") if row else ""
+        if current_status != "WAITING_FOR_PASTE":
+            self.send_json_error(
+                409,
+                "Rotation is not waiting for a paste.",
+                current_status=current_status or None,
+            )
+            return
+
+        clean_repo = str(job.get("repo") or repo_path.name).strip().strip("/")
+        with CHECK_JOBS_LOCK:
+            live_job = CHECK_JOBS.get(job_id)
+            if not live_job:
+                self.send_json_error(404, "Rotation job not found.")
+                return
+            if live_job.get("paste_in_progress"):
+                self.send_json_error(409, "A pasted value is already being processed.")
+                return
+            live_job.update(
+                {
+                    "status": "running",
+                    "phase": "waiting_for_paste",
+                    "message": "Starting the resume command with the pasted value.",
+                    "paste_in_progress": True,
+                    "paste_submitted_at": utc_now(),
+                    "finished_at": None,
+                    "error": None,
+                }
+            )
+
+        command = ["npm", "run", "rotate", "--", secret]
+        _append_rotation_audit_event(
+            repo_path,
+            {
+                "rotation_id": row.get("rotation_id") if row else None,
+                "secret_name": secret,
+                "step": "DASHBOARD_PASTE",
+                "outcome": "submitted",
+                "note": f"dashboard paste resume; job_id={job_id}; command={' '.join(command)}",
+            },
+        )
+        thread = threading.Thread(
+            target=_run_rotation_job,
+            args=(job_id, repo_path, secret, command, clean_repo, paste_value),
             daemon=True,
         )
         thread.start()
@@ -3131,6 +3477,10 @@ def _managed_record_for_uninstall(
 
 def serve_dashboard(db_path: Path, assets_dir: Path, port: int, open_browser: bool) -> None:
     handler = type("BoundDashboardHandler", (DashboardHandler,), {"db_path": db_path, "assets_dir": assets_dir})
+    try:
+        _rediscover_rotation_jobs(db_path)
+    except Exception as exc:
+        print(f"Rotation job rediscovery skipped: {exc}")
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
     url = f"http://127.0.0.1:{server.server_port}"
     print(f"Security Observatory dashboard: {url}")

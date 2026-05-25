@@ -1,0 +1,63 @@
+# Campaign Automation Timeline
+
+- Campaign: `devsec-rotation-completeness`
+- Title: `8 · DëvSec rotation completeness — close the trust, UX, incident-response, and batch-operation gaps`
+- Repo: `/Users/christiankatzmann/Dev/Projects/dëv-security`
+- Campaign file: `/Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/devsec-rotation-completeness.md`
+- Created: `2026-05-25T15:34:21+00:00`
+- Model: `gpt-5.5`
+- Reasoning effort: `xhigh`
+
+- `2026-05-25T15:35:10+00:00` Verified automation `campaign-devsec-rotation-completeness` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-25T15:35:17+00:00` Created automation `campaign-devsec-rotation-completeness` for step 1.1 Fix Tier 1 audit-emit broken on Next.js stacks (RSC import boundary).
+- `2026-05-25T15:37:02+00:00` Automation `campaign-devsec-rotation-completeness` has no scheduler run in the Codex app registry.
+- `2026-05-25T15:38:22+00:00` Verified automation `campaign-devsec-rotation-completeness` launched thread `019e5fc8-5c7d-7a12-8fd4-ff98b7109767` with status `IN_PROGRESS`.
+- `2026-05-25T15:46:09+00:00` Completed Step 1.1: Tier 1 audit emit now uses server-condition bridge; next unit is Step 1.2.
+- `2026-05-25T15:47:05+00:00` Registered fallback automation `campaign-devsec-rotation-completeness-step-1-2` for Step 1.2 at 2026-05-25T17:48:00+02:00.
+- `2026-05-25T15:47:11+00:00` Verified fallback automation `campaign-devsec-rotation-completeness-step-1-2` in Codex app registry as ACTIVE gpt-5.5/xhigh.
+- `2026-05-25T15:47:15+00:00` Created automation `campaign-devsec-rotation-completeness-step-1-2` for step 1.2 Status-vs-history consistency check + job state persistence + confirmation phrase drift test.
+- `2026-05-25T15:48:26+00:00` Verified fallback automation `campaign-devsec-rotation-completeness-step-1-2` launched after registry registration.
+- `2026-05-25T15:48:33+00:00` Paused current automation `campaign-devsec-rotation-completeness` after verified Step 1.2 handoff.
+- `2026-05-25T15:48:40+00:00` Verified current automation `campaign-devsec-rotation-completeness` is PAUSED in the Codex app registry.
+- `2026-05-25T15:48:45+00:00` Recorded current automation `campaign-devsec-rotation-completeness` as PAUSED in campaign state.
+- `2026-05-25T16:03:47+00:00` Completed step 1.2; checked campaign markdown; next parser unit is step 2.1.
+- `2026-05-25T16:05:07+00:00` Registered next automation campaign-devsec-rotation-completeness-step-2-1 for step 2.1.
+- `2026-05-25T16:05:16+00:00` Verified next automation campaign-devsec-rotation-completeness-step-2-1 as ACTIVE gpt-5.5/xhigh.
+- `2026-05-25T16:05:27+00:00` Recorded next automation campaign-devsec-rotation-completeness-step-2-1 for parser next step 2.1.
+- `2026-05-25T16:06:27+00:00` Verified scheduler launched campaign-devsec-rotation-completeness-step-2-1 after fallback registration.
+- `2026-05-25T16:06:35+00:00` Paused current automation campaign-devsec-rotation-completeness-step-1-2 after verified handoff to step 2.1.
+- `2026-05-25T16:06:41+00:00` Verified current automation campaign-devsec-rotation-completeness-step-1-2 is PAUSED.
+- `2026-05-25T16:15:28+00:00` Step 2.1 completed: modal options and catalog warning plumbing implemented; next unit is Step 2.2.
+- `2026-05-25T16:16:34+00:00` Registered fallback automation campaign-devsec-rotation-completeness-step-2-2 for Step 2.2 at 2026-05-25T18:18:00+02:00.
+- `2026-05-25T16:16:42+00:00` Verified fallback registry row for campaign-devsec-rotation-completeness-step-2-2.
+- `2026-05-25T16:16:53+00:00` Recorded next automation for Step 2.2 after registry verification.
+- `2026-05-25T16:18:49+00:00` Verified scheduler launch for campaign-devsec-rotation-completeness-step-2-2.
+- `2026-05-25T16:18:58+00:00` Paused current automation after verified Step 2.2 handoff.
+- `2026-05-25T16:19:04+00:00` Verified current automation is PAUSED in registry.
+- `2026-05-25T16:19:42+00:00` Skipped automation campaign-devsec-rotation-completeness-step-2-2 because lock from campaign-devsec-rotation-completeness-step-2-1 is younger than 6 hours; no unit executed.
+- `2026-05-25T16:19:51+00:00` Released Step 2.1 campaign lock; current automation stopped after verified handoff.
+- `2026-05-25T16:20:18+00:00` Verified automation `campaign-devsec-rotation-completeness-step-2-2` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-25T16:21:23+00:00` Post-handoff validation refreshed after catalog merge refinement: focused rotation tests 95 passed; full pytest 346 passed; receipt revalidated.
+- `2026-05-25T16:22:06+00:00` Rescheduled fallback automation campaign-devsec-rotation-completeness-step-2-2 for Step 2.2 after lock-skip; new run at 2026-05-25T18:24:00+02:00.
+- `2026-05-25T16:22:11+00:00` Verified rescheduled Step 2.2 automation remains ACTIVE with GPT-5.5/xhigh.
+- `2026-05-25T16:24:40+00:00` Verified rescheduled scheduler launch for campaign-devsec-rotation-completeness-step-2-2 after lock release.
+- `2026-05-25T16:25:00+00:00` Final check: Step 2.1 automation remains PAUSED after rescheduled handoff.
+- `2026-05-25T16:37:35+00:00` Completed Step 2.2: class-aware phase track, paste-resume endpoint/UI, and cancellation guidance; next unit is Step 3.1.
+- `2026-05-25T16:38:11+00:00` Registered fallback automation campaign-devsec-rotation-completeness-step-3-1 for Step 3.1 at 2026-05-25T18:40:00+02:00.
+- `2026-05-25T16:38:16+00:00` Verified fallback registry row for campaign-devsec-rotation-completeness-step-3-1 as ACTIVE gpt-5.5/xhigh.
+- `2026-05-25T16:38:21+00:00` Recorded next automation for Step 3.1 after registry verification.
+- `2026-05-25T16:40:23+00:00` Verified scheduler launch for campaign-devsec-rotation-completeness-step-3-1 after fallback registration.
+- `2026-05-25T16:40:40+00:00` Paused current automation campaign-devsec-rotation-completeness-step-2-2 after verified Step 3.1 handoff.
+- `2026-05-25T16:40:40+00:00` Verified current automation campaign-devsec-rotation-completeness-step-2-2 is PAUSED.
+- `2026-05-25T16:41:04+00:00` Released Step 2.2 campaign lock; current automation stopped after verified handoff.
+- `2026-05-25T16:48:51+00:00` Completed Step 3.1: emergency rotation skill contract implemented; next unit is Step 3.2.
+- `2026-05-25T16:49:32+00:00` Registered fallback automation campaign-devsec-rotation-completeness-step-3-2 for Step 3.2 at 2026-05-25T18:51:00+02:00.
+- `2026-05-25T16:49:39+00:00` Verified fallback registry row for campaign-devsec-rotation-completeness-step-3-2 as ACTIVE gpt-5.5/xhigh.
+- `2026-05-25T16:49:39+00:00` Recorded next automation for Step 3.2 after registry verification.
+- `2026-05-25T16:51:15+00:00` Verified scheduler launch for campaign-devsec-rotation-completeness-step-3-2 after fallback registration.
+- `2026-05-25T16:51:35+00:00` Paused current automation campaign-devsec-rotation-completeness-step-3-1 after verified Step 3.2 handoff.
+- `2026-05-25T16:51:35+00:00` Verified current automation campaign-devsec-rotation-completeness-step-3-1 is PAUSED.
+- `2026-05-25T16:51:35+00:00` Recorded current automation campaign-devsec-rotation-completeness-step-3-1 as PAUSED in campaign state.
+- `2026-05-25T16:52:00+00:00` Released Step 3.1 campaign lock; current automation stopped after verified handoff.
+- `2026-05-25T16:52:26+00:00` Verified automation `campaign-devsec-rotation-completeness-step-3-2` in Codex app registry as ACTIVE with model gpt-5.5/xhigh.
+- `2026-05-25T16:52:26+00:00` Verified automation `campaign-devsec-rotation-completeness-step-3-1` in Codex app registry as PAUSED with model gpt-5.5/xhigh.
