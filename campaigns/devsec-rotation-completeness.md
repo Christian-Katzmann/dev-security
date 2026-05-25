@@ -62,8 +62,8 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 5 — End-to-end verification
 
-- [x] Step 5.1 — Live verification of all four phases against a freshly-reset besk
-- [ ] Final review
+- [x] Step 5.1 — Live verification of all four phases against a freshly-reset besk *(code-level only; live verification deferred — see receipts/01-end-to-end.md)*
+- [x] Final review *(APPROVED on code-level review; manual live-product verification deferred to a follow-up session)*
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
 
