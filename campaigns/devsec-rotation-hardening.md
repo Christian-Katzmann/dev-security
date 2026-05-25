@@ -38,15 +38,15 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 1 — Reset command (unblock end-to-end testing)
 
-- [ ] Step 1.1 — Add `security-scan reset <repo>` with Tier 5R confirmation, dry-run, transactional sqlite cleanup, and optional rotation-scaffold removal
+- [x] Step 1.1 — Add `security-scan reset <repo>` with Tier 5R confirmation, dry-run, transactional sqlite cleanup, and optional rotation-scaffold removal
 
 ### Phase 2 — Concurrency lock at the trigger endpoint
 
-- [ ] Step 2.1 — Refuse `POST /api/rotation/trigger/<repo>` when the secret is in-flight (per state file OR per `CHECK_JOBS`)
+- [x] Step 2.1 — Refuse `POST /api/rotation/trigger/<repo>` when the secret is in-flight (per state file OR per `CHECK_JOBS`)
 
 ### Phase 3 — Operator-override audit completeness
 
-- [ ] Step 3.1 — Skill: every override CLI flag writes a JSONL entry AND an `OPERATOR_OVERRIDE` receipt
+- [x] Step 3.1 — Skill: every override CLI flag writes a JSONL entry AND an `OPERATOR_OVERRIDE` receipt
 - [ ] Step 3.2 — Repo: surface `manually_marked` in normalization, MCP, dashboard payload, and `RotationStatusCard`
 - [ ] Step 3.3 — End-to-end verification: reset besk, force a halt, override it, confirm both artifacts land and the UI shows the marker
 - [ ] Final review
