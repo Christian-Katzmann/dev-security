@@ -27,6 +27,22 @@ from .agent_lab import (
     proposal_from_import_payload,
     validate_agent_proposal,
 )
+from .credentials import (
+    CredentialStorageError,
+    KEYCHAIN_SERVICE,
+    delete_credential,
+    is_supported as keychain_is_supported,
+    list_all_credentials,
+    list_credentials,
+    store_credential,
+)
+from .setup_runner import (
+    SetupRunnerError,
+    delete_tool_config,
+    read_tool_config,
+    run_setup_probe,
+    write_tool_config,
+)
 from .decisions import assemble_suppression
 from .discovery import discover_repos
 from .docs_render import render_markdown
@@ -1386,6 +1402,62 @@ def _update_agent_lab_plan_item_statuses(plan: dict[str, Any], execution: dict[s
             item["report_path"] = report_path
 
 
+# Catalog-declared install methods this server can drive automatically. Each
+# entry is a tiny dispatch record consumed by `install_via_package_manager`.
+# Binary names come from the catalog contract, not user input — the regex
+# below makes the shell-injection refusal explicit anyway.
+_PACKAGE_BINARY_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
+
+# Credential-route path matchers. The tool_id and key segments are constrained
+# to the same character class enforced by `credentials._validate_identifier`,
+# so a malformed URL is rejected at the routing layer before the validator
+# runs again deeper in.
+_CREDENTIAL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+_CREDENTIALS_TOOL_PATH_RE = re.compile(
+    r"^/api/tools/(?P<tool_id>[A-Za-z0-9][A-Za-z0-9._-]{0,63})/credentials/?$"
+)
+_CREDENTIALS_KEYS_PATH_RE = re.compile(
+    r"^/api/tools/(?P<tool_id>[A-Za-z0-9][A-Za-z0-9._-]{0,63})/credentials/keys/?$"
+)
+_CREDENTIALS_KEY_PATH_RE = re.compile(
+    r"^/api/tools/(?P<tool_id>[A-Za-z0-9][A-Za-z0-9._-]{0,63})"
+    r"/credentials/(?P<key>[A-Za-z0-9][A-Za-z0-9._-]{0,63})/?$"
+)
+
+# Setup-card endpoints. The tool_id constraint matches the credential routes
+# so the routing layer rejects malformed URLs before the runner sees them.
+_SETUP_PROBE_PATH_RE = re.compile(
+    r"^/api/tools/(?P<tool_id>[A-Za-z0-9][A-Za-z0-9._-]{0,63})/setup/probe/?$"
+)
+_SETUP_CONFIG_PATH_RE = re.compile(
+    r"^/api/tools/(?P<tool_id>[A-Za-z0-9][A-Za-z0-9._-]{0,63})/setup/config/?$"
+)
+
+_PACKAGE_MANAGER_DISPATCH: dict[str, dict[str, Any]] = {
+    "homebrew": {
+        "program": "brew",
+        "args": ("install", "{binary}"),
+        "env": {
+            "HOMEBREW_NO_AUTO_UPDATE": "1",
+            "HOMEBREW_NO_ANALYTICS": "1",
+            "HOMEBREW_NO_ENV_HINTS": "1",
+        },
+        "timeout": 600,
+        "missing_prereq_hint": "Homebrew is not installed. Install Homebrew first: https://brew.sh",
+    },
+    "uv-tool": {
+        "program": "uv",
+        "args": ("tool", "install", "{binary}"),
+        "env": {},
+        "timeout": 600,
+        "missing_prereq_hint": (
+            "uv is not installed. Install uv first: "
+            "https://docs.astral.sh/uv/getting-started/installation/"
+        ),
+    },
+}
+
+
 class DashboardHandler(SimpleHTTPRequestHandler):
     db_path: Path
     assets_dir: Path
@@ -1686,6 +1758,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             job_id = parsed.path.removeprefix("/api/rotation/jobs/").strip("/")
             self.serve_rotation_job(job_id)
             return
+        if parsed.path == "/api/tools/credentials":
+            self.serve_all_credential_keys()
+            return
+        credentials_keys_match = _CREDENTIALS_KEYS_PATH_RE.match(parsed.path)
+        if credentials_keys_match:
+            self.serve_credential_keys(credentials_keys_match.group("tool_id"))
+            return
+        setup_config_get_match = _SETUP_CONFIG_PATH_RE.match(parsed.path)
+        if setup_config_get_match:
+            self.serve_tool_setup_config(setup_config_get_match.group("tool_id"))
+            return
         if parsed.path.rstrip("/") == "/report":
             query = parse_qs(parsed.query)
             scan_id = query.get("scanId", [""])[0]
@@ -1768,7 +1851,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.uninstall_managed_tool()
             return
         if parsed.path == "/api/tools/install-via-pkg":
-            self.install_via_homebrew()
+            self.install_via_package_manager()
+            return
+        if parsed.path == "/api/tools/recheck-install-state":
+            self.recheck_install_state()
             return
         if parsed.path.startswith("/api/rotation/scaffold/"):
             repo_name = parsed.path.removeprefix("/api/rotation/scaffold/")
@@ -1777,6 +1863,18 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path.startswith("/api/rotation/trigger/"):
             repo_name = parsed.path.removeprefix("/api/rotation/trigger/")
             self.serve_rotation_trigger(repo_name)
+            return
+        credentials_post_match = _CREDENTIALS_TOOL_PATH_RE.match(parsed.path)
+        if credentials_post_match:
+            self.store_tool_credential(credentials_post_match.group("tool_id"))
+            return
+        setup_probe_match = _SETUP_PROBE_PATH_RE.match(parsed.path)
+        if setup_probe_match:
+            self.run_tool_setup_probe(setup_probe_match.group("tool_id"))
+            return
+        setup_config_post_match = _SETUP_CONFIG_PATH_RE.match(parsed.path)
+        if setup_config_post_match:
+            self.save_tool_setup_config(setup_config_post_match.group("tool_id"))
             return
         if parsed.path != "/api/run-check":
             self.send_error(404)
@@ -1815,6 +1913,21 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json({"job": job_snapshot(job_id)})
         except Exception as exc:
             self.send_error(500, str(exc))
+
+    def do_DELETE(self) -> None:
+        parsed = urlparse(self.path)
+        credentials_delete_match = _CREDENTIALS_KEY_PATH_RE.match(parsed.path)
+        if credentials_delete_match:
+            self.delete_tool_credential(
+                credentials_delete_match.group("tool_id"),
+                credentials_delete_match.group("key"),
+            )
+            return
+        setup_config_delete_match = _SETUP_CONFIG_PATH_RE.match(parsed.path)
+        if setup_config_delete_match:
+            self.forget_tool_setup_config(setup_config_delete_match.group("tool_id"))
+            return
+        self.send_error(404)
 
     def install_managed_tool(self) -> None:
         try:
@@ -1893,15 +2006,22 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         except Exception as exc:
             self.send_error(500, str(exc))
 
-    def install_via_homebrew(self) -> None:
-        # Catalog declares each tool's install method (homebrew, uv tool, manual, ...).
-        # For method=homebrew we can run `brew install <binary>` on the user's behalf
-        # because the binary name is part of the catalog contract — not user input.
+    def install_via_package_manager(self) -> None:
+        # Catalog declares each tool's install method. For automatable methods
+        # (homebrew, uv-tool) we dispatch to the matching package manager with
+        # the same binary-name regex validation and timeout. The binary name is
+        # part of the catalog contract — not user input — so the dispatched
+        # command is never shell-injectable.
+        #
+        # Manual-install tools (method=manual) do not flow through this
+        # endpoint; they use /api/tools/recheck-install-state after the user
+        # installs the tool out-of-band.
+        dispatch: dict[str, Any] | None = None
         try:
             payload = self.read_json_body()
             tool_id = str(payload.get("toolId") or payload.get("tool_id") or "").strip()
-            if not payload.get("confirmHomebrewInstall"):
-                self.send_error(400, "Confirm Homebrew install before running brew.")
+            if not payload.get("confirmPackageInstall"):
+                self.send_error(400, "Confirm package install before running the package manager.")
                 return
             db = ObservatoryDB(self.db_path)
             try:
@@ -1913,28 +2033,30 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self.send_error(404, f"Tool {tool_id!r} not in catalog.")
                 return
             install = tool.get("install") or {}
-            if install.get("method") != "homebrew":
-                self.send_error(400, f"Tool {tool_id!r} is not a Homebrew install (method={install.get('method')!r}).")
+            method = str(install.get("method") or "")
+            dispatch = _PACKAGE_MANAGER_DISPATCH.get(method)
+            if dispatch is None:
+                self.send_error(
+                    400,
+                    f"Tool {tool_id!r} install method {method!r} cannot be automated. "
+                    "Supported methods: " + ", ".join(sorted(_PACKAGE_MANAGER_DISPATCH)) + ".",
+                )
                 return
             binary = str(install.get("binary") or "").strip()
-            if not re.match(r"^[a-z0-9][a-z0-9._-]*$", binary):
-                self.send_error(400, f"Refusing to run brew with binary name {binary!r}.")
+            if not _PACKAGE_BINARY_RE.match(binary):
+                self.send_error(400, f"Refusing to run {dispatch['program']} with binary name {binary!r}.")
                 return
-            brew = shutil.which("brew")
-            if not brew:
-                self.send_error(500, "Homebrew is not installed. Install Homebrew first: https://brew.sh")
+            program_path = shutil.which(dispatch["program"])
+            if not program_path:
+                self.send_error(500, dispatch["missing_prereq_hint"])
                 return
-            env = {
-                **os.environ,
-                "HOMEBREW_NO_AUTO_UPDATE": "1",
-                "HOMEBREW_NO_ANALYTICS": "1",
-                "HOMEBREW_NO_ENV_HINTS": "1",
-            }
+            env = {**os.environ, **dispatch["env"]}
+            args = [program_path, *(arg.format(binary=binary) for arg in dispatch["args"])]
             result = subprocess.run(
-                [brew, "install", binary],
+                args,
                 capture_output=True,
                 text=True,
-                timeout=600,
+                timeout=dispatch["timeout"],
                 env=env,
             )
             success = result.returncode == 0
@@ -1944,18 +2066,221 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             finally:
                 db.close()
             refreshed = _catalog_tool(tool_id, managed_tool_records)
+            command_label = " ".join([dispatch["program"], *(arg.format(binary=binary) for arg in dispatch["args"])])
             self.send_json({
                 "tool": refreshed,
                 "success": success,
                 "returncode": result.returncode,
                 "stdout": result.stdout,
                 "stderr": result.stderr,
-                "command": f"brew install {binary}",
+                "command": command_label,
             })
         except subprocess.TimeoutExpired:
-            self.send_error(504, "brew install timed out after 600s.")
+            label = dispatch["program"] if dispatch else "package install"
+            timeout = dispatch["timeout"] if dispatch else 600
+            self.send_error(504, f"{label} install timed out after {timeout}s.")
         except Exception as exc:
             self.send_error(500, str(exc))
+
+    def recheck_install_state(self) -> None:
+        # For manual-install tools (and any other tool the user wants to
+        # re-detect), this endpoint just re-runs the catalog's install-state
+        # detection and returns the refreshed entry. No subprocess; no
+        # filesystem polling; the user clicks "Mark installed" after running
+        # the manual command and the catalog re-discovers the binary on PATH.
+        try:
+            payload = self.read_json_body()
+            tool_id = str(payload.get("toolId") or payload.get("tool_id") or "").strip()
+            if not tool_id:
+                self.send_error(400, "Tool id is required.")
+                return
+            db = ObservatoryDB(self.db_path)
+            try:
+                managed_tool_records = db.list_managed_tools()
+            finally:
+                db.close()
+            tool = _catalog_tool(tool_id, managed_tool_records)
+            if tool is None:
+                self.send_error(404, f"Tool {tool_id!r} not in catalog.")
+                return
+            self.send_json({"tool": tool})
+        except Exception as exc:
+            self.send_error(500, str(exc))
+
+    # ------------------------------------------------------------------
+    # Credentials (Keychain) endpoints
+    #
+    # GET    /api/tools/credentials                  → full {tool_id: [keys]} map
+    # GET    /api/tools/<id>/credentials/keys        → list of keys for one tool
+    # POST   /api/tools/<id>/credentials             → store {key, value}
+    # DELETE /api/tools/<id>/credentials/<key>       → forget one credential
+    #
+    # **Never returns values.** The frontend POSTs a value once, the backend
+    # writes to Keychain, and from that point only `is_stored` and key names
+    # cross the wire. Values only leave Keychain via the subprocess-env helper
+    # in `credentials.env_with_credentials` (used by scanners.py in Step 2.2).
+    # ------------------------------------------------------------------
+
+    def _credentials_unavailable(self) -> bool:
+        if keychain_is_supported():
+            return False
+        self.send_json_error(
+            503,
+            "Credential storage requires macOS with the `security` CLI on PATH.",
+            service=KEYCHAIN_SERVICE,
+        )
+        return True
+
+    def serve_all_credential_keys(self) -> None:
+        if self._credentials_unavailable():
+            return
+        try:
+            self.send_json({"service": KEYCHAIN_SERVICE, "tools": list_all_credentials()})
+        except CredentialStorageError as exc:
+            self.send_json_error(500, str(exc))
+
+    def serve_credential_keys(self, tool_id: str) -> None:
+        if self._credentials_unavailable():
+            return
+        if not _CREDENTIAL_ID_RE.match(tool_id):
+            self.send_json_error(400, "Invalid tool id.")
+            return
+        try:
+            keys = list_credentials(tool_id)
+        except CredentialStorageError as exc:
+            self.send_json_error(400, str(exc))
+            return
+        self.send_json({"service": KEYCHAIN_SERVICE, "tool_id": tool_id, "keys": keys})
+
+    def store_tool_credential(self, tool_id: str) -> None:
+        if self._credentials_unavailable():
+            return
+        if not _CREDENTIAL_ID_RE.match(tool_id):
+            self.send_json_error(400, "Invalid tool id.")
+            return
+        try:
+            payload = self.read_json_body()
+        except json.JSONDecodeError:
+            self.send_json_error(400, "Request body must be JSON.")
+            return
+        key_raw = payload.get("key") or payload.get("name") or ""
+        value_raw = payload.get("value") or ""
+        if not isinstance(key_raw, str) or not isinstance(value_raw, str):
+            self.send_json_error(400, "key and value must be strings.")
+            return
+        key = key_raw.strip()
+        if not key or not value_raw:
+            self.send_json_error(400, "key and value are required.")
+            return
+        try:
+            store_credential(tool_id, key, value_raw)
+        except CredentialStorageError as exc:
+            self.send_json_error(400, str(exc))
+            return
+        # Never echo the value — only that it landed.
+        self.send_json(
+            {
+                "service": KEYCHAIN_SERVICE,
+                "tool_id": tool_id,
+                "key": key,
+                "stored": True,
+                "keys": list_credentials(tool_id),
+            }
+        )
+
+    def delete_tool_credential(self, tool_id: str, key: str) -> None:
+        if self._credentials_unavailable():
+            return
+        if not _CREDENTIAL_ID_RE.match(tool_id) or not _CREDENTIAL_ID_RE.match(key):
+            self.send_json_error(400, "Invalid tool id or key.")
+            return
+        try:
+            existed = delete_credential(tool_id, key)
+        except CredentialStorageError as exc:
+            self.send_json_error(400, str(exc))
+            return
+        self.send_json(
+            {
+                "service": KEYCHAIN_SERVICE,
+                "tool_id": tool_id,
+                "key": key,
+                "deleted": existed,
+                "keys": list_credentials(tool_id),
+            }
+        )
+
+    # ------------------------------------------------------------------
+    # Setup-card endpoints (probe + per-tool config)
+    #
+    # POST   /api/tools/<id>/setup/probe   → run setup_probe, return result
+    # GET    /api/tools/<id>/setup/config  → read stored {key: value} config
+    # POST   /api/tools/<id>/setup/config  → replace stored config (body: {values})
+    # DELETE /api/tools/<id>/setup/config  → forget stored config
+    #
+    # Credentials and probe outputs flow through here, so the same care applies
+    # as the credential endpoints: never log values; truncate probe output.
+    # ------------------------------------------------------------------
+
+    def run_tool_setup_probe(self, tool_id: str) -> None:
+        if not _CREDENTIAL_ID_RE.match(tool_id):
+            self.send_json_error(400, "Invalid tool id.")
+            return
+        try:
+            result = run_setup_probe(tool_id)
+        except SetupRunnerError as exc:
+            self.send_json_error(400, str(exc))
+            return
+        # 200 for both pass and fail — probe failure is a normal outcome the
+        # frontend renders inline. Reserve non-2xx for routing/validation gaps.
+        self.send_json({"tool_id": tool_id, **result.to_dict()})
+
+    def serve_tool_setup_config(self, tool_id: str) -> None:
+        if not _CREDENTIAL_ID_RE.match(tool_id):
+            self.send_json_error(400, "Invalid tool id.")
+            return
+        try:
+            values = read_tool_config(tool_id)
+        except SetupRunnerError as exc:
+            self.send_json_error(400, str(exc))
+            return
+        self.send_json({"tool_id": tool_id, "values": values})
+
+    def save_tool_setup_config(self, tool_id: str) -> None:
+        if not _CREDENTIAL_ID_RE.match(tool_id):
+            self.send_json_error(400, "Invalid tool id.")
+            return
+        try:
+            payload = self.read_json_body()
+        except json.JSONDecodeError:
+            self.send_json_error(400, "Request body must be JSON.")
+            return
+        values_raw = payload.get("values")
+        if not isinstance(values_raw, dict):
+            self.send_json_error(400, "Body must include `values` as a JSON object.")
+            return
+        cleaned: dict[str, str] = {}
+        for key, value in values_raw.items():
+            if not isinstance(key, str) or not isinstance(value, str):
+                self.send_json_error(400, "All config keys and values must be strings.")
+                return
+            cleaned[key] = value
+        try:
+            stored = write_tool_config(tool_id, cleaned)
+        except SetupRunnerError as exc:
+            self.send_json_error(400, str(exc))
+            return
+        self.send_json({"tool_id": tool_id, "values": stored, "stored": True})
+
+    def forget_tool_setup_config(self, tool_id: str) -> None:
+        if not _CREDENTIAL_ID_RE.match(tool_id):
+            self.send_json_error(400, "Invalid tool id.")
+            return
+        try:
+            removed = delete_tool_config(tool_id)
+        except SetupRunnerError as exc:
+            self.send_json_error(400, str(exc))
+            return
+        self.send_json({"tool_id": tool_id, "values": {}, "removed": removed})
 
     def save_case_decision(self) -> None:
         try:

@@ -65,6 +65,14 @@ export type ToolEvidenceType =
 export type ToolPackId = 'starter' | 'secrets' | 'dependencies' | 'ai-agent' | 'iac' | 'platform-posture' | 'advanced-dependency' | 'external-surface';
 export type ToolPackRole = 'included' | 'optional' | 'coming-soon';
 
+export type SetupKind = 'none' | 'env-var' | 'api-key' | 'oauth' | 'file-path' | 'config-block';
+export type SetupProbeKind = 'shell' | 'http' | 'binary-version' | 'directory-exists';
+
+export type SetupProbe = {
+  kind: SetupProbeKind;
+  spec: Record<string, string>;
+};
+
 export type ToolInstallContract = {
   method: ToolInstallMethod;
   owner: ToolInstallOwner;
@@ -182,6 +190,21 @@ export type ToolCatalogItem = {
   install_preview?: ToolInstallPreview;
   docs_path?: string;
   homepage_url?: string;
+  setup_kind: SetupKind;
+  setup_requirement?: string;
+  setup_probe?: SetupProbe;
+  setup_token_create_url?: string;
+  branding: ToolBranding;
+};
+
+export type ToolBranding = {
+  // Hex string sampled from the tool's wordmark. Rendered as a 4px left-edge
+  // stripe on cards and a 1px underline beneath the tool name on the detail
+  // page. Tools without a vetted upstream mark inherit DëvSec's accent.
+  accent_color: string;
+  // Filename under ``/tool-logos/`` (served from ``dashboard-ui/public``).
+  // ``null`` falls back to the category icon.
+  logo?: string | null;
 };
 
 export type ToolCatalogPayload = {

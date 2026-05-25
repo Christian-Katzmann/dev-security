@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Trivy">
+  <rect width="64" height="64" rx="14" fill="#1C7DD9"/>
+  <path d="M32 13 L48 19 V34 C48 43 41 49 32 52 C23 49 16 43 16 34 V19 Z" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M24 33 L30 39 L41 27" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

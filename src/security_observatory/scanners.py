@@ -15,6 +15,7 @@ import time
 from .ai_static import scan_ai_static
 from .behavioral import MAX_BEHAVIORAL_ARTIFACT_BYTES, MAX_BEHAVIORAL_FILES, MAX_BEHAVIORAL_PACKAGES, BehavioralDriftTarget
 from .catalog import current_scan_profiles, current_security_packs, current_tool_catalog, legacy_scanner_catalog_map, scanner_catalog_compat
+from .credentials import env_with_credentials, is_supported as keychain_is_supported
 from .managed_tools import (
     MANAGED_INSTALL_PROOF_TARGETS,
     load_active_managed_tool_records,
@@ -470,13 +471,17 @@ def _run_legitify_scanner(repo: Path, repo_name: str, scan_dir: Path) -> Scanner
         status.raw_report = str(raw_path)
         return ScannerResult(status, [])
 
-    env = os.environ.copy()
+    env = _legitify_env(os.environ)
     token = _legitify_token(env)
     if not token:
         status.status = "skipped"
         status.finished_at = datetime.now(timezone.utc).isoformat()
         status.duration_seconds = round(time.monotonic() - t0, 3)
-        status.error = "SCM_TOKEN is not set; platform posture was skipped."
+        status.error = (
+            "SCM_TOKEN is not set. Open the DëvSec dashboard → Tool Catalog → "
+            "legitify, paste a GitHub Personal Access Token, and click Store. "
+            "(Or set SCM_TOKEN in the environment.)"
+        )
         _write_legitify_skip(raw_path, status.error)
         status.raw_report = str(raw_path)
         return ScannerResult(status, [])
@@ -596,6 +601,23 @@ def _repo_target_from_remote(remote: str) -> str | None:
     if scm == "github":
         return "/".join(segments[:2])
     return "/".join(segments)
+
+
+def _legitify_env(source: os._Environ[str] | dict[str, str]) -> dict[str, str]:
+    """Copy ``source`` and overlay SCM_TOKEN from the macOS Keychain if stored.
+
+    The Keychain is consulted via ``credentials.env_with_credentials`` under the
+    ``legitify:SCM_TOKEN`` account written by the SetupCard. If no entry exists
+    (or the host isn't macOS), the env is left as-is, which preserves the
+    pre-Keychain behaviour where SCM_TOKEN was set in the shell or via
+    ``security-scan`` wrapper scripts. The Keychain wins over the inherited
+    env var so that the value the user just stored from the dashboard takes
+    effect immediately, without restarting the shell.
+    """
+    base: dict[str, str] = dict(source)
+    if not keychain_is_supported():
+        return base
+    return env_with_credentials(base, "legitify", {"SCM_TOKEN": "SCM_TOKEN"})
 
 
 def _legitify_token(env: dict[str, str]) -> str | None:

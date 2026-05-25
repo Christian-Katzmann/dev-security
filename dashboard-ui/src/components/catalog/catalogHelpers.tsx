@@ -221,6 +221,24 @@ export function catalogIcon(category: ToolCategory): ReactNode {
   return <Shield size={18} />;
 }
 
+// Render the tool's branded logo when one is bundled under
+// ``dashboard-ui/public/tool-logos/``. Falls back to the generic category
+// icon for built-ins and any tool without a vetted upstream mark — the
+// catalog grid never shows a broken image. ``alt=""`` because the tool
+// label is always rendered next to the logo (decorative, not informational).
+export function toolLogo(tool: ToolCatalogItem): ReactNode {
+  const logo = tool.branding?.logo;
+  if (!logo) return catalogIcon(tool.category);
+  return <img src={`/tool-logos/${logo}`} alt="" loading="lazy" />;
+}
+
+// Accent color in hex. Used by the 4px card stripe and the 1px detail-page
+// underline. Defaults to DëvSec's neutral accent so existing card chrome
+// never goes naked while branding rolls out.
+export function toolAccent(tool: ToolCatalogItem): string {
+  return tool.branding?.accent_color ?? '#3c4b48';
+}
+
 export function catalogPackIconCategory(pack: ToolPackId): ToolCategory {
   if (pack === 'external-surface') return 'external-surface';
   if (pack === 'ai-agent') return 'ai-agent';
@@ -451,12 +469,30 @@ export function previewCanInstall(preview?: ToolInstallPreview): boolean {
   return Boolean(preview?.tool_id && preview.action === 'managed-install-preview' && preview.execution_available);
 }
 
-// Tools with install.method === 'homebrew' that are missing can be installed
-// via the /api/tools/install-via-pkg endpoint, which shells out to
-// `brew install <binary>`. The binary name is part of the catalog contract,
-// not user-supplied, so it isn't shell-injectable.
-export function canInstallViaHomebrew(tool: ToolCatalogItem): boolean {
-  return tool.install_state === 'missing' && tool.install.method === 'homebrew';
+// Tools with an automatable package manager (`homebrew`, `uv-tool`) that
+// are missing can be installed via the /api/tools/install-via-pkg endpoint,
+// which shells out to the matching package manager. The binary name is part
+// of the catalog contract, not user-supplied, so it isn't shell-injectable.
+export function canInstallViaPackageManager(tool: ToolCatalogItem): boolean {
+  if (tool.install_state !== 'missing') return false;
+  return tool.install.method === 'homebrew' || tool.install.method === 'uv-tool';
+}
+
+// Tools with install.method === 'manual' need user action outside DëvSec.
+// The UI surfaces a copy-the-command + mark-installed affordance instead of
+// an automatable install button.
+export function isManualInstall(tool: ToolCatalogItem): boolean {
+  return tool.install_state === 'missing' && tool.install.method === 'manual';
+}
+
+// The actual command DëvSec would run on the user's behalf for an
+// automatable install. Manual-install tools return null — they don't have a
+// generated command, only catalog instructions.
+export function packageManagerCommand(tool: ToolCatalogItem): string | null {
+  const binary = tool.install.binary ?? tool.id;
+  if (tool.install.method === 'homebrew') return `brew install ${binary}`;
+  if (tool.install.method === 'uv-tool') return `uv tool install ${binary}`;
+  return null;
 }
 
 // State-aware action verb for catalog cards and banner CTAs. Built-in and
@@ -473,7 +509,8 @@ export function catalogCardAction(tool: ToolCatalogItem): CatalogCardAction {
   // detail page will refuse.
   if (tool.install_state === 'built-in' || tool.install_state === 'detected') return 'view';
   if (previewCanInstall(tool.install_preview)) return 'install';
-  if (canInstallViaHomebrew(tool)) return 'install';
+  if (canInstallViaPackageManager(tool)) return 'install';
+  if (isManualInstall(tool)) return 'install';
   return 'view';
 }
 

@@ -131,6 +131,49 @@ class ToolPackRole(StrEnum):
     COMING_SOON = "coming-soon"
 
 
+class SetupKind(StrEnum):
+    NONE = "none"
+    ENV_VAR = "env-var"
+    API_KEY = "api-key"
+    OAUTH = "oauth"
+    FILE_PATH = "file-path"
+    CONFIG_BLOCK = "config-block"
+
+
+class SetupProbeKind(StrEnum):
+    SHELL = "shell"
+    HTTP = "http"
+    BINARY_VERSION = "binary-version"
+    DIRECTORY_EXISTS = "directory-exists"
+
+
+@dataclass(frozen=True, slots=True)
+class SetupProbe:
+    kind: SetupProbeKind
+    spec: dict[str, str]
+
+
+# DëvSec's own accent — used by built-in scanners and any tool without a
+# vetted upstream brand color. Matches ``--mist-surface-700`` in
+# ``dashboard-ui/src/index.css``, the existing chrome accent. Keeping it as
+# a string here (rather than reaching for a token) keeps catalog.py free of
+# UI-layer dependencies.
+DEVSEC_ACCENT = "#3c4b48"
+
+
+@dataclass(frozen=True, slots=True)
+class ToolBranding:
+    # Hex color sampled from the tool's wordmark, used as a 4px stripe on the
+    # left edge of catalog cards and a 1px underline beneath the tool name on
+    # the detail page. Discipline (docs/branding.md): logo + one accent only.
+    # No background, font, or shape changes. Tools without a vetted upstream
+    # mark fall back to the DëvSec neutral accent.
+    accent_color: str
+    # Filename under ``dashboard-ui/public/tool-logos/`` (e.g.
+    # ``semgrep.svg``). ``None`` falls back to the category icon.
+    logo: str | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class ToolInstallContract:
     method: ToolInstallMethod
@@ -203,6 +246,16 @@ class ToolCatalogEntry:
     description: str | None = None
     docs_path: str | None = None
     homepage_url: str | None = None
+    setup_kind: SetupKind = SetupKind.NONE
+    setup_requirement: str | None = None
+    setup_probe: SetupProbe | None = None
+    # Provider deep-link rendered as "Generate a token →" in the SetupCard's
+    # api-key branch. Keep scopes + description preselected in the URL so the
+    # user lands on a pre-filled token page (e.g.
+    # ``https://github.com/settings/tokens/new?scopes=repo,admin:repo_hook&description=...``).
+    # ``None`` hides the link.
+    setup_token_create_url: str | None = None
+    branding: ToolBranding = ToolBranding(accent_color=DEVSEC_ACCENT)
 
     def with_install_state(self, install_state: ToolInstallState) -> ToolCatalogEntry:
         return replace(self, install_state=install_state)
@@ -575,11 +628,75 @@ def detect_install_state_for_tool(
         detected = any(shutil.which(binary) for binary in candidates)
         if not detected:
             return ToolInstallState.MISSING
+        if entry.setup_kind != SetupKind.NONE:
+            # Setup-aware tools (legitify PAT, malcontent artifact cache, …)
+            # flip between not-configured and detected based on whether their
+            # SetupCard inputs have been filled. The static
+            # ``requires_human_setup`` flag stays as a fallback for tools that
+            # haven't populated ``setup_kind`` yet.
+            return (
+                ToolInstallState.DETECTED
+                if _is_setup_satisfied(entry)
+                else ToolInstallState.NOT_CONFIGURED
+            )
         if entry.policy.requires_human_setup or entry.capabilities.requires_artifacts or entry.capabilities.requires_repo_remote:
             return ToolInstallState.NOT_CONFIGURED
         return ToolInstallState.DETECTED
 
     return entry.install_state
+
+
+def _is_setup_satisfied(entry: ToolCatalogEntry) -> bool:
+    """Return True when the tool's SetupCard inputs are populated.
+
+    The shape of "satisfied" depends on ``setup_kind``:
+
+    * ``api-key`` / ``env-var`` / ``oauth`` — the Keychain holds an entry under
+      ``(DëvSec, <tool_id>:<env_from_credential>)``. The probe spec carries the
+      credential key name; we never read the value here, just check presence
+      via the local credential index (no Keychain prompt).
+    * ``file-path`` / ``config-block`` — the on-disk tool config file holds a
+      non-empty value for the spec's ``config_key`` (file-path) or any value at
+      all (config-block).
+    * ``none`` — never reached (callers guard).
+    """
+    probe = entry.setup_probe
+    if probe is None:
+        return False
+    spec = probe.spec or {}
+    kind = entry.setup_kind
+    if kind in (SetupKind.API_KEY, SetupKind.ENV_VAR, SetupKind.OAUTH):
+        credential_key = spec.get("env_from_credential") or spec.get("env_var")
+        if not credential_key:
+            return False
+        try:
+            from .credentials import list_credentials
+        except ImportError:  # pragma: no cover - defensive
+            return False
+        try:
+            stored_keys = list_credentials(entry.id)
+        except Exception:  # pragma: no cover - defensive
+            return False
+        return credential_key in stored_keys
+    if kind == SetupKind.FILE_PATH:
+        config_key = spec.get("config_key")
+        if not config_key:
+            return False
+        # Lazy import: setup_runner imports catalog at module top, so the
+        # reverse import must stay function-scoped.
+        try:
+            from .setup_runner import read_tool_config
+        except ImportError:  # pragma: no cover - defensive
+            return False
+        stored = read_tool_config(entry.id).get(config_key, "").strip()
+        return bool(stored)
+    if kind == SetupKind.CONFIG_BLOCK:
+        try:
+            from .setup_runner import read_tool_config
+        except ImportError:  # pragma: no cover - defensive
+            return False
+        return bool(read_tool_config(entry.id))
+    return False
 
 
 def _managed_evidence_by_tool(managed_tool_records: Iterable[dict[str, Any]] | None) -> dict[str, ManagedToolEvidence]:
@@ -882,6 +999,11 @@ def _scanner_entry(
     packs: tuple[ToolPackMembership, ...],
     docs_path: str | None = None,
     homepage_url: str | None = None,
+    setup_kind: SetupKind = SetupKind.NONE,
+    setup_requirement: str | None = None,
+    setup_probe: SetupProbe | None = None,
+    setup_token_create_url: str | None = None,
+    branding: ToolBranding = ToolBranding(accent_color=DEVSEC_ACCENT),
 ) -> ToolCatalogEntry:
     legacy = _legacy(
         label=label,
@@ -909,6 +1031,11 @@ def _scanner_entry(
         legacy_scanner=legacy,
         docs_path=docs_path,
         homepage_url=homepage_url,
+        setup_kind=setup_kind,
+        setup_requirement=setup_requirement,
+        setup_probe=setup_probe,
+        setup_token_create_url=setup_token_create_url,
+        branding=branding,
     )
 
 
@@ -1121,6 +1248,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         ),
         packs=(_pack(ToolPackId.STARTER, ToolPackRole.INCLUDED, True),),
         homepage_url="https://semgrep.dev/docs/",
+        branding=ToolBranding(accent_color="#4D40A1", logo="semgrep.svg"),
     ),
     _scanner_entry(
         scanner="gitleaks",
@@ -1158,6 +1286,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.SECRETS, ToolPackRole.INCLUDED, True),
         ),
         homepage_url="https://github.com/gitleaks/gitleaks#readme",
+        branding=ToolBranding(accent_color="#E2453C", logo="gitleaks.svg"),
     ),
     _scanner_entry(
         scanner="trufflehog",
@@ -1192,6 +1321,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         ),
         packs=(_pack(ToolPackId.SECRETS, ToolPackRole.INCLUDED, False),),
         homepage_url="https://github.com/trufflesecurity/trufflehog#readme",
+        branding=ToolBranding(accent_color="#FF4F00", logo="trufflehog.svg"),
     ),
     _scanner_entry(
         scanner="trivy",
@@ -1230,6 +1360,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.IAC, ToolPackRole.COMING_SOON, False),
         ),
         homepage_url="https://trivy.dev/",
+        branding=ToolBranding(accent_color="#1C7DD9", logo="trivy.svg"),
     ),
     _scanner_entry(
         scanner="osv-scanner",
@@ -1267,6 +1398,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             _pack(ToolPackId.STARTER, ToolPackRole.OPTIONAL, False),
         ),
         homepage_url="https://google.github.io/osv-scanner/",
+        branding=ToolBranding(accent_color="#1A73E8", logo="osv-scanner.svg"),
     ),
     _scanner_entry(
         scanner="syft",
@@ -1301,6 +1433,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         ),
         packs=(_pack(ToolPackId.DEPENDENCIES, ToolPackRole.INCLUDED, True),),
         homepage_url="https://github.com/anchore/syft#readme",
+        branding=ToolBranding(accent_color="#E55B2B", logo="syft.svg"),
     ),
     _scanner_entry(
         scanner="grype",
@@ -1336,6 +1469,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         ),
         packs=(_pack(ToolPackId.DEPENDENCIES, ToolPackRole.INCLUDED, True),),
         homepage_url="https://github.com/anchore/grype#readme",
+        branding=ToolBranding(accent_color="#00ACC1", logo="grype.svg"),
     ),
     _scanner_entry(
         scanner="checkov",
@@ -1370,6 +1504,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         ),
         packs=(_pack(ToolPackId.IAC, ToolPackRole.COMING_SOON, False),),
         homepage_url="https://www.checkov.io/",
+        branding=ToolBranding(accent_color="#6F4FF2", logo="checkov.svg"),
     ),
     _scanner_entry(
         scanner="medusa",
@@ -1404,6 +1539,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         ),
         packs=(_pack(ToolPackId.AI_AGENT, ToolPackRole.INCLUDED, False),),
         homepage_url="https://github.com/Pantheon-Security/medusa#readme",
+        branding=ToolBranding(accent_color="#1B5A6E", logo="medusa.svg"),
     ),
     _scanner_entry(
         scanner="malcontent",
@@ -1412,7 +1548,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         covers="Advanced diffing of old and new dependency artifacts for suspicious behavior changes.",
         profile="behavioral-drift",
         install_text="Install malcontent separately, then provide local package artifacts under the behavioral artifact cache.",
-        next_step="Run security-scan --behavioral-drift after at least two SBOM-backed dependency scans.",
+        next_step="Set the behavioral artifact cache directory via the catalog setup card, then run security-scan --behavioral-drift after at least two SBOM-backed dependency scans.",
         built_in=False,
         category=ToolCategory.DEPENDENCIES,
         lifecycle=ToolLifecycle.ADVANCED,
@@ -1422,7 +1558,7 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             binary="malcontent",
             alternate_binaries=("mal",),
             instructions="Install malcontent separately, then provide local package artifacts under the behavioral artifact cache.",
-            next_step="Run security-scan --behavioral-drift after at least two SBOM-backed dependency scans.",
+            next_step="Set the behavioral artifact cache directory via the catalog setup card, then run security-scan --behavioral-drift after at least two SBOM-backed dependency scans.",
             uninstall_posture=ToolUninstallPosture.MANUAL_ONLY,
         ),
         policy=_policy(
@@ -1442,6 +1578,13 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         ),
         packs=(_pack(ToolPackId.ADVANCED_DEPENDENCY, ToolPackRole.COMING_SOON, False),),
         homepage_url="https://github.com/chainguard-dev/malcontent#readme",
+        setup_kind=SetupKind.FILE_PATH,
+        setup_requirement="Path to behavioral artifact cache directory holding old and new dependency artifacts for diffing.",
+        setup_probe=SetupProbe(
+            kind=SetupProbeKind.DIRECTORY_EXISTS,
+            spec={"config_key": "artifact_cache_dir"},
+        ),
+        branding=ToolBranding(accent_color="#4C44B3", logo="malcontent.svg"),
     ),
     _scanner_entry(
         scanner="legitify",
@@ -1449,8 +1592,8 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         area="Platform posture",
         covers="Optional connected checks for repository branch protection, Actions permissions, webhooks, and SCM settings.",
         profile="platform-posture",
-        install_text="brew install legitify, then set SCM_TOKEN for the platform posture profile.",
-        next_step="Run security-scan --platform-posture only when you want a token-backed platform check.",
+        install_text="brew install legitify, then connect a GitHub Personal Access Token via the catalog setup card.",
+        next_step="Connect a GitHub Personal Access Token (repo + admin:repo_hook scopes) via the catalog setup card, then run security-scan --platform-posture.",
         built_in=False,
         category=ToolCategory.PLATFORM_POSTURE,
         lifecycle=ToolLifecycle.ADVANCED,
@@ -1458,8 +1601,8 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
         install=_path_install(
             method=ToolInstallMethod.HOMEBREW,
             binary="legitify",
-            instructions="brew install legitify, then set SCM_TOKEN for the platform posture profile.",
-            next_step="Run security-scan --platform-posture only when you want a token-backed platform check.",
+            instructions="brew install legitify, then connect a GitHub Personal Access Token via the catalog setup card.",
+            next_step="Connect a GitHub Personal Access Token (repo + admin:repo_hook scopes) via the catalog setup card, then run security-scan --platform-posture.",
             uninstall_posture=ToolUninstallPosture.MANUAL_ONLY,
         ),
         policy=_policy(
@@ -1479,7 +1622,34 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
             requires_repo_remote=True,
         ),
         packs=(_pack(ToolPackId.PLATFORM_POSTURE, ToolPackRole.COMING_SOON, False),),
+        docs_path="/docs/tools/legitify-setup.md",
         homepage_url="https://github.com/Legit-Labs/legitify#readme",
+        setup_kind=SetupKind.API_KEY,
+        setup_requirement="GitHub Personal Access Token with `repo` + `admin:repo_hook` scopes (stored locally in macOS Keychain).",
+        setup_probe=SetupProbe(
+            kind=SetupProbeKind.SHELL,
+            spec={
+                # Single namespace + one tiny public repo keeps the probe
+                # under ~15s on a warm token. legitify exits 1 when it found
+                # policy violations on the target (which is normal — the
+                # repo isn't ours), so success_returncodes includes 1.
+                # Auth failures surface as a non-{0,1} exit code or
+                # stderr-only output, both of which the runner will flag.
+                "command": (
+                    "legitify analyze --scm github --namespace repository "
+                    "--repo Legit-Labs/legitify --color false"
+                ),
+                "env_from_credential": "SCM_TOKEN",
+                "timeout_seconds": "90",
+                "success_returncodes": "0,1",
+            },
+        ),
+        setup_token_create_url=(
+            "https://github.com/settings/tokens/new"
+            "?scopes=repo,admin:repo_hook"
+            "&description=D%C3%ABvSec%20legitify"
+        ),
+        branding=ToolBranding(accent_color="#E63946", logo="legitify.svg"),
     ),
 )
 

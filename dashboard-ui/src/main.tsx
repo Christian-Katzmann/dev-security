@@ -1,6 +1,7 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
+import SetupCardDemo from './components/catalog/SetupCardDemo.tsx';
 import './index.css';
 
 function installHardRefreshShortcut() {
@@ -26,8 +27,14 @@ function installHardRefreshShortcut() {
 
 installHardRefreshShortcut();
 
+// Hidden visual-verification route. Opening `?setupCardDemo=1` boots the
+// SetupCard storybook page instead of the dashboard. Mock fetch handlers
+// inside the demo component intercept every `/api/...` call so no real
+// network traffic or Keychain access happens during a walkthrough.
+const showSetupCardDemo = new URLSearchParams(window.location.search).has('setupCardDemo');
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    {showSetupCardDemo ? <SetupCardDemo /> : <App />}
   </StrictMode>,
 );

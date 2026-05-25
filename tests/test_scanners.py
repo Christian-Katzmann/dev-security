@@ -140,7 +140,12 @@ def test_every_catalog_entry_has_a_real_documentation_link():
     )
 
 
-def test_tool_catalog_can_resolve_detected_path_tools(monkeypatch):
+def test_tool_catalog_can_resolve_detected_path_tools(monkeypatch, tmp_path):
+    # Isolate the credential index so this test never sees a developer's real
+    # Keychain bookkeeping (legitify is setup-aware; presence of SCM_TOKEN in
+    # the index would otherwise flip it to "detected").
+    monkeypatch.setenv("SECURITY_OBSERVATORY_HOME", str(tmp_path))
+
     def fake_which(binary: str) -> str | None:
         return f"/usr/local/bin/{binary}" if binary in {"semgrep", "legitify"} else None
 
@@ -201,6 +206,83 @@ def test_run_scanner_uses_runtime_binary_detection_not_catalog_metadata(tmp_path
 
     assert result.status.available is False
     assert result.status.error == "semgrep is not installed or not on PATH."
+
+
+def test_legitify_env_reads_token_from_keychain(monkeypatch):
+    """When the Keychain holds legitify:SCM_TOKEN, _legitify_env injects it."""
+    from security_observatory import scanners as scanners_module
+
+    monkeypatch.setattr(scanners_module, "keychain_is_supported", lambda: True)
+
+    captured_calls: list[tuple[str, dict[str, str]]] = []
+
+    def fake_env_with_credentials(env, tool_id, mapping):
+        captured_calls.append((tool_id, dict(mapping)))
+        result = dict(env)
+        result["SCM_TOKEN"] = "ghp_keychain_value"
+        return result
+
+    monkeypatch.setattr(scanners_module, "env_with_credentials", fake_env_with_credentials)
+
+    env = scanners_module._legitify_env({"PATH": "/usr/bin", "SCM_TOKEN": "ghp_env_value"})
+
+    assert env["SCM_TOKEN"] == "ghp_keychain_value", "Keychain should win over env"
+    assert captured_calls == [("legitify", {"SCM_TOKEN": "SCM_TOKEN"})]
+
+
+def test_legitify_env_falls_back_to_env_when_keychain_missing(monkeypatch):
+    """No Keychain entry → SCM_TOKEN from the environment is preserved."""
+    from security_observatory import scanners as scanners_module
+
+    monkeypatch.setattr(scanners_module, "keychain_is_supported", lambda: True)
+    # env_with_credentials returns the env unchanged when no credential is stored.
+    monkeypatch.setattr(
+        scanners_module,
+        "env_with_credentials",
+        lambda env, tool_id, mapping: dict(env),
+    )
+
+    env = scanners_module._legitify_env({"PATH": "/usr/bin", "SCM_TOKEN": "ghp_env_value"})
+    assert env["SCM_TOKEN"] == "ghp_env_value"
+
+
+def test_legitify_env_skips_keychain_on_unsupported_host(monkeypatch):
+    """Non-macOS hosts never call into the keychain API."""
+    from security_observatory import scanners as scanners_module
+
+    monkeypatch.setattr(scanners_module, "keychain_is_supported", lambda: False)
+
+    def explode(*args, **kwargs):  # pragma: no cover - should never run
+        raise AssertionError("env_with_credentials must not be called when keychain unsupported")
+
+    monkeypatch.setattr(scanners_module, "env_with_credentials", explode)
+
+    env = scanners_module._legitify_env({"SCM_TOKEN": "fallback"})
+    assert env == {"SCM_TOKEN": "fallback"}
+
+
+def test_run_legitify_scanner_skips_with_helpful_error_when_no_token(tmp_path, monkeypatch):
+    """No Keychain + no env var → skipped status pointing the user at the setup card."""
+    from security_observatory import scanners as scanners_module
+
+    monkeypatch.setenv("SECURITY_OBSERVATORY_HOME", str(tmp_path))
+    # Force a target so the test exercises the token-missing branch, not the
+    # earlier "no repo target" branch (we're not in a git repo here).
+    monkeypatch.setenv("SECURITY_OBSERVATORY_PLATFORM_REPO", "DevSec/test-fixture")
+    monkeypatch.delenv("SCM_TOKEN", raising=False)
+    monkeypatch.delenv("SECURITY_OBSERVATORY_SCM_TOKEN", raising=False)
+    monkeypatch.delenv("LEGITIFY_TOKEN", raising=False)
+    monkeypatch.setattr(scanners_module.shutil, "which", lambda binary: f"/usr/local/bin/{binary}")
+    monkeypatch.setattr(scanners_module, "keychain_is_supported", lambda: False)
+
+    scan_dir = tmp_path / "scan"
+    scan_dir.mkdir()
+    result = scanners_module._run_legitify_scanner(tmp_path, "repo", scan_dir)
+
+    assert result.status.status == "skipped"
+    # Message must point the user at the in-app surface rather than the bare env var.
+    assert "Tool Catalog" in (result.status.error or "")
+    assert "legitify" in (result.status.error or "").lower()
 
 
 def test_run_scanner_uses_verified_managed_gitleaks_when_path_is_empty(tmp_path: Path, monkeypatch):
