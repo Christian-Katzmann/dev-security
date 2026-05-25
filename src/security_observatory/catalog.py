@@ -228,6 +228,12 @@ class ToolCatalogEntry:
     setup_kind: SetupKind = SetupKind.NONE
     setup_requirement: str | None = None
     setup_probe: SetupProbe | None = None
+    # Provider deep-link rendered as "Generate a token →" in the SetupCard's
+    # api-key branch. Keep scopes + description preselected in the URL so the
+    # user lands on a pre-filled token page (e.g.
+    # ``https://github.com/settings/tokens/new?scopes=repo,admin:repo_hook&description=...``).
+    # ``None`` hides the link.
+    setup_token_create_url: str | None = None
 
     def with_install_state(self, install_state: ToolInstallState) -> ToolCatalogEntry:
         return replace(self, install_state=install_state)
@@ -910,6 +916,7 @@ def _scanner_entry(
     setup_kind: SetupKind = SetupKind.NONE,
     setup_requirement: str | None = None,
     setup_probe: SetupProbe | None = None,
+    setup_token_create_url: str | None = None,
 ) -> ToolCatalogEntry:
     legacy = _legacy(
         label=label,
@@ -940,6 +947,7 @@ def _scanner_entry(
         setup_kind=setup_kind,
         setup_requirement=setup_requirement,
         setup_probe=setup_probe,
+        setup_token_create_url=setup_token_create_url,
     )
 
 
@@ -1526,6 +1534,11 @@ CURRENT_SCANNER_CATALOG: tuple[ToolCatalogEntry, ...] = (
                 "env_from_credential": "SCM_TOKEN",
                 "timeout_seconds": "60",
             },
+        ),
+        setup_token_create_url=(
+            "https://github.com/settings/tokens/new"
+            "?scopes=repo,admin:repo_hook"
+            "&description=D%C3%ABvSec%20legitify"
         ),
     ),
 )

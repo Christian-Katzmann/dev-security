@@ -4749,6 +4749,405 @@ a.button,
   color: var(--ink-muted);
 }
 
+/* ============================================================== */
+/* SetupCard — one component, five render branches keyed off
+   setup_kind. Shares the catalog-tool card grammar (paper-soft
+   background, hairline border, soft radius) so it reads as one
+   surface family with the manual-install card right below it. */
+/* ============================================================== */
+
+.setup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-hair);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+}
+
+.setup-card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-hair);
+}
+
+.setup-card-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.setup-card-head h2 {
+  margin: 0;
+  color: var(--ink-strong);
+  font: 500 18px/1.3 var(--font-sans);
+}
+
+.setup-card-requirement {
+  margin: 0;
+  color: var(--ink-strong);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.setup-card-note {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.setup-card-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.setup-card-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.setup-card-label-text {
+  font-weight: 600;
+  color: var(--ink-strong);
+  letter-spacing: 0.02em;
+}
+
+.setup-card-mono {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 12px;
+  padding: 2px 6px;
+  background: var(--paper-soft);
+  border: 1px solid var(--border-hair);
+  border-radius: var(--r-sm, 4px);
+  color: var(--ink-strong);
+}
+
+.setup-card-input-row {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.setup-card-input {
+  flex: 1 1 320px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: var(--paper);
+  color: var(--ink-strong);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 13px;
+}
+
+.setup-card-input:focus-visible {
+  outline: none;
+  border-color: var(--ink-strong);
+  box-shadow: 0 0 0 1px var(--ink-strong);
+}
+
+.setup-card-textarea-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.setup-card-textarea {
+  width: 100%;
+  min-height: 180px;
+  padding: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: var(--paper);
+  color: var(--ink-strong);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.setup-card-textarea:focus-visible {
+  outline: none;
+  border-color: var(--ink-strong);
+  box-shadow: 0 0 0 1px var(--ink-strong);
+}
+
+.setup-card-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.setup-card-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-md);
+  background: var(--paper);
+  color: var(--ink-strong);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 140ms ease, opacity 140ms ease, background 140ms ease;
+}
+
+.setup-card-button:hover:not(:disabled) {
+  background: var(--paper-soft);
+}
+
+.setup-card-button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.setup-card-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.setup-card-button.primary {
+  background: var(--ink-strong);
+  border-color: var(--ink-strong);
+  color: var(--on-surface-strong);
+}
+
+.setup-card-button.primary:hover:not(:disabled) {
+  opacity: 0.92;
+  background: var(--ink-strong);
+}
+
+.setup-card-button.quiet {
+  background: transparent;
+  color: var(--ink-muted);
+}
+
+.setup-card-button.quiet:hover:not(:disabled) {
+  color: var(--ink-strong);
+  background: var(--paper-soft);
+}
+
+.setup-card-stored,
+.setup-card-stored-config {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.setup-card-stored-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-strong);
+  padding: 4px 8px;
+  border: 1px solid var(--border-hair);
+  border-radius: var(--r-sm, 4px);
+  background: var(--paper-soft);
+}
+
+.setup-card-deeplink {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--border-soft);
+  padding-bottom: 1px;
+}
+
+.setup-card-deeplink:hover {
+  color: var(--ink-strong);
+  border-bottom-color: var(--ink-strong);
+}
+
+.setup-card-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.setup-card-status.complete {
+  color: var(--ink-strong);
+}
+
+.setup-card-status.error {
+  color: var(--sev-high-ink, var(--ink-strong));
+}
+
+.setup-card-probe {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border-hair);
+  border-radius: var(--r-md);
+  background: var(--paper-soft);
+}
+
+.setup-card-probe-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.setup-card-probe-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.setup-card-probe-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.setup-card-probe-cmd {
+  word-break: break-all;
+}
+
+.setup-card-probe-result {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-hair);
+  background: var(--paper);
+}
+
+.setup-card-probe-result.success {
+  border-color: var(--border-hair);
+}
+
+.setup-card-probe-result.failure {
+  border-color: var(--sev-high-border, var(--border-soft));
+}
+
+.setup-card-probe-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-strong);
+}
+
+.setup-card-probe-result.failure .setup-card-probe-summary {
+  color: var(--sev-high-ink, var(--ink-strong));
+}
+
+.setup-card-probe-output {
+  margin: 0;
+  padding: 12px;
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-strong);
+  background: var(--paper-soft);
+  border: 1px solid var(--border-hair);
+  border-radius: var(--r-sm, 4px);
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.setup-card-probe-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.setup-card-spin {
+  animation: setup-card-spin 1s linear infinite;
+}
+
+@keyframes setup-card-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Hidden visual-verification page. Lives next to the SetupCard styles so a
+   future maintainer who deletes the demo can grep them out together. */
+.setup-card-demo {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 48px 32px 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.setup-card-demo-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setup-card-demo-head h1 {
+  margin: 0;
+  font: 500 24px/1.2 var(--font-sans);
+  color: var(--ink-strong);
+}
+
+.setup-card-demo-head p {
+  margin: 0;
+  max-width: 720px;
+  color: var(--ink-muted);
+  line-height: 1.55;
+}
+
+.setup-card-demo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 24px;
+}
+
+.setup-card-demo-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.setup-card-demo-title {
+  margin: 0;
+  font: 500 12px/1 var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
 .catalog-tool-body {
   display: grid;
   grid-template-columns: minmax(0, 8fr) minmax(280px, 4fr);

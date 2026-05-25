@@ -193,6 +193,7 @@ export type ToolCatalogItem = {
   setup_kind: SetupKind;
   setup_requirement?: string;
   setup_probe?: SetupProbe;
+  setup_token_create_url?: string;
 };
 
 export type ToolCatalogPayload = {

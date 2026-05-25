@@ -57,6 +57,7 @@ import {
   previewCanInstall,
 } from './catalogHelpers';
 import {useCatalogData} from './useCatalogData';
+import SetupCard from './SetupCard';
 
 export type CatalogToolPageProps = {
   summary: DashboardSummary;
@@ -208,7 +209,13 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
   const installHelp = installEnabled
     ? null
     : tool.install.next_step ?? tool.install.instructions ?? null;
-  const alreadyInstalledNote = alreadyInstalled
+  // SetupCard takes over the body when a tool is installed but waiting on a
+  // credential or config block. The hero eyebrow keeps the "Installed —
+  // needs setup." copy so the user has a visual anchor for the state; the
+  // standalone next-step paragraph below the hero disappears because the
+  // SetupCard surface owns that affordance now.
+  const setupCardActive = tool.install_state === 'not-configured' && tool.setup_kind !== 'none';
+  const alreadyInstalledNote = alreadyInstalled && !setupCardActive
     ? (tool.install.next_step
         ?? (tool.install_state === 'built-in'
           ? `${tool.label} is built into DëvSec. Use it in any matching scan profile.`
@@ -282,6 +289,8 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
           <p className={`catalog-tool-hero-message ${mutation.status}`}>{mutation.message}</p>
         )}
       </section>
+
+      {setupCardActive && <SetupCard tool={tool} onRefresh={onRefresh} />}
 
       {manualInstallable && (
         <section className="catalog-tool-manual-install">

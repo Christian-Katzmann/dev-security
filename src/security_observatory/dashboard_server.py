@@ -36,6 +36,13 @@ from .credentials import (
     list_credentials,
     store_credential,
 )
+from .setup_runner import (
+    SetupRunnerError,
+    delete_tool_config,
+    read_tool_config,
+    run_setup_probe,
+    write_tool_config,
+)
 from .decisions import assemble_suppression
 from .discovery import discover_repos
 from .docs_render import render_markdown
@@ -1417,6 +1424,15 @@ _CREDENTIALS_KEY_PATH_RE = re.compile(
     r"/credentials/(?P<key>[A-Za-z0-9][A-Za-z0-9._-]{0,63})/?$"
 )
 
+# Setup-card endpoints. The tool_id constraint matches the credential routes
+# so the routing layer rejects malformed URLs before the runner sees them.
+_SETUP_PROBE_PATH_RE = re.compile(
+    r"^/api/tools/(?P<tool_id>[A-Za-z0-9][A-Za-z0-9._-]{0,63})/setup/probe/?$"
+)
+_SETUP_CONFIG_PATH_RE = re.compile(
+    r"^/api/tools/(?P<tool_id>[A-Za-z0-9][A-Za-z0-9._-]{0,63})/setup/config/?$"
+)
+
 _PACKAGE_MANAGER_DISPATCH: dict[str, dict[str, Any]] = {
     "homebrew": {
         "program": "brew",
@@ -1749,6 +1765,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if credentials_keys_match:
             self.serve_credential_keys(credentials_keys_match.group("tool_id"))
             return
+        setup_config_get_match = _SETUP_CONFIG_PATH_RE.match(parsed.path)
+        if setup_config_get_match:
+            self.serve_tool_setup_config(setup_config_get_match.group("tool_id"))
+            return
         if parsed.path.rstrip("/") == "/report":
             query = parse_qs(parsed.query)
             scan_id = query.get("scanId", [""])[0]
@@ -1848,6 +1868,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if credentials_post_match:
             self.store_tool_credential(credentials_post_match.group("tool_id"))
             return
+        setup_probe_match = _SETUP_PROBE_PATH_RE.match(parsed.path)
+        if setup_probe_match:
+            self.run_tool_setup_probe(setup_probe_match.group("tool_id"))
+            return
+        setup_config_post_match = _SETUP_CONFIG_PATH_RE.match(parsed.path)
+        if setup_config_post_match:
+            self.save_tool_setup_config(setup_config_post_match.group("tool_id"))
+            return
         if parsed.path != "/api/run-check":
             self.send_error(404)
             return
@@ -1894,6 +1922,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 credentials_delete_match.group("tool_id"),
                 credentials_delete_match.group("key"),
             )
+            return
+        setup_config_delete_match = _SETUP_CONFIG_PATH_RE.match(parsed.path)
+        if setup_config_delete_match:
+            self.forget_tool_setup_config(setup_config_delete_match.group("tool_id"))
             return
         self.send_error(404)
 
@@ -2176,6 +2208,79 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 "keys": list_credentials(tool_id),
             }
         )
+
+    # ------------------------------------------------------------------
+    # Setup-card endpoints (probe + per-tool config)
+    #
+    # POST   /api/tools/<id>/setup/probe   → run setup_probe, return result
+    # GET    /api/tools/<id>/setup/config  → read stored {key: value} config
+    # POST   /api/tools/<id>/setup/config  → replace stored config (body: {values})
+    # DELETE /api/tools/<id>/setup/config  → forget stored config
+    #
+    # Credentials and probe outputs flow through here, so the same care applies
+    # as the credential endpoints: never log values; truncate probe output.
+    # ------------------------------------------------------------------
+
+    def run_tool_setup_probe(self, tool_id: str) -> None:
+        if not _CREDENTIAL_ID_RE.match(tool_id):
+            self.send_json_error(400, "Invalid tool id.")
+            return
+        try:
+            result = run_setup_probe(tool_id)
+        except SetupRunnerError as exc:
+            self.send_json_error(400, str(exc))
+            return
+        # 200 for both pass and fail — probe failure is a normal outcome the
+        # frontend renders inline. Reserve non-2xx for routing/validation gaps.
+        self.send_json({"tool_id": tool_id, **result.to_dict()})
+
+    def serve_tool_setup_config(self, tool_id: str) -> None:
+        if not _CREDENTIAL_ID_RE.match(tool_id):
+            self.send_json_error(400, "Invalid tool id.")
+            return
+        try:
+            values = read_tool_config(tool_id)
+        except SetupRunnerError as exc:
+            self.send_json_error(400, str(exc))
+            return
+        self.send_json({"tool_id": tool_id, "values": values})
+
+    def save_tool_setup_config(self, tool_id: str) -> None:
+        if not _CREDENTIAL_ID_RE.match(tool_id):
+            self.send_json_error(400, "Invalid tool id.")
+            return
+        try:
+            payload = self.read_json_body()
+        except json.JSONDecodeError:
+            self.send_json_error(400, "Request body must be JSON.")
+            return
+        values_raw = payload.get("values")
+        if not isinstance(values_raw, dict):
+            self.send_json_error(400, "Body must include `values` as a JSON object.")
+            return
+        cleaned: dict[str, str] = {}
+        for key, value in values_raw.items():
+            if not isinstance(key, str) or not isinstance(value, str):
+                self.send_json_error(400, "All config keys and values must be strings.")
+                return
+            cleaned[key] = value
+        try:
+            stored = write_tool_config(tool_id, cleaned)
+        except SetupRunnerError as exc:
+            self.send_json_error(400, str(exc))
+            return
+        self.send_json({"tool_id": tool_id, "values": stored, "stored": True})
+
+    def forget_tool_setup_config(self, tool_id: str) -> None:
+        if not _CREDENTIAL_ID_RE.match(tool_id):
+            self.send_json_error(400, "Invalid tool id.")
+            return
+        try:
+            removed = delete_tool_config(tool_id)
+        except SetupRunnerError as exc:
+            self.send_json_error(400, str(exc))
+            return
+        self.send_json({"tool_id": tool_id, "values": {}, "removed": removed})
 
     def save_case_decision(self) -> None:
         try:
