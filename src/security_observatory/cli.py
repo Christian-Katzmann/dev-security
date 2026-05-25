@@ -26,6 +26,13 @@ from .model import FAIL_LEVELS, SEVERITY_ORDER, Finding, score_findings, severit
 from .model import read_json_safely
 from .platform_posture import build_platform_posture_snapshot, platform_posture_regression_findings
 from .recency import DEFAULT_RECENCY_WINDOW_DAYS, enrich_ioc_findings_with_rotation_advice
+from .reset import (
+    backup_repo_state,
+    execute_reset,
+    list_known_repos,
+    plan_reset,
+    reset_confirmation_phrase,
+)
 from .rotation import detect_rotation_state
 from .scanners import run_behavioral_drift_scanner, run_scanner, scanner_catalog, scanner_names_for_profile
 from .sbom import load_sbom_components
@@ -102,6 +109,8 @@ def main(argv: list[str] | None = None) -> int:
         return vex_import(args, home)
     if args.target == "credentials":
         return credentials_command(args)
+    if args.target == "reset":
+        return reset_command(args, home)
 
     repos = resolve_targets(args)
     if not repos:
@@ -672,6 +681,108 @@ def credentials_command(args: argparse.Namespace) -> int:
         keys = index[tool_id]
         print(f"  {tool_id}: {', '.join(keys) if keys else '(none)'}")
     return 0
+
+
+def reset_command(args: argparse.Namespace, home: Path) -> int:
+    repo = (args.ioc_target or "").strip()
+    if not repo:
+        print("Usage: security-scan reset <repo> [--include-rotation-scaffold] [--backup-to <path>] [--yes] [--dry-run]", file=sys.stderr)
+        return 2
+
+    db = ObservatoryDB(home / "db" / "observatory.sqlite")
+    try:
+        known = list_known_repos(db)
+        if repo not in known:
+            print(f"Unknown repo: {repo}", file=sys.stderr)
+            if known:
+                print(f"Known repos: {', '.join(known)}", file=sys.stderr)
+            return 2
+
+        include_scaffold = "--include-rotation-scaffold" in (args._argv if hasattr(args, "_argv") else sys.argv)
+        backup_to = _extract_flag_value("--backup-to", sys.argv)
+        skip_confirm = args.dry_run or "--yes" in sys.argv
+
+        # Resolve repo_path from latest scan record
+        latest = db.latest_scan_for_repo(repo)
+        repo_path = Path(latest["repo_path"]) if latest and latest.get("repo_path") else None
+
+        plan = plan_reset(
+            db, repo, home,
+            include_rotation_scaffold=include_scaffold,
+            repo_path=repo_path,
+        )
+
+        if args.dry_run:
+            print(f"Dry run — reset plan for `{repo}`:")
+            print()
+            if plan["tables"]:
+                print("  SQLite tables:")
+                for entry in plan["tables"]:
+                    print(f"    {entry['table']}: {entry['rows']} row{'s' if entry['rows'] != 1 else ''}")
+            else:
+                print("  SQLite tables: (nothing to delete)")
+            print()
+            if plan["files"]:
+                print("  Filesystem paths:")
+                for path in plan["files"]:
+                    print(f"    {path}")
+            else:
+                print("  Filesystem paths: (nothing to delete)")
+            return 0
+
+        if not skip_confirm:
+            expected = reset_confirmation_phrase(repo)
+            print(f"This will permanently delete all observatory data for `{repo}`.")
+            print(f"Type exactly: {expected}")
+            try:
+                answer = input("> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\nAborted.", file=sys.stderr)
+                return 1
+            if answer != expected:
+                print("Confirmation phrase did not match. Aborted.", file=sys.stderr)
+                return 1
+
+        if backup_to:
+            backup_dir = Path(backup_to).expanduser()
+            backups = backup_repo_state(
+                db, repo, home, backup_dir,
+                include_rotation_scaffold=include_scaffold,
+                repo_path=repo_path,
+            )
+            print(f"Backup written:")
+            for kind, path in backups.items():
+                print(f"  {kind}: {path}")
+            print()
+
+        result = execute_reset(
+            db, repo, home,
+            include_rotation_scaffold=include_scaffold,
+            repo_path=repo_path,
+        )
+
+        print(f"Reset complete for `{repo}`.")
+        if result["tables"]:
+            print("  Deleted rows:")
+            for table, count in result["tables"].items():
+                print(f"    {table}: {count}")
+        if result["files"]:
+            print("  Removed paths:")
+            for path in result["files"]:
+                print(f"    {path}")
+    finally:
+        db.close()
+    return 0
+
+
+def _extract_flag_value(flag: str, argv: list[str]) -> str | None:
+    try:
+        idx = argv.index(flag)
+        if idx + 1 < len(argv):
+            return argv[idx + 1]
+    except ValueError:
+        pass
+    return None
 
 
 def print_schedule_help() -> int:
