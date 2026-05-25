@@ -47,9 +47,9 @@ Indicator fields:
 
 ## Matching Rules
 
-Exact package matches are critical findings when the saved SBOM has the same ecosystem, package name, and exact version.
+Exact package matches are critical raw findings when the saved SBOM has the same ecosystem, package name, and exact version.
 
-Namespace-prefix watches are high-severity findings. They are intentionally softer because a namespace match is a signal to inspect, not proof that a named bad version is installed.
+Namespace-prefix watches are high-severity raw findings. They are intentionally softer because a namespace match is a signal to inspect, not proof that a named bad version is installed.
 
 Domain watches check local strings from package scripts, lockfile registry references, and GitHub Actions `run:` blocks. They do not run scanners or call the network.
 

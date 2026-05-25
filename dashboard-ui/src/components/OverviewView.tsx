@@ -59,7 +59,7 @@ export default function OverviewView({summary, error, targetLabel}: OverviewView
             </div>
 
             <h2 className="text-3xl md:text-5xl font-light tracking-tight text-black leading-tight break-words">
-              {firstCase ? `${attentionBucketLabels[firstCase.bucket]}: ${firstCase.title}` : hasScan ? 'No saved issues from the checks that ran.' : 'Run a check to see what needs attention.'}
+              {firstCase ? `${attentionBucketLabels[firstCase.bucket]}: ${firstCase.title}` : hasScan ? 'No saved issues from the checks that ran.' : 'Run a check to see cases.'}
             </h2>
 
             <p className="mt-4 max-w-3xl text-sm md:text-base leading-relaxed text-black/60">
@@ -67,7 +67,7 @@ export default function OverviewView({summary, error, targetLabel}: OverviewView
                 ? firstCase.why
                 : hasScan
                   ? 'This is a good sign, but it does not prove the repo is safe. Start by reviewing what the scan covered.'
-                  : 'Choose a repo and run a quick safety sweep. The dashboard will turn raw scanner output into plain next actions.'}
+                  : 'Choose a repo and run a quick safety sweep. The dashboard will turn raw scanner output into cases and plain next actions.'}
             </p>
           </div>
 

@@ -99,6 +99,7 @@ import {
 import {
   AttentionBucket,
   CaseDecisionStatus,
+  DashboardMode,
   DashboardSummary,
   DisplayCase,
   HoneyIncident,
@@ -109,6 +110,7 @@ import {
   ProjectsPayload,
   RecoveryPlaybook,
   RecoveryPlaybookItem,
+  RepositorySummary,
   RotationSecretRow,
   ScannerDoctorItem,
   SecurityPackCatalogItem,
@@ -120,7 +122,9 @@ import {
   ToolInstallState,
   ToolLifecycle,
   ToolPackId,
+  activeRawFindingCount,
   averageHealth,
+  caseBackedRawFindingCount,
   caseNeedsAttention,
   categoryLabel,
   dependencyCveCounts,
@@ -140,7 +144,10 @@ import {
   mergeProjectRepos,
   platformPostureFindings,
   platformPostureSnapshots,
+  preCaseRawFindingCount,
+  preCaseScanRepos,
   repoKeyFromPath,
+  repoHasPreCaseScan,
   reportViewUrl,
   scanCompleteness,
   scannerCoverageSummary,
@@ -155,6 +162,13 @@ import {
 } from './dashboardData';
 
 type TabId = 'overview' | 'findings' | 'honey-keys' | 'scanners' | 'agent-lab' | 'playbooks' | 'verification' | 'activity' | 'reports' | 'settings';
+type ViewModeAvailability = 'normal' | 'repo-required' | 'global';
+type ViewModeRegistryEntry = {
+  supportedModes: DashboardMode[];
+  availability: ViewModeAvailability;
+  unavailableReason?: string;
+};
+type NavItem = {id: TabId; label: string; icon: typeof Home};
 // Substate for the Tool Catalog tab. Four routes total — home is the root, the
 // other three return via onBack to whichever route opened them ("from"). We
 // keep state on App so reopening the tab restores the user's place; default is
@@ -192,11 +206,32 @@ type CheckJob = {
   scan?: CompletedScan;
 };
 
+type AllRepoRunItem = {
+  repoName: string;
+  repoPath: string;
+  jobId?: string;
+  status: 'waiting' | 'queued' | 'running' | 'complete' | 'failed';
+  progress: number;
+  message: string;
+  error?: string | null;
+  scan?: CompletedScan;
+};
+
+type AllRepoRun = {
+  id: string;
+  status: 'running' | 'complete' | 'failed';
+  audits: AuditId[];
+  concurrency: number;
+  startedAt: string;
+  finishedAt?: string;
+  items: AllRepoRunItem[];
+};
+
 type CreatedHoneyKey = {
   key: HoneyKey;
   raw_token: string;
   snippets: Record<string, string>;
-  warning: string;
+  notice: string;
 };
 
 type ActivityItem = {
@@ -211,12 +246,12 @@ type ActivityItem = {
 
 type RecoveryPlaybookView = RecoveryPlaybook & {tone: Tone};
 
-const navGroups: {title: string; items: {id: TabId; label: string; icon: typeof Home}[]}[] = [
+const navGroups: {title: string; items: NavItem[]}[] = [
   {
     title: 'Workspace',
     items: [
       {id: 'overview', label: 'Overview', icon: Home},
-      {id: 'findings', label: 'Findings', icon: ShieldAlert},
+      {id: 'findings', label: 'Cases', icon: ShieldAlert},
       {id: 'honey-keys', label: 'Honey keys', icon: ShieldCheck},
     ],
   },
@@ -240,7 +275,7 @@ const navGroups: {title: string; items: {id: TabId; label: string; icon: typeof 
 
 const tabTitles: Record<TabId, string> = {
   overview: 'Overview',
-  findings: 'Findings',
+  findings: 'Cases',
   'honey-keys': 'Honey keys',
   scanners: 'Tool Catalog',
   'agent-lab': 'Agent Lab',
@@ -249,6 +284,37 @@ const tabTitles: Record<TabId, string> = {
   activity: 'Activity',
   reports: 'Reports',
   settings: 'Settings',
+};
+
+const viewsByMode: Record<TabId, ViewModeRegistryEntry> = {
+  overview: {supportedModes: ['all-repos', 'repo'], availability: 'normal'},
+  findings: {supportedModes: ['all-repos', 'repo'], availability: 'normal'},
+  activity: {supportedModes: ['all-repos', 'repo'], availability: 'normal'},
+  reports: {supportedModes: ['all-repos', 'repo'], availability: 'normal'},
+  'honey-keys': {
+    supportedModes: ['repo'],
+    availability: 'repo-required',
+    unavailableReason: 'Pick a repo to inspect Honey keys.',
+  },
+  playbooks: {
+    supportedModes: ['repo'],
+    availability: 'repo-required',
+    unavailableReason: 'Pick a repo to rerun recovery playbooks.',
+  },
+  verification: {
+    supportedModes: ['repo'],
+    availability: 'repo-required',
+    unavailableReason: 'Pick a repo to run or inspect checks.',
+  },
+  // Current Agent Lab context export and proposal review are repo-scoped:
+  // /api/agent-lab/context requires repoPath/repoName, and proposals filter by repo.
+  'agent-lab': {
+    supportedModes: ['repo'],
+    availability: 'repo-required',
+    unavailableReason: 'Pick a repo to open Agent Lab.',
+  },
+  scanners: {supportedModes: ['all-repos'], availability: 'global'},
+  settings: {supportedModes: ['all-repos'], availability: 'global'},
 };
 
 const customReposStorageKey = 'security-observatory-custom-repos';
@@ -269,7 +335,7 @@ const severityMeta: Record<Tone, {label: string; dot: string; bg: string; fg: st
   low: {label: 'LOW', dot: 'var(--sev-low)', bg: 'rgba(138,163,154,0.20)', fg: '#3c4b48'},
   warn: {label: 'WARNING', dot: 'var(--sev-warn)', bg: '#f1dcbe', fg: '#7d4d10'},
   high: {label: 'ELEVATED', dot: 'var(--sev-high)', bg: '#ecc9b7', fg: '#6e3a1c'},
-  crit: {label: 'CRITICAL', dot: 'var(--sev-crit)', bg: '#e8c6c0', fg: '#6c1f1f'},
+  crit: {label: 'CRITICAL', dot: '#842626', bg: '#dcaaa5', fg: '#551515'},
   info: {label: 'INFO', dot: 'var(--sev-info)', bg: '#cfdbe9', fg: '#36506e'},
   neutral: {label: 'READY', dot: '#8d938f', bg: 'rgba(28,36,34,0.06)', fg: '#3c4b48'},
 };
@@ -307,6 +373,41 @@ function formatDuration(startedAt?: string, finishedAt?: string): string {
 
 function incompleteToolCount(scan?: CompletedScan): number {
   return scan?.scanners.filter((scanner) => !scanner.available || scanner.error).length ?? 0;
+}
+
+function latestHistoryScan(summary: DashboardSummary): DashboardSummary['history'][number] | null {
+  return [...summary.history]
+    .sort((a, b) => new Date(b.finished_at ?? b.started_at ?? 0).getTime() - new Date(a.finished_at ?? a.started_at ?? 0).getTime())[0] ?? null;
+}
+
+function scanDuration(summary: DashboardSummary): string {
+  const latest = latestHistoryScan(summary);
+  return latest ? formatDuration(latest.started_at, latest.finished_at) : 'No scan';
+}
+
+function setupGapCount(summary: DashboardSummary): number {
+  return topScannerItems(summary).filter((item) => item.status === 'missing' || item.status === 'error').length;
+}
+
+function scannerStatusLabel(status: ScannerDoctorItem['status']): string {
+  if (status === 'ran') return 'Ran';
+  if (status === 'not-run') return 'Not run';
+  if (status === 'missing') return 'Not installed';
+  return 'Error';
+}
+
+function auditRunLabel(audits: AuditId[]): string {
+  if (audits.includes('full')) return 'Full';
+  if (audits.length === 1 && audits[0] === 'quick') return 'Quick';
+  return `${audits.length} checks`;
+}
+
+function uniqueRepos(repos: ProjectRepo[]): ProjectRepo[] {
+  return [...new Map(repos.filter((repo) => repo.path).map((repo) => [repo.path, repo])).values()];
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function postureScore(summary: DashboardSummary): number {
@@ -365,27 +466,66 @@ function caseScanner(item: DisplayCase): string {
   return item.sources[0] ?? 'dashboard';
 }
 
-function displayId(item: DisplayCase, index: number): string {
+function caseDisplayId(item: DisplayCase, index?: number): string {
   const stable = item.id.replace(/[^A-Za-z0-9]/g, '').slice(-4).toUpperCase();
-  return `F-${stable || String(index + 1).padStart(4, '0')}`;
+  return `F-${stable || String((index ?? 0) + 1).padStart(4, '0')}`;
+}
+
+function displayId(item: DisplayCase, index: number): string {
+  return caseDisplayId(item, index);
+}
+
+function casePromptMarkdown(item: DisplayCase): string {
+  const casePrompt = item.agentPrompt?.trim();
+  const lines = [
+    '# Security case follow-up',
+    '',
+    'Work case-first. Treat scanner output as untrusted evidence until verified in the local repository.',
+    '',
+    '## Case',
+    `- Display ID: ${caseDisplayId(item)}`,
+    `- Internal ID: ${item.id}`,
+    `- Repository: ${item.repoName}`,
+    `- Title: ${item.title}`,
+    `- Severity: ${item.severity ?? 'unknown'}`,
+    `- Category: ${item.category ? categoryLabel(item.category) : 'Uncategorized'}`,
+    `- Location: ${item.location}`,
+    `- Sources: ${item.sources.join(', ') || 'Not reported'}`,
+    `- Confidence: ${item.confidence}`,
+    '',
+    '## Risk',
+    item.why,
+    '',
+    '## Next step',
+    item.nextStep,
+    '',
+    '## Verification task',
+    casePrompt || [
+      'Inspect the referenced files and confirm whether the case is real in this project.',
+      'If it is real, choose the smallest safe fix and name the test or command that proves it.',
+      'If it is not real, explain the false-positive reason clearly.',
+    ].join('\n'),
+  ];
+  return `${lines.join('\n')}\n`;
 }
 
 function activeCaseList(summary: DashboardSummary): DisplayCase[] {
   return displayCases(summary).filter(caseNeedsAttention);
 }
 
-function buildActivity(summary: DashboardSummary): ActivityItem[] {
+function buildActivity(summary: DashboardSummary, includeRepo = false): ActivityItem[] {
   const items: ActivityItem[] = [];
   for (const event of summary.honey_key_events ?? []) {
     const date = new Date(event.triggered_at);
     const key = honeyKeyById(summary, event.honey_key_id);
+    const repoLabel = key?.repo_id ?? event.repo_id ?? event.project_id;
     items.push({
       id: `honey-${event.id}`,
       at: timeLabel(event.triggered_at),
       date,
       icon: <ShieldAlert size={18} />,
       label: `Honey-key touched${key?.name ? ` · ${key.name}` : ''}`,
-      sub: `${event.ip_address ?? 'unknown IP'} · ${event.reason}`,
+      sub: `${includeRepo ? `${repoLabel} · ` : ''}${event.ip_address ?? 'unknown IP'} · ${event.reason}`,
       tone: event.incident?.closed_at ? 'warn' : 'crit',
     });
   }
@@ -397,7 +537,7 @@ function buildActivity(summary: DashboardSummary): ActivityItem[] {
       date,
       icon: iconForCategory(item.category),
       label: `${caseScanner(item)} · ${item.title}`,
-      sub: item.location,
+      sub: `${includeRepo ? `${item.repoName} · ` : ''}${item.location}`,
       tone: toneForCase(item),
     });
   }
@@ -410,7 +550,7 @@ function buildActivity(summary: DashboardSummary): ActivityItem[] {
       date,
       icon: <RefreshCw size={18} />,
       label: `${scan.profile || 'Scan'} completed`,
-      sub: `${scan.health_score}/100 health · ${scan.status}`,
+      sub: `${includeRepo ? `${scan.repo_name} · ` : ''}${scan.health_score}/100 health · ${scan.status}`,
       tone: scan.health_score < 70 ? 'warn' : 'low',
     });
   }
@@ -476,21 +616,22 @@ function formatConfidenceValue(value: number): string {
 function suppressionReasons(summary: DashboardSummary) {
   const direct = summary.suppression_reasons ?? summary.suppressed_counts?.reasons ?? [];
   const fromRepos = summary.repos.flatMap((repo) => repo.suppression_reasons ?? repo.suppressed_counts?.reasons ?? []);
-  const grouped = new Map<string, {reason: string; decision_status: string; vex_status: string; cases: number; findings: number}>();
-  for (const item of [...direct, ...fromRepos]) {
+  const grouped = new Map<string, {reason: string; decision_status: string; vex_status: string; cases: number; rawFindings: number}>();
+  const source = fromRepos.length ? fromRepos : direct;
+  for (const item of source) {
     const key = `${item.reason}:${item.decision_status}:${item.vex_status}`;
     const current = grouped.get(key) ?? {
       reason: item.reason,
       decision_status: item.decision_status,
       vex_status: item.vex_status,
       cases: 0,
-      findings: 0,
+      rawFindings: 0,
     };
     current.cases += item.cases;
-    current.findings += item.findings;
+    current.rawFindings += item.findings;
     grouped.set(key, current);
   }
-  return [...grouped.values()].sort((a, b) => b.findings - a.findings || b.cases - a.cases);
+  return [...grouped.values()].sort((a, b) => b.rawFindings - a.rawFindings || b.cases - a.cases);
 }
 
 function activeFindingCount(summary: DashboardSummary): number {
@@ -501,17 +642,32 @@ function suppressedFindingCount(summary: DashboardSummary): number {
   return summary.suppressed_findings?.length ?? summary.findings.filter((finding) => finding.suppressed).length;
 }
 
+function caseSeverityCounts(cases: DisplayCase[]) {
+  return cases.reduce(
+    (counts, item) => {
+      const tone = toneForCase(item);
+      if (tone === 'crit') counts.critical += 1;
+      else if (tone === 'high') counts.elevated += 1;
+      else if (tone === 'warn') counts.warning += 1;
+      else counts.low += 1;
+      return counts;
+    },
+    {critical: 0, elevated: 0, warning: 0, low: 0},
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [catalogRoute, setCatalogRoute] = useState<CatalogRoute>({kind: 'home'});
   const [summary, setSummary] = useState<DashboardSummary>(emptySummary);
   const [projectRepos, setProjectRepos] = useState<ProjectRepo[]>([]);
   const [customRepos, setCustomRepos] = useState<ProjectRepo[]>(() => loadCustomRepos());
-  const [target, setTarget] = useState<TargetSelection>({type: 'dashboard'});
+  const [target, setTarget] = useState<TargetSelection>({mode: 'all-repos'});
   const [isCheckOpen, setIsCheckOpen] = useState(false);
   const [selectedAudits, setSelectedAudits] = useState<AuditId[]>(defaultAudits);
   const [isRunningCheck, setIsRunningCheck] = useState(false);
   const [activeJob, setActiveJob] = useState<CheckJob | null>(null);
+  const [allRepoRun, setAllRepoRun] = useState<AllRepoRun | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -566,6 +722,12 @@ export default function App() {
   }, [target]);
 
   useEffect(() => {
+    if (viewIsUnavailableInMode(activeTab, target.mode)) {
+      setActiveTab('overview');
+    }
+  }, [activeTab, target.mode]);
+
+  useEffect(() => {
     if (!activeJob || !isRunningCheck) return;
     const timer = window.setInterval(async () => {
       try {
@@ -600,16 +762,16 @@ export default function App() {
       const nextCustom = mergeProjectRepos([], [...customRepos, repo], []);
       setCustomRepos(nextCustom);
       window.localStorage.setItem(customReposStorageKey, JSON.stringify(nextCustom));
-      setTarget({type: 'repo', repo});
+      setTarget({mode: 'repo', repo});
       return;
     }
-    if (value === 'dashboard') {
-      setTarget({type: 'dashboard'});
+    if (value === 'all-repos' || value === 'dashboard') {
+      setTarget({mode: 'all-repos'});
       return;
     }
     const path = value.replace(/^repo:/, '');
     const repo = targetRepos.find((item) => item.path === path);
-    if (repo) setTarget({type: 'repo', repo});
+    if (repo) setTarget({mode: 'repo', repo});
   }
 
   function toggleAudit(auditId: AuditId) {
@@ -629,8 +791,116 @@ export default function App() {
     });
   }
 
+  function updateAllRepoRunItem(runId: string, repoPath: string, updates: Partial<AllRepoRunItem>) {
+    setAllRepoRun((current) => {
+      if (!current || current.id !== runId) return current;
+      return {
+        ...current,
+        items: current.items.map((item) => item.repoPath === repoPath ? {...item, ...updates} : item),
+      };
+    });
+  }
+
+  async function startRepoCheck(repo: ProjectRepo, audits: AuditId[]): Promise<CheckJob> {
+    const response = await fetch('/api/run-check', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({repoPath: repo.path, audits}),
+    });
+    if (!response.ok) throw new Error(await responseErrorMessage(response, `Unable to start checks for ${repo.name}`));
+    const payload: {job: CheckJob} = await response.json();
+    return payload.job;
+  }
+
+  async function pollRepoCheck(runId: string, repoPath: string, jobId: string): Promise<CheckJob> {
+    for (;;) {
+      await wait(1200);
+      const response = await fetch(`/api/check-status?jobId=${encodeURIComponent(jobId)}`, {cache: 'no-store'});
+      if (!response.ok) throw new Error(await responseErrorMessage(response, 'Unable to read check progress'));
+      const payload: {job: CheckJob} = await response.json();
+      updateAllRepoRunItem(runId, repoPath, {
+        status: payload.job.status,
+        progress: payload.job.progress,
+        message: payload.job.currentStep ?? payload.job.message,
+        error: payload.job.error,
+        scan: payload.job.scan,
+      });
+      if (payload.job.status === 'complete' || payload.job.status === 'failed') return payload.job;
+    }
+  }
+
+  async function runAllRepoChecks(auditsOverride: AuditId[]) {
+    const repos = uniqueRepos(targetRepos);
+    if (!repos.length) {
+      setRunError('Add or select at least one repo before running all-repo checks.');
+      setIsCheckOpen(true);
+      return;
+    }
+    const tokenPresent = summary.environment?.scm_token_present ?? true;
+    const audits = tokenPresent ? auditsOverride : auditsOverride.filter((id) => id !== 'platform-posture');
+    const effectiveAudits = audits.length ? audits : defaultAudits;
+    const runId = `all-repos-${Date.now()}`;
+    const concurrency = Math.min(3, repos.length);
+    setSelectedAudits(effectiveAudits);
+    setIsCheckOpen(false);
+    setIsRunningCheck(true);
+    setActiveJob(null);
+    setRunError(null);
+    setAllRepoRun({
+      id: runId,
+      status: 'running',
+      audits: effectiveAudits,
+      concurrency,
+      startedAt: new Date().toISOString(),
+      items: repos.map((repo) => ({
+        repoName: repo.name,
+        repoPath: repo.path,
+        status: 'waiting',
+        progress: 0,
+        message: 'Waiting for a runner',
+      })),
+    });
+
+    const queue = [...repos];
+    const failures: string[] = [];
+    async function worker() {
+      for (;;) {
+        const repo = queue.shift();
+        if (!repo) return;
+        updateAllRepoRunItem(runId, repo.path, {status: 'queued', progress: 0, message: 'Queued'});
+        try {
+          const job = await startRepoCheck(repo, effectiveAudits);
+          updateAllRepoRunItem(runId, repo.path, {
+            jobId: job.id,
+            status: job.status,
+            progress: job.progress,
+            message: job.message,
+          });
+          const terminal = await pollRepoCheck(runId, repo.path, job.id);
+          if (terminal.status === 'failed') failures.push(`${repo.name}: ${terminal.error ?? 'check failed'}`);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Unable to run checks';
+          failures.push(`${repo.name}: ${message}`);
+          updateAllRepoRunItem(runId, repo.path, {status: 'failed', progress: 100, message: 'Check failed', error: message});
+        }
+      }
+    }
+
+    await Promise.all(Array.from({length: concurrency}, () => worker()));
+    await loadSummary();
+    setAllRepoRun((current) => current && current.id === runId ? {
+      ...current,
+      status: failures.length ? 'failed' : 'complete',
+      finishedAt: new Date().toISOString(),
+    } : current);
+    setIsRunningCheck(false);
+    if (failures.length) {
+      setRunError(`${failures.length} repo check${failures.length === 1 ? '' : 's'} failed. Open Verification for the setup details.`);
+    }
+  }
+
   async function runCheck(auditsOverride = selectedAudits) {
-    if (target.type !== 'repo') {
+    if (target.mode !== 'repo') {
       setRunError('Select a repo target before running checks.');
       setIsCheckOpen(true);
       return;
@@ -639,6 +909,7 @@ export default function App() {
     const audits = tokenPresent ? auditsOverride : auditsOverride.filter((id) => id !== 'platform-posture');
     setIsRunningCheck(true);
     setActiveJob(null);
+    setAllRepoRun(null);
     setRunError(null);
     try {
       const response = await fetch('/api/run-check', {
@@ -657,8 +928,29 @@ export default function App() {
 
   function runFullCheck() {
     setSelectedAudits(['full']);
+    if (target.mode === 'repo') {
+      setIsCheckOpen(true);
+      void runCheck(['full']);
+    } else {
+      void runAllRepoChecks(['full']);
+    }
+  }
+
+  function runQuickCheck() {
+    setSelectedAudits(['quick']);
+    if (target.mode === 'repo') {
+      setIsCheckOpen(true);
+      void runCheck(['quick']);
+    } else {
+      void runAllRepoChecks(['quick']);
+    }
+  }
+
+  function chooseChecks(profile?: string) {
+    if (profile && auditOptions.some((option) => option.id === profile)) {
+      setSelectedAudits([profile as AuditId]);
+    }
     setIsCheckOpen(true);
-    if (target.type === 'repo') void runCheck(['full']);
   }
 
   async function saveCaseDecision(caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) {
@@ -704,8 +996,11 @@ export default function App() {
             isLoading={isLoading}
             error={error}
             onRunAll={runFullCheck}
-            canRun={target.type === 'repo'}
-            runAllHint={target.type === 'repo' ? 'Run all configured checks for the selected repo' : 'Pick a repo first'}
+            onRunQuick={runQuickCheck}
+            onChooseChecks={() => chooseChecks()}
+            showRunControls={activeTab !== 'overview'}
+            canRun={target.mode === 'repo' || targetRepos.length > 0}
+            runAllHint={target.mode === 'repo' ? 'Run all configured checks for the selected repo' : 'Run full checks for every known repo, up to 3 at once'}
           />
           {isCheckOpen && (
             <RunCheckSheet
@@ -717,7 +1012,13 @@ export default function App() {
               runError={runError}
               scmTokenPresent={summary.environment?.scm_token_present ?? true}
               onToggleAudit={toggleAudit}
-              onRun={() => void runCheck()}
+              onRun={() => {
+                if (target.mode === 'all-repos') {
+                  void runAllRepoChecks(selectedAudits);
+                } else {
+                  void runCheck();
+                }
+              }}
               onTargetChange={selectTarget}
               onClose={() => setIsCheckOpen(false)}
               onNewCheck={() => setActiveJob(null)}
@@ -731,6 +1032,7 @@ export default function App() {
             <ActiveView
               tab={activeTab}
               summary={scopedSummary}
+              globalSummary={summary}
               search={search}
               target={target}
               targetRepos={targetRepos}
@@ -740,17 +1042,13 @@ export default function App() {
               catalogRoute={catalogRoute}
               onCatalogRouteChange={setCatalogRoute}
               onOpenTab={setActiveTab}
-              onChooseChecks={(profile) => {
-                if (profile && (auditOptions.some((option) => option.id === profile))) {
-                  setSelectedAudits([profile as AuditId]);
-                }
-                setIsCheckOpen(true);
-              }}
-              onRunQuick={() => {
-                setSelectedAudits(['quick']);
-                setIsCheckOpen(true);
-                void runCheck(['quick']);
-              }}
+              onChooseChecks={chooseChecks}
+              onRunQuick={runQuickCheck}
+              onRunAll={runFullCheck}
+              activeJob={activeJob}
+              allRepoRun={allRepoRun}
+              isRunningCheck={isRunningCheck}
+              runError={runError}
               onCaseDecision={saveCaseDecision}
               onRefresh={loadSummary}
               onTargetChange={selectTarget}
@@ -765,6 +1063,7 @@ export default function App() {
 function ActiveView({
   tab,
   summary,
+  globalSummary,
   search,
   target,
   targetRepos,
@@ -776,12 +1075,18 @@ function ActiveView({
   onOpenTab,
   onChooseChecks,
   onRunQuick,
+  onRunAll,
+  activeJob,
+  allRepoRun,
+  isRunningCheck,
+  runError,
   onCaseDecision,
   onRefresh,
   onTargetChange,
 }: {
   tab: TabId;
   summary: DashboardSummary;
+  globalSummary: DashboardSummary;
   search: string;
   target: TargetSelection;
   targetRepos: ProjectRepo[];
@@ -793,22 +1098,47 @@ function ActiveView({
   onOpenTab: (tab: TabId) => void;
   onChooseChecks: (profile?: string) => void;
   onRunQuick: () => void;
+  onRunAll: () => void;
+  activeJob: CheckJob | null;
+  allRepoRun: AllRepoRun | null;
+  isRunningCheck: boolean;
+  runError: string | null;
   onCaseDecision: (caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) => Promise<void>;
   onRefresh: () => Promise<void>;
   onTargetChange: (value: string) => void;
 }) {
-  if (target.type === 'repo' && summary.repos.length === 0 && tab !== 'honey-keys' && tab !== 'agent-lab' && tab !== 'settings') {
+  if (target.mode === 'repo' && summary.repos.length === 0 && tab !== 'honey-keys' && tab !== 'agent-lab' && tab !== 'settings') {
     return <EmptyRepoView repoName={target.repo.name} onRunQuick={onRunQuick} onChooseChecks={onChooseChecks} />;
   }
-  if (tab === 'overview') return <OverviewView summary={summary} target={target} posture={posture} error={error} onOpenTab={onOpenTab} />;
-  if (tab === 'findings') return <FindingsView summary={summary} search={search} onCaseDecision={onCaseDecision} />;
+  if (tab === 'overview') {
+    return (
+      <OverviewView
+        summary={summary}
+        globalSummary={globalSummary}
+        target={target}
+        targetRepos={targetRepos}
+        posture={posture}
+        error={error}
+        activeJob={activeJob}
+        allRepoRun={allRepoRun}
+        isRunningCheck={isRunningCheck}
+        runError={runError}
+        onOpenTab={onOpenTab}
+        onRunQuick={onRunQuick}
+        onRunAll={onRunAll}
+        onChooseChecks={onChooseChecks}
+        onTargetChange={onTargetChange}
+      />
+    );
+  }
+  if (tab === 'findings') return <FindingsView summary={summary} search={search} target={target} onCaseDecision={onCaseDecision} />;
   if (tab === 'honey-keys') return <HoneyKeysView summary={summary} target={target} onRefresh={onRefresh} />;
   if (tab === 'scanners') return <CatalogRouter route={catalogRoute} summary={summary} onRouteChange={onCatalogRouteChange} onRefresh={onRefresh} onChooseChecks={onChooseChecks} />;
   if (tab === 'agent-lab') return <AgentLabView summary={summary} target={target} targetRepos={targetRepos} onRefresh={onRefresh} onTargetChange={onTargetChange} />;
   if (tab === 'playbooks') return <PlaybooksView summary={summary} target={target} targetRepos={targetRepos} onChooseChecks={onChooseChecks} onTargetChange={onTargetChange} />;
   if (tab === 'verification') return <VerificationView summary={summary} target={target} targetRepos={targetRepos} onChooseChecks={onChooseChecks} onTargetChange={onTargetChange} />;
-  if (tab === 'activity') return <ActivityView summary={summary} search={search} />;
-  if (tab === 'reports') return <ReportsView summary={summary} />;
+  if (tab === 'activity') return <ActivityView summary={summary} search={search} target={target} />;
+  if (tab === 'reports') return <ReportsView summary={summary} target={target} />;
   return <SettingsView summary={summary} target={target} targetRepos={targetRepos} updatedAt={updatedAt} onTargetChange={onTargetChange} />;
 }
 
@@ -896,6 +1226,7 @@ function Sidebar({
         <div className="workspace-mark"><ShieldCheck size={17} /></div>
         <div className="workspace-copy">
           <div className="workspace-title">{targetLabel(target)}</div>
+          <div className="workspace-subtitle">{target.mode === 'repo' ? 'Specific repo' : 'All repositories'}</div>
           <select
             className="workspace-select"
             name="workspace-target"
@@ -903,9 +1234,9 @@ function Sidebar({
             value={targetValue(target)}
             onChange={(event) => onTargetChange(event.target.value)}
           >
-            <option value="dashboard">devsec · dashboard</option>
+            <option value="all-repos">All repos</option>
             {targetRepos.map((repo) => (
-              <option key={repo.path} value={`repo:${repo.path}`}>devsec · {repo.name}</option>
+              <option key={repo.path} value={`repo:${repo.path}`}>Specific repo · {repo.name}</option>
             ))}
             <option value="add-repo">+ Add repo...</option>
           </select>
@@ -916,13 +1247,25 @@ function Sidebar({
         {navGroups.map((group) => (
           <div key={group.title} className="sidebar-group">
             <div className="sidebar-group-title">{group.title}</div>
-            {group.items.map((item) => (
-              <button key={item.id} type="button" className={`nav-row ${active === item.id ? 'active' : ''}`} onClick={() => onNav(item.id)}>
-                <item.icon size={17} />
-                <span>{item.label}</span>
-                {!!counts[item.id] && <strong>{counts[item.id]}</strong>}
-              </button>
-            ))}
+            {group.items.map((item) => {
+              const unavailable = viewIsUnavailableInMode(item.id, target.mode);
+              const scope = navScopeLabel(item.id);
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`nav-row ${active === item.id ? 'active' : ''}`}
+                  onClick={() => onNav(item.id)}
+                  disabled={unavailable}
+                  title={unavailable ? viewsByMode[item.id].unavailableReason : undefined}
+                >
+                  <item.icon size={17} />
+                  <span>{item.label}</span>
+                  {!!counts[item.id] && <strong>{counts[item.id]}</strong>}
+                  {scope && <em className="nav-scope">{scope}</em>}
+                </button>
+              );
+            })}
           </div>
         ))}
       </nav>
@@ -936,6 +1279,18 @@ function Sidebar({
   );
 }
 
+function viewIsUnavailableInMode(tab: TabId, mode: DashboardMode): boolean {
+  const entry = viewsByMode[tab];
+  return entry.availability === 'repo-required' && mode !== 'repo';
+}
+
+function navScopeLabel(tab: TabId): string | null {
+  const entry = viewsByMode[tab];
+  if (entry.availability === 'repo-required') return 'Repo';
+  if (entry.availability === 'global') return 'Global';
+  return null;
+}
+
 function Toolbar({
   title,
   targetLabel,
@@ -945,6 +1300,9 @@ function Toolbar({
   isLoading,
   error,
   onRunAll,
+  onRunQuick,
+  onChooseChecks,
+  showRunControls,
   canRun,
   runAllHint,
 }: {
@@ -956,11 +1314,15 @@ function Toolbar({
   isLoading: boolean;
   error: string | null;
   onRunAll: () => void;
+  onRunQuick: () => void;
+  onChooseChecks: () => void;
+  showRunControls: boolean;
   canRun: boolean;
   runAllHint: string;
 }) {
-  const searchPlaceholder = title === 'Tool Catalog' ? 'Search tools, packs' : title === 'Agent Lab' ? 'Search proposals, tools' : 'Search findings, manifests';
+  const searchPlaceholder = title === 'Tool Catalog' ? 'Search tools, packs' : title === 'Agent Lab' ? 'Search proposals, tools' : 'Search cases, manifests';
   const runAllLabel = canRun ? 'Run all' : 'Run all (pick a repo)';
+  const runQuickLabel = canRun ? 'Run quick' : 'Run quick (pick a repo)';
   return (
     <header className="mist-toolbar">
       <div className="toolbar-title">
@@ -986,16 +1348,40 @@ function Toolbar({
         />
         <kbd>⌘K</kbd>
       </label>
-      <Button
-        variant="secondary"
-        size="sm"
-        icon={<RefreshCw size={14} />}
-        onClick={onRunAll}
-        title={runAllHint}
-        ariaLabel={runAllLabel}
-      >
-        Run all
-      </Button>
+      {showRunControls && (
+        <>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<SlidersHorizontal size={14} />}
+            onClick={onChooseChecks}
+            title={canRun ? 'Choose checks to run' : 'Add a repo first'}
+            ariaLabel="Choose checks"
+          >
+            Choose...
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<Play size={14} />}
+            onClick={onRunQuick}
+            title={canRun ? 'Run the quick safety sweep' : 'Add a repo first'}
+            ariaLabel={runQuickLabel}
+          >
+            Run quick
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<RefreshCw size={14} />}
+            onClick={onRunAll}
+            title={runAllHint}
+            ariaLabel={runAllLabel}
+          >
+            Run all
+          </Button>
+        </>
+      )}
     </header>
   );
 }
@@ -1029,35 +1415,47 @@ function RunCheckSheet({
   onNewCheck: () => void;
   onViewResults: () => void;
 }) {
-  const needsRepo = target.type !== 'repo';
-  const startDisabled = needsRepo || isRunningCheck;
+  const isAllRepos = target.mode === 'all-repos';
+  const allReposCount = isAllRepos ? targetRepos.length : 0;
+  const noReposAvailable = isAllRepos && allReposCount === 0;
+  const startDisabled = noReposAvailable || isRunningCheck;
+  const startTitle = noReposAvailable
+    ? 'Add a repo before running checks'
+    : isAllRepos
+      ? `Run the selected checks across ${allReposCount} repo${allReposCount === 1 ? '' : 's'}`
+      : undefined;
+  const headlineSubtitle = activeJob?.status === 'complete'
+    ? 'Latest local scan data has been saved.'
+    : isAllRepos
+      ? `Running across ${allReposCount} repo${allReposCount === 1 ? '' : 's'}. Existing backend behavior stays unchanged.`
+      : 'Choose the scanners to run. Existing backend behavior stays unchanged.';
   return (
     <section className="run-sheet">
       <div className="run-sheet-head">
         <div>
           <Eyebrow>{activeJob?.status === 'complete' ? 'Security check complete' : 'Run security check'}</Eyebrow>
-          <h2>{target.type === 'repo' ? target.repo.name : 'Run security check'}</h2>
-          <p>{activeJob?.status === 'complete' ? 'Latest local scan data has been saved.' : 'Choose the scanners to run. Existing backend behavior stays unchanged.'}</p>
+          <h2>{target.mode === 'repo' ? target.repo.name : isAllRepos ? `All repos · ${allReposCount}` : 'Run security check'}</h2>
+          <p>{headlineSubtitle}</p>
         </div>
         <div className="run-actions">
           {activeJob?.status === 'complete' ? (
             <>
               <Button variant="secondary" onClick={onNewCheck}>New check</Button>
-              <Button onClick={onViewResults}>View findings</Button>
+              <Button onClick={onViewResults}>View cases</Button>
             </>
           ) : (
             <>
               <Button variant="ghost" onClick={onClose} disabled={isRunningCheck}>Cancel</Button>
-              <Button onClick={onRun} disabled={startDisabled} title={needsRepo ? 'Pick a repo to run checks against' : undefined}>{isRunningCheck ? 'Checking...' : 'Start check'}</Button>
+              <Button onClick={onRun} disabled={startDisabled} title={startTitle}>{isRunningCheck ? 'Checking...' : 'Start check'}</Button>
             </>
           )}
         </div>
       </div>
-      {needsRepo && activeJob?.status !== 'complete' && (
+      {noReposAvailable && activeJob?.status !== 'complete' && (
         <NeedsRepoTarget
           targetRepos={targetRepos}
           onTargetChange={onTargetChange}
-          message="Pick a repo to run checks against."
+          message="Add a repo to run checks against."
         />
       )}
       {activeJob?.status !== 'complete' && (
@@ -1112,8 +1510,8 @@ function RunCheckSheet({
       {activeJob?.status === 'complete' && (
         <div className="complete-grid">
           <MetricBlock label="Health" value={String(activeJob.scan?.health_score ?? 100)} />
-          <MetricBlock label="Saved issues" value={String(activeJob.scan?.findings.length ?? 0)} />
-          <MetricBlock label="Missing checks" value={String(incompleteToolCount(activeJob.scan))} />
+          <MetricBlock label="Raw findings saved" value={String(activeJob.scan?.findings.length ?? 0)} />
+          <MetricBlock label="Setup gaps" value={String(incompleteToolCount(activeJob.scan))} />
           <MetricBlock label="Duration" value={formatDuration(activeJob.scan?.started_at, activeJob.scan?.finished_at)} />
           {activeJob.scan?.scan_id && (
             <a className="report-link wide" href={reportViewUrl(activeJob.scan.scan_id, 'raw')}>Open raw report <ChevronRight size={15} /></a>
@@ -1125,25 +1523,86 @@ function RunCheckSheet({
   );
 }
 
-function OverviewView({summary, target, posture, error, onOpenTab}: {summary: DashboardSummary; target: TargetSelection; posture: {score: number; delta: number; week: {label: string; value: number}[]}; error: string | null; onOpenTab: (tab: TabId) => void}) {
+function OverviewView({
+  summary,
+  globalSummary,
+  target,
+  targetRepos,
+  posture,
+  error,
+  activeJob,
+  allRepoRun,
+  isRunningCheck,
+  runError,
+  onOpenTab,
+  onRunQuick,
+  onRunAll,
+  onChooseChecks,
+  onTargetChange,
+}: {
+  summary: DashboardSummary;
+  globalSummary: DashboardSummary;
+  target: TargetSelection;
+  targetRepos: ProjectRepo[];
+  posture: {score: number; delta: number; week: {label: string; value: number}[]};
+  error: string | null;
+  activeJob: CheckJob | null;
+  allRepoRun: AllRepoRun | null;
+  isRunningCheck: boolean;
+  runError: string | null;
+  onOpenTab: (tab: TabId) => void;
+  onRunQuick: () => void;
+  onRunAll: () => void;
+  onChooseChecks: (profile?: string) => void;
+  onTargetChange: (value: string) => void;
+}) {
+  const scopeLabel = targetLabel(target);
   const cases = activeCaseList(summary);
-  const counts = severityCounts(summary);
+  const rawCounts = severityCounts(summary);
+  const caseCounts = caseSeverityCounts(cases);
+  const rawFindingTotal = activeRawFindingCount(summary) || rawCounts.critical + rawCounts.elevated + rawCounts.warning + rawCounts.low;
+  const loadedFindingRows = totalFindings(summary);
+  const nonLowFindings = rawCounts.critical + rawCounts.elevated + rawCounts.warning;
+  const preCaseRepos = preCaseScanRepos(summary);
+  const preCaseRawTotal = preCaseRawFindingCount(summary);
+  const caseBackedRawTotal = caseBackedRawFindingCount(summary);
+  const openCaseValue = String(cases.length);
+  const rawFindingDetail = preCaseRawTotal
+    ? target.mode === 'repo'
+      ? `${preCaseRawTotal} pre-cases raw findings · rescan to build cases`
+      : `${caseBackedRawTotal} case-backed raw · ${preCaseRawTotal} pre-cases raw need rescan`
+    : rawFindingTotal > loadedFindingRows
+    ? `${rawFindingTotal} raw findings · ${loadedFindingRows} rows loaded`
+    : `${rawFindingTotal || loadedFindingRows} raw findings · ${nonLowFindings} non-low`;
   const honeyCounts = honeyKeyCounts(summary);
-  const scanners = topScannerItems(summary);
-  const catalogCount = toolCatalogItems(summary).length || scanners.length;
+  const scanners = topScannerItems(globalSummary);
+  const catalogCount = toolCatalogItems(globalSummary).length || scanners.length;
   const scannerHealthy = scanners.filter((item) => item.status === 'ran').length;
-  const activities = buildActivity(summary);
+  const activities = buildActivity(summary, target.mode === 'all-repos');
+  const recentActivities = activities.slice(0, 6);
   const lastScan = latestScanTime(summary);
   // summary.repos[].repo is the slugified scan-history key (e.g.
   // ``besk-ftigelse.dk``); ProjectRepo.name is the un-slugified display name
   // (``beskæftigelse.dk``). Match against the slug so per-repo rotation state
   // resolves for repos whose name contains non-ASCII characters.
   const rotationSignal =
-    target.type === 'repo'
+    target.mode === 'repo'
       ? summary.repos.find((entry) => entry.repo === repoKeyFromPath(target.repo.path))?.rotation_state ?? null
       : null;
+  // "View full diagnostic" routes to Verification, which is repo-required.
+  // In All Repos mode with a single underlying repo we auto-select it; with
+  // multiple repos we hide the link so the affordance is never dead.
+  const diagnosticAutoRepoValue: string | null =
+    target.mode === 'all-repos' && targetRepos.length === 1
+      ? `repo:${targetRepos[0].path}`
+      : null;
+  const canOpenDiagnostic = target.mode === 'repo' || diagnosticAutoRepoValue !== null;
   const headline = cases[0]
     ? `${severityLabelForCase(cases[0])}: ${cases[0].title}`
+    : preCaseRepos.length
+      ? target.mode === 'repo'
+        ? 'This older scan needs a fresh run before cases can be grouped.'
+        : `${preCaseRepos.length} older scan${preCaseRepos.length === 1 ? '' : 's'} need a fresh run before cases are complete.`
     : summary.repos.length
       ? 'Quiet overnight. No active cases from the checks that ran.'
       : 'Choose a repo and run a quick safety sweep.';
@@ -1152,72 +1611,356 @@ function OverviewView({summary, target, posture, error, onOpenTab}: {summary: Da
       <section className="hero-digest">
         <div className="dotgrid-light hero-dots" />
         <div className="hero-copy">
-          <Eyebrow onSurface>Today · {new Intl.DateTimeFormat(undefined, {weekday: 'long', month: 'long', day: 'numeric'}).format(new Date())}</Eyebrow>
+          <Eyebrow onSurface>Today · {new Intl.DateTimeFormat(undefined, {weekday: 'long', month: 'long', day: 'numeric'}).format(new Date())} · {scopeLabel}</Eyebrow>
           <h1>{headline}</h1>
           <div className="hero-actions">
-            <Button variant="glassOnGlass" onClick={() => onOpenTab('findings')}>Open digest</Button>
+            <Button variant="glassOnGlass" onClick={() => onOpenTab('findings')}>Open cases</Button>
             <Button variant="glass" icon={<Activity size={15} />} onClick={() => onOpenTab('activity')}>See activity</Button>
           </div>
         </div>
         <div className="hero-metrics">
           <Donut value={posture.score} />
           <div className="posture-big">
-            <Eyebrow onSurface>Posture · 30 d</Eyebrow>
+            <Eyebrow onSurface>Posture · 30 d · {scopeLabel}</Eyebrow>
             <strong>{posture.score.toFixed(1)}</strong><span>/ 10</span>
             <em>{posture.delta >= 0 ? `+${posture.delta.toFixed(1)}` : posture.delta.toFixed(1)} vs previous</em>
           </div>
           <div className="hero-bars">
-            <Eyebrow onSurface>Posture · 7 d</Eyebrow>
+            <Eyebrow onSurface>Posture · 7 d · {scopeLabel}</Eyebrow>
             <BarChart data={posture.week} onSurface />
           </div>
         </div>
       </section>
 
       <section className="kpi-grid">
-        <KpiCard title="Open findings" value={String(totalFindings(summary))} detail={`${counts.critical + counts.elevated + counts.warning} non-low`} icon={<ShieldAlert size={18} />} onClick={() => onOpenTab('findings')} />
-        <KpiCard title="Honey keys armed" value={String(honeyCounts.active)} detail={honeyCounts.triggered ? `${honeyCounts.triggered} tripped` : 'all quiet'} icon={<ShieldCheck size={18} />} onClick={() => onOpenTab('honey-keys')} />
-        <KpiCard title="Tool Catalog" value={`${scannerHealthy} / ${Math.max(scanners.length, 1)}`} detail={`${catalogCount} catalog entries`} icon={<ScanIcon size={18} />} onClick={() => onOpenTab('scanners')} />
+        <KpiCard title="Open cases" value={openCaseValue} detail={`${scopeLabel} · ${rawFindingDetail}`} icon={<ShieldAlert size={18} />} onClick={() => onOpenTab('findings')} />
+        <KpiCard title="Honey keys armed" value={String(honeyCounts.active)} detail={`${scopeLabel} · ${honeyCounts.triggered ? `${honeyCounts.triggered} tripped` : 'all quiet'}`} icon={<ShieldCheck size={18} />} onClick={() => onOpenTab('honey-keys')} />
+        <KpiCard title="Tool Catalog" value={`${scannerHealthy} / ${Math.max(scanners.length, 1)}`} detail={`Across all repos · ${catalogCount} catalog entries`} icon={<ScanIcon size={18} />} onClick={() => onOpenTab('scanners')} />
       </section>
+
+      <ScanControlPanel
+        summary={summary}
+        target={target}
+        targetRepos={targetRepos}
+        activeJob={activeJob}
+        allRepoRun={allRepoRun}
+        isRunningCheck={isRunningCheck}
+        runError={runError}
+        onRunQuick={onRunQuick}
+        onRunAll={onRunAll}
+        onChooseChecks={onChooseChecks}
+        onOpenDiagnostic={canOpenDiagnostic ? () => {
+          if (diagnosticAutoRepoValue) onTargetChange(diagnosticAutoRepoValue);
+          onOpenTab('verification');
+        } : undefined}
+      />
+
+      {!!preCaseRepos.length && <PreCaseScanNote repos={preCaseRepos} rawFindingTotal={preCaseRawTotal} />}
+
+      {target.mode === 'all-repos' && <RepositoryComparisonStrip summary={summary} cases={cases} />}
 
       {error && <Notice tone="warn" icon={<AlertTriangle size={17} />} title="Dashboard data could not refresh" body="Saved data may be older than shown." />}
 
       <section className="split-grid wide-left">
         <PaperCard>
-          <SectionHeader title="Open findings" right={<button onClick={() => onOpenTab('findings')}>All {cases.length} <ChevronRight size={14} /></button>} />
-          <SeverityDistribution counts={counts} />
+          <SectionHeader
+            title="Open cases"
+            right={<div className="section-actions"><ScopePill label={scopeLabel} /><button onClick={() => onOpenTab('findings')}>All {cases.length} <ChevronRight size={14} /></button></div>}
+          />
+          <SeverityDistribution counts={caseCounts} />
           <div className="soft-list">
             {cases.slice(0, 5).map((item, index) => <FindingLine key={item.id} item={item} index={index} onClick={() => onOpenTab('findings')} />)}
             {!cases.length && <EmptyLine title="No active cases" detail={lastScan ? `Latest scan ${formatDate(lastScan)}` : 'No scan has run yet'} />}
           </div>
         </PaperCard>
         <PaperCard>
-          <SectionHeader title="Recent activity" right={<button onClick={() => onOpenTab('activity')}>All <ChevronRight size={14} /></button>} />
-          <ActivityTimelineMini items={activities} />
+          <SectionHeader
+            title="Recent activity"
+            right={<div className="section-actions"><ScopePill label={scopeLabel} /><button onClick={() => onOpenTab('activity')}>All <ChevronRight size={14} /></button></div>}
+          />
+          <ActivityTimelineMini items={recentActivities} />
           <div className="activity-list compact">
-            {activities.slice(0, 6).map((item) => <ActivityRow key={item.id} item={item} />)}
+            {recentActivities.map((item) => <ActivityRow key={item.id} item={item} />)}
             {!activities.length && <EmptyLine title="No activity yet" detail="Run a scan to build the local record." />}
           </div>
         </PaperCard>
       </section>
 
-      {target.type === 'repo' && (
+      {target.mode === 'repo' && (
         <RotationStatusCard repo={target.repo} precomputed={rotationSignal} />
       )}
     </div>
   );
 }
 
-function FindingsView({summary, search, onCaseDecision}: {summary: DashboardSummary; search: string; onCaseDecision: (caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) => Promise<void>}) {
+function ScanControlPanel({
+  summary,
+  target,
+  targetRepos,
+  activeJob,
+  allRepoRun,
+  isRunningCheck,
+  runError,
+  onRunQuick,
+  onRunAll,
+  onChooseChecks,
+  onOpenDiagnostic,
+}: {
+  summary: DashboardSummary;
+  target: TargetSelection;
+  targetRepos: ProjectRepo[];
+  activeJob: CheckJob | null;
+  allRepoRun: AllRepoRun | null;
+  isRunningCheck: boolean;
+  runError: string | null;
+  onRunQuick: () => void;
+  onRunAll: () => void;
+  onChooseChecks: (profile?: string) => void;
+  onOpenDiagnostic?: () => void;
+}) {
+  const scopeLabel = targetLabel(target);
+  const latest = latestRepoScan(summary);
+  const scanners = topScannerItems(summary);
+  const ran = scanners.filter((item) => item.status === 'ran').length;
+  const notRun = scanners.filter((item) => item.status === 'not-run').length;
+  const gaps = setupGapCount(summary);
+  const cases = displayCases(summary).length;
+  const activeRun = target.mode === 'all-repos' ? allRepoRun : null;
+  const runLabel = activeRun?.status === 'running'
+    ? `${auditRunLabel(activeRun.audits)} checks running`
+    : latest
+    ? `${latest.profile || 'Scan'} completed`
+    : 'No saved scan yet';
+  const runDetail = latest
+    ? `${scopeLabel} · ${formatDate(latest.last_scan)} · ${latest.status}`
+    : `${scopeLabel} · run a quick sweep to create the first local record`;
+  const canRunAllRepos = target.mode === 'repo' || targetRepos.length > 0;
+
+  return (
+    <PaperCard className="scan-control-card">
+      <SectionHeader
+        title="Scan control"
+        right={onOpenDiagnostic
+          ? <button className="text-link" type="button" onClick={onOpenDiagnostic}>View full diagnostic <ChevronRight size={14} /></button>
+          : <span className="text-link disabled" title="Available in repo mode">View full diagnostic</span>}
+      />
+      <div className="scan-control-layout">
+        <div className="scan-control-main">
+          <div className="scan-control-headline">
+            <div>
+              <Eyebrow>{target.mode === 'all-repos' ? 'Daily driver · all repos' : 'Daily driver · selected repo'}</Eyebrow>
+              <h2>{runLabel}</h2>
+              <p>{runDetail}</p>
+            </div>
+            <ScopePill label={scopeLabel} />
+          </div>
+          <div className="scan-metric-grid">
+            <ScanMetric label="Health" value={latest ? `${latest.health}/100` : 'None'} detail={latest ? 'latest saved scan' : 'no local record'} />
+            <ScanMetric label="Saved cases" value={String(cases)} detail="grouped user-visible cases" />
+            <ScanMetric label="Setup gaps" value={String(gaps)} detail={`${ran}/${Math.max(scanners.length, 1)} checks ran`} />
+            <ScanMetric label="Duration" value={scanDuration(summary)} detail={latest ? latest.profile || 'scan profile' : 'waiting for first run'} />
+          </div>
+        </div>
+        <div className="scan-control-actions-panel">
+          <Button icon={<Play size={14} />} onClick={onRunQuick} disabled={isRunningCheck || !canRunAllRepos} title={canRunAllRepos ? 'Run the quick safety sweep' : 'Add a repo first'}>Run quick</Button>
+          <Button variant="secondary" icon={<SlidersHorizontal size={14} />} onClick={() => onChooseChecks()} disabled={isRunningCheck || !canRunAllRepos} title={target.mode === 'repo' ? 'Choose checks for this repo' : canRunAllRepos ? `Choose checks across ${targetRepos.length} repo${targetRepos.length === 1 ? '' : 's'}` : 'Add a repo first'}>Choose checks</Button>
+          <Button variant="secondary" icon={<RefreshCw size={14} />} onClick={onRunAll} disabled={isRunningCheck || !canRunAllRepos} title={target.mode === 'all-repos' ? 'Run full checks for every known repo, up to 3 at once' : 'Run full checks for the selected repo'}>{target.mode === 'all-repos' ? 'Run all repos' : 'Run all'}</Button>
+          <p>{target.mode === 'all-repos' ? 'All-repo runs queue with a 3-repo fan-out limit.' : 'Runs stay local and write into the SQLite history store.'}</p>
+        </div>
+      </div>
+
+      <LiveScanProgress activeJob={activeJob} allRepoRun={allRepoRun} target={target} />
+      {runError && <div className="inline-error compact">{runError}</div>}
+
+      <div className="scan-inventory-panel">
+        <div>
+          <Eyebrow>Scanner inventory</Eyebrow>
+          <p>{scannerCoverageSummary(summary)}</p>
+        </div>
+        <div className="scan-inventory-counts">
+          <ScanStatusCount label="Ran" value={ran} tone="good" />
+          <ScanStatusCount label="Setup gaps" value={gaps} tone={gaps ? 'gap' : 'quiet'} />
+          <ScanStatusCount label="Not run" value={notRun} tone="neutral" />
+        </div>
+      </div>
+      <ScannerInventoryMini scanners={scanners} />
+      {target.mode === 'all-repos' && <RepoScanStrip summary={summary} />}
+    </PaperCard>
+  );
+}
+
+function ScanMetric({label, value, detail}: {label: string; value: string; detail: string}) {
+  return (
+    <div className="scan-metric">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <em>{detail}</em>
+    </div>
+  );
+}
+
+function ScanStatusCount({label, value, tone}: {label: string; value: number; tone: 'good' | 'gap' | 'quiet' | 'neutral'}) {
+  return (
+    <span className={`scan-status-count ${tone}`}>
+      <strong>{value}</strong>
+      <em>{label}</em>
+    </span>
+  );
+}
+
+function LiveScanProgress({activeJob, allRepoRun, target}: {activeJob: CheckJob | null; allRepoRun: AllRepoRun | null; target: TargetSelection}) {
+  if (target.mode === 'all-repos' && allRepoRun) {
+    const complete = allRepoRun.items.filter((item) => item.status === 'complete').length;
+    const failed = allRepoRun.items.filter((item) => item.status === 'failed').length;
+    return (
+      <div className="scan-progress-card">
+        <div className="scan-progress-head">
+          <strong>{auditRunLabel(allRepoRun.audits)} all-repo run</strong>
+          <span>{complete}/{allRepoRun.items.length} complete{failed ? ` · ${failed} failed` : ''}</span>
+        </div>
+        <div className="scan-run-list">
+          {allRepoRun.items.map((item) => (
+            <div key={item.repoPath} className={`scan-run-row ${item.status}`}>
+              <div>
+                <strong>{item.repoName}</strong>
+                <span>{item.message}</span>
+              </div>
+              <em>{item.status}</em>
+              <i><b style={{width: `${item.progress}%`}} /></i>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (!activeJob || activeJob.status === 'complete') return null;
+  return (
+    <div className="scan-progress-card">
+      <div className="scan-progress-head">
+        <strong>{activeJob.repoName}</strong>
+        <span>{Math.round(activeJob.progress)}%</span>
+      </div>
+      <div className="progress-track"><span style={{width: `${activeJob.progress}%`}} /></div>
+      <p>{activeJob.currentStep ?? activeJob.message}</p>
+    </div>
+  );
+}
+
+function ScannerInventoryMini({scanners}: {scanners: ScannerDoctorItem[]}) {
+  const visible = scanners.slice(0, 8);
+  return (
+    <div className="scanner-inventory-mini">
+      {visible.map((item) => (
+        <div key={item.scanner} className={`scanner-inventory-row ${item.status}`}>
+          <div>
+            <strong>{item.label}</strong>
+            <span>{item.area} · {item.findings} raw signals</span>
+          </div>
+          <em>{scannerStatusLabel(item.status)}</em>
+        </div>
+      ))}
+      {!visible.length && <EmptyLine title="No scanner inventory yet" detail="Run doctor or a scan to populate local scanner coverage." />}
+    </div>
+  );
+}
+
+function RepoScanStrip({summary}: {summary: DashboardSummary}) {
+  const repos = [...summary.repos].sort((a, b) => new Date(b.last_scan ?? 0).getTime() - new Date(a.last_scan ?? 0).getTime()).slice(0, 6);
+  return (
+    <div className="repo-scan-strip">
+      <div className="repo-scan-strip-head">
+        <Eyebrow>Latest scan by repo</Eyebrow>
+        <span>{repos.length} repo{repos.length === 1 ? '' : 's'}</span>
+      </div>
+      <div className="repo-scan-grid">
+        {repos.map((repo) => {
+          const gaps = repo.scanners.filter((scanner) => !scanner.available || scanner.error).length;
+          return (
+            <div key={`${repo.repo}-${repo.scan_id ?? repo.path}`} className="repo-scan-tile">
+              <strong>{repo.repo}</strong>
+              <span>{repo.last_scan ? formatDate(repo.last_scan) : 'No scan'} · {repo.profile || 'profile'}</span>
+              <div>
+                <em>{repo.health}/100 health</em>
+                <em>{gaps ? `${gaps} setup gaps` : 'checks accounted for'}</em>
+              </div>
+            </div>
+          );
+        })}
+        {!repos.length && <EmptyLine title="No repository scans" detail="Run checks on a repo to build the all-repos strip." />}
+      </div>
+    </div>
+  );
+}
+
+function PreCaseScanNote({repos, rawFindingTotal}: {repos: RepositorySummary[]; rawFindingTotal: number}) {
+  const names = repos.map((repo) => repo.repo).join(', ');
+  const repoLabel = repos.length === 1 ? names : `${repos.length} repos`;
+  return (
+    <PaperCard className="precase-note">
+      <div>
+        <Clock3 size={18} />
+        <strong>Older scans need cases</strong>
+      </div>
+      <p>
+        {repoLabel} saved {rawFindingTotal} raw finding{rawFindingTotal === 1 ? '' : 's'} before case-building was added. Raw evidence stays visible, but case KPIs wait for a fresh scan.
+      </p>
+      {repos.length > 1 && <span>{names}</span>}
+    </PaperCard>
+  );
+}
+
+function RepositoryComparisonStrip({summary, cases}: {summary: DashboardSummary; cases: DisplayCase[]}) {
+  const repos = [...summary.repos].sort((a, b) => a.health - b.health).slice(0, 4);
+  return (
+    <PaperCard className="repo-comparison-card">
+      <SectionHeader title="Repo comparison" right={<ScopePill label="All repos" />} />
+      {repos.length ? (
+        <div className="repo-comparison-grid">
+          {repos.map((repo, index) => {
+            const openCases = cases.filter((item) => item.repoName === repo.repo || repoKeyFromPath(item.repoName) === repo.repo).length;
+            const trend = typeof repo.health_delta === 'number' ? `${repo.health_delta >= 0 ? '+' : ''}${repo.health_delta}` : 'flat';
+            const preCase = repoHasPreCaseScan(repo);
+            return (
+              <div key={`${repo.repo}-${repo.scan_id ?? repo.path}`} className={`repo-comparison-tile ${index === 0 ? 'lowest' : ''}`}>
+                <div>
+                  <strong>{repo.repo}</strong>
+                  <span>{preCase ? 'Needs rescan' : index === 0 ? 'Lowest posture' : 'Repository posture'}</span>
+                </div>
+                <div className="repo-comparison-metrics">
+                  <span><b>{repo.health}</b><em>health</em></span>
+                  <span><b>{openCases}</b><em>open cases</em></span>
+                  <span><b>{trend}</b><em>trend</em></span>
+                </div>
+                <p>{formatDate(repo.last_scan)} · {preCase ? 'pre-cases scan, rescan for cases' : repo.profile || 'scan'}</p>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyLine title="No repository snapshots" detail="Run a scan to build the all-repos comparison." />
+      )}
+    </PaperCard>
+  );
+}
+
+function FindingsView({summary, search, target, onCaseDecision}: {summary: DashboardSummary; search: string; target: TargetSelection; onCaseDecision: (caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) => Promise<void>}) {
   const [severityFilter, setSeverityFilter] = useState<Tone | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [repoFilter, setRepoFilter] = useState<string>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [rotateTarget, setRotateTarget] = useState<{repo: ProjectRepo; secret: RotationSecretRow} | null>(null);
   const [rotateError, setRotateError] = useState<string | null>(null);
+  const scopeLabel = targetLabel(target);
+  const showRepoColumn = target.mode === 'all-repos';
   const cases = displayCases(summary);
   const suppressed = suppressedDisplayCases(summary);
   const reasons = suppressionReasons(summary);
-  const counts = severityCounts(summary);
+  const counts = caseSeverityCounts(cases);
   const categories = [...new Set(cases.map((item) => item.category).filter(Boolean) as string[])];
+  const repoNames = [...new Set(cases.map((item) => item.repoName))].sort((a, b) => a.localeCompare(b, undefined, {sensitivity: 'base'}));
+  useEffect(() => {
+    if (target.mode === 'repo') setRepoFilter('all');
+  }, [target.mode]);
   // Map case.repoName → rotation context. The "Rotate this" affordance only
   // appears when the case's repo has rotation scaffolded; the path comes
   // straight from the summary so we can construct the ProjectRepo the
@@ -1236,14 +1979,16 @@ function FindingsView({summary, search, onCaseDecision}: {summary: DashboardSumm
   const filtered = cases.filter((item) => {
     if (severityFilter !== 'all' && toneForCase(item) !== severityFilter) return false;
     if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
+    if (showRepoColumn && repoFilter !== 'all' && item.repoName !== repoFilter) return false;
     if (search.trim()) {
-      const haystack = `${item.title} ${item.why} ${item.location} ${item.nextStep} ${item.category ?? ''}`.toLowerCase();
+      const haystack = `${item.title} ${item.why} ${item.location} ${item.nextStep} ${item.repoName} ${item.category ?? ''}`.toLowerCase();
       if (!haystack.includes(search.toLowerCase())) return false;
     }
     return true;
   });
   const shown = filtered.slice(0, 32);
   const selected = cases.find((item) => item.id === selectedId) ?? filtered[0] ?? null;
+  const latest = latestRepoScan(summary);
 
   async function openRotation(item: DisplayCase) {
     setRotateError(null);
@@ -1276,14 +2021,20 @@ function FindingsView({summary, search, onCaseDecision}: {summary: DashboardSumm
   return (
     <div className="view-stack">
       <section className="summary-strip">
-        <MetricBlock label="Findings" value={String(cases.length)} detail="open · all sources" />
-        <MetricBlock label="Critical" value={String(counts.critical)} tone="crit" />
-        <MetricBlock label="Elevated" value={String(counts.elevated)} tone="high" />
-        <MetricBlock label="Warning" value={String(counts.warning)} tone="warn" />
-        <MetricBlock label="Low / info" value={String(counts.low)} tone="low" />
+        <MetricBlock label="Cases" value={String(cases.length)} detail={`${scopeLabel} · open grouped cases`} />
+        <MetricBlock label="Critical" value={String(counts.critical)} detail={scopeLabel} tone="crit" />
+        <MetricBlock label="Elevated" value={String(counts.elevated)} detail={scopeLabel} tone="high" />
+        <MetricBlock label="Warning" value={String(counts.warning)} detail={scopeLabel} tone="warn" />
+        <MetricBlock label="Low / info" value={String(counts.low)} detail={scopeLabel} tone="low" />
       </section>
+      {latest?.scan_id && (
+        <div className="findings-actions">
+          <ScopePill label={scopeLabel} />
+          <a className="button secondary sm" href={reportViewUrl(latest.scan_id, 'prompt')}><Sparkles size={14} /> Whole-repo prompt</a>
+        </div>
+      )}
       <PaperCard className="landscape-card">
-        <SectionHeader title="Risk landscape · severity × age" right={<span>{cases.filter((item) => toneForCase(item) !== 'low' && relativeAge(item.createdAt).includes('d')).length} non-low findings aged past 24 h</span>} />
+        <SectionHeader title="Risk landscape · severity × age" right={<span>{scopeLabel} · {cases.filter((item) => toneForCase(item) !== 'low' && relativeAge(item.createdAt).includes('d')).length} non-low cases aged past 24 h</span>} />
         <RiskLandscape items={cases} onPick={setSelectedId} />
       </PaperCard>
       <div className="chip-row">
@@ -1293,28 +2044,52 @@ function FindingsView({summary, search, onCaseDecision}: {summary: DashboardSumm
         ))}
         {categories.map((category) => <Chip key={category} active={categoryFilter === category} onClick={() => setCategoryFilter(categoryFilter === category ? 'all' : category)}>{categoryLabel(category)}</Chip>)}
       </div>
-      <section className="view-stack tight">
-        <PaperCard padded={false}>
-          <FindingsTable items={shown} onPick={setSelectedId} />
+      {showRepoColumn && repoNames.length > 1 && (
+        <div className="chip-row">
+          <Chip active={repoFilter === 'all'} onClick={() => setRepoFilter('all')}>All repos</Chip>
+          {repoNames.map((repoName) => (
+            <Chip key={repoName} active={repoFilter === repoName} onClick={() => setRepoFilter(repoFilter === repoName ? 'all' : repoName)}>{repoName}</Chip>
+          ))}
+        </div>
+      )}
+      <section className="findings-master-detail">
+        <div className="findings-master">
+          <FindingsTable
+            items={shown}
+            selectedId={selected?.id ?? null}
+            showRepoColumn={showRepoColumn}
+            onPick={setSelectedId}
+            selectedDetail={selected ? (
+              <CaseDetailCard
+                item={selected}
+                onDecision={onCaseDecision}
+                rotationScaffolded={rotationByRepo.get(selected.repoName)?.scaffolded ?? false}
+                onRotate={openRotation}
+                rotateError={rotateError}
+              />
+            ) : null}
+          />
           {filtered.length > shown.length && (
             <div className="table-note">
               Showing {shown.length} of {filtered.length}. Search or filter to narrow the full local result set.
             </div>
           )}
-        </PaperCard>
-        {selected ? (
-          <CaseDetailCard
-            item={selected}
-            onDecision={onCaseDecision}
-            rotationScaffolded={rotationByRepo.get(selected.repoName)?.scaffolded ?? false}
-            onRotate={openRotation}
-            rotateError={rotateError}
-          />
-        ) : <PaperCard><EmptyLine title="No active cases" detail="This target has no case matching the current filters." /></PaperCard>}
+        </div>
+        <aside className="findings-detail-pane" aria-label="Selected case details">
+          {selected ? (
+            <CaseDetailCard
+              item={selected}
+              onDecision={onCaseDecision}
+              rotationScaffolded={rotationByRepo.get(selected.repoName)?.scaffolded ?? false}
+              onRotate={openRotation}
+              rotateError={rotateError}
+            />
+          ) : <PaperCard><EmptyLine title="No active cases" detail="This scope has no case matching the current filters." /></PaperCard>}
+        </aside>
       </section>
       {!!suppressed.length && (
         <PaperCard>
-          <SectionHeader title="Suppressed findings" right={<span>{suppressed.length} cases</span>} />
+          <SectionHeader title="Suppressed cases" right={<span>{scopeLabel} · {suppressed.length} cases</span>} />
           <div className="soft-list">
             {suppressed.slice(0, 5).map((item, index) => <FindingLine key={item.id} item={item} index={index} muted />)}
           </div>
@@ -1356,7 +2131,7 @@ function HoneyKeysView({summary, target, onRefresh}: {summary: DashboardSummary;
   const selectedEvents = selected ? (summary.honey_key_events ?? []).filter((event) => event.honey_key_id === selected.id) : [];
 
   async function createHoneyKey() {
-    if (target.type !== 'repo') return;
+    if (target.mode !== 'repo') return;
     setIsCreating(true);
     setError(null);
     setCreated(null);
@@ -1444,7 +2219,7 @@ function HoneyKeysView({summary, target, onRefresh}: {summary: DashboardSummary;
   }
 
   async function insertDecoyFile() {
-    if (target.type !== 'repo' || !created) return;
+    if (target.mode !== 'repo' || !created) return;
     const snippet = created.snippets[placementPath] ?? created.snippets[Object.keys(created.snippets)[0]];
     if (!snippet) return;
     const safePlacementPath = `.devsec/honeykeys/${created.key.id}-${placementPath.replace(/[^A-Za-z0-9_.-]+/g, '-')}`;
@@ -1532,7 +2307,7 @@ function HoneyKeysView({summary, target, onRefresh}: {summary: DashboardSummary;
               </div>
             ))}
           </div>
-          {target.type === 'repo' && (
+          {target.mode === 'repo' && (
             <div className="safe-insert">
               <strong>Safe file insert</strong>
               <p>DëvSec can create an inert decoy file under <code>.devsec/honeykeys/</code>. It will not overwrite existing files or write outside the repo.</p>
@@ -1553,8 +2328,8 @@ function PlaybooksView({summary, target, targetRepos, onChooseChecks, onTargetCh
   const playbooks = recoveryPlaybooksFor(summary);
   const [activeId, setActiveId] = useState(playbooks[0]?.id ?? '');
   const active = playbooks.find((item) => item.id === activeId) ?? playbooks[0];
-  const needsRepo = target.type !== 'repo';
-  const rerunHint = needsRepo ? 'Switch to the repo where the finding lives to rerun its check' : undefined;
+  const needsRepo = target.mode !== 'repo';
+  const rerunHint = needsRepo ? 'Switch to the repo where the case lives to rerun its check' : undefined;
 
   if (!playbooks.length || !active) {
     return (
@@ -1578,7 +2353,7 @@ function PlaybooksView({summary, target, targetRepos, onChooseChecks, onTargetCh
         <NeedsRepoTarget
           targetRepos={targetRepos}
           onTargetChange={onTargetChange}
-          message="Switch to the repo where the finding lives to rerun its check."
+          message="Switch to the repo where the case lives to rerun its check."
         />
       )}
       <div className="playbook-grid">
@@ -1642,7 +2417,7 @@ function VerificationView({summary, target, targetRepos, onChooseChecks, onTarge
   const scanners = topScannerItems(summary);
   const coverage = scannerCoverageSummary(summary);
   const failed = scanners.filter((item) => item.status === 'missing' || item.status === 'error');
-  const needsRepo = target.type !== 'repo';
+  const needsRepo = target.mode !== 'repo';
   return (
     <div className="view-stack">
       {needsRepo && (
@@ -1654,19 +2429,19 @@ function VerificationView({summary, target, targetRepos, onChooseChecks, onTarge
       )}
       <section className={`verification-hero ${failed.length ? 'attention' : ''}`}>
         <div>
-          <Eyebrow onSurface>Verification</Eyebrow>
-          <h1>{failed.length ? `${failed.length} checks need attention.` : 'All available checks are accounted for.'}</h1>
-          <p>{coverage}</p>
+          <Eyebrow onSurface>Diagnostic verification</Eyebrow>
+          <h1>{failed.length ? `${failed.length} scanner diagnostics need setup.` : 'Scanner diagnostics are ready when you need depth.'}</h1>
+          <p>{coverage} Daily scan controls now live on Overview; this page keeps the evidence and limits.</p>
         </div>
-        <Button variant="glassOnGlass" onClick={onChooseChecks}>Run checks</Button>
+        <Button variant="glassOnGlass" onClick={onChooseChecks}>Choose checks</Button>
       </section>
       <section className="triple-grid">
         <CoverageCard title="Checks that ran" icon={<CheckCircle2 size={18} />} items={completeness.checksRan} empty="No completed checks reported." />
-        <CoverageCard title="Skipped or missing" icon={<CircleSlash size={18} />} items={completeness.checksMissing} empty="No skipped checks reported." />
+        <CoverageCard title="Setup gaps" icon={<CircleSlash size={18} />} items={completeness.checksMissing} empty="No setup gaps reported." />
         <CoverageCard title="Cannot prove" icon={<Stethoscope size={18} />} items={completeness.cannotProve} empty="No limits reported." />
       </section>
       <PaperCard>
-        <SectionHeader title="Scanner doctor" right={<span>{scanners.length} checks</span>} />
+        <SectionHeader title="Detailed scanner inventory" right={<span>{scanners.length} checks · {failed.length} setup gaps</span>} />
         <div className="doctor-grid">
           {scanners.map((item) => <DoctorRow key={item.scanner} item={item} />)}
         </div>
@@ -1675,33 +2450,39 @@ function VerificationView({summary, target, targetRepos, onChooseChecks, onTarge
   );
 }
 
-function ActivityView({summary, search}: {summary: DashboardSummary; search: string}) {
-  const activities = buildActivity(summary).filter((item) => {
+function ActivityView({summary, search, target}: {summary: DashboardSummary; search: string; target: TargetSelection}) {
+  const scopeLabel = targetLabel(target);
+  const activities = buildActivity(summary, target.mode === 'all-repos').filter((item) => {
     if (!search.trim()) return true;
     return `${item.label} ${item.sub}`.toLowerCase().includes(search.toLowerCase());
   });
   const honeyHits = (summary.honey_key_events ?? []).length;
+  const rawFindings = activeRawFindingCount(summary);
+  const preCaseRawTotal = preCaseRawFindingCount(summary);
+  const rawFindingDetail = preCaseRawTotal
+    ? `${scopeLabel} · ${preCaseRawTotal} pre-cases raw need rescan`
+    : `${scopeLabel} · ${suppressedDisplayCases(summary).length} suppressed cases`;
   return (
     <div className="view-stack">
       <section className="summary-strip">
-        <MetricBlock label="Audit history" value={String(summary.history.length)} detail="runs saved locally" />
-        <MetricBlock label="Storage" value={`${Math.max(0.1, summary.history.length * 0.04).toFixed(1)} MB`} detail="local · sqlite" />
-        <MetricBlock label="Findings · 7 d" value={String(totalFindings(summary))} detail={`${suppressedDisplayCases(summary).length} suppressed`} />
-        <MetricBlock label="Honey hits" value={String(honeyHits)} tone={honeyHits ? 'warn' : 'low'} />
+        <MetricBlock label="Audit history" value={String(summary.history.length)} detail={`${scopeLabel} · runs saved locally`} />
+        <MetricBlock label="Storage" value={`${Math.max(0.1, summary.history.length * 0.04).toFixed(1)} MB`} detail={`${scopeLabel} · local sqlite`} />
+        <MetricBlock label="Raw findings · 7 d" value={String(rawFindings)} detail={rawFindingDetail} />
+        <MetricBlock label="Honey hits" value={String(honeyHits)} detail={scopeLabel} tone={honeyHits ? 'crit' : 'neutral'} />
       </section>
       <section className="split-grid align-start">
         <PaperCard>
-          <AuditsPerDay history={summary.history} />
+          <AuditsPerDay history={summary.history} scopeLabel={scopeLabel} />
         </PaperCard>
         <PaperCard>
-          <SectionHeader title="Event mix · 7 d" />
+          <SectionHeader title="Event mix · 7 d" right={<ScopePill label={scopeLabel} />} />
           <EventMix summary={summary} />
         </PaperCard>
       </section>
       <PaperCard padded={false}>
         <div className="event-feed-head">
-          <Eyebrow>Event feed · Today</Eyebrow>
-          <div className="chip-row compact"><Chip active>All</Chip><Chip>Scanner runs</Chip><Chip>Findings</Chip><Chip>Honey keys</Chip></div>
+          <Eyebrow>Event feed · Today · {scopeLabel}</Eyebrow>
+          <div className="chip-row compact"><Chip active>All</Chip><Chip>Scanner runs</Chip><Chip>Cases</Chip><Chip>Honey keys</Chip></div>
         </div>
         <div className="activity-list feed">
           {activities.map((item) => <ActivityRow key={item.id} item={item} showTone />)}
@@ -1712,7 +2493,9 @@ function ActivityView({summary, search}: {summary: DashboardSummary; search: str
   );
 }
 
-function ReportsView({summary}: {summary: DashboardSummary}) {
+function ReportsView({summary, target}: {summary: DashboardSummary; target: TargetSelection}) {
+  const scopeLabel = targetLabel(target);
+  const allReposMode = target.mode === 'all-repos';
   const latest = latestRepoScan(summary);
   const deps = dependencyDeltas(summary);
   const depChanges = dependencyChanges(summary);
@@ -1725,9 +2508,9 @@ function ReportsView({summary}: {summary: DashboardSummary}) {
     <div className="view-stack">
       <section className="report-hero">
         <div>
-          <Eyebrow onSurface>Current report</Eyebrow>
-          <h1>{latest ? `${latest.repo} · ${latest.profile}` : 'No scan reports yet'}</h1>
-          <p>{latest ? `Finished ${formatDate(latest.last_scan)} · ${latest.health}/100 health` : 'Run a repo check to create the first local report.'}</p>
+          <Eyebrow onSurface>{allReposMode ? 'Latest report across all repos' : 'Current repo report'} · {scopeLabel}</Eyebrow>
+          <h1>{latest ? `${allReposMode ? latest.repo : scopeLabel} · ${latest.profile}` : 'No scan reports yet'}</h1>
+          <p>{latest ? `Finished ${formatDate(latest.last_scan)} · ${allReposMode ? `${latest.repo} · ` : ''}${latest.health}/100 health` : 'Run a repo check to create the first local report.'}</p>
         </div>
         {latest?.scan_id && (
           <div className="hero-actions">
@@ -1737,14 +2520,14 @@ function ReportsView({summary}: {summary: DashboardSummary}) {
         )}
       </section>
       <section className="triple-grid">
-        <MetricCard title="Dependency deltas" value={String(depChanges.length)} detail={`${deps.length} repo comparisons`} />
-        <MetricCard title="Known CVE state" value={String(cveCounts['has-cve'])} detail={`${cveCounts['not-checked']} not checked`} />
-        <MetricCard title="Named-campaign matches" value={String(iocMatches.length)} detail={`${iocMatches.filter((finding) => finding.ioc_match_type === 'exact match').length} exact`} />
-        <MetricCard title="Trust records" value={String(trust.length)} detail="dependency enrichment" />
+        <MetricCard title="Dependency deltas" value={String(depChanges.length)} detail={`${scopeLabel} · ${deps.length} repo comparisons`} />
+        <MetricCard title="Known CVE state" value={String(cveCounts['has-cve'])} detail={`${scopeLabel} · ${cveCounts['not-checked']} not checked`} />
+        <MetricCard title="Named-campaign matches" value={String(iocMatches.length)} detail={`${scopeLabel} · ${iocMatches.filter((finding) => finding.ioc_match_type === 'exact match').length} exact`} />
+        <MetricCard title="Trust records" value={String(trust.length)} detail={`${scopeLabel} · dependency enrichment`} />
       </section>
-      <RepositorySnapshotCard summary={summary} />
+      <RepositorySnapshotCard summary={summary} target={target} />
       <PaperCard>
-        <SectionHeader title="Saved scan reports" right={<span>{summary.history.length} total</span>} />
+        <SectionHeader title={allReposMode ? 'Saved scan reports' : 'Report history'} right={<span>{scopeLabel} · {summary.history.length} total</span>} />
         <div className="report-table">
           {summary.history.slice().reverse().slice(0, 12).map((scan) => (
             <div key={scan.id} className="report-row">
@@ -1756,12 +2539,12 @@ function ReportsView({summary}: {summary: DashboardSummary}) {
               </div>
             </div>
           ))}
-          {!summary.history.length && <EmptyLine title="No reports saved" detail="Completed checks will appear here." />}
+          {!summary.history.length && <EmptyLine title="No reports saved" detail={`Completed checks for ${scopeLabel} will appear here.`} />}
         </div>
       </PaperCard>
       <section className="split-grid align-start">
         <PaperCard>
-          <SectionHeader title="Supply chain changes" right={<span>{depChanges.length} records</span>} />
+          <SectionHeader title="Supply chain changes" right={<span>{scopeLabel} · {depChanges.length} records</span>} />
           <div className="data-table dependency-table">
             <div className="data-head"><span>Package</span><span>Change</span><span>Version</span><span>CVE</span></div>
             {depChanges.slice(0, 10).map((change) => (
@@ -1776,7 +2559,7 @@ function ReportsView({summary}: {summary: DashboardSummary}) {
           </div>
         </PaperCard>
         <PaperCard>
-          <SectionHeader title="Trust records" right={<span>{trust.length} packages</span>} />
+          <SectionHeader title="Trust records" right={<span>{scopeLabel} · {trust.length} packages</span>} />
           <div className="data-table trust-table">
             <div className="data-head"><span>Package</span><span>Scorecard</span><span>Criticality</span><span>Freshness</span></div>
             {trust.slice(0, 10).map((record) => (
@@ -1792,7 +2575,7 @@ function ReportsView({summary}: {summary: DashboardSummary}) {
         </PaperCard>
       </section>
       <PaperCard>
-        <SectionHeader title="Named-campaign matches" right={<span>{iocMatches.length} IOC signals</span>} />
+        <SectionHeader title="Named-campaign matches" right={<span>{scopeLabel} · {iocMatches.length} IOC signals</span>} />
         <div className="data-table dependency-table">
           <div className="data-head"><span>Indicator</span><span>Match</span><span>Pack</span><span>Evidence</span></div>
           {iocMatches.slice(0, 10).map((finding) => (
@@ -1806,26 +2589,31 @@ function ReportsView({summary}: {summary: DashboardSummary}) {
           {!iocMatches.length && <EmptyLine title="No named-campaign matches" detail="IOC Watch found no exact, namespace, or domain matches in the latest evidence." />}
         </div>
       </PaperCard>
-      <PlatformPostureCard snapshots={platformSnapshots} findings={platform} />
+      <PlatformPostureCard snapshots={platformSnapshots} findings={platform} scopeLabel={scopeLabel} />
     </div>
   );
 }
 
-function RepositorySnapshotCard({summary}: {summary: DashboardSummary}) {
+function RepositorySnapshotCard({summary, target}: {summary: DashboardSummary; target: TargetSelection}) {
+  const scopeLabel = targetLabel(target);
+  const allReposMode = target.mode === 'all-repos';
   return (
     <PaperCard>
-      <SectionHeader title="Repository snapshots" right={<span>{summary.repos.length} current targets</span>} />
+      <SectionHeader
+        title={allReposMode ? 'Latest reports by repo' : 'Latest report'}
+        right={<span>{scopeLabel} · {summary.repos.length} current {summary.repos.length === 1 ? 'target' : 'targets'}</span>}
+      />
       <div className="data-table repo-table">
         <div className="data-head">
-          <span>Repo</span><span>Health</span><span>Previous</span><span>Active</span><span>Raw</span><span>Suppressed</span><span>Reports</span>
+          <span>Repo</span><span>Health</span><span>Previous</span><span>Active raw</span><span>Total raw</span><span>Suppressed</span><span>Reports</span>
         </div>
         {summary.repos.map((repo) => (
           <div key={`${repo.repo}-${repo.scan_id ?? repo.path}`} className="data-row">
             <strong>{repo.repo}<em>{repo.path}</em></strong>
             <span>{repo.health}/100</span>
             <span>{repo.previous_health ?? 'none'}{typeof repo.health_delta === 'number' ? ` (${repo.health_delta >= 0 ? '+' : ''}${repo.health_delta})` : ''}</span>
-            <span>{countRecord(repo.counts)} findings</span>
-            <span>{countRecord(repo.raw_counts)} raw</span>
+            <span>{countRecord(repo.counts)} {repoHasPreCaseScan(repo) ? 'pre-cases raw' : 'active raw'}</span>
+            <span>{countRecord(repo.raw_counts)} raw total</span>
             <span>{repo.suppressed_counts?.findings ?? 0} hidden</span>
             <span>{repo.scan_id ? <a href={reportViewUrl(repo.scan_id, 'raw')}>Raw</a> : 'No report'}</span>
           </div>
@@ -1839,13 +2627,15 @@ function RepositorySnapshotCard({summary}: {summary: DashboardSummary}) {
 function PlatformPostureCard({
   snapshots,
   findings,
+  scopeLabel,
 }: {
   snapshots: ReturnType<typeof platformPostureSnapshots>;
   findings: ReturnType<typeof platformPostureFindings>;
+  scopeLabel: string;
 }) {
   return (
     <PaperCard>
-      <SectionHeader title="Platform posture" right={<span>{snapshots.length} snapshots · {findings.length} findings</span>} />
+        <SectionHeader title="Platform posture" right={<span>{scopeLabel} · {snapshots.length} snapshots · {findings.length} raw findings</span>} />
       <div className="data-table platform-table">
         <div className="data-head">
           <span>Target</span><span>Status</span><span>Records</span><span>Failed</span><span>Source</span>
@@ -1887,7 +2677,7 @@ function SettingsView({summary, target, targetRepos, updatedAt, onTargetChange}:
               value={targetValue(target)}
               onChange={(event) => onTargetChange(event.target.value)}
             >
-              <option value="dashboard">Dashboard</option>
+              <option value="all-repos">All repos</option>
               {targetRepos.map((repo) => <option key={repo.path} value={`repo:${repo.path}`}>{repo.name}</option>)}
               <option value="add-repo">+ Add repo...</option>
             </select>
@@ -1919,8 +2709,8 @@ function DataCoverageCard({summary}: {summary: DashboardSummary}) {
   const rows = [
     ['Repository snapshots', summary.repos.length, 'current scan state'],
     ['History records', summary.history.length, 'saved scans'],
-    ['Active findings', activeFindingCount(summary), 'shown in Findings'],
-    ['Suppressed findings', suppressedFindingCount(summary), 'shown with reasons'],
+    ['Active raw findings', activeFindingCount(summary), 'scanner evidence behind cases'],
+    ['Suppressed raw findings', suppressedFindingCount(summary), 'shown with reasons'],
     ['Cases', (summary.cases ?? []).length || (summary.active_cases ?? []).length + (summary.suppressed_cases ?? []).length, 'decision workflow'],
     ['Case decisions', (summary.case_decisions ?? []).length, 'stored review state'],
     ['Honey Keys', (summary.honey_keys ?? []).length, 'create, insert, archive'],
@@ -1973,7 +2763,7 @@ function EmptyRepoView({repoName, onRunQuick, onChooseChecks}: {repoName: string
       <div className="workspace-mark large"><FolderGit2 size={34} /></div>
       <Eyebrow>No saved scan</Eyebrow>
       <h1>No scan yet for {repoName}</h1>
-      <p>Run a quick safety sweep first. DëvSec will turn scanner output into local findings, reports, and next actions.</p>
+      <p>Run a quick safety sweep first. DëvSec will turn scanner output into cases, reports, and next actions.</p>
       <div className="button-row">
         <Button icon={<Play size={15} />} onClick={onRunQuick}>Run quick sweep</Button>
         <Button variant="secondary" icon={<SlidersHorizontal size={15} />} onClick={onChooseChecks}>Choose checks</Button>
@@ -1995,6 +2785,9 @@ function CaseDetailCard({
   onRotate?: (item: DisplayCase) => void;
   rotateError?: string | null;
 }) {
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  useEffect(() => setCopyState('idle'), [item.id]);
+
   async function save(status: CaseDecisionStatus | 'open') {
     const note = status === 'open' ? '' : window.prompt('Optional note for this decision', item.decision?.note ?? '');
     if (note === null) return;
@@ -2010,6 +2803,18 @@ function CaseDetailCard({
     item.inferredSecretName &&
     onRotate,
   );
+
+  async function copyCasePrompt() {
+    try {
+      await navigator.clipboard.writeText(casePromptMarkdown(item));
+      setCopyState('copied');
+      window.setTimeout(() => setCopyState('idle'), 1800);
+    } catch {
+      setCopyState('failed');
+      window.setTimeout(() => setCopyState('idle'), 2200);
+    }
+  }
+
   return (
     <PaperCard className="detail-card">
       <div className="detail-head">
@@ -2018,7 +2823,7 @@ function CaseDetailCard({
       </div>
       <h2>{item.title}</h2>
       <p>{item.why}</p>
-      <KV label="Case" value={item.id} />
+      <KV label="Case" value={caseDisplayId(item)} />
       <KV label="Repository" value={item.repoName} />
       <KV label="Location" value={item.location} />
       <KV label="Category" value={item.category ? categoryLabel(item.category) : 'Uncategorized'} />
@@ -2052,7 +2857,9 @@ function CaseDetailCard({
         <p>{item.nextStep}</p>
       </div>
       <div className="button-row wrap">
-        {item.scanId && <a className="button primary" href={reportViewUrl(item.scanId, 'prompt')}><Sparkles size={14} /> AI prompt</a>}
+        <button type="button" className="button primary" onClick={() => void copyCasePrompt()}>
+          <Sparkles size={14} /> {copyState === 'copied' ? 'Copied case prompt' : copyState === 'failed' ? 'Copy failed' : 'Copy case prompt'}
+        </button>
         {item.scanId && <a className="button secondary" href={reportViewUrl(item.scanId, 'raw')}><FileText size={14} /> Raw report</a>}
         {canRotate && (
           <button
@@ -2087,24 +2894,45 @@ function CaseDetailCard({
   );
 }
 
-function FindingsTable({items, onPick}: {items: DisplayCase[]; onPick: (id: string) => void}) {
+function FindingsTable({
+  items,
+  selectedId,
+  showRepoColumn,
+  onPick,
+  selectedDetail,
+}: {
+  items: DisplayCase[];
+  selectedId: string | null;
+  showRepoColumn: boolean;
+  onPick: (id: string) => void;
+  selectedDetail?: ReactNode;
+}) {
+  const modeClass = showRepoColumn ? 'with-repo' : '';
   return (
     <div className="findings-table">
-      <div className="findings-head">
-        <span>ID</span><span>Finding</span><span>Category</span><span>Scanner</span><span>Severity</span><span>Age</span><span />
+      <div className={`findings-head ${modeClass}`}>
+        <span>ID</span>{showRepoColumn && <span>Repo</span>}<span>Case</span><span>Category</span><span>Scanner</span><span>Severity</span><span>Age</span><span />
       </div>
       {items.map((item, index) => (
-        <button key={item.id} type="button" className="finding-row" onClick={() => onPick(item.id)}>
-          <span>{displayId(item, index)}</span>
-          <span><strong>{item.title}</strong><em>{item.location}</em></span>
-          <span>{item.category ? categoryLabel(item.category) : 'Security'}</span>
-          <span>{caseScanner(item)}</span>
-          <span><SeverityPill tone={toneForCase(item)} label={severityLabelForCase(item)} /></span>
-          <span>{relativeAge(item.createdAt)}</span>
-          <ChevronRight size={16} />
-        </button>
+        <div key={item.id} className="finding-row-group">
+          <button type="button" className={`finding-row ${modeClass} ${selectedId === item.id ? 'selected' : ''}`} onClick={() => onPick(item.id)} aria-expanded={selectedId === item.id}>
+            <span className="mono-cell">{displayId(item, index)}</span>
+            {showRepoColumn && <span className="mono-cell">{item.repoName}</span>}
+            <span><strong>{item.title}</strong><em>{item.location}</em></span>
+            <span>{item.category ? categoryLabel(item.category) : 'Security'}</span>
+            <span className="mono-cell">{caseScanner(item)}</span>
+            <span><SeverityPill tone={toneForCase(item)} label={severityLabelForCase(item)} /></span>
+            <span className="mono-cell">{relativeAge(item.createdAt)}</span>
+            <ChevronRight size={16} />
+          </button>
+          {selectedId === item.id && selectedDetail && (
+            <div className="finding-inline-detail">
+              {selectedDetail}
+            </div>
+          )}
+        </div>
       ))}
-      {!items.length && <div className="empty-table"><EmptyLine title="No findings match" detail="Try another filter or search term." /></div>}
+      {!items.length && <div className="empty-table"><EmptyLine title="No cases match" detail="Try another filter or search term." /></div>}
     </div>
   );
 }
@@ -2115,7 +2943,7 @@ function SuppressionReasonsCard({reasons}: {reasons: ReturnType<typeof suppressi
       <SectionHeader title="Suppression reasons" right={<span>{reasons.length} decision groups</span>} />
       <div className="data-table suppression-table">
         <div className="data-head">
-          <span>Reason</span><span>Decision</span><span>VEX</span><span>Cases</span><span>Findings</span>
+          <span>Reason</span><span>Decision</span><span>VEX</span><span>Cases</span><span>Raw findings</span>
         </div>
         {reasons.map((reason) => (
           <div key={`${reason.reason}-${reason.decision_status}-${reason.vex_status}`} className="data-row">
@@ -2123,7 +2951,7 @@ function SuppressionReasonsCard({reasons}: {reasons: ReturnType<typeof suppressi
             <span>{reason.decision_status}</span>
             <span>{reason.vex_status}</span>
             <span>{reason.cases}</span>
-            <span>{reason.findings}</span>
+            <span>{reason.rawFindings}</span>
           </div>
         ))}
       </div>
@@ -2223,7 +3051,7 @@ function HoneyCreatePanel(props: {
     <PaperCard id={props.id}>
       <SectionHeader title="Place new key" />
       <p className="muted-body">Honey Keys are powerless decoy secrets that alert when touched.</p>
-      {props.target.type !== 'repo' ? (
+      {props.target.mode !== 'repo' ? (
         <Notice tone="warn" icon={<AlertTriangle size={16} />} title="Select a repo" body="Honey Keys require a repo target before creation." />
       ) : (
         <div className="form-stack">
@@ -2376,7 +3204,7 @@ function ScannerDetail({item, onChooseChecks}: {item: ScannerDoctorItem; onChoos
       <KV label="Status" value={item.status} />
       <KV label="Profile" value={item.profile} />
       <KV label="Recommended packs" value={item.recommendedPacks.map((pack) => pack.label).join(', ') || 'No pack recommendation'} />
-      <KV label="Findings" value={String(item.findings)} />
+      <KV label="Raw findings" value={String(item.findings)} />
       <KV label="Repos" value={item.repoNames.join(', ') || 'Not run'} />
       <div className="next-step"><Eyebrow>Next action</Eyebrow><p>{item.action}</p></div>
       <div className="button-row wrap">
@@ -2397,7 +3225,7 @@ function DoctorRow({item}: {item: ScannerDoctorItem}) {
         <span>{item.action}</span>
         {!!item.recommendedPacks.length && <span>{item.recommendedPacks.map((pack) => `${pack.label}: ${pack.ready_count} ready`).join(' · ')}</span>}
       </div>
-      <em>{item.findings} signals</em>
+      <em>{item.findings} raw signals</em>
     </div>
   );
 }
@@ -2413,7 +3241,7 @@ function CoverageCard({title, icon, items, empty}: {title: string; icon: ReactNo
   );
 }
 
-function AuditsPerDay({history}: {history: DashboardSummary['history']}) {
+function AuditsPerDay({history, scopeLabel}: {history: DashboardSummary['history']; scopeLabel: string}) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -2437,7 +3265,7 @@ function AuditsPerDay({history}: {history: DashboardSummary['history']}) {
   const totalLabel = total === 1 ? '1 scan this week' : `${total} scans this week`;
   return (
     <>
-      <SectionHeader title="Scans · 7 d" right={<span>{totalLabel}</span>} />
+      <SectionHeader title="Scans · 7 d" right={<span>{scopeLabel} · {totalLabel}</span>} />
       <div className="audits-strip">
         {counts.map((count, idx) => {
           const isToday = days[idx].getTime() === today.getTime();
@@ -2456,13 +3284,16 @@ function AuditsPerDay({history}: {history: DashboardSummary['history']}) {
 }
 
 function EventMix({summary}: {summary: DashboardSummary}) {
-  const rows = [
-    ['Scanner runs', summary.history.length, 'low'],
-    ['Findings opened', totalFindings(summary), 'warn'],
-    ['Findings suppressed', suppressedDisplayCases(summary).length, 'info'],
+  const caseBackedRaw = caseBackedRawFindingCount(summary);
+  const preCaseRaw = preCaseRawFindingCount(summary);
+  const rows: [string, number, Tone][] = [
+    ['Scanner runs', summary.history.length, 'neutral'],
+    ['Case-backed raw', caseBackedRaw, 'info'],
+    ...(preCaseRaw ? [['Pre-cases raw', preCaseRaw, 'info'] as [string, number, Tone]] : []),
+    ['Cases suppressed', suppressedDisplayCases(summary).length, 'info'],
     ['Honey-key hits', (summary.honey_key_events ?? []).length, 'crit'],
-    ['Verification gaps', topScannerItems(summary).filter((item) => item.status === 'missing' || item.status === 'error').length, 'high'],
-  ] as const;
+    ['Verification gaps', topScannerItems(summary).filter((item) => item.status === 'missing' || item.status === 'error').length, 'info'],
+  ];
   const max = Math.max(1, ...rows.map((row) => row[1]));
   return (
     <div className="event-mix">
@@ -2477,13 +3308,14 @@ function EventMix({summary}: {summary: DashboardSummary}) {
 }
 
 function ActivityTimelineMini({items}: {items: ActivityItem[]}) {
+  const tickLabels = ['00', '04', '08', '12', '16', '20'];
   return (
     <div className="timeline-mini">
-      {items.slice(0, 18).map((item, index) => {
+      {items.map((item, index) => {
         const hour = item.date ? item.date.getHours() + item.date.getMinutes() / 60 : index;
         return <span key={item.id} style={{left: `${(hour / 24) * 100}%`, background: severityMeta[item.tone].dot}} />;
       })}
-      <div><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+      <div>{tickLabels.map((label) => <span key={label}>{label}:00</span>)}</div>
     </div>
   );
 }
@@ -2558,6 +3390,10 @@ function PaperCard({children, className = '', padded = true, id}: {children: Rea
 
 function SectionHeader({title, right, icon}: {title: string; right?: ReactNode; icon?: ReactNode}) {
   return <div className="section-header"><h3>{icon}{title}</h3>{right && <div>{right}</div>}</div>;
+}
+
+function ScopePill({label}: {label: string}) {
+  return <span className="scope-pill">{label}</span>;
 }
 
 function Eyebrow({children, onSurface = false}: {children: ReactNode; onSurface?: boolean}) {

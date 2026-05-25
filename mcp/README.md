@@ -8,7 +8,7 @@ tools, no telemetry. The same posture as the rest of DëvSec.
 
 ## What it exposes — and what it doesn't
 
-Ten read-only tools wrap existing query methods on `ObservatoryDB`, direct
+Eleven read-only tools wrap existing query methods on `ObservatoryDB`, direct
 scan-history reads, the case-builder vocabulary in `cases.py`, and the on-disk
 state files written by the [secrets-rotation](../../.claude/skills/secrets-rotation/)
 skill (for repos where it's been scaffolded). The adapter does not mutate
@@ -35,7 +35,7 @@ printf '%s\n' \
   | uv run devsec-mcp
 ```
 
-The `tools/list` response should list ten tools.
+The `tools/list` response should list eleven tools.
 
 The JSON-RPC `initialize` response also advertises DëvSec's compact agent
 voice doctrine in the MCP `instructions` field. The full doctrine lives in
@@ -72,7 +72,7 @@ Same shape as the Claude Desktop config — most clients accept the
 Codex, add the server to your `~/.codex/config.json` `mcp_servers` section.
 The launch command is identical: `uv --directory <repo> run devsec-mcp`.
 
-## The ten tools
+## The eleven tools
 
 | Tool | What it returns |
 |---|---|
@@ -80,7 +80,8 @@ The launch command is identical: `uv --directory <repo> run devsec-mcp`.
 | `honey_keys` | Honey Key placement and trigger state, capped at 100 keys and sorted triggered-first. |
 | `latest_scan(repo)` | Most recent scan summary: timing, scanner count, finding count, health score, status. |
 | `scan_history(repo, limit?)` | Previous scans for a repo, most-recent-first, with finding counts and status. |
-| `findings(repo, severity?, limit?)` | Raw findings from the latest scan. Filter by severity. |
+| `raw_findings(repo, severity?, limit?)` | Preferred name for raw scanner-level findings from the latest scan. Filter by severity. |
+| `findings(repo, severity?, limit?)` | Compatibility alias for `raw_findings`; existing MCP clients can keep using it. |
 | `cases(repo, status?, scan_id?)` | Action-level cases — the project's primary unit of value. Each carries a plain-English risk read, suggested steps, and an agent-ready handoff prompt. Filter by `open` / `verified` / `accepted_risk` / `resolved`; pass `scan_id` to inspect a previous scan. |
 | `recovery_playbook(category)` | The category-specific recovery playbook (steps, estimated minutes, and a ready-to-paste agent prompt). No DB access needed. |
 | `dependency_trust(repo)` | OpenSSF-style trust enrichments per dependency, when collected. |
@@ -108,7 +109,7 @@ the local machine via this surface.
 ## Why no write tools yet
 
 Writes in a security tool need explicit thinking about agent safety. An agent
-that can mark findings as resolved, dismiss cases, or rotate Honey Keys is an
+that can mark raw findings as resolved, dismiss cases, or rotate Honey Keys is an
 agent that can also accidentally erase evidence or close incidents that
 shouldn't be closed. We chose to ship the read surface first, get it in use,
 and design the write surface separately — with confirmation, audit, and

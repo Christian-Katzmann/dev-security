@@ -1,6 +1,6 @@
 # False-Positive Handling
 
-The goal is low noise, not zero findings.
+The goal is low noise, not zero raw findings.
 
 Use this order:
 
@@ -9,14 +9,14 @@ Use this order:
 3. Add a short reason near the suppression.
 4. Avoid broad folder-level exclusions unless the folder is generated output.
 
-Never suppress a secret finding until the credential has been rotated or proven fake.
+Never suppress a secret raw finding until the credential has been rotated or proven fake.
 
 Dependency decisions may also carry a VEX-style status:
 
 - `affected` for confirmed or accepted dependency risk.
 - `not_affected` for a dependency false positive.
 - `fixed` when the vulnerable dependency state has been removed.
-- `under_investigation` while a dependency finding is still being checked.
+- `under_investigation` while a dependency raw finding is still being checked.
 
 Dependency suppressions must include a human-readable reason. Matching is limited to the same repository, advisory ID, and package name, with ecosystem/package URL checks when available, so a decision for one package does not hide another package that happens to mention the same CVE.
 

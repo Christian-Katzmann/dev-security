@@ -81,9 +81,9 @@ export default function FindingsView({summary, targetLabel, onChooseChecks, onCa
     >
       <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6 border-b border-black/10 pb-6">
         <div className="min-w-0">
-          <h2 className="text-3xl font-light text-black tracking-tight">What Needs Attention</h2>
+          <h2 className="text-3xl font-light text-black tracking-tight">Cases</h2>
           <p className="text-sm text-black/55 mt-2 max-w-2xl">
-            Active cases for {targetLabel}, grouped by what to do next. Suppressed findings are kept separate for audit.
+            Active cases for {targetLabel}, grouped by what to do next. Suppressed raw findings are kept separate for audit.
           </p>
           <p className="font-mono text-[10px] tracking-widest uppercase text-black/35 mt-3">
             Latest scan: {formatDate(lastScan)}
@@ -102,7 +102,7 @@ export default function FindingsView({summary, targetLabel, onChooseChecks, onCa
               onClick={() => setBucketFilter('all')}
               className={`border px-3 py-2 text-left transition-colors ${bucketFilter === 'all' ? 'border-black bg-white text-black shadow-[inset_0_3px_0_#111111]' : 'border-black/10 bg-white/45 text-black hover:border-black/30'}`}
             >
-              <span className="block font-mono text-[9px] uppercase tracking-widest text-black/40">Active</span>
+              <span className="block font-mono text-[9px] uppercase tracking-widest text-black/40">Cases</span>
               <span className="block text-lg font-light text-black">{cases.length}</span>
             </button>
             {attentionBuckets.map((bucket) => (
@@ -159,7 +159,7 @@ export default function FindingsView({summary, targetLabel, onChooseChecks, onCa
               <input
                 type="search"
                 name="findings-search"
-                aria-label="Search findings"
+                aria-label="Search cases"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Title, path, or next step"
@@ -210,7 +210,7 @@ export default function FindingsView({summary, targetLabel, onChooseChecks, onCa
       {visibleCases.length > 0 && (
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-4">
-            <h3 className="font-mono text-[10px] uppercase tracking-widest text-black/40">Active findings</h3>
+            <h3 className="font-mono text-[10px] uppercase tracking-widest text-black/40">Active cases</h3>
             {hasSuppressed && (
               <span className="font-mono text-[10px] uppercase tracking-widest text-black/35">
                 {suppressedFindingCount} suppressed
@@ -240,13 +240,13 @@ export default function FindingsView({summary, targetLabel, onChooseChecks, onCa
         <section className="border border-black/10 bg-white/45 p-5 md:p-6">
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-5">
             <div>
-              <h3 className="text-xl font-light text-black">Suppressed Findings</h3>
+              <h3 className="text-xl font-light text-black">Suppressed cases</h3>
               <p className="text-sm text-black/55 mt-2 max-w-2xl">
                 These are hidden from active counts because a dependency decision matched them. Keep the reason visible so the choice can be reviewed later.
               </p>
             </div>
             <div className="font-mono text-[10px] uppercase tracking-widest text-black/40">
-              {summary.suppressed_counts?.cases ?? suppressedCases.length} cases / {suppressedFindingCount} findings
+              {summary.suppressed_counts?.cases ?? suppressedCases.length} cases / {suppressedFindingCount} raw findings
             </div>
           </div>
 
@@ -259,7 +259,7 @@ export default function FindingsView({summary, targetLabel, onChooseChecks, onCa
                       {String(reason.vex_status).replace(/_/g, ' ')}
                     </span>
                     <span className="font-mono text-[9px] uppercase tracking-widest text-black/35">
-                      {reason.cases} cases / {reason.findings} findings
+                      {reason.cases} cases / {reason.findings} raw findings
                     </span>
                   </div>
                   <p className="text-xs leading-relaxed text-black/60 break-words">{reason.reason}</p>

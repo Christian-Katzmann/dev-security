@@ -26,7 +26,7 @@ Done when: a user lands on the dashboard, sees clearly which scope they're in (A
 - **README is part of the surface**. Tab-name drift (Findings vs. "What Needs Attention", missing tabs Code/Deps/Infra/MCP) lives in README.md and the actual `App.tsx:210` nav. Both are surfaces; both get fixed.
 - **Findings master-detail keeps existing `CaseDetailCard` component**. Composition is broken, not the card itself. Implementation chooses between sticky right panel / sheet-modal / inline-expand based on what fits the existing layout best — decision deferred to Phase 4's owner.
 - **Scan controls on Overview do not delete the Verification tab**. Verification stays as the deeper diagnostic view (which scanners failed, why); Overview gets the daily-driver Run / latest-scan-status / scanner-inventory surface.
-- **Data-migration concern**: `besk-ftigelse.dk` and `obedai-learning-app` have raw findings from 2026-05-11 scans but 0 cases (case-building added later). Phase 3 chooses one of: rescan automatically, drop pre-cases scans from Overview KPIs, or label them as "pre-cases scan." Don't silently leave them confusing the totals.
+- **Data-migration decision**: `besk-ftigelse.dk` and `obedai-learning-app` have raw findings from 2026-05-11 scans but 0 cases (case-building added later). Phase 3 keeps their raw evidence visible, labels them as pre-cases scans, and excludes them from case KPIs until a fresh scan can build cases. No automatic rescan on app open.
 
 ## How prompts work in this campaign
 
@@ -43,29 +43,29 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 0 — Salvage and bug bash
 
-- [ ] Step 0.1 — Verify, polish, and commit the in-session Homebrew install button
-- [ ] Step 0.2 — Bug-bash sweep (visual and information quick wins)
+- [x] Step 0.1 — Verify, polish, and commit the in-session Homebrew install button
+- [x] Step 0.2 — Bug-bash sweep (visual and information quick wins)
 
 ### Phase 1 — Vocabulary lock
 
-- [ ] Step 1.1 — Lock severity and findings/cases vocabulary across UI, CLI, docs, AI handoffs
+- [x] Step 1.1 — Lock severity and findings/cases vocabulary across UI, CLI, docs, AI handoffs
 
 ### Phase 2 — Two-mode dashboard model
 
-- [ ] Step 2.1 — Per-view mode classification and repo-selector state machine
-- [ ] Step 2.2 — Wire the mode through Overview, Findings, Activity, Reports
+- [x] Step 2.1 — Per-view mode classification and repo-selector state machine
+- [x] Step 2.2 — Wire the mode through Overview, Findings, Activity, Reports
 
 ### Phase 3 — KPI scope discipline
 
-- [ ] Step 3.1 — Every KPI uses `scopedSummary`; cross-repo KPIs labeled explicitly; decide handling of pre-cases scans
+- [x] Step 3.1 — Every KPI uses `scopedSummary`; cross-repo KPIs labeled explicitly; decide handling of pre-cases scans
 
 ### Phase 4 — Findings master-detail composition
 
-- [ ] Step 4.1 — Make the row-click feedback visible (sticky panel / sheet / inline expand) — keep `CaseDetailCard` component
+- [x] Step 4.1 — Make the row-click feedback visible (sticky panel / sheet / inline expand) — keep `CaseDetailCard` component
 
 ### Phase 5 — Scan controls promoted to Overview
 
-- [ ] Step 5.1 — Move the Verification-style scan-completion + Run controls to Overview; keep Verification as deeper diagnostic
+- [x] Step 5.1 — Move the Verification-style scan-completion + Run controls to Overview; keep Verification as deeper diagnostic
 
 ### Close
 

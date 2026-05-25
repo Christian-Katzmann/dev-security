@@ -2,38 +2,40 @@
 
 Terms used inside DëvSec with precise internal meanings. Defining these once here keeps the rest of the docs short and the dashboard's labels readable.
 
-## Finding
+## Raw finding
 
-The atomic unit of scanner output. One finding represents one identified issue in the repo — a leaked secret, a vulnerable dependency, a misconfigured IaC resource, a risky AI-agent instruction. Findings are deduplicated across scanners via a stable fingerprint, so a secret detected by both Gitleaks and TruffleHog appears once, not twice. Findings carry severity, category, scanner provenance, and file location.
+The atomic unit of scanner output. One raw finding represents one identified issue in the repo — a leaked secret, a vulnerable dependency, a misconfigured IaC resource, a risky AI-agent instruction. Raw findings are deduplicated across scanners via a stable fingerprint, so a secret detected by both Gitleaks and TruffleHog appears once, not twice. Raw findings carry severity, category, scanner provenance, and file location.
 
-**Example:** *"Gitleaks detected an `aws_access_key_id` in `src/legacy/config.py:42`"* is one finding.
+**Example:** *"Gitleaks detected an `aws_access_key_id` in `src/legacy/config.py:42`"* is one raw finding.
+
+The normalized JSON keeps the historic `findings`, `active_findings`, and `suppressed_findings` fields for compatibility. In user-facing copy, call these **raw findings** or **scanner evidence**.
 
 ## Case
 
-A group of related findings packaged for human or agent action. The case is what the dashboard's *What Needs Attention* surface shows — not raw findings, but cases. A case bundles all findings of the same shape (e.g. *"42 stdlib CVE findings across the dependency tree"*) into one decision unit with a single recommended next step, a severity rollup, a confidence rollup, and an AI-prompt handoff.
+A group of related raw findings packaged for human or agent action. Cases are what the dashboard's **Cases** surface shows — not raw findings, but grouped work. A case bundles all raw findings of the same shape (e.g. *"42 stdlib CVE raw findings across the dependency tree"*) into one decision unit with a single recommended next step, a severity rollup, a confidence rollup, and an AI-prompt handoff.
 
-**Cases vs. findings:** findings are scanner-level; cases are human-level. A scanner sees 41 individual CVE matches; a case is the one *"Upgrade vulnerable dependencies"* action that closes all 41 at once.
+**Cases vs. raw findings:** raw findings are scanner-level; cases are human-level. A scanner sees 41 individual CVE matches; a case is the one *"Upgrade vulnerable dependencies"* action that closes all 41 at once.
 
 ## Action level
 
-How urgent a case is, separate from how severe its findings are. One of four values:
+How urgent a case is, separate from how severe its raw findings are. One of four values:
 
 - **`fix_now`** — address immediately; severity and exploitability both warrant it.
 - **`verify`** — looks real but needs human confirmation before action (high false-positive rate from the scanner, or context-dependent severity).
 - **`watch`** — real but not currently exploitable; track for future regression.
 - **`info`** — informational, no action required.
 
-A case with high-severity findings can still be `verify` if the case-builder doesn't have enough context to recommend `fix_now` confidently. The two axes are independent.
+A case with high-severity raw findings can still be `verify` if the case-builder doesn't have enough context to recommend `fix_now` confidently. The two axes are independent.
 
 ## Confidence level
 
-The scanner-reported certainty that a finding is real. Carried through to cases as a rollup. Distinct from severity — a high-confidence finding can be low-severity (a real but low-impact issue), and a low-confidence finding can be high-severity (a possible critical vulnerability that needs human verification).
+The scanner-reported certainty that a raw finding is real. Carried through to cases as a rollup. Distinct from severity — strong confidence can still apply to a low-severity issue, and weak confidence can still apply to a possible critical vulnerability that needs human verification.
 
 Most scanners report confidence as a discrete level (high / medium / low) or a numeric score (0.0–1.0). DëvSec normalizes both into a four-level scale: `high`, `medium`, `low`, `unknown`.
 
 ## Agent-ready follow-up
 
-The markdown handoff prompt generated locally from a case. Contains the case summary, all affected findings, scanner evidence, file locations, suggested fix steps, and explicit guardrails (*"verify before fixing, do not commit secrets, rotate before scrubbing history"*). Designed to be copied into an external coding agent — Claude Code, Cursor, Aider, or any LLM you trust — for follow-up work.
+The markdown handoff prompt generated locally from a case. Contains the case summary, all affected raw findings, scanner evidence, file locations, suggested fix steps, and explicit guardrails (*"verify before fixing, do not commit secrets, rotate before scrubbing history"*). Designed to be copied into an external coding agent — Claude Code, Cursor, Aider, or any LLM you trust — for follow-up work.
 
 The agent-ready prompt is the local-first replacement for cloud LLM enrichment: the user's existing trust relationship with their agent is the one we route through, not a new one we manufacture. See [`docs/decisions/REJECTED/002-cloud-llm-for-finding-explanation.md`](decisions/REJECTED/002-cloud-llm-for-finding-explanation.md).
 
@@ -47,7 +49,7 @@ Honey Keys are written under `.devsec/honeykeys/` by default. Advanced placement
 
 A scanner that should have run but didn't — missing binary, timed out, crashed, or returned incomplete output. Surfaced as a first-class field on the scan record so the user knows what wasn't proven. A scan with evidence gaps is still saved; the rest of the scan results remain useful, but the gap is named in the dashboard's coverage view.
 
-**Why this matters:** without naming evidence gaps, a partial scan looks identical to a clean scan. *"No findings"* could mean *"the scanner ran and found nothing"* or *"the scanner failed to run."* The gap field disambiguates.
+**Why this matters:** without naming evidence gaps, a partial scan looks identical to a clean scan. *"No raw findings"* could mean *"the scanner ran and found nothing"* or *"the scanner failed to run."* The gap field disambiguates.
 
 ## Tool Catalog
 
@@ -59,6 +61,6 @@ A curated bundle of catalog entries grouped for a specific job — *Starter*, *S
 
 ## Posture
 
-The 0–10 score the dashboard displays at the top of every view, derived from the underlying 0–100 health score. Posture goes down when findings are present and up when they're resolved. The score is computed locally from the latest scan's findings, weighted by severity and category — see the *Health Score* section of the main README for the weighting table.
+The 0–10 score the dashboard displays at the top of every view, derived from the underlying 0–100 health score. Posture goes down when raw findings are present and up when they're resolved. The score is computed locally from the latest scan's raw findings, weighted by severity and category — see the *Health Score* section of the main README for the weighting table.
 
-A posture of 0.0 / 10 does not mean the repo is unsalvageable; it means the open findings exceed the engine's penalty cap. The score is calibrated for relative comparison across scans of the same repo, not absolute comparison across different repos.
+A posture of 0.0 / 10 does not mean the repo is unsalvageable; it means the open raw findings exceed the engine's penalty cap. The score is calibrated for relative comparison across scans of the same repo, not absolute comparison across different repos.

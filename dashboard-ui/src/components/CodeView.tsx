@@ -18,10 +18,10 @@ function fallbackFinding(): Finding {
     scanner: 'dashboard',
     severity: 'info',
     category: 'code-security',
-    title: 'No code findings recorded',
+    title: 'No code raw findings recorded',
     file: 'Run security-scan --quick',
     line: null,
-    remediation: 'Code-level findings will appear here after a scan.',
+    remediation: 'Code-level raw findings will appear here after a scan.',
     fingerprint: 'empty-code',
     created_at: new Date().toISOString(),
   };

@@ -580,7 +580,7 @@ def prompt_report_page(scan: dict[str, object]) -> str:
         <section class="hero">
           <p class="eyebrow">Agent-ready security handoff</p>
           <h1>AI Handoff Prompt</h1>
-          <p class="lede">This page turns the local scan into a focused brief for an AI coding agent. It is generated locally from saved cases and findings.</p>
+          <p class="lede">This page turns the local scan into a focused brief for an AI coding agent. It is generated locally from saved cases and raw findings.</p>
           <div class="actions">
             <a class="button primary" href="{download_prompt_url}">Download Markdown</a>
             <a class="button" href="{raw_page_url}">View Full Report</a>
@@ -637,7 +637,7 @@ def raw_report_page(scan: dict[str, object]) -> str:
         <section class="hero compact">
           <p class="eyebrow">Complete local scan output</p>
           <h1>Full Report</h1>
-          <p class="lede">This is the raw normalized report with cases, findings, scanner status, and evidence gaps. It is intentionally plain.</p>
+          <p class="lede">This is the raw normalized report with cases, raw findings, scanner status, and evidence gaps. It is intentionally plain.</p>
           <div class="actions">
             <a class="button primary" href="{download_raw_url}">Download JSON</a>
             <a class="button" href="{prompt_page_url}">View AI Prompt</a>
@@ -902,8 +902,8 @@ def _summary_table(scan: dict[str, object], case_count: int) -> str:
         ("Status", scan.get("status")),
         ("Profile", scan.get("profile")),
         ("Cases", case_count),
-        ("Findings", len(list(finding_source or []))),
-        ("Suppressed", suppressed_counts.get("findings", 0)),
+        ("Raw findings", len(list(finding_source or []))),
+        ("Suppressed raw findings", suppressed_counts.get("findings", 0)),
         ("Finished", scan.get("finished_at") or "unknown"),
     ]
     return "<dl class=\"summary-table\">" + "".join(
@@ -1156,9 +1156,9 @@ def build_ai_prompt(scan: dict[str, object]) -> str:
         "",
         "Summary:",
         f"- Total cases: {len(cases)}",
-        f"- Total findings: {len(findings)}",
+        f"- Total raw findings: {len(findings)}",
         f"- Suppressed cases: {suppressed_counts.get('cases', 0)}",
-        f"- Suppressed findings: {suppressed_counts.get('findings', 0)}",
+        f"- Suppressed raw findings: {suppressed_counts.get('findings', 0)}",
         f"- By severity: {json.dumps(severity_counts, sort_keys=True)}",
         f"- By category: {json.dumps({category_label(key): value for key, value in category_counts.items()}, sort_keys=True)}",
         f"- Incomplete local tools: {len(evidence_gaps)}",
@@ -2208,7 +2208,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         "key": key,
                         "raw_token": material.token,
                         "snippets": snippets,
-                        "warning": "Honey Keys are fake, powerless decoy secrets. They alert you when touched. They do not prevent breaches by themselves.",
+                        "notice": "Honey Keys are fake, powerless decoy secrets. They alert you when touched. They do not prevent breaches by themselves.",
                     }
                 )
             finally:

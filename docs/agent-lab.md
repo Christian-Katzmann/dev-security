@@ -19,7 +19,7 @@ Security Pack state.
 - The agent is advice, not authority.
 - The imported proposal is hostile input until validated.
 - DëvSec executes only known, approved, policy-allowed local actions.
-- Scanner output and normalized findings are evidence; agent reasoning is
+- Scanner output and normalized raw findings are evidence; agent reasoning is
   context for choosing what to run next.
 - External Surface remains display-only in the MVP. No domain input, probing,
   active recon, install action, run action, or agent-triggered external scan is
@@ -37,7 +37,7 @@ Security Pack state.
 | Agent | Reads exported context and returns a structured recommendation. | Run tools directly through DëvSec, invent tool IDs, request arbitrary commands, or treat pack names as executable actions. |
 | DëvSec | Validates proposals, enforces catalog policy, executes approved existing scans, records decisions, and stores evidence locally. | Trust free-form text, bypass approval gates, or execute actions outside the catalog/profile allowlist. |
 | Scanner adapters | Run bounded tool commands and produce raw output for normalization. | Become a second agent runner or accept agent-supplied shell fragments. |
-| Normalizer and storage | Turn scanner output into findings, evidence gaps, history, and audit records. | Treat agent claims as scanner findings. |
+| Normalizer and storage | Turn scanner output into raw findings, evidence gaps, history, and audit records. | Treat agent claims as scanner raw findings. |
 
 ## Prerequisites
 
@@ -64,11 +64,11 @@ enforceable:
 4. The user pastes the proposal back into DëvSec.
 5. DëvSec validates the proposal before storing it as a proposal record.
 6. DëvSec shows a review screen with requested tools, packs, scan profiles,
-   safety labels, blocked items, missing tools, and evidence gaps.
+   safety labels, blocked items, not-installed tools, and evidence gaps.
 7. The user approves, denies, or leaves the proposal pending.
 8. Approved work runs only through existing DëvSec-controlled scan profiles or
    explicit allowlisted scanner actions.
-9. Results become normal raw reports, normalized findings, scanner status, and
+9. Results become normal raw reports, normalized raw findings, scanner status, and
    audit history.
 
 This loop keeps provider trust with the user. DëvSec does not need provider
@@ -342,11 +342,11 @@ immediate scan:
    fields, and blocked actions.
 2. Store the proposal as pending with validation results and source metadata.
 3. Show the user the requested scan profiles, tools, packs, permissions, safety
-   labels, missing tools, blocked requests, and expected evidence gaps.
+   labels, not-installed tools, blocked requests, and expected evidence gaps.
 4. Require approval for the exact plan.
 5. Convert approved `run_scan_profile` items into the same scan profile
    execution used by the CLI and dashboard `run-check` flow.
-6. Record skipped, missing, unavailable, blocked, or policy-disallowed tools as
+6. Record skipped, not-installed, unavailable, blocked, or policy-disallowed tools as
    evidence gaps.
 
 The handoff must never accept shell fragments from the proposal. The only
@@ -359,7 +359,7 @@ Agent Lab returns DëvSec evidence, not agent claims:
 - proposal validation result and reasons
 - approval state and decision time
 - scan job or scan ID created from approved execution
-- scanner statuses, raw report paths, normalized findings, cases, and severity
+- scanner statuses, raw report paths, normalized raw findings, cases, and severity
   summaries already produced by DëvSec
 - evidence gaps for missing, unavailable, skipped, or blocked tools
 - a link back to the original proposal record and context export metadata
@@ -417,7 +417,7 @@ A proposal may recommend:
   other profiles DëvSec explicitly exports as allowed
 - expected benefit and plain-language reason
 - requested permissions chosen from a fixed set
-- expected evidence gaps, including missing tools or blocked tools
+- expected evidence gaps, including not-installed tools or blocked tools
 - a final execution plan that maps back to explicit scan profiles or
   allowlisted scanner actions
 
@@ -540,16 +540,16 @@ Validation should produce precise reasons, such as `unknown_tool`,
 ## Agent Advice Versus Scanner Evidence
 
 The agent can help the user decide what to try next. It can compare catalog
-coverage, explain why a pack is useful, point out missing tools, and suggest a
+coverage, explain why a pack is useful, point out not-installed tools, and suggest a
 safe scan profile. That advice is not proof.
 
-Evidence comes from DëvSec-controlled scanner runs and normalized findings:
+Evidence comes from DëvSec-controlled scanner runs and normalized raw findings:
 
 - scanner status says what actually ran
 - raw reports show tool output
-- normalized findings and cases show DëvSec's interpretation
+- normalized raw findings and cases show DëvSec's interpretation
 - evidence gaps show what did not run or could not be verified
-- scan history shows whether a finding is new, recurring, or resolved
+- scan history shows whether a raw finding is new, recurring, or resolved
 
 The UI should keep that distinction visible. A recommendation can say "run the
 Secrets Pack's recommended profile"; only a completed DëvSec scan can say what
@@ -564,8 +564,8 @@ Before trusting an agent-run investigation, the user needs to see:
 - DëvSec, not the agent, executed the approved work
 - network, credential, install, write, destructive, and external-target actions
   were either blocked or explicitly shown
-- missing tools mean evidence gaps, not safety
-- scanner findings are stronger evidence than agent explanations
+- not-installed tools mean evidence gaps, not safety
+- scanner raw findings are stronger evidence than agent explanations
 - the final audit trail can explain what happened later
 
 That is the core trust story: bring the AI you trust for thinking, keep DëvSec

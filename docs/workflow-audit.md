@@ -24,7 +24,7 @@ No actions are executed, no tokens are read, and no network calls are made.
 - `workflow-permissions-write-all` and `workflow-permissions-write`: workflow
   tokens widened to write scopes without a nearby justification comment.
 
-Critical findings are active execution or exfiltration patterns. High findings
+Critical raw findings are active execution or exfiltration patterns. High raw findings
 are broad trust surfaces such as unpinned actions or write-scoped workflow
 tokens. The `pull_request_target` fork-checkout pattern is medium because it
 requires the surrounding workflow to determine exploitability.
@@ -49,4 +49,4 @@ entries:
 
 Entries require `rule`, `path`, and `reason`; `line` is optional but recommended
 for noisy workflow patterns. A matching entry without a reason does not silence
-the finding.
+the raw finding.

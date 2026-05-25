@@ -9,11 +9,11 @@ External Surface is display-only in the MVP. It has no domain input, no probing,
 ## Human Context Contract
 
 - User likely arrives feeling: curious but cautious about installing or running security tools.
-- Prior context they may carry: scanner names are technical, missing tools can look like failed protection, and "pack" can sound like a one-click action.
+- Prior context they may carry: scanner names are technical, not-installed tools can look like failed protection, and "pack" can sound like a one-click action.
 - What they fear getting wrong: installing too much, sending code or targets outside the machine, or trusting coverage that is only planned.
 - What getting it wrong costs: false confidence, unwanted network activity, local machine churn, or accidental disclosure of repo or credential context.
 - Their likely bandwidth: low to medium; the pack has to explain the job before the tool list.
-- What they need to trust: local-first defaults, clear network and credential labels, honest missing-tool states, and no hidden execution.
+- What they need to trust: local-first defaults, clear network and credential labels, honest not-installed tool states, and no hidden execution.
 - Where they need agency: before installs, network-backed checks, credential-backed checks, target entry, or uninstall.
 - What the product must not do: imply that a pack can run by itself, imply External Surface is active, or claim ownership of tools DëvSec only detected.
 
@@ -34,7 +34,7 @@ External Surface is display-only in the MVP. It has no domain input, no probing,
 
 | Pack | Primary profile | Secondary profiles | Notes |
 | --- | --- | --- | --- |
-| Starter Pack | `security-scan --quick` | `security-scan .`, `security-scan --code`, `security-scan --secrets` | Use for a fast first read. OSV may need network access; missing scanners become evidence gaps, not pack failures. |
+| Starter Pack | `security-scan --quick` | `security-scan .`, `security-scan --code`, `security-scan --secrets` | Use for a fast first read. Not-installed scanners become evidence gaps, not pack failures. |
 | Secrets Pack | `security-scan --secrets` | `security-scan --quick`, `security-scan --secrets --deps` | Secret checks stay local by default; Trivy may also contribute secret evidence when installed. |
 | Dependencies Pack | `security-scan --deps` | `security-scan --deps --trust-cache-only`, `security-scan --deps --trust` | SBOM is local; vulnerability and trust enrichment can require network or cache disclosures. |
 | AI Agent Pack | `security-scan --ai` | `security-scan --quick`, `security-scan --full` | Built-in AI static checks are the safe baseline; Medusa deepens local AI/MCP coverage when installed. |
@@ -73,10 +73,10 @@ Included tools:
 | Built-in AI static checks | Included | Local, No credentials, Read-only, Agent Lab allowed | Built in |
 | Install hook classifier | Included | Local, No credentials, Read-only, Agent Lab allowed | Built in |
 | Workflow surface audit | Included | Local, No credentials, Read-only, Agent Lab allowed | Built in |
-| Semgrep | Included | Local, No credentials, Read-only, Agent Lab allowed | Missing or detected locally |
-| Gitleaks | Included | Local, No credentials, Read-only, Agent Lab allowed | Missing or detected locally |
+| Semgrep | Included | Local, No credentials, Read-only, Agent Lab allowed | Not installed or detected locally |
+| Gitleaks | Included | Local, No credentials, Read-only, Agent Lab allowed | Not installed or detected locally |
 | IOC Watch | Optional | Local, No credentials, Read-only, Agent Lab allowed | Built in; needs prior local evidence |
-| OSV-Scanner | Optional | Network required, No credentials, Read-only, Approval required, Agent Lab blocked | Missing or detected locally |
+| OSV-Scanner | Optional | Network required, No credentials, Read-only, Approval required, Agent Lab blocked | Not installed or detected locally |
 
 Design consequence: the pack should lead with "fast baseline" and show OSV as a disclosed network-backed helper, not as a silent default promise.
 
@@ -94,11 +94,11 @@ Included tools:
 
 | Tool | Role | Policy-derived safety labels | Install posture |
 | --- | --- | --- | --- |
-| Gitleaks | Included | Local, No credentials, Read-only, Agent Lab allowed | Missing or detected locally |
-| TruffleHog | Included | Local, No credentials, Read-only, Agent Lab allowed | Missing or detected locally |
-| Trivy | Optional helper | Optional network, No credentials, Read-only, Agent Lab allowed | Missing or detected locally |
+| Gitleaks | Included | Local, No credentials, Read-only, Agent Lab allowed | Not installed or detected locally |
+| TruffleHog | Included | Local, No credentials, Read-only, Agent Lab allowed | Not installed or detected locally |
+| Trivy | Optional helper | Optional network, No credentials, Read-only, Agent Lab allowed | Not installed or detected locally |
 
-Design consequence: missing secret tools should read as "install needed for deeper evidence," not as "your repo is safe."
+Design consequence: not-installed secret tools should read as "install needed for deeper evidence," not as "your repo is safe."
 
 ### Dependencies Pack
 
@@ -114,10 +114,10 @@ Included tools:
 
 | Tool | Role | Policy-derived safety labels | Install posture |
 | --- | --- | --- | --- |
-| Syft | Included | Local, No credentials, Read-only, Agent Lab allowed | Missing or detected locally |
-| Grype | Included | Optional network, No credentials, Read-only, Agent Lab allowed | Missing or detected locally |
-| Trivy | Included | Optional network, No credentials, Read-only, Agent Lab allowed | Missing or detected locally |
-| OSV-Scanner | Included | Network required, No credentials, Read-only, Approval required, Agent Lab blocked | Missing or detected locally |
+| Syft | Included | Local, No credentials, Read-only, Agent Lab allowed | Not installed or detected locally |
+| Grype | Included | Optional network, No credentials, Read-only, Agent Lab allowed | Not installed or detected locally |
+| Trivy | Included | Optional network, No credentials, Read-only, Agent Lab allowed | Not installed or detected locally |
+| OSV-Scanner | Included | Network required, No credentials, Read-only, Approval required, Agent Lab blocked | Not installed or detected locally |
 | IOC Watch | Optional | Local, No credentials, Read-only, Agent Lab allowed | Built in; needs prior local evidence |
 | Install hook classifier | Optional | Local, No credentials, Read-only, Agent Lab allowed | Built in |
 
@@ -138,7 +138,7 @@ Included tools:
 | Tool | Role | Policy-derived safety labels | Install posture |
 | --- | --- | --- | --- |
 | Built-in AI static checks | Included | Local, No credentials, Read-only, Agent Lab allowed | Built in |
-| Medusa | Included deep check | Local, No credentials, Read-only, Agent Lab allowed | Missing or detected locally |
+| Medusa | Included deep check | Local, No credentials, Read-only, Agent Lab allowed | Not installed or detected locally |
 
 Design consequence: the pack should present the built-in scanner as real baseline coverage and Medusa as deeper local coverage, not as a required prerequisite.
 
@@ -197,7 +197,7 @@ Visibility: default Coming Soon, display-only. It may explain the future categor
 ## Implementation Preservation Notes
 
 - Do not turn packs into a second scanner execution path. Scan profiles remain the execution surface.
-- Do not make a missing tool look like missing protection certainty. It is an evidence gap.
+- Do not make a not-installed tool look like absent protection certainty. It is an evidence gap.
 - Do not hide network, credential, artifact, previous-scan, or approval requirements inside a tooltip.
 - Do not show install or uninstall ownership until DëvSec can prove the tool is managed by DëvSec.
 - Do not copy Coming Soon tools into runnable pack actions.
@@ -207,7 +207,7 @@ Visibility: default Coming Soon, display-only. It may explain the future categor
 
 Given the user is cautious and unsure what leaves their Mac, when they open a pack page, they can see local, network, credential, and approval labels before any action is offered.
 
-Given the user sees a missing scanner in a pack, when they read the pack status, they understand the pack has an evidence gap and the repo has not been declared safe.
+Given the user sees a not-installed scanner in a pack, when they read the pack status, they understand the pack has an evidence gap and the repo has not been declared safe.
 
 Given the user opens External Surface, when they inspect the page, they cannot enter a target, run a scan, install a tool, or trigger Agent Lab.
 

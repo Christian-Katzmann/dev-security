@@ -24,7 +24,7 @@ Each adapter owns:
 - exit-code interpretation
 - sanitizer handoff
 
-The normalizer owns schema conversion into findings.
+The normalizer owns schema conversion into raw findings.
 
 ## Future Support
 

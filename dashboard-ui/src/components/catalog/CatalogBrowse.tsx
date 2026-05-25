@@ -4,8 +4,8 @@
 //
 // Rules of the road for this route, all from DESIGN.md:
 //   - One primary action on the page (Install on the featured banner).
-//   - Severity is earned (§3.4) — the priority pill is "sparingly", driven by
-//     real policy signal, never decoration.
+//   - Severity is earned (§3.4) — setup and policy pills use neutral copy,
+//     never security-severity language.
 //   - Paper surface, not the sage/teal hero — same rhythm as CatalogHome.
 //   - 30–40% air; sentence case; no looping motion; mono only on telemetry.
 //
@@ -19,14 +19,13 @@
 //      managed install path (so the Install CTA is meaningful). Alphabetical
 //      tiebreaker. Falls back to the highest-pack-count non-coming-soon tool.
 //   2. Priority pill — derived from policy fields, not category:
-//        Critical path → policy.needs_approval (these tools require explicit
-//                        approval; that's a critical-path constraint).
-//        High priority → policy.uses_credentials === 'required' or
-//                        policy.external_targets !== 'none'.
-//        Standard      → policy.default_enabled.
+//        Approval required → policy.needs_approval.
+//        Needs context     → policy.uses_credentials === 'required' or
+//                            policy.external_targets !== 'none'.
+//        Default check     → policy.default_enabled.
 //      Tools that match nothing get no pill — sparingly is the point.
-//      Note: even "Critical path" uses the elevated tone, never the deep red
-//      `critical` tone. Critical is reserved for live threats (DESIGN.md §3.4).
+//      Note: these pills use info/neutral/ready treatment. Critical/elevated/
+//      warning/low words stay reserved for security severity.
 //   3. Filter row on mobile — chips wrap rather than horizontally scroll.
 //      Calmer wins. No carousel chrome at any breakpoint.
 
@@ -54,7 +53,7 @@ export type CatalogBrowseProps = {
   onBack: () => void;
 };
 
-type Priority = {label: string; tone: 'elevated' | 'warn' | 'low'};
+type Priority = {label: string; tone: 'info' | 'neutral' | 'low'};
 
 function isComingSoon(tool: ToolCatalogItem): boolean {
   return tool.lifecycle === 'coming-soon' || tool.install_state === 'coming-soon';
@@ -70,11 +69,11 @@ function hasManagedInstallPath(tool: ToolCatalogItem): boolean {
 
 function priorityForTool(tool: ToolCatalogItem): Priority | null {
   if (isComingSoon(tool)) return null;
-  if (tool.policy.needs_approval) return {label: 'Critical path', tone: 'elevated'};
+  if (tool.policy.needs_approval) return {label: 'Approval required', tone: 'info'};
   if (tool.policy.uses_credentials === 'required' || tool.policy.external_targets !== 'none') {
-    return {label: 'High priority', tone: 'warn'};
+    return {label: 'Needs context', tone: 'neutral'};
   }
-  if (tool.policy.default_enabled) return {label: 'Standard', tone: 'low'};
+  if (tool.policy.default_enabled) return {label: 'Default check', tone: 'low'};
   return null;
 }
 
@@ -127,7 +126,7 @@ export default function CatalogBrowse({summary, onRefresh, onOpenTool, onBack}: 
     return browsable.filter((tool) => tool.category === activeCategory);
   }, [browsable, activeCategory]);
 
-  // Sort order: missing tools first (so install candidates are immediately
+  // Sort order: not-installed tools first (so install candidates are immediately
   // visible without scanning), then installed tools alphabetically, then
   // coming-soon at the bottom (still visible for future coverage).
   const sortedGrid = useMemo(() => {

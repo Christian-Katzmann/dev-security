@@ -290,7 +290,7 @@ export default function DependenciesView({summary}: DependenciesViewProps) {
             ))
           ) : (
             <div className="border border-black/10 bg-white/50 p-5 text-sm text-black/55">
-              No dependency vulnerability findings are recorded for the latest scan payload.
+              No dependency vulnerability raw findings are recorded for the latest scan payload.
             </div>
           )}
         </div>
@@ -655,7 +655,7 @@ function trustReason(record: ReturnType<typeof dependencyTrustRecords>[number], 
   if (typeof record.scorecard_score !== 'number' && typeof record.criticality_score !== 'number') {
     return `${vulnerabilityLabel}. Project hygiene and ecosystem importance were not available for this package.`;
   }
-  return `${vulnerabilityLabel}. Trust facts add context, separate from known vulnerability findings.`;
+  return `${vulnerabilityLabel}. Trust facts add context, separate from known vulnerability raw findings.`;
 }
 
 function isLowHygiene(record: ReturnType<typeof dependencyTrustRecords>[number]): boolean {

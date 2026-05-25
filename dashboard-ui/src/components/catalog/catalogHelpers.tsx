@@ -87,7 +87,7 @@ export const catalogStatusFilters: {id: CatalogStatusFilter; label: string}[] = 
   {id: 'all', label: 'All'},
   {id: 'ready', label: 'Ready'},
   {id: 'setup', label: 'Needs setup'},
-  {id: 'missing', label: 'Missing'},
+  {id: 'missing', label: 'Not installed'},
   {id: 'advanced', label: 'Advanced'},
   {id: 'coming-soon', label: 'Coming soon'},
 ];
@@ -96,7 +96,7 @@ export const catalogInstallLabels: Record<ToolInstallState, string> = {
   'built-in': 'Built in',
   managed: 'DëvSec managed',
   detected: 'Detected locally',
-  missing: 'Missing',
+  missing: 'Not installed',
   unavailable: 'Unavailable',
   'not-configured': 'Needs setup',
   'coming-soon': 'Display only',
@@ -200,10 +200,10 @@ export function catalogStatusBucket(item: ToolCatalogItem): CatalogStatusFilter 
 }
 
 export function catalogStatusTone(item: ToolCatalogItem, runtime?: ScannerDoctorItem): Tone {
-  if (runtime?.status === 'error') return 'crit';
+  if (runtime?.status === 'error') return 'info';
   if (item.lifecycle === 'coming-soon' || item.install_state === 'coming-soon') return 'neutral';
   if (item.install_state === 'missing' || item.install_state === 'not-configured') return 'info';
-  if (item.install_state === 'unavailable') return 'warn';
+  if (item.install_state === 'unavailable') return 'info';
   if (item.lifecycle === 'advanced') return 'info';
   if (item.install_state === 'built-in' || item.install_state === 'managed' || item.install_state === 'detected') return 'low';
   return 'neutral';
@@ -316,7 +316,7 @@ export function catalogRuntimeCopy(item: ToolCatalogItem, runtime?: ScannerDocto
   if (!runtime) return 'No scan has reported runtime status for this tool in the selected scope.';
   if (runtime.status === 'ran') {
     const repoCopy = runtime.repoNames.length ? ` across ${runtime.repoNames.join(', ')}` : '';
-    return `${runtime.findings} finding${runtime.findings === 1 ? '' : 's'} reported${repoCopy}.`;
+    return `${runtime.findings} raw finding${runtime.findings === 1 ? '' : 's'} reported${repoCopy}.`;
   }
   return runtime.action;
 }
@@ -327,7 +327,7 @@ export function catalogStateCopy(item: ToolCatalogItem, runtime?: ScannerDoctorI
       title: 'Runtime error from last scan',
       detail: runtime.error ?? 'The scanner reported an error in the selected scope.',
       action: 'Fix the scanner error, then rerun the matching profile before trusting this coverage.',
-      tone: 'crit',
+      tone: 'info',
     };
   }
   if (item.lifecycle === 'coming-soon' || item.install_state === 'coming-soon') {
@@ -377,7 +377,7 @@ export function catalogStateCopy(item: ToolCatalogItem, runtime?: ScannerDoctorI
       title: 'Unavailable in this context',
       detail: 'Installation alone is not enough for this check right now.',
       action: item.install.next_step ?? 'Resolve the environment or prerequisite blocker before expecting this tool to run.',
-      tone: 'warn',
+      tone: 'info',
     };
   }
   if (item.install_state === 'not-configured') {
@@ -483,7 +483,7 @@ export function previewCanUninstall(preview?: ToolInstallPreview): boolean {
 
 export function previewTone(preview?: ToolInstallPreview): Tone {
   if (!preview?.preview_available) return 'neutral';
-  if (preview.action === 'managed-uninstall-preview') return 'warn';
+  if (preview.action === 'managed-uninstall-preview') return 'info';
   if (preview.execution_available) return 'low';
   return 'info';
 }

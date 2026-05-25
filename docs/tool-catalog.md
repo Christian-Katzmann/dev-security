@@ -10,7 +10,7 @@ Shortest product sentence: the Tool Catalog tells you what DëvSec can check, wh
 
 - User likely arrives feeling: curious, cautious, and unsure which security tools are safe to run.
 - Prior context they may carry: scanner names are technical, installation status can be confusing, and a clean scan can feel more trustworthy than it really is.
-- What they fear getting wrong: running a risky tool, sending code or targets outside the machine, or believing coverage exists when a scanner is missing.
+- What they fear getting wrong: running a risky tool, sending code or targets outside the machine, or believing coverage exists when a scanner is not installed.
 - What getting it wrong costs: false confidence, leaked source or credentials, unwanted network activity, or damage to a repo or account.
 - Their likely bandwidth: low to medium; the catalog must be scannable without requiring scanner expertise.
 - What they need to trust: clear install state, local-only boundaries, opt-in network behavior, and honest Coming Soon placeholders.
@@ -90,9 +90,9 @@ Keep these current scanner fields stable for backward compatibility:
 | `area` | `category` plus compatibility field | Current dashboard groups by area. |
 | `covers` | `summary` or `description` plus compatibility field | Existing cards explain what evidence the tool adds. |
 | `profile` | `profiles` plus compatibility field | Scan profile membership is part of current guidance. |
-| `install` | `install.instructions` plus compatibility field | Missing-tool recovery depends on it. |
+| `install` | `install.instructions` plus compatibility field | Not-installed tool recovery depends on it. |
 | `next_step` | `install.next_step` plus compatibility field | Not-run guidance depends on it. |
-| `built_in` | `install.method = 'built-in'` plus compatibility field | Built-in tools are never missing binaries. |
+| `built_in` | `install.method = 'built-in'` plus compatibility field | Built-in tools never need external binaries. |
 
 ## Categories
 
@@ -134,7 +134,7 @@ Install state is local truth about whether the tool can run here now.
 | `built-in` | Implemented inside DëvSec. No external binary install is needed. | Static metadata plus scanner adapter. |
 | `managed` | Installed or managed by DëvSec's installer. | Installer manifest or managed-tool registry. |
 | `detected` | Found on `PATH` or through a supported local detection check, but not owned by DëvSec. | Runtime detection such as `shutil.which`. |
-| `missing` | Supported but not currently available locally. | Runtime detection. |
+| `missing` | Supported but not currently available locally. Display as **Not installed** in UI/CLI copy. | Runtime detection. |
 | `unavailable` | Cannot run in the current environment, profile, or configuration. | Runtime detection or explicit guardrail. |
 | `not-configured` | Installed but requires credentials, local artifacts, cache data, or repo context. | Runtime preflight. |
 | `coming-soon` | Display-only entry. It must not be runnable or installable. | Lifecycle state. |
@@ -144,8 +144,8 @@ Install state is local truth about whether the tool can run here now.
 - `built-in` means DëvSec owns the scanner logic. Examples: AI static checks, install-hook classifier, workflow audit, IOC watch.
 - `managed` means DëvSec installed or can update the external tool through a known installer path. This is future-facing until managed install state is recorded.
 - `detected` means the tool exists locally but was installed outside DëvSec. The catalog may explain it, but uninstall or upgrade controls must not claim ownership.
-- `missing` means the tool should work after installation.
-- `unavailable` means installation alone is not enough. The reason might be missing credentials, unsupported platform, absent artifacts, no previous SBOM, or no resolvable repository target.
+- `missing` means the tool should work after installation. User-facing copy says **Not installed**, not "missing."
+- `unavailable` means installation alone is not enough. The reason might be absent credentials, unsupported platform, absent artifacts, no previous SBOM, or no resolvable repository target.
 - `coming-soon` means product education only. It is not a failed install and must not appear as degraded protection.
 
 ## Install Contract
@@ -201,7 +201,7 @@ SQLite is the queryable product source of truth for API and dashboard state. The
 - overwrite it with a managed copy
 - assume Homebrew, `uv`, `pipx`, or another package manager may remove it
 
-If a detected tool and a managed copy both exist, DëvSec should prefer the managed binary for managed actions and still show the detected copy as user-owned context. If the managed copy is missing or broken, DëvSec may fall back to detected execution only as a normal detected scanner, not as a managed install.
+If a detected tool and a managed copy both exist, DëvSec should prefer the managed binary for managed actions and still show the detected copy as user-owned context. If the managed copy is absent or broken, DëvSec may fall back to detected execution only as a normal detected scanner, not as a managed install.
 
 ### Install Preview Requirement
 
@@ -227,7 +227,7 @@ Uninstall may remove only files that are all of these:
 3. Marked with the matching DëvSec ownership id.
 4. Not a symlink escape, parent directory, package-manager directory, or arbitrary path from user input.
 
-Uninstall must refuse to run when ownership evidence is missing, mismatched, or points outside the managed root. It must never call `brew uninstall`, `uv tool uninstall`, `pipx uninstall`, `sudo`, or a broad package-manager removal for a detected system tool. It also must not delete scan reports, caches, the app database, or the `security-scan` wrapper.
+Uninstall must refuse to run when ownership evidence is absent, mismatched, or points outside the managed root. It must never call `brew uninstall`, `uv tool uninstall`, `pipx uninstall`, `sudo`, or a broad package-manager removal for a detected system tool. It also must not delete scan reports, caches, the app database, or the `security-scan` wrapper.
 
 ### Version And Update Checks
 
@@ -379,4 +379,4 @@ The enforcement rules are `ToolPolicy`, `ToolInstallContract`, `lifecycle`, and 
 
 ### Current Scanner Fields To Preserve
 
-Preserve `scanner`, `label`, `area`, `covers`, `profile`, `install`, `next_step`, and `built_in` through the migration. The current dashboard and fallback catalog use those fields to group scanner doctor rows, join scan statuses, explain missing binaries, and tell the user what to do next.
+Preserve `scanner`, `label`, `area`, `covers`, `profile`, `install`, `next_step`, and `built_in` through the migration. The current dashboard and fallback catalog use those fields to group scanner doctor rows, join scan statuses, explain not-installed binaries, and tell the user what to do next.

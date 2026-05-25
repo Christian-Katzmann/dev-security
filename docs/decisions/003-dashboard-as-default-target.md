@@ -29,7 +29,7 @@ The `useEffect` at `dashboard-ui/src/App.tsx:609` that silently hid the broken b
 
 **Positive**
 
-- First impression is *"see your whole world"* — open findings across every scanned repo, total honey keys armed, recent scan activity timeline. This matches the mental model a multi-repo developer arrives with.
+- First impression is *"see your whole world"* — open cases across every scanned repo, total honey keys armed, recent scan activity timeline. This matches the mental model a multi-repo developer arrives with.
 - The aggregate view is the only place that surfaces cross-repo signals (which repo just got worse, which scan failed). Making it the default makes those signals discoverable.
 - The fix for the three silent-gate bugs generalizes: any future affordance that needs a specific repo target gets the same shared helper.
 
@@ -40,7 +40,7 @@ The `useEffect` at `dashboard-ui/src/App.tsx:609` that silently hid the broken b
 
 ## Alternatives considered
 
-**Path (A) — default to last-scanned repo.** Would have made every action immediately runnable without explanation. Rejected because it changes the dashboard's mental model from *"see your whole world"* to *"see your last scan"* — a worse first impression for a multi-repo tool, and a worse landing experience for a public-repo debut where the aggregate view answers the *"what does this thing show me?"* question better than a single repo's findings list does.
+**Path (A) — default to last-scanned repo.** Would have made every action immediately runnable without explanation. Rejected because it changes the dashboard's mental model from *"see your whole world"* to *"see your last scan"* — a worse first impression for a multi-repo tool, and a worse landing experience for a public-repo debut where the aggregate view answers the *"what does this thing show me?"* question better than a single repo's cases list does.
 
 **Path (C) — modal repo picker on dashboard open.** Force the user to pick a target before any view is rendered. Rejected because it's friction on every dashboard open, and the aggregate view IS a legitimate target — making it pickable but not default conflicts with the goal of surfacing cross-repo signals.
 

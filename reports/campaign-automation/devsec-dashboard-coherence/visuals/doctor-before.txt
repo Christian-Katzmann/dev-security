@@ -1,0 +1,21 @@
+Security Observatory doctor
+Store: /Users/christiankatzmann/.security-observatory
+Python: /opt/homebrew/opt/python@3.14/bin/python3.14
+Homebrew: /opt/homebrew/bin/brew
+uv: /Users/christiankatzmann/.local/bin/uv
+ioc-watch: built in
+install-hooks: built in
+workflow-audit: built in
+ai-static: built in
+semgrep: /opt/homebrew/bin/semgrep
+gitleaks: /opt/homebrew/bin/gitleaks
+trufflehog: /opt/homebrew/bin/trufflehog
+trivy: /opt/homebrew/bin/trivy
+osv-scanner: /opt/homebrew/bin/osv-scanner
+syft: /opt/homebrew/bin/syft
+grype: /opt/homebrew/bin/grype
+checkov: /Users/christiankatzmann/.local/bin/checkov
+medusa: /Users/christiankatzmann/.local/bin/medusa
+malcontent: missing
+  fix: Install malcontent separately, then provide local package artifacts under the behavioral artifact cache.
+legitify: /opt/homebrew/bin/legitify

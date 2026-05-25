@@ -5,7 +5,7 @@ This plan translates the catalog contract in `docs/tool-catalog.md` into the das
 ## Human Context Contract
 
 - User likely arrives feeling: curious, cautious, and not fully sure which scanners are safe or useful.
-- Prior context they may carry: scanner names are technical, missing tools can feel like broken protection, and security products often blur local scans with cloud behavior.
+- Prior context they may carry: scanner names are technical, not-installed tools can feel like broken protection, and security products often blur local scans with cloud behavior.
 - What they fear getting wrong: running a tool that leaves the Mac, needs credentials, writes files, scans an external target, or gives false confidence.
 - What getting it wrong costs: unwanted network activity, leaked source or secrets, repository damage, or trusting coverage that is not really present.
 - Their likely bandwidth: low to medium. The catalog must work at a glance before it rewards deeper reading.
@@ -44,7 +44,7 @@ Primary controls:
 - Search across tool label, summary, category, profile, pack, and scanner key.
 - Category segmented filter with an `All` option.
 - Pack filter for Starter, Secrets, Dependencies, AI Agent, and future packs.
-- Status filter for Ready, Needs setup, Missing, Advanced, and Coming soon.
+- Status filter for Ready, Needs setup, Not installed, Advanced, and Coming soon.
 - Safety filter for Local, Optional network, Network required, Needs credentials, Approval required, and Agent Lab blocked.
 
 Default view:
@@ -91,7 +91,7 @@ Status pill priority:
 1. `Display only` for `coming-soon`.
 2. `Needs setup` for `not-configured`.
 3. `Unavailable` for environment or prerequisite blocks.
-4. `Missing` for supported external binaries not detected.
+4. `Not installed` for supported external binaries not detected.
 5. `Detected locally` for user-owned binaries on PATH.
 6. `Built in` for DëvSec-owned scanner logic.
 7. `DëvSec managed` only when a managed-tool registry exists.
@@ -150,7 +150,7 @@ Detail sections:
 8. Actions: existing run/profile controls only; disabled preview controls for future install/uninstall if shown at all.
 9. Docs: internal docs path and external homepage when available.
 
-Do not hide runtime truth. A catalog entry can say a tool is supported; the detail panel must still show whether it actually ran, was missing, errored, or has not run for the selected repo.
+Do not hide runtime truth. A catalog entry can say a tool is supported; the detail panel must still show whether it actually ran, was not installed, errored, or has not run for the selected repo.
 
 ## Safety Label Display
 
@@ -164,7 +164,7 @@ Display priority:
 4. Agent permission: `Agent Lab allowed` or `Agent Lab blocked`.
 5. Lifecycle/install: `Display only`, `Detected locally`, `Built in`, or `DëvSec managed`.
 
-Use warning color for `Network required`, `Needs credentials`, `Approval required`, `Writes files`, `Destructive`, `Unavailable`, and real scanner errors. Use neutral or info treatment for `Missing`, `Not configured`, `Advanced`, and `Coming soon` so the catalog does not create false panic.
+Use neutral or info treatment for setup and policy states: `Network required`, `Needs credentials`, `Approval required`, `Writes files`, `Destructive`, `Unavailable`, `Not installed`, `Not configured`, `Advanced`, and `Coming soon`. Severity colors stay reserved for security severity.
 
 ## Install-State Display
 
@@ -175,7 +175,7 @@ Use the install states from `docs/tool-catalog.md` exactly:
 | `built-in` | Built into DëvSec. No install needed. | Ready, calm positive |
 | `managed` | DëvSec owns the managed install. | Future-ready label only when registry exists |
 | `detected` | Found locally, but user-owned. | Ready, with user-owned note |
-| `missing` | Supported but not available on this Mac. | Needs install guidance |
+| `missing` | Supported but not available on this Mac. | Display as `Not installed`; needs install guidance |
 | `unavailable` | Cannot run in this context. | Explain blocker |
 | `not-configured` | Installed but needs credentials, artifacts, cache, or repo context. | Explain setup |
 | `coming-soon` | Display-only future coverage. | Disabled educational tile |
@@ -193,7 +193,7 @@ Uninstall posture must be visible before future uninstall controls exist:
 - Avoid "deploy", "one-click install", "plugin store", "system secure", and broad "verified" claims unless backed by fields.
 - Explain risk boundaries before actions, not in hidden tooltips.
 - Say what happens locally and what may leave the machine.
-- Treat missing tools as setup gaps, not security failures.
+- Treat not-installed tools as setup gaps, not security failures.
 - Treat Coming Soon as future coverage, not broken protection.
 - For advanced tools, explain the prerequisite first: credentials, network, artifact cache, previous scan, repo remote, or target approval.
 
@@ -227,7 +227,7 @@ Implementation must not make UI-only availability states. If runtime detection d
 
 Given the user is cautious and unsure what leaves their machine, when they browse a tool card, they can see local/network and credential labels before opening detail or running anything.
 
-Given the user sees a missing scanner, when they open detail, they can tell it is a setup gap and not proof the repository is unsafe.
+Given the user sees a not-installed scanner, when they open detail, they can tell it is a setup gap and not proof the repository is unsafe.
 
 Given the user sees External Surface, when they inspect it, they cannot enter a domain, start a scan, install a tool, or trigger Agent Lab.
 

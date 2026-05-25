@@ -129,7 +129,7 @@ export default function AgentLabView({summary, target, targetRepos, onRefresh, o
   const [isQueuingRun, setIsQueuingRun] = useState(false);
 
   const selectedAdapter = adapterOptions.find((option) => option.id === adapterId) ?? adapterOptions[0];
-  const repo = target.type === 'repo' ? target.repo : null;
+  const repo = target.mode === 'repo' ? target.repo : null;
 
   const summaryProposals = useMemo(() => {
     if (!repo) return [];

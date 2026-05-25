@@ -38,7 +38,7 @@ Filesystem, dependency, container, IaC, and secret scanning.
 
 Open-source dependency vulnerability detection using OSV advisories.
 
-Dependency findings can be enriched after normalization. The helper layer extracts CVE, GHSA, and OSV-style advisory IDs, package names, and fixed-version text from scanner output. Optional online checks, such as CISA KEV and EPSS, are designed to fail closed as "not checked" when unavailable; they should never block a scan or be treated as proof that a vulnerability is not exploited.
+Dependency raw findings can be enriched after normalization. The helper layer extracts CVE, GHSA, and OSV-style advisory IDs, package names, and fixed-version text from scanner output. Optional online checks, such as CISA KEV and EPSS, are designed to fail closed as "not checked" when unavailable; they should never block a scan or be treated as proof that a vulnerability is not exploited.
 
 ## Optional OpenSSF Trust Enrichment
 
@@ -50,7 +50,7 @@ Use:
 security-scan --deps --trust
 ```
 
-This runs SBOM generation, then attaches cache-backed trust records to SBOM components when a GitHub source repository can be resolved with strong confidence. Observatory currently treats these as separate facts, not findings:
+This runs SBOM generation, then attaches cache-backed trust records to SBOM components when a GitHub source repository can be resolved with strong confidence. Observatory currently treats these as separate facts, not raw findings:
 
 - source repository
 - source-repo resolution confidence and reason
@@ -144,7 +144,7 @@ Privacy boundary:
 - Observatory does not store raw legitify `aux` metadata such as entity ids, entity names, secret lists, or full SCM resource URLs in the posture snapshot.
 - Missing legitify, missing credentials, or missing repo target records a skipped platform scan and keeps the rest of the local scan usable.
 
-Platform posture findings use the `platform-posture` category. When a previous platform snapshot exists, Observatory compares the sanitized policy states and raises change-aware alerts for important regressions such as default branch protection becoming disabled or workflow token permissions widening.
+Platform posture raw findings use the `platform-posture` category. When a previous platform snapshot exists, Observatory compares the sanitized policy states and raises change-aware alerts for important regressions such as default branch protection becoming disabled or workflow token permissions widening.
 
 ## Medusa
 
@@ -177,7 +177,7 @@ Artifact fetching is intentionally not automatic. Put artifacts in the local cac
       1.1.0/artifact
 ```
 
-When both old and new artifacts are available, Observatory runs malcontent diff and stores behavioral-drift findings with:
+When both old and new artifacts are available, Observatory runs malcontent diff and stores behavioral-drift raw findings with:
 
 - old version
 - new version
@@ -186,4 +186,4 @@ When both old and new artifacts are available, Observatory runs malcontent diff 
 - after behavior
 - evidence summary
 
-Behavioral drift can show that a package artifact gained behavior such as network access, process execution, file writes, persistence, obfuscation, or credential access. It cannot prove compromise by itself. Some legitimate releases add new behavior, and scanner rules can be noisy. Treat these findings as a reason to inspect the upgrade, source provenance, maintainer history, and release notes before trusting the new version.
+Behavioral drift can show that a package artifact gained behavior such as network access, process execution, file writes, persistence, obfuscation, or credential access. It cannot prove compromise by itself. Some legitimate releases add new behavior, and scanner rules can be noisy. Treat these raw findings as a reason to inspect the upgrade, source provenance, maintainer history, and release notes before trusting the new version.

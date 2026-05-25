@@ -1,6 +1,6 @@
 """Read-only MCP adapter for the local Security Observatory.
 
-Exposes ten tools over stdio so local agents (Claude Desktop, Cursor, Codex,
+Exposes eleven tools over stdio so local agents (Claude Desktop, Cursor, Codex,
 etc.) can ask focused questions about scan history without an HTTP listener,
 write paths, or cloud round-trip. Wraps existing methods on ObservatoryDB,
 small scan-history reads, the case-builder vocabulary in cases.py, and the
@@ -40,12 +40,12 @@ DEVSEC_MCP_INSTRUCTIONS = """You are the DëvSec security helper. Speak like a c
 
 Purpose: help the user understand local scan history, act safely, and verify closure. DëvSec is local-first: scan evidence and history stay on the user's machine unless they choose otherwise.
 
-For findings, lead with: Action: <fix_now|verify|watch|info> · Severity: <critical|high|medium|low|info>.
+For cases, lead with: Action: <fix_now|verify|watch|info> · Severity: <critical|high|medium|low|info>. Use "raw findings" only for scanner-level evidence rows.
 
 Default structure:
 1. Status: what happened.
 2. Impact: practical consequence in plain language.
-3. Evidence: file path, package version, rule, finding ID, confidence, scan scope, or source.
+3. Evidence: file path, package version, rule, raw finding ID, confidence, scan scope, or source.
 4. Action: the next concrete step.
 5. Verification: how closure is confirmed.
 
@@ -55,11 +55,11 @@ Rules:
 - Say "clear within scan scope," not "secure."
 - Say "no evidence found," not "no breach occurred," unless logs prove it.
 - Use active verbs: revoke, rotate, remove, patch, upgrade, restrict, isolate, review, verify, rescan, escalate.
-- For critical findings, use short sentences and ordered steps.
+- For critical cases, use short sentences and ordered steps.
 - Never shame the developer.
 - No panic, softness, jokes, casual filler, exclamation marks, or emoji.
 - Exception: use ⚠ only for an actively triggered Honey Key.
-- Respect the MCP boundary: this adapter is read-only and stdio-only. It can report scan history, cases, playbooks, dependency trust, Honey Key state, and rotation state for repos where the secrets-rotation skill is scaffolded. It cannot delete findings, mark cases resolved, modify the store, install scanners, or rotate credentials — rotation triggering happens through the dashboard or the /devsec-rotate slash command, not through MCP.
+- Respect the MCP boundary: this adapter is read-only and stdio-only. It can report scan history, cases, raw findings, playbooks, dependency trust, Honey Key state, and rotation state for repos where the secrets-rotation skill is scaffolded. It cannot delete raw findings, mark cases resolved, modify the store, install scanners, or rotate credentials — rotation triggering happens through the dashboard or the /devsec-rotate slash command, not through MCP.
 
 Full doctrine: docs/agent-voice.md. Safety tiers and refusal language: docs/agent-safety.md."""
 
@@ -464,7 +464,7 @@ def _recovery_playbook(category: str) -> dict[str, Any]:
     template = _RECOVERY_PLAYBOOK_TEMPLATES[template_id]
     steps = [step.replace("{files}", "the affected files") for step in template.step_templates]
     agent_prompt = (
-        f"Work through the {template.title} playbook for {normalized} findings. "
+        f"Work through the {template.title} playbook for {normalized} raw findings. "
         "Read each step before acting and confirm impact in the repo before changing code. "
         + " ".join(steps)
     )
@@ -588,16 +588,31 @@ def create_server(home: Path | None = None) -> FastMCP:
         return _with_db(lambda db: _scan_history(db, repo, limit))
 
     @server.tool()
+    def raw_findings(
+        repo: str,
+        severity: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        """Return raw findings from the most recent scan of ``repo``.
+
+        Raw findings are scanner-level evidence. Cases are the user-facing
+        grouped work items. Filter by severity (critical | high | medium | low
+        | info) or omit for all. ``limit`` caps the result count (default 50,
+        max 500). Paths are repo-relative; absolute home-directory paths are
+        never returned.
+        """
+        return _with_db(lambda db: _findings(db, repo, severity, limit))
+
+    @server.tool()
     def findings(
         repo: str,
         severity: str | None = None,
         limit: int = 50,
     ) -> list[dict[str, Any]]:
-        """Return findings from the most recent scan of ``repo``.
+        """Compatibility alias for ``raw_findings``.
 
-        Filter by severity (critical | high | medium | low | info) or omit for
-        all. ``limit`` caps the result count (default 50, max 500). Paths are
-        repo-relative; absolute home-directory paths are never returned.
+        Prefer ``raw_findings`` in new prompts and clients. This tool remains
+        for existing MCP consumers that already call ``findings``.
         """
         return _with_db(lambda db: _findings(db, repo, severity, limit))
 
