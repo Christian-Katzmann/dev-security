@@ -53,8 +53,8 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 1 — Setup foundation
 
-- [ ] Step 1.1 — Catalog schema additions (`setup_kind`, `setup_requirement`, `setup_probe`)
-- [ ] Step 1.2 — macOS Keychain credential-storage layer
+- [x] Step 1.1 — Catalog schema additions (`setup_kind`, `setup_requirement`, `setup_probe`)
+- [x] Step 1.2 — macOS Keychain credential-storage layer
 
 ### Phase 2 — SetupCard component and first concrete case
 

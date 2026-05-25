@@ -27,6 +27,15 @@ from .agent_lab import (
     proposal_from_import_payload,
     validate_agent_proposal,
 )
+from .credentials import (
+    CredentialStorageError,
+    KEYCHAIN_SERVICE,
+    delete_credential,
+    is_supported as keychain_is_supported,
+    list_all_credentials,
+    list_credentials,
+    store_credential,
+)
 from .decisions import assemble_suppression
 from .discovery import discover_repos
 from .docs_render import render_markdown
@@ -1392,6 +1401,22 @@ def _update_agent_lab_plan_item_statuses(plan: dict[str, Any], execution: dict[s
 # below makes the shell-injection refusal explicit anyway.
 _PACKAGE_BINARY_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
+# Credential-route path matchers. The tool_id and key segments are constrained
+# to the same character class enforced by `credentials._validate_identifier`,
+# so a malformed URL is rejected at the routing layer before the validator
+# runs again deeper in.
+_CREDENTIAL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+_CREDENTIALS_TOOL_PATH_RE = re.compile(
+    r"^/api/tools/(?P<tool_id>[A-Za-z0-9][A-Za-z0-9._-]{0,63})/credentials/?$"
+)
+_CREDENTIALS_KEYS_PATH_RE = re.compile(
+    r"^/api/tools/(?P<tool_id>[A-Za-z0-9][A-Za-z0-9._-]{0,63})/credentials/keys/?$"
+)
+_CREDENTIALS_KEY_PATH_RE = re.compile(
+    r"^/api/tools/(?P<tool_id>[A-Za-z0-9][A-Za-z0-9._-]{0,63})"
+    r"/credentials/(?P<key>[A-Za-z0-9][A-Za-z0-9._-]{0,63})/?$"
+)
+
 _PACKAGE_MANAGER_DISPATCH: dict[str, dict[str, Any]] = {
     "homebrew": {
         "program": "brew",
@@ -1717,6 +1742,13 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             job_id = parsed.path.removeprefix("/api/rotation/jobs/").strip("/")
             self.serve_rotation_job(job_id)
             return
+        if parsed.path == "/api/tools/credentials":
+            self.serve_all_credential_keys()
+            return
+        credentials_keys_match = _CREDENTIALS_KEYS_PATH_RE.match(parsed.path)
+        if credentials_keys_match:
+            self.serve_credential_keys(credentials_keys_match.group("tool_id"))
+            return
         if parsed.path.rstrip("/") == "/report":
             query = parse_qs(parsed.query)
             scan_id = query.get("scanId", [""])[0]
@@ -1812,6 +1844,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             repo_name = parsed.path.removeprefix("/api/rotation/trigger/")
             self.serve_rotation_trigger(repo_name)
             return
+        credentials_post_match = _CREDENTIALS_TOOL_PATH_RE.match(parsed.path)
+        if credentials_post_match:
+            self.store_tool_credential(credentials_post_match.group("tool_id"))
+            return
         if parsed.path != "/api/run-check":
             self.send_error(404)
             return
@@ -1849,6 +1885,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json({"job": job_snapshot(job_id)})
         except Exception as exc:
             self.send_error(500, str(exc))
+
+    def do_DELETE(self) -> None:
+        parsed = urlparse(self.path)
+        credentials_delete_match = _CREDENTIALS_KEY_PATH_RE.match(parsed.path)
+        if credentials_delete_match:
+            self.delete_tool_credential(
+                credentials_delete_match.group("tool_id"),
+                credentials_delete_match.group("key"),
+            )
+            return
+        self.send_error(404)
 
     def install_managed_tool(self) -> None:
         try:
@@ -2027,6 +2074,108 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json({"tool": tool})
         except Exception as exc:
             self.send_error(500, str(exc))
+
+    # ------------------------------------------------------------------
+    # Credentials (Keychain) endpoints
+    #
+    # GET    /api/tools/credentials                  → full {tool_id: [keys]} map
+    # GET    /api/tools/<id>/credentials/keys        → list of keys for one tool
+    # POST   /api/tools/<id>/credentials             → store {key, value}
+    # DELETE /api/tools/<id>/credentials/<key>       → forget one credential
+    #
+    # **Never returns values.** The frontend POSTs a value once, the backend
+    # writes to Keychain, and from that point only `is_stored` and key names
+    # cross the wire. Values only leave Keychain via the subprocess-env helper
+    # in `credentials.env_with_credentials` (used by scanners.py in Step 2.2).
+    # ------------------------------------------------------------------
+
+    def _credentials_unavailable(self) -> bool:
+        if keychain_is_supported():
+            return False
+        self.send_json_error(
+            503,
+            "Credential storage requires macOS with the `security` CLI on PATH.",
+            service=KEYCHAIN_SERVICE,
+        )
+        return True
+
+    def serve_all_credential_keys(self) -> None:
+        if self._credentials_unavailable():
+            return
+        try:
+            self.send_json({"service": KEYCHAIN_SERVICE, "tools": list_all_credentials()})
+        except CredentialStorageError as exc:
+            self.send_json_error(500, str(exc))
+
+    def serve_credential_keys(self, tool_id: str) -> None:
+        if self._credentials_unavailable():
+            return
+        if not _CREDENTIAL_ID_RE.match(tool_id):
+            self.send_json_error(400, "Invalid tool id.")
+            return
+        try:
+            keys = list_credentials(tool_id)
+        except CredentialStorageError as exc:
+            self.send_json_error(400, str(exc))
+            return
+        self.send_json({"service": KEYCHAIN_SERVICE, "tool_id": tool_id, "keys": keys})
+
+    def store_tool_credential(self, tool_id: str) -> None:
+        if self._credentials_unavailable():
+            return
+        if not _CREDENTIAL_ID_RE.match(tool_id):
+            self.send_json_error(400, "Invalid tool id.")
+            return
+        try:
+            payload = self.read_json_body()
+        except json.JSONDecodeError:
+            self.send_json_error(400, "Request body must be JSON.")
+            return
+        key_raw = payload.get("key") or payload.get("name") or ""
+        value_raw = payload.get("value") or ""
+        if not isinstance(key_raw, str) or not isinstance(value_raw, str):
+            self.send_json_error(400, "key and value must be strings.")
+            return
+        key = key_raw.strip()
+        if not key or not value_raw:
+            self.send_json_error(400, "key and value are required.")
+            return
+        try:
+            store_credential(tool_id, key, value_raw)
+        except CredentialStorageError as exc:
+            self.send_json_error(400, str(exc))
+            return
+        # Never echo the value — only that it landed.
+        self.send_json(
+            {
+                "service": KEYCHAIN_SERVICE,
+                "tool_id": tool_id,
+                "key": key,
+                "stored": True,
+                "keys": list_credentials(tool_id),
+            }
+        )
+
+    def delete_tool_credential(self, tool_id: str, key: str) -> None:
+        if self._credentials_unavailable():
+            return
+        if not _CREDENTIAL_ID_RE.match(tool_id) or not _CREDENTIAL_ID_RE.match(key):
+            self.send_json_error(400, "Invalid tool id or key.")
+            return
+        try:
+            existed = delete_credential(tool_id, key)
+        except CredentialStorageError as exc:
+            self.send_json_error(400, str(exc))
+            return
+        self.send_json(
+            {
+                "service": KEYCHAIN_SERVICE,
+                "tool_id": tool_id,
+                "key": key,
+                "deleted": existed,
+                "keys": list_credentials(tool_id),
+            }
+        )
 
     def save_case_decision(self) -> None:
         try:

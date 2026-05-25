@@ -12,6 +12,12 @@ import sys
 from . import __version__
 from .behavioral import select_behavioral_drift_targets
 from .cases import build_security_cases, scanner_evidence_gaps
+from .credentials import (
+    CredentialStorageError,
+    KEYCHAIN_SERVICE,
+    is_supported as keychain_is_supported,
+    list_all_credentials,
+)
 from .dashboard_server import build_ai_prompt, serve_dashboard
 from .discovery import discover_repos
 from .enrichment import correlate_dependency_findings, enrich_dependency_trust
@@ -94,6 +100,8 @@ def main(argv: list[str] | None = None) -> int:
         return vex_export(args, home)
     if args.target == "vex-import":
         return vex_import(args, home)
+    if args.target == "credentials":
+        return credentials_command(args)
 
     repos = resolve_targets(args)
     if not repos:
@@ -622,6 +630,47 @@ def doctor(home: Path) -> int:
 def print_template() -> int:
     template = Path(__file__).resolve().parents[2] / "templates" / "security.yml"
     print(template.read_text(encoding="utf-8"))
+    return 0
+
+
+def credentials_command(args: argparse.Namespace) -> int:
+    """Audit the credentials DëvSec has stored in the macOS Keychain.
+
+    Keys-only view. Values never print here — to inspect a value, open
+    Keychain Access.app and search for ``"DëvSec"``. To revoke a credential,
+    delete it from Keychain Access or use the SetupCard's Forget button.
+    """
+    sub = (args.ioc_target or "list").strip().lower()
+    if sub not in {"list", "ls"}:
+        print(
+            "Usage: security-scan credentials list\n"
+            "       (values are never printed; open Keychain Access to inspect them)",
+            file=sys.stderr,
+        )
+        return 2
+    if not keychain_is_supported():
+        print(
+            "Credential storage requires macOS with the `security` CLI on PATH.",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        index = list_all_credentials()
+    except CredentialStorageError as exc:
+        print(f"Failed to read credential index: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps({"service": KEYCHAIN_SERVICE, "tools": index}, indent=2, sort_keys=True))
+        return 0
+
+    print(f"Keychain service: {KEYCHAIN_SERVICE}")
+    if not index:
+        print("No credentials stored.")
+        return 0
+    for tool_id in sorted(index):
+        keys = index[tool_id]
+        print(f"  {tool_id}: {', '.join(keys) if keys else '(none)'}")
     return 0
 
 
