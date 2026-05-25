@@ -21,6 +21,7 @@ import {
   formatDate,
   repoKeyFromPath,
 } from '../dashboardData';
+import RotationBatchFlow from './RotationBatchFlow';
 import RotationTriggerFlow from './RotationTriggerFlow';
 
 type RotationStatusCardProps = {
@@ -134,6 +135,7 @@ export default function RotationStatusCard({repo, precomputed}: RotationStatusCa
   const [copied, setCopied] = useState<string | null>(null);
   const [rotateTarget, setRotateTarget] = useState<RotationSecretRow | null>(null);
   const [pasteTarget, setPasteTarget] = useState<RotationSecretRow | null>(null);
+  const [showBatchFlow, setShowBatchFlow] = useState(false);
 
   // The dashboard's rotation endpoints are keyed by the slugified scan-history
   // repo name (e.g. ``besk-ftigelse.dk``), not by the un-slugified display name
@@ -269,17 +271,29 @@ export default function RotationStatusCard({repo, precomputed}: RotationStatusCa
             IN GRACE secret within four hours of revoke.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            void loadStatus();
-          }}
-          disabled={isLoading}
-          className="inline-flex items-center justify-center gap-2 border border-black/10 bg-[#fbfbfb] px-3 py-2 font-mono text-[10px] uppercase tracking-widest hover:border-black/40 disabled:opacity-50"
-        >
-          <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.5} />
-          {isLoading ? 'Reading' : 'Refresh'}
-        </button>
+        <div className="flex items-center gap-2">
+          {signal?.scaffolded && secrets.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowBatchFlow(true)}
+              className="inline-flex items-center justify-center gap-2 border border-black bg-black text-white px-3 py-2 font-mono text-[10px] uppercase tracking-widest hover:bg-[#222] transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.5} />
+              Rotate all
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              void loadStatus();
+            }}
+            disabled={isLoading}
+            className="inline-flex items-center justify-center gap-2 border border-black/10 bg-[#fbfbfb] px-3 py-2 font-mono text-[10px] uppercase tracking-widest hover:border-black/40 disabled:opacity-50"
+          >
+            <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.5} />
+            {isLoading ? 'Reading' : 'Refresh'}
+          </button>
+        </div>
       </header>
 
       {error && (
@@ -343,6 +357,18 @@ export default function RotationStatusCard({repo, precomputed}: RotationStatusCa
           secret={pasteTarget}
           onClose={() => setPasteTarget(null)}
           onSubmit={(pasteValue) => submitPasteResume(pasteTarget, pasteValue)}
+        />
+      )}
+
+      {showBatchFlow && (
+        <RotationBatchFlow
+          repo={repo}
+          secrets={secrets}
+          onClose={() => setShowBatchFlow(false)}
+          onDone={() => {
+            void loadStatus();
+            setHistory(null);
+          }}
         />
       )}
 

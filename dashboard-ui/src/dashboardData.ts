@@ -703,6 +703,52 @@ export function rotationConfirmationPhrase(secret: string, options: { emergencyM
   return `Yes, rotate \`${secret}\` and accept the irreversible provider-side change.`;
 }
 
+export type BatchFilterPreset = 'all_actionable' | 'never_rotated' | 'needs_attention';
+
+export type BatchJobStatus =
+  | 'running'
+  | 'complete'
+  | 'complete_with_errors'
+  | 'stopped'
+  | 'halted_awaiting_decision';
+
+export type BatchJobSnapshot = {
+  id: string;
+  kind: 'rotation_batch';
+  status: BatchJobStatus | string;
+  repo: string;
+  repo_path: string;
+  filter: BatchFilterPreset | string;
+  queue: string[];
+  completed: string[];
+  halted: string[];
+  current_secret: string | null;
+  current_job_id: string | null;
+  position: number;
+  total: number;
+  halt_on_error: boolean;
+  halted_awaiting_decision: boolean;
+  started_at: string | null;
+  finished_at: string | null;
+  batch_receipt: string | null;
+};
+
+export type BatchTriggerRequest = {
+  filter: BatchFilterPreset;
+  confirmed: boolean;
+  confirmation_phrase: string;
+};
+
+export function batchRotationConfirmationPhrase(
+  count: number,
+  options: { hasClassB?: boolean } = {},
+): string {
+  const suffix = options.hasClassB
+    ? ' This includes provider-side changes for Class B secrets.'
+    : '';
+  return `Yes, rotate ${count} secrets and accept the irreversible provider-side changes.${suffix}`;
+}
+
 export type HoneyKeyStatus = 'active' | 'triggered' | 'archived';
 
 export type HoneyKey = {
