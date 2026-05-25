@@ -84,6 +84,9 @@ CHECK_JOBS: dict[str, dict[str, object]] = {}
 CHECK_JOBS_LOCK = threading.Lock()
 _TERMINAL_JOB_STATUSES = frozenset({"complete", "halted", "failed"})
 
+BATCH_JOBS: dict[str, dict[str, object]] = {}
+BATCH_JOBS_LOCK = threading.Lock()
+
 # Sec-name regex: ENV-style identifiers only. The skill itself rejects anything
 # else, but we want the dashboard to refuse before shelling out.
 _SAFE_SECRET_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*$")
@@ -113,6 +116,42 @@ def _rotation_confirmation_phrase(secret: str, *, emergency: bool = False) -> st
             "dies immediately with no grace."
         )
     return f"Yes, rotate `{secret}` and accept the irreversible provider-side change."
+
+
+def _batch_rotation_confirmation_phrase(count: int, *, has_class_b: bool = False) -> str:
+    suffix = (
+        " This includes provider-side changes for Class B secrets."
+        if has_class_b
+        else ""
+    )
+    return (
+        f"Yes, rotate {count} secrets and accept the irreversible provider-side changes."
+        + suffix
+    )
+
+
+# Batch filter presets — each returns a predicate over rotation-status rows.
+BATCH_FILTER_PRESETS = {
+    "never_rotated": lambda row: str(row.get("status") or "") == "NEVER",
+    "needs_attention": lambda row: bool(row.get("needs_attention")),
+    "all_actionable": lambda row: (
+        str(row.get("status") or "") == "NEVER" or bool(row.get("needs_attention"))
+    ),
+}
+
+
+def _apply_batch_filter(
+    rows: list[dict[str, Any]], preset: str
+) -> list[dict[str, Any]]:
+    predicate = BATCH_FILTER_PRESETS.get(preset)
+    if not predicate:
+        return []
+    return [
+        row for row in rows
+        if predicate(row)
+        and str(row.get("status") or "") not in ROTATION_INFLIGHT_STATUSES
+        and str(row.get("secret") or "") not in {"(corrupt)", "(unreadable)"}
+    ]
 
 
 def _append_rotation_audit_event(repo_path: Path, event: dict[str, Any]) -> None:
@@ -392,6 +431,289 @@ def _run_rotation_job(
         verification_status=final_status,
         finished_at=utc_now(),
     )
+
+
+def _batch_job_snapshot(batch_id: str) -> dict[str, object] | None:
+    with BATCH_JOBS_LOCK:
+        batch = BATCH_JOBS.get(batch_id)
+        return dict(batch) if batch else None
+
+
+def _update_batch_job(batch_id: str, **updates: object) -> None:
+    with BATCH_JOBS_LOCK:
+        if batch_id in BATCH_JOBS:
+            BATCH_JOBS[batch_id].update(updates)
+
+
+def _run_batch_rotation(
+    batch_id: str,
+    repo_path: Path,
+    repo_name: str,
+) -> None:
+    """Sequential batch rotation worker.
+
+    Iterates the queue one secret at a time, shelling out to
+    `npm run rotate -- <SECRET>` for each. Between rotations, checks
+    if the batch was stopped or if the previous rotation halted.
+    """
+    import time as _time
+
+    with BATCH_JOBS_LOCK:
+        batch = BATCH_JOBS.get(batch_id)
+        if not batch:
+            return
+        queue: list[str] = list(batch.get("queue") or [])  # type: ignore[arg-type]
+
+    completed: list[dict[str, object]] = []
+    halted_secrets: list[dict[str, object]] = []
+
+    for idx, secret in enumerate(queue):
+        # Check if batch was stopped externally
+        with BATCH_JOBS_LOCK:
+            batch = BATCH_JOBS.get(batch_id)
+            if not batch:
+                return
+            if batch.get("status") == "stopped":
+                return
+            # If we returned from a halt-wait and the user chose stop,
+            # the status will already be "stopped".
+            if batch.get("halted_awaiting_decision"):
+                # Wait for the operator's continue/stop decision (polled)
+                pass
+
+        # Wait loop for operator decision after a halt
+        while True:
+            with BATCH_JOBS_LOCK:
+                b = BATCH_JOBS.get(batch_id)
+                if not b:
+                    return
+                if b.get("status") == "stopped":
+                    return
+                if not b.get("halted_awaiting_decision"):
+                    break
+            _time.sleep(1)
+
+        _update_batch_job(
+            batch_id,
+            current_secret=secret,
+            position=idx + 1,
+            status="running",
+        )
+
+        # Skip secrets that already have an in-flight job
+        if _active_rotation_job(repo_name, secret):
+            halted_secrets.append({
+                "secret": secret,
+                "reason": "already in-flight",
+                "job_id": None,
+            })
+            _update_batch_job(batch_id, halted=list(halted_secrets))
+            continue
+
+        # Check that the secret isn't currently in an in-flight state on disk
+        rows = read_rotation_status(repo_path)
+        row = next(
+            (r for r in rows if r.get("secret") == secret),
+            None,
+        )
+        if row and str(row.get("status") or "") in ROTATION_INFLIGHT_STATUSES:
+            halted_secrets.append({
+                "secret": secret,
+                "reason": f"in-flight status: {row.get('status')}",
+                "job_id": None,
+            })
+            _update_batch_job(batch_id, halted=list(halted_secrets))
+            continue
+
+        # Build and run the sub-rotation
+        command = ["npm", "run", "rotate", "--", secret]
+        job_id = uuid.uuid4().hex[:12]
+        job: dict[str, object] = {
+            "id": job_id,
+            "kind": "rotation",
+            "status": "queued",
+            "repo": repo_name,
+            "repo_path": str(repo_path),
+            "secret": secret,
+            "command": " ".join(command),
+            "options": {
+                "no_soak": False,
+                "skip_health_check": False,
+                "soak_minutes": None,
+                "test_mode": False,
+                "acknowledged_skipping_soak": False,
+                "acknowledged_skipping_health_check": False,
+                "emergency_mode": False,
+                "acknowledged_cached_caller_risk": False,
+            },
+            "phase": "queued",
+            "message": f"Queued in batch {batch_id}; about to shell out.",
+            "stdout_tail": [],
+            "events_seen": 0,
+            "started_at": utc_now(),
+            "finished_at": None,
+            "exit_code": None,
+            "error": None,
+            "receipt_filename": None,
+            "receipt_url": None,
+            "verification_status": None,
+            "batch_id": batch_id,
+        }
+        with CHECK_JOBS_LOCK:
+            CHECK_JOBS[job_id] = job
+
+        _update_batch_job(batch_id, current_job_id=job_id)
+
+        _append_rotation_audit_event(
+            repo_path,
+            {
+                "rotation_id": None,
+                "secret_name": secret,
+                "step": "DASHBOARD_TRIGGER",
+                "outcome": "initiated",
+                "note": (
+                    f"batch sub-rotation; batch_id={batch_id}; "
+                    f"job_id={job_id}; command={' '.join(command)}"
+                ),
+            },
+        )
+
+        # Run synchronously — sequential, not parallel
+        _run_rotation_job(job_id, repo_path, secret, command, repo_name)
+
+        # Read the outcome
+        snapshot = job_snapshot(job_id)
+        sub_status = str(snapshot.get("status") or "") if snapshot else "failed"
+
+        if sub_status == "complete":
+            completed.append({
+                "secret": secret,
+                "job_id": job_id,
+                "receipt_filename": snapshot.get("receipt_filename") if snapshot else None,
+            })
+            _update_batch_job(batch_id, completed=list(completed))
+        else:
+            halted_secrets.append({
+                "secret": secret,
+                "reason": str(snapshot.get("message") or sub_status) if snapshot else sub_status,
+                "job_id": job_id,
+            })
+            _update_batch_job(batch_id, halted=list(halted_secrets))
+
+            # Halt-on-error: pause and await operator decision
+            _update_batch_job(
+                batch_id,
+                halted_awaiting_decision=True,
+                status="halted_awaiting_decision",
+            )
+
+            # Wait for operator continue/stop
+            deadline = _time.monotonic() + _ROTATION_SUBPROCESS_TIMEOUT_SECONDS
+            while _time.monotonic() < deadline:
+                with BATCH_JOBS_LOCK:
+                    b = BATCH_JOBS.get(batch_id)
+                    if not b:
+                        return
+                    if b.get("status") == "stopped":
+                        return
+                    if not b.get("halted_awaiting_decision"):
+                        break
+                _time.sleep(1)
+            else:
+                # Timed out waiting for decision — stop the batch
+                _update_batch_job(
+                    batch_id,
+                    status="stopped",
+                    halted_awaiting_decision=False,
+                    finished_at=utc_now(),
+                )
+                _write_batch_receipt(batch_id, repo_path)
+                return
+
+    # All done
+    final_status = "complete" if not halted_secrets else "complete_with_errors"
+    _update_batch_job(
+        batch_id,
+        status=final_status,
+        current_secret=None,
+        current_job_id=None,
+        finished_at=utc_now(),
+        halted_awaiting_decision=False,
+    )
+    _write_batch_receipt(batch_id, repo_path)
+
+
+def _write_batch_receipt(batch_id: str, repo_path: Path) -> None:
+    """Write a batch-level receipt to the rotation receipts directory."""
+    snapshot = _batch_job_snapshot(batch_id)
+    if not snapshot:
+        return
+
+    completed = snapshot.get("completed") or []
+    halted = snapshot.get("halted") or []
+    queue = snapshot.get("queue") or []
+    repo = str(snapshot.get("repo") or "")
+    started = str(snapshot.get("started_at") or "")
+    finished = str(snapshot.get("finished_at") or utc_now())
+    status = str(snapshot.get("status") or "")
+
+    lines = [
+        f"# Batch rotation receipt — `{repo}`",
+        "",
+        f"- **Batch ID:** `{batch_id}`",
+        f"- **Status:** {status}",
+        f"- **Filter:** {snapshot.get('filter')}",
+        f"- **Started:** {started}",
+        f"- **Finished:** {finished}",
+        f"- **Total queued:** {len(queue)}",  # type: ignore[arg-type]
+        f"- **Completed:** {len(completed)}",  # type: ignore[arg-type]
+        f"- **Halted/skipped:** {len(halted)}",  # type: ignore[arg-type]
+        "",
+    ]
+
+    if completed:
+        lines.append("## Completed")
+        lines.append("")
+        for item in completed:  # type: ignore[union-attr]
+            receipt = item.get("receipt_filename") or "(no receipt)"  # type: ignore[union-attr]
+            lines.append(f"- `{item.get('secret')}` — receipt: `{receipt}`")  # type: ignore[union-attr]
+        lines.append("")
+
+    if halted:
+        lines.append("## Halted / skipped")
+        lines.append("")
+        for item in halted:  # type: ignore[union-attr]
+            lines.append(f"- `{item.get('secret')}` — {item.get('reason')}")  # type: ignore[union-attr]
+        lines.append("")
+
+    remaining = [s for s in queue if s not in {  # type: ignore[union-attr]
+        c.get("secret") for c in completed  # type: ignore[union-attr]
+    } and s not in {
+        h.get("secret") for h in halted  # type: ignore[union-attr]
+    }]
+    if remaining:
+        lines.append("## Not attempted (batch stopped before reaching these)")
+        lines.append("")
+        for s in remaining:
+            lines.append(f"- `{s}`")
+        lines.append("")
+
+    lines.append(
+        "This batch rotation was initiated from the DëvSec dashboard. "
+        "Per-secret verification receipts are in the individual files above."
+    )
+    lines.append("")
+
+    markdown = "\n".join(lines)
+    receipts_directory = repo_path / "data" / "rotation-receipts"
+    try:
+        receipts_directory.mkdir(parents=True, exist_ok=True)
+        stamp = started.replace(":", "").replace(".", "-")[:19] if started else "unknown"
+        filename = f"BATCH-{stamp}.md"
+        (receipts_directory / filename).write_text(markdown, encoding="utf-8")
+        _update_batch_job(batch_id, batch_receipt=filename)
+    except OSError:
+        pass
 
 
 def _parse_event_timestamp(value: object) -> datetime | None:
@@ -1987,6 +2309,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             tail = parsed.path.removeprefix("/api/rotation/receipts/")
             self.serve_rotation_receipt(tail)
             return
+        if parsed.path.startswith("/api/rotation/jobs/batch/"):
+            batch_id = parsed.path.removeprefix("/api/rotation/jobs/batch/").strip("/")
+            self.serve_rotation_batch_job(batch_id)
+            return
         if parsed.path.startswith("/api/rotation/jobs/"):
             job_id = parsed.path.removeprefix("/api/rotation/jobs/").strip("/")
             self.serve_rotation_job(job_id)
@@ -2092,6 +2418,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path.startswith("/api/rotation/scaffold/"):
             repo_name = parsed.path.removeprefix("/api/rotation/scaffold/")
             self.serve_rotation_scaffold_handoff(repo_name)
+            return
+        if parsed.path.startswith("/api/rotation/trigger-batch/"):
+            repo_name = parsed.path.removeprefix("/api/rotation/trigger-batch/")
+            self.serve_rotation_trigger_batch(repo_name)
+            return
+        if parsed.path.startswith("/api/rotation/jobs/batch/"):
+            tail = parsed.path.removeprefix("/api/rotation/jobs/batch/").strip("/")
+            self.serve_rotation_batch_job(tail)
             return
         if parsed.path.startswith("/api/rotation/trigger/"):
             repo_name = parsed.path.removeprefix("/api/rotation/trigger/")
@@ -3300,6 +3634,173 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         )
         thread.start()
         self.send_accepted_json({"job": job_snapshot(job_id)})
+
+    # ------------------------------------------------------------------
+    # POST /api/rotation/trigger-batch/<repo>
+    # GET  /api/rotation/jobs/batch/<id>
+    #
+    # Sequential batch rotation. Applies a filter preset to the repo's
+    # rotation status, builds a queue, and rotates each secret one at a
+    # time. Halt-on-error: if any sub-rotation halts, the batch stops and
+    # the operator chooses continue/stop via POST /api/rotation/jobs/batch/
+    # <id>/continue or /stop.
+    # ------------------------------------------------------------------
+
+    def serve_rotation_trigger_batch(self, repo_name: str) -> None:
+        try:
+            payload = self.read_json_body()
+        except (ValueError, json.JSONDecodeError):
+            self.send_json_error(400, "Request body must be valid JSON.")
+            return
+
+        preset = str(payload.get("filter") or "all_actionable").strip()
+        if preset not in BATCH_FILTER_PRESETS:
+            self.send_json_error(
+                400,
+                f"filter must be one of: {', '.join(sorted(BATCH_FILTER_PRESETS))}.",
+            )
+            return
+
+        confirmed = bool(payload.get("confirmed"))
+        confirmation_phrase = str(payload.get("confirmation_phrase") or "").strip()
+
+        repo_path = self._resolve_repo_for_rotation(repo_name)
+        if repo_path is None:
+            self.send_json_error(404, "No scan history for that repo yet.")
+            return
+        if not repo_path.is_dir():
+            self.send_json_error(404, "Repo path is no longer on disk.")
+            return
+
+        rows = read_rotation_status(repo_path)
+        if not rows:
+            self.send_json_error(
+                409,
+                "Rotation isn't set up for this repo. Use 'Set up rotation' first.",
+            )
+            return
+
+        queue_rows = _apply_batch_filter(rows, preset)
+        if not queue_rows:
+            self.send_json_error(
+                409,
+                "No secrets match the filter. Nothing to rotate.",
+                filter=preset,
+            )
+            return
+
+        has_class_b = any(
+            str(r.get("class") or "").startswith("B") for r in queue_rows
+        )
+        expected_phrase = _batch_rotation_confirmation_phrase(
+            len(queue_rows), has_class_b=has_class_b
+        )
+        if not confirmed or confirmation_phrase != expected_phrase:
+            self.send_json_error(
+                400,
+                "Batch rotation requires the batch confirmation phrase.",
+                expected_confirmation_phrase=expected_phrase,
+                secret_count=len(queue_rows),
+                has_class_b=has_class_b,
+            )
+            return
+
+        clean_repo = repo_name.strip().strip("/")
+        queue_secrets = [str(r.get("secret") or "") for r in queue_rows]
+
+        batch_id = uuid.uuid4().hex[:12]
+        batch_job: dict[str, object] = {
+            "id": batch_id,
+            "kind": "rotation_batch",
+            "status": "running",
+            "repo": clean_repo,
+            "repo_path": str(repo_path),
+            "filter": preset,
+            "queue": queue_secrets,
+            "completed": [],
+            "halted": [],
+            "current_secret": None,
+            "current_job_id": None,
+            "position": 0,
+            "total": len(queue_secrets),
+            "halt_on_error": True,
+            "halted_awaiting_decision": False,
+            "started_at": utc_now(),
+            "finished_at": None,
+            "batch_receipt": None,
+        }
+        with BATCH_JOBS_LOCK:
+            BATCH_JOBS[batch_id] = batch_job
+
+        _append_rotation_audit_event(
+            repo_path,
+            {
+                "rotation_id": None,
+                "secret_name": None,
+                "step": "DASHBOARD_BATCH_TRIGGER",
+                "outcome": "initiated",
+                "note": (
+                    f"batch trigger; batch_id={batch_id}; filter={preset}; "
+                    f"count={len(queue_secrets)}; secrets={','.join(queue_secrets)}"
+                ),
+            },
+        )
+
+        thread = threading.Thread(
+            target=_run_batch_rotation,
+            args=(batch_id, repo_path, clean_repo),
+            daemon=True,
+        )
+        thread.start()
+        self.send_accepted_json({"batch": _batch_job_snapshot(batch_id)})
+
+    def serve_rotation_batch_job(self, tail: str) -> None:
+        cleaned = tail.strip().strip("/")
+        # Support /api/rotation/jobs/batch/<id>/continue and /stop
+        if "/" in cleaned:
+            batch_id, _, action = cleaned.partition("/")
+            if action == "continue":
+                return self._batch_continue(batch_id)
+            if action == "stop":
+                return self._batch_stop(batch_id)
+            self.send_json_error(400, "Unknown batch action.")
+            return
+        batch_id = cleaned
+        if not batch_id:
+            self.send_json_error(400, "Provide a batch job id.")
+            return
+        snapshot = _batch_job_snapshot(batch_id)
+        if not snapshot:
+            self.send_json_error(404, "Batch job not found.")
+            return
+        self.send_json({"batch": snapshot})
+
+    def _batch_continue(self, batch_id: str) -> None:
+        with BATCH_JOBS_LOCK:
+            batch = BATCH_JOBS.get(batch_id)
+            if not batch:
+                self.send_json_error(404, "Batch job not found.")
+                return
+            if not batch.get("halted_awaiting_decision"):
+                self.send_json_error(409, "Batch is not halted awaiting a decision.")
+                return
+            batch["halted_awaiting_decision"] = False
+            batch["status"] = "running"
+        self.send_json({"batch": _batch_job_snapshot(batch_id)})
+
+    def _batch_stop(self, batch_id: str) -> None:
+        with BATCH_JOBS_LOCK:
+            batch = BATCH_JOBS.get(batch_id)
+            if not batch:
+                self.send_json_error(404, "Batch job not found.")
+                return
+            batch["halted_awaiting_decision"] = False
+            batch["status"] = "stopped"
+            batch["finished_at"] = utc_now()
+        repo_path = Path(str(batch.get("repo_path") or ""))
+        if repo_path.is_dir():
+            _write_batch_receipt(batch_id, repo_path)
+        self.send_json({"batch": _batch_job_snapshot(batch_id)})
 
     def serve_rotation_paste(self, job_id: str) -> None:
         """Resume a WAITING_FOR_PASTE rotation by stdin-feeding the skill.

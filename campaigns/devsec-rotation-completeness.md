@@ -53,11 +53,11 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 ### Phase 3 — Incident response surface
 
 - [x] Step 3.1 — Skill: `--no-grace` / `--emergency` flag with new Tier 5R variant
-- [ ] Step 3.2 — Dashboard surface for emergency rotation
+- [x] Step 3.2 — Dashboard surface for emergency rotation
 
 ### Phase 4 — Batch operations
 
-- [ ] Step 4.1 — Skill + dashboard backend for Rotate-all (sequential, halt-resume, batch receipt)
+- [x] Step 4.1 — Skill + dashboard backend for Rotate-all (sequential, halt-resume, batch receipt)
 - [ ] Step 4.2 — Dashboard UI for Rotate-all (filter chips, live progress panel)
 
 ### Phase 5 — End-to-end verification
