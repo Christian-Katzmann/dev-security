@@ -65,6 +65,7 @@ from .managed_tools import (
     uninstall_managed_tool_files,
 )
 from .rotation import (
+    ROTATION_INFLIGHT_STATUSES,
     SUPPORTED_STACKS,
     detect_rotation_state,
     detect_stack,
@@ -80,6 +81,7 @@ from .storage import ObservatoryDB
 
 CHECK_JOBS: dict[str, dict[str, object]] = {}
 CHECK_JOBS_LOCK = threading.Lock()
+_TERMINAL_JOB_STATUSES = frozenset({"complete", "halted", "failed"})
 
 # Sec-name regex: ENV-style identifiers only. The skill itself rejects anything
 # else, but we want the dashboard to refuse before shelling out.
@@ -2943,6 +2945,30 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             )
             return
 
+        # --- concurrency gate: refuse if this secret already has in-flight work ---
+        clean_repo = repo_name.strip().strip("/")
+        for row in rows:
+            if row.get("secret") == secret and row.get("status") in ROTATION_INFLIGHT_STATUSES:
+                self.send_json_error(
+                    409,
+                    f"Rotation for {secret!r} is already in progress (status: {row['status']}).",
+                )
+                return
+        with CHECK_JOBS_LOCK:
+            for existing in CHECK_JOBS.values():
+                if (
+                    existing.get("repo") == clean_repo
+                    and existing.get("secret") == secret
+                    and existing.get("status") not in _TERMINAL_JOB_STATUSES
+                ):
+                    self.send_json_error(
+                        409,
+                        f"Rotation for {secret!r} is already in progress"
+                        f" (job_id: {existing['id']}).",
+                        job_id=existing["id"],
+                    )
+                    return
+
         command = ["npm", "run", "rotate", "--", secret]
         if test_mode:
             command.append("--test")
@@ -2953,7 +2979,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if soak_minutes is not None:
             command.extend(["--soak-minutes", str(soak_minutes)])
 
-        clean_repo = repo_name.strip().strip("/")
         job_id = uuid.uuid4().hex[:12]
         job: dict[str, object] = {
             "id": job_id,

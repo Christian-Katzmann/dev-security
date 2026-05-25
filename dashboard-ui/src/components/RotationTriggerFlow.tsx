@@ -120,6 +120,18 @@ export default function RotationTriggerFlow({
         },
       );
       if (!response.ok) {
+        if (response.status === 409) {
+          let detail = 'A rotation for this secret is already in progress.';
+          try {
+            const body = await response.json();
+            if (body.job_id) {
+              detail += ` (job: ${body.job_id})`;
+            } else if (body.error) {
+              detail = body.error;
+            }
+          } catch { /* use default detail */ }
+          throw new Error(detail);
+        }
         const text = await response.text();
         throw new Error(text || 'Rotation request was refused.');
       }

@@ -24,6 +24,8 @@ from urllib.request import Request, urlopen
 import pytest
 
 from security_observatory.dashboard_server import (
+    CHECK_JOBS,
+    CHECK_JOBS_LOCK,
     DashboardHandler,
     _rotation_confirmation_phrase,
 )
@@ -423,3 +425,75 @@ def test_trigger_audit_event_surfaces_in_rotation_history(npm_on_path):
     events = json.loads(body)["events"]
     steps = [event.get("step") for event in events]
     assert "DASHBOARD_TRIGGER" in steps
+
+
+# ---------------------------------------------------------------------------
+# Concurrency gate (409 when rotation already in flight)
+# ---------------------------------------------------------------------------
+
+
+def test_trigger_409s_when_rotation_state_is_inflight(harness):
+    """If rotation-state.json shows an in-flight status, the trigger is refused."""
+    repo_root = harness["repo_root"]
+    (repo_root / "data" / "rotation-state.json").write_text(
+        json.dumps(
+            {
+                "secrets": [{"name": "AUTH_SECRET", "class": "A", "cadence_days": 30}],
+                "rotations": [
+                    {
+                        "secret_name": "AUTH_SECRET",
+                        "rotation_id": "rot-inflight",
+                        "started_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+                        "completed_at": None,
+                        "status": "IN_SOAK",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    status, body, _ct = _http(
+        harness["port"],
+        f"/api/rotation/trigger/{REPO_NAME}",
+        method="POST",
+        body={
+            "secret": "AUTH_SECRET",
+            "confirmed": True,
+            "confirmation_phrase": _rotation_confirmation_phrase("AUTH_SECRET"),
+        },
+    )
+    assert status == HTTPStatus.CONFLICT
+    payload = json.loads(body)
+    assert "already in progress" in payload["error"].lower()
+    assert "IN_SOAK" in payload["error"]
+
+
+def test_trigger_409s_when_check_jobs_has_running_job(harness):
+    """If CHECK_JOBS already holds a non-terminal job for this repo+secret, refuse."""
+    fake_job_id = "fake-running-01"
+    with CHECK_JOBS_LOCK:
+        CHECK_JOBS[fake_job_id] = {
+            "id": fake_job_id,
+            "kind": "rotation",
+            "status": "running",
+            "repo": REPO_NAME,
+            "secret": "AUTH_SECRET",
+        }
+    try:
+        status, body, _ct = _http(
+            harness["port"],
+            f"/api/rotation/trigger/{REPO_NAME}",
+            method="POST",
+            body={
+                "secret": "AUTH_SECRET",
+                "confirmed": True,
+                "confirmation_phrase": _rotation_confirmation_phrase("AUTH_SECRET"),
+            },
+        )
+        assert status == HTTPStatus.CONFLICT
+        payload = json.loads(body)
+        assert "already in progress" in payload["error"].lower()
+        assert payload["job_id"] == fake_job_id
+    finally:
+        with CHECK_JOBS_LOCK:
+            CHECK_JOBS.pop(fake_job_id, None)
