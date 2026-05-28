@@ -22,6 +22,11 @@ from security_observatory.managed_tools import (
 )
 from security_observatory.scanners import security_pack_catalog, tool_catalog
 from security_observatory.storage import ObservatoryDB
+from security_observatory.verification import (
+    PROOF_CHECKSUM_PINNED,
+    PROOF_UPSTREAM_SIGNED,
+    CommandResult,
+)
 
 
 EXPECTED_PLATFORM_KEYS = frozenset({"darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64"})
@@ -81,6 +86,20 @@ def test_build_tool_install_preview_offers_execution_for_every_approved_tool():
         assert preview["approved_managed_proof"] is True
         assert preview["target_version"] == target["target_version"]
         assert preview["target_version_label"] == target["target_version_label"]
+
+
+def test_install_preview_surfaces_expected_proof_levels():
+    syft_preview = build_tool_install_preview(
+        {"id": "syft", "install_state": "missing", "lifecycle": "available", "install": {"binary": "syft"}}
+    )
+    assert syft_preview["expected_proof_level"] == PROOF_UPSTREAM_SIGNED
+    assert "Upstream-signed" in syft_preview["expected_proof_level_label"]
+    assert "not that it is safe" in syft_preview["proof_caveat"]
+
+    gitleaks_preview = build_tool_install_preview(
+        {"id": "gitleaks", "install_state": "missing", "lifecycle": "available", "install": {"binary": "gitleaks"}}
+    )
+    assert gitleaks_preview["expected_proof_level"] == PROOF_CHECKSUM_PINNED
 
 
 def test_tool_catalog_marks_verified_devsec_managed_tool(tmp_path: Path, monkeypatch):
@@ -259,6 +278,128 @@ def _write_binary_and_marker(record: dict[str, object]) -> None:
     binary_path.chmod(0o755)
     marker = ownership_marker_path(str(record["install_root"]))
     marker.write_text(json.dumps(marker_payload_from_record(record), indent=2) + "\n", encoding="utf-8")
+
+
+def test_install_records_binary_digest_and_checksum_proof(tmp_path: Path, monkeypatch):
+    home = tmp_path / "observatory"
+    monkeypatch.setenv("SECURITY_OBSERVATORY_HOME", str(home))
+    archive = _gitleaks_archive("gitleaks 8.30.1\n")
+    _patch_target_asset(monkeypatch, archive)
+
+    record = install_managed_tool_files(
+        "gitleaks",
+        artifact_fetcher=lambda _url, _timeout, _limit: archive,
+    )
+
+    on_disk = hashlib.sha256(Path(str(record["binary_path"])).read_bytes()).hexdigest()
+    assert record["metadata"]["binary_sha256"] == on_disk
+    verification = record["metadata"]["verification"]
+    assert verification["proof_level"] == PROOF_CHECKSUM_PINNED
+    assert verification["verifier"] == "checksum"
+
+
+def test_install_verifies_cosign_signed_syft(tmp_path: Path, monkeypatch):
+    home = tmp_path / "observatory"
+    monkeypatch.setenv("SECURITY_OBSERVATORY_HOME", str(home))
+    archive = _tool_archive("syft", "#!/usr/bin/env bash\nprintf 'syft 1.44.0\\n'\n")
+    archive_sha = hashlib.sha256(archive).hexdigest()
+    _patch_target_asset_for(monkeypatch, "syft", archive, "syft-test.tar.gz")
+
+    def fetch(url: str, _timeout: int, _limit: int) -> bytes:
+        name = url.rsplit("/", 1)[-1]
+        if name.endswith(".sig") or name.endswith(".pem"):
+            return b"signature-material"
+        if name.endswith("checksums.txt"):
+            return f"{archive_sha}  syft-test.tar.gz\n".encode("utf-8")
+        return archive
+
+    cosign_calls: list[list[str]] = []
+
+    def runner(command: list[str], _timeout: int) -> CommandResult:
+        cosign_calls.append(command)
+        return CommandResult(returncode=0, stdout="Verified OK", stderr="", found=True)
+
+    record = install_managed_tool_files(
+        "syft",
+        artifact_fetcher=fetch,
+        verifier_runner=runner,
+        verifier_which=lambda name: "/usr/bin/cosign" if name == "cosign" else None,
+    )
+
+    verification = record["metadata"]["verification"]
+    assert verification["proof_level"] == PROOF_UPSTREAM_SIGNED
+    assert verification["verifier"] == "cosign"
+    assert "anchore/syft" in verification["source_identity"]
+    assert record["metadata"]["binary_sha256"]
+    assert cosign_calls and cosign_calls[0][:2] == ["cosign", "verify-blob"]
+
+
+def test_install_falls_back_to_checksum_when_cosign_absent(tmp_path: Path, monkeypatch):
+    home = tmp_path / "observatory"
+    monkeypatch.setenv("SECURITY_OBSERVATORY_HOME", str(home))
+    archive = _tool_archive("grype", "#!/usr/bin/env bash\nprintf 'grype 0.112.0\\n'\n")
+    _patch_target_asset_for(monkeypatch, "grype", archive, "grype-test.tar.gz")
+
+    record = install_managed_tool_files(
+        "grype",
+        artifact_fetcher=lambda _url, _timeout, _limit: archive,
+        verifier_which=lambda _name: None,  # cosign not installed
+    )
+
+    verification = record["metadata"]["verification"]
+    assert verification["proof_level"] == PROOF_CHECKSUM_PINNED
+    assert any("cosign" in note for note in verification["evidence"])
+
+
+def test_install_verification_failure_leaves_no_shim_or_root(tmp_path: Path, monkeypatch):
+    home = tmp_path / "observatory"
+    monkeypatch.setenv("SECURITY_OBSERVATORY_HOME", str(home))
+    archive = _tool_archive("syft", "#!/usr/bin/env bash\nprintf 'syft 1.44.0\\n'\n")
+    archive_sha = hashlib.sha256(archive).hexdigest()
+    _patch_target_asset_for(monkeypatch, "syft", archive, "syft-test.tar.gz")
+
+    def fetch(url: str, _timeout: int, _limit: int) -> bytes:
+        name = url.rsplit("/", 1)[-1]
+        if name.endswith(".sig") or name.endswith(".pem"):
+            return b"signature-material"
+        if name.endswith("checksums.txt"):
+            return f"{archive_sha}  syft-test.tar.gz\n".encode("utf-8")
+        return archive
+
+    # cosign present but REJECTS the signature (possible tampering) -> install must abort.
+    try:
+        install_managed_tool_files(
+            "syft",
+            artifact_fetcher=fetch,
+            verifier_runner=lambda _cmd, _t: CommandResult(returncode=1, stdout="", stderr="bad signature", found=True),
+            verifier_which=lambda name: "/usr/bin/cosign" if name == "cosign" else None,
+        )
+    except ManagedToolInstallError as exc:
+        assert "verification failed" in str(exc)
+    else:
+        raise AssertionError("Expected install to abort when cosign rejects the artifact.")
+
+    # No install root, no shim, no marker left behind.
+    assert not managed_install_root("syft", "1.44.0", home).exists()
+    assert not (home / "tools" / "bin" / "syft").exists()
+
+
+def _tool_archive(binary_name: str, body: str) -> bytes:
+    payload = body.encode("utf-8")
+    buffer = BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
+        info = tarfile.TarInfo(binary_name)
+        info.size = len(payload)
+        info.mode = 0o755
+        archive.addfile(info, BytesIO(payload))
+    return buffer.getvalue()
+
+
+def _patch_target_asset_for(monkeypatch, tool_id: str, archive: bytes, asset_name: str) -> None:
+    target = dict(MANAGED_INSTALL_PROOF_TARGETS[tool_id])
+    key = _current_platform_key()
+    target["assets"] = {key: {"asset_name": asset_name, "sha256": hashlib.sha256(archive).hexdigest()}}
+    monkeypatch.setitem(MANAGED_INSTALL_PROOF_TARGETS, tool_id, target)
 
 
 def _gitleaks_archive(version_output: str) -> bytes:

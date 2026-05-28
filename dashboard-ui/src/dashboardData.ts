@@ -133,6 +133,11 @@ export type ToolInstallPreview = {
   approved_managed_proof?: boolean;
   target_version?: string;
   target_version_label?: string;
+  proof_level?: string;
+  proof_level_label?: string;
+  expected_proof_level?: string;
+  expected_proof_level_label?: string;
+  proof_caveat?: string;
   install_method?: string;
   install_root?: string;
   binary_path?: string;
@@ -167,6 +172,8 @@ export type ManagedToolOwnership = {
   installed_at: string | null;
   evidence: string[];
   problems: string[];
+  proof_level?: string | null;
+  proof_level_label?: string | null;
 };
 
 export type ToolCatalogItem = {

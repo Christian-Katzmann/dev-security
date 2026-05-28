@@ -16,13 +16,9 @@ from .ai_static import scan_ai_static
 from .behavioral import MAX_BEHAVIORAL_ARTIFACT_BYTES, MAX_BEHAVIORAL_FILES, MAX_BEHAVIORAL_PACKAGES, BehavioralDriftTarget
 from .catalog import current_scan_profiles, current_security_packs, current_tool_catalog, legacy_scanner_catalog_map, scanner_catalog_compat
 from .credentials import env_with_credentials, is_supported as keychain_is_supported
-from .managed_tools import (
-    MANAGED_INSTALL_PROOF_TARGETS,
-    load_active_managed_tool_records,
-    load_managed_tools_manifest,
-    managed_tool_evidence_by_tool,
-)
+from .managed_tools import resolve_managed_scanner_binary
 from .model import DEFAULT_EXCLUDES, Finding, ScannerStatus, read_json_safely, sanitize_json, write_json
+from .verification import PROOF_CHECKSUM_PINNED, PROOF_UNVERIFIED, PROOF_USER_OWNED
 from .normalize import normalize
 from .platform_posture import sanitize_legitify_payload
 from .surface_scanners import INSTALL_HOOK_SCANNER, WORKFLOW_SCANNER, scan_install_hooks, scan_workflow_surfaces
@@ -157,15 +153,36 @@ def run_scanner(scanner: str, repo: Path, repo_name: str, scan_dir: Path, rules_
         return _run_legitify_scanner(repo, repo_name, scan_dir)
 
     command = _command(scanner, repo, scan_dir, rules_dir)
-    managed_binary = _verified_managed_binary_for_scanner(scanner)
-    if managed_binary:
-        command = [str(managed_binary), *command[1:]]
-    binary = command[0]
+    resolution = resolve_managed_scanner_binary(scanner)
     started = datetime.now(timezone.utc).isoformat()
-    status = ScannerStatus(scanner=scanner, available=bool(managed_binary) or bool(shutil.which(binary)), command=command, started_at=started)
+    if resolution.state == "tampered":
+        status = ScannerStatus(
+            scanner=scanner,
+            available=False,
+            command=command,
+            started_at=started,
+            status="skipped",
+            finished_at=datetime.now(timezone.utc).isoformat(),
+            error=resolution.reason or f"Managed {scanner} binary failed its pre-execution integrity check.",
+            proof_level=PROOF_UNVERIFIED,
+        )
+        return ScannerResult(status, [])
+    if resolution.state == "ok" and resolution.binary_path is not None:
+        command = [str(resolution.binary_path), *command[1:]]
+    binary = command[0]
+    managed = resolution.state == "ok"
+    proof_level = (resolution.proof_level or PROOF_CHECKSUM_PINNED) if managed else PROOF_USER_OWNED
+    status = ScannerStatus(
+        scanner=scanner,
+        available=managed or bool(shutil.which(binary)),
+        command=command,
+        started_at=started,
+        proof_level=proof_level,
+    )
     if not status.available:
         status.finished_at = datetime.now(timezone.utc).isoformat()
         status.error = f"{binary} is not installed or not on PATH."
+        status.proof_level = None
         return ScannerResult(status, [])
 
     t0 = time.monotonic()
@@ -421,26 +438,6 @@ def _command(scanner: str, repo: Path, scan_dir: Path, rules_dir: Path) -> list[
     if scanner == "legitify":
         return _legitify_command(repo, scan_dir, target="[repository]")
     raise ValueError(f"Unknown scanner: {scanner}")
-
-
-def _verified_managed_binary_for_scanner(scanner: str) -> Path | None:
-    if scanner not in MANAGED_INSTALL_PROOF_TARGETS:
-        return None
-    records = load_active_managed_tool_records()
-    if not records:
-        manifest = load_managed_tools_manifest()
-        records = manifest.get("tools", [])
-    evidence = managed_tool_evidence_by_tool(records)
-    managed = evidence.get(scanner)
-    if not managed or not managed.verified or not managed.binary_path:
-        return None
-    try:
-        binary_path = Path(managed.binary_path).expanduser().resolve(strict=True)
-    except OSError:
-        return None
-    if not binary_path.is_file() or not os.access(binary_path, os.X_OK):
-        return None
-    return binary_path
 
 
 def _run_legitify_scanner(repo: Path, repo_name: str, scan_dir: Path) -> ScannerResult:

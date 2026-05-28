@@ -419,6 +419,14 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
             <Kv label="Detection" value={catalogInstallDetectionLabels[tool.install.detection]} />
             <Kv label="Binary" value={tool.install.binary ?? 'Not required'} mono />
             <Kv label="Uninstall" value={catalogUninstallLabels[tool.install.uninstall_posture]} />
+            {(() => {
+              const preview = tool.install_preview;
+              const achieved = preview?.proof_level_label;
+              const expected = preview?.expected_proof_level_label;
+              if (achieved) return <Kv label="Binary proof" value={achieved} />;
+              if (expected) return <Kv label="Binary proof" value={`${expected} (expected)`} />;
+              return null;
+            })()}
             {runtimeItem && (() => {
               const relative = formatRelativeTime(runtimeItem.last_run);
               if (runtimeItem.status === 'ran' && relative) {
@@ -435,6 +443,10 @@ export default function CatalogToolPage({summary, onRefresh, toolId, onBack}: Ca
               <span className="catalog-tool-next-step-label">Next step</span>
               {tool.install.next_step}
             </p>
+          )}
+          {tool.install_preview?.proof_caveat
+            && (tool.install_preview?.proof_level_label || tool.install_preview?.expected_proof_level_label) && (
+            <p className="catalog-tool-muted">{tool.install_preview.proof_caveat}</p>
           )}
         </section>
 

@@ -34,7 +34,9 @@ from .reset import (
     reset_confirmation_phrase,
 )
 from .rotation import detect_rotation_state
+from .managed_tools import managed_tool_evidence, resolve_managed_scanner_binary
 from .scanners import run_behavioral_drift_scanner, run_scanner, scanner_catalog, scanner_names_for_profile
+from .verification import proof_level_label
 from .sbom import load_sbom_components
 from .silent_upgrades import detect_silent_upgrades, parse_dependency_manifests
 from .storage import ObservatoryDB
@@ -638,7 +640,45 @@ def doctor(home: Path) -> int:
         missing_optional,
         "These opt-in checks stay quiet unless you run their profile.",
     )
+    _print_managed_tools_doctor_section(home)
     return 0
+
+
+def _print_managed_tools_doctor_section(home: Path) -> None:
+    """Report DëvSec-managed copies and their proof of origin.
+
+    Proof level describes where the binary came from, not that it is safe — see
+    docs/binary-trust.md. User-owned PATH tools are listed above by location and
+    are intentionally not governed by this proof policy.
+    """
+    try:
+        db = ObservatoryDB(home / "db" / "observatory.sqlite")
+        try:
+            records = db.list_managed_tools()
+        finally:
+            db.close()
+    except Exception:
+        return
+    if not records:
+        return
+    print("DëvSec-managed tools (proof of origin, not safety):")
+    for record in records:
+        evidence = managed_tool_evidence(record, home=home)
+        tool_id = str(record.get("tool_id") or "")
+        version = str(record.get("version") or "")
+        label = proof_level_label(evidence.proof_level or "checksum-pinned")
+        metadata = record.get("metadata") if isinstance(record.get("metadata"), dict) else {}
+        baseline = "integrity baseline recorded" if metadata.get("binary_sha256") else "no integrity baseline (reinstall to capture)"
+        # Re-hash the binary the same way a scan would, so doctor never reports
+        # "verified" for a copy that execution would refuse as tampered.
+        resolution = resolve_managed_scanner_binary(tool_id, home=home)
+        if resolution.state == "tampered":
+            trust = "TAMPERED — on-disk binary does not match the install baseline; refused at scan time"
+        elif evidence.verified:
+            trust = "verified"
+        else:
+            trust = "UNVERIFIED: " + "; ".join(evidence.problems)
+        print(f"  {tool_id} {version}: {label} · {trust} · {baseline}")
 
 
 def print_template() -> int:

@@ -193,6 +193,7 @@ class ScannerStatus:
     sarif_report: str | None = None
     sbom_report: str | None = None
     error: str | None = None
+    proof_level: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)

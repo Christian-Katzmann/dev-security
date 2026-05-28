@@ -18,6 +18,20 @@ import urllib.error
 import urllib.request
 import uuid
 
+from .verification import (
+    PROOF_CHECKSUM_PINNED,
+    PROOF_SAFETY_CAVEAT,
+    PROOF_UPSTREAM_SIGNED,
+    PROOF_USER_OWNED,
+    CommandRunner,
+    VerificationError,
+    VerificationRequest,
+    VerificationResult,
+    default_runner,
+    proof_level_label,
+    verify_managed_download,
+)
+
 
 MANIFEST_VERSION = 1
 INSTALLER_VERSION = "security-observatory-managed-tools-v1"
@@ -49,6 +63,11 @@ MANAGED_INSTALL_PROOF_TARGETS: dict[str, dict[str, Any]] = {
         "target_version_label": f"Gitleaks v{GITLEAKS_VERSION}",
         "source": "devsec-managed-proof",
         "release_base_url": f"https://github.com/gitleaks/gitleaks/releases/download/v{GITLEAKS_VERSION}",
+        # Gitleaks publishes an unsigned checksums.txt only — no cosign signature
+        # or SLSA provenance at v8.30.1. Honest proof level is checksum-pinned:
+        # DëvSec pins the archive sha256 in source (below), which is a stronger
+        # root of trust than the upstream's unsigned checksums file anyway.
+        "verification": {"method": "checksum"},
         "network_access": True,
         "version_check_args": ("version",),
         "version_check_timeout_seconds": 5,
@@ -84,6 +103,13 @@ MANAGED_INSTALL_PROOF_TARGETS: dict[str, dict[str, Any]] = {
         "target_version_label": f"Trivy v{TRIVY_VERSION}",
         "source": "devsec-managed-proof",
         "release_base_url": f"https://github.com/aquasecurity/trivy/releases/download/v{TRIVY_VERSION}",
+        # Trivy is cosign-signed via per-artifact Sigstore bundles since v0.68.1
+        # (cosign verify-blob-attestation --bundle, certificate identity pinned to
+        # the release *tag*, not refs/heads/main). Wiring that bundle path is a
+        # fast-follow; until it is validated against a real release, DëvSec stays
+        # at the honest checksum-pinned level rather than ship an unverified
+        # verify invocation. See campaigns/binary-trust-foundation/receipts/2.2.
+        "verification": {"method": "checksum"},
         "network_access": True,
         "version_check_args": ("--version",),
         "version_check_timeout_seconds": 5,
@@ -119,6 +145,18 @@ MANAGED_INSTALL_PROOF_TARGETS: dict[str, dict[str, Any]] = {
         "target_version_label": f"Syft v{SYFT_VERSION}",
         "source": "devsec-managed-proof",
         "release_base_url": f"https://github.com/anchore/syft/releases/download/v{SYFT_VERSION}",
+        # Anchore signs the release checksums.txt with keyless cosign; the per-asset
+        # tarball is then validated by sha256 against the verified checksums file.
+        # Identity is pinned to the release workflow on refs/heads/main (Anchore
+        # signs from the main-branch workflow ref, not the tag).
+        "verification": {
+            "method": "cosign",
+            "checksums_asset": "syft_{version}_checksums.txt",
+            "signature_asset": "syft_{version}_checksums.txt.sig",
+            "certificate_asset": "syft_{version}_checksums.txt.pem",
+            "certificate_identity": "https://github.com/anchore/syft/.github/workflows/release.yaml@refs/heads/main",
+            "certificate_oidc_issuer": "https://token.actions.githubusercontent.com",
+        },
         "network_access": True,
         "version_check_args": ("version",),
         "version_check_timeout_seconds": 5,
@@ -154,6 +192,16 @@ MANAGED_INSTALL_PROOF_TARGETS: dict[str, dict[str, Any]] = {
         "target_version_label": f"Grype v{GRYPE_VERSION}",
         "source": "devsec-managed-proof",
         "release_base_url": f"https://github.com/anchore/grype/releases/download/v{GRYPE_VERSION}",
+        # Same scheme as Syft: keyless cosign over checksums.txt, identity pinned
+        # to the release workflow on refs/heads/main, tarball validated by sha256.
+        "verification": {
+            "method": "cosign",
+            "checksums_asset": "grype_{version}_checksums.txt",
+            "signature_asset": "grype_{version}_checksums.txt.sig",
+            "certificate_asset": "grype_{version}_checksums.txt.pem",
+            "certificate_identity": "https://github.com/anchore/grype/.github/workflows/release.yaml@refs/heads/main",
+            "certificate_oidc_issuer": "https://token.actions.githubusercontent.com",
+        },
         "network_access": True,
         "version_check_args": ("version",),
         "version_check_timeout_seconds": 5,
@@ -202,6 +250,7 @@ class ManagedToolEvidence:
     marker_path: str | None
     evidence: tuple[str, ...]
     problems: tuple[str, ...]
+    proof_level: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -220,6 +269,8 @@ class ManagedToolEvidence:
             "marker_path": self.marker_path,
             "evidence": list(self.evidence),
             "problems": list(self.problems),
+            "proof_level": self.proof_level,
+            "proof_level_label": proof_level_label(self.proof_level) if self.proof_level else None,
         }
 
 
@@ -269,6 +320,8 @@ def install_managed_tool_files(
     artifact_fetcher: Callable[[str, int, int], bytes] | None = None,
     system: str | None = None,
     machine: str | None = None,
+    verifier_runner: CommandRunner = default_runner,
+    verifier_which: Callable[[str], str | None] = shutil.which,
 ) -> dict[str, Any]:
     target = _approved_target(tool_id)
     version = str(target["target_version"])
@@ -306,6 +359,20 @@ def install_managed_tool_files(
         version_check = run_managed_version_check(extracted_binary, target)
         if version_check["status"] != "passed":
             raise ManagedToolInstallError(version_check["output"] or f"{tool_id} version check failed.")
+        # Verify origin and capture the integrity baseline from the staged copy,
+        # before committing the install. A rejected artifact (possible tampering)
+        # then leaves no install root and no shim behind.
+        binary_sha256 = _sha256_file(extracted_binary)
+        verification = _verify_managed_artifact(
+            target,
+            asset_name=asset_name,
+            archive_bytes=archive_bytes,
+            expected_sha256=checksum,
+            release_base_url=release_base_url,
+            fetch=downloader,
+            runner=verifier_runner,
+            which=verifier_which,
+        )
         if root.exists():
             raise ManagedToolInstallError(f"A DëvSec-managed {tool_id} install already exists at {root}.")
         staging_root.rename(root)
@@ -330,6 +397,8 @@ def install_managed_tool_files(
                 "source_url": asset_url,
                 "network_access": bool(target.get("network_access")),
                 "shim_path": str(shim_path),
+                "binary_sha256": binary_sha256,
+                "verification": verification.to_dict(),
             },
         }
         write_ownership_marker(record, home=home)
@@ -381,6 +450,47 @@ def uninstall_managed_tool_files(record: dict[str, Any], *, home: str | Path | N
         "removed_paths": removed_paths,
         "left_detected_tools_alone": True,
     }
+
+
+def _verify_managed_artifact(
+    target: dict[str, Any],
+    *,
+    asset_name: str,
+    archive_bytes: bytes,
+    expected_sha256: str,
+    release_base_url: str,
+    fetch: Callable[[str, int, int], bytes],
+    runner: CommandRunner,
+    which: Callable[[str], str | None],
+) -> VerificationResult:
+    request = VerificationRequest(
+        tool_id=str(target["tool_id"]),
+        version=str(target["target_version"]),
+        asset_name=asset_name,
+        artifact_bytes=archive_bytes,
+        expected_sha256=expected_sha256,
+        release_base_url=release_base_url,
+        config=dict(target.get("verification") or {"method": "checksum"}),
+        fetch=fetch,
+        runner=runner,
+        which=which,
+        timeout_seconds=int(target.get("download_timeout_seconds") or 30),
+        max_bytes=int(target.get("max_download_bytes") or 40_000_000),
+    )
+    try:
+        return verify_managed_download(request)
+    except VerificationError as exc:
+        raise ManagedToolInstallError(
+            f"Refusing to install {target.get('tool_id') or 'tool'}: upstream verification failed: {exc}"
+        ) from exc
+
+
+def _sha256_file(path: str | Path) -> str:
+    digest = hashlib.sha256()
+    with open(Path(path).expanduser(), "rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def run_managed_version_check(binary_path: str | Path, target: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -561,6 +671,10 @@ def manifest_record_from_db_record(record: dict[str, Any]) -> dict[str, Any]:
         "version_check_status": str(record.get("version_check_status") or ""),
         "version_check_output": record.get("version_check_output"),
         "version_checked_at": record.get("version_checked_at"),
+        # Carry the install baseline (binary digest + verification result) so the
+        # pre-execution integrity gate works even when scans read from the manifest
+        # fallback rather than SQLite.
+        "metadata": record.get("metadata") if isinstance(record.get("metadata"), dict) else {},
     }
 
 
@@ -601,6 +715,115 @@ def managed_tool_evidence_by_tool(
         if current is None or (evidence.verified and not current.verified):
             evidence_by_tool[evidence.tool_id] = evidence
     return evidence_by_tool
+
+
+@dataclass(frozen=True, slots=True)
+class ManagedBinaryResolution:
+    """How a managed scanner binary resolved for execution.
+
+    ``none`` means there is no verified DëvSec-managed copy, so the caller should
+    fall back to a ``PATH`` tool as before. ``ok`` means a managed copy passed both
+    the ownership-evidence checks and the pre-execution integrity gate. ``tampered``
+    means a managed copy exists but its on-disk digest no longer matches the
+    install baseline — the caller must refuse to run it and surface the reason,
+    never silently fall back to ``PATH``.
+    """
+
+    state: str
+    binary_path: Path | None = None
+    proof_level: str | None = None
+    reason: str | None = None
+    evidence: tuple[str, ...] = ()
+
+
+def resolve_managed_scanner_binary(
+    scanner: str,
+    *,
+    home: str | Path | None = None,
+    records: list[dict[str, Any]] | None = None,
+) -> ManagedBinaryResolution:
+    """Resolve the verified, integrity-checked managed binary for ``scanner``.
+
+    Re-hashes the binary immediately before it would be launched and compares it
+    to the digest recorded at install. A mismatch returns ``tampered``; a managed
+    install that predates digest recording is allowed (``ok``) but flagged.
+    """
+    if scanner not in MANAGED_INSTALL_PROOF_TARGETS:
+        return ManagedBinaryResolution(state="none")
+    if records is None:
+        records = load_active_managed_tool_records(home)
+        if not records:
+            records = load_managed_tools_manifest(home=home).get("tools", [])
+
+    manifest_payload = load_managed_tools_manifest(home=home)
+    chosen: dict[str, Any] | None = None
+    chosen_binary: str | None = None
+    for record in records:
+        if str(record.get("tool_id") or "") != scanner:
+            continue
+        evidence = managed_tool_evidence(record, home=home, manifest=manifest_payload)
+        if evidence.verified and evidence.binary_path:
+            chosen = record
+            chosen_binary = evidence.binary_path
+            break
+    if chosen is None or not chosen_binary:
+        return ManagedBinaryResolution(state="none")
+
+    try:
+        binary_path = Path(chosen_binary).expanduser().resolve(strict=True)
+    except OSError:
+        return ManagedBinaryResolution(state="none")
+    if not binary_path.is_file() or not os.access(binary_path, os.X_OK):
+        return ManagedBinaryResolution(state="none")
+
+    proof_level = _record_proof_level(chosen)
+    expected = _recorded_binary_sha256(chosen)
+    if not expected:
+        # Legacy install with no recorded baseline: allowed, but flagged so the
+        # missing integrity guarantee is visible rather than silently assumed.
+        return ManagedBinaryResolution(
+            state="ok",
+            binary_path=binary_path,
+            proof_level=proof_level,
+            evidence=("No pre-execution integrity baseline recorded; reinstall to capture one.",),
+        )
+
+    actual = _sha256_file(binary_path)
+    if actual.lower() != expected.lower():
+        return ManagedBinaryResolution(
+            state="tampered",
+            binary_path=binary_path,
+            proof_level=proof_level,
+            reason=(
+                f"Managed {scanner} binary failed its pre-execution integrity check: on-disk "
+                f"digest {actual[:12]}… does not match the {expected[:12]}… recorded at install. "
+                "Refusing to run a possibly-tampered binary."
+            ),
+        )
+    return ManagedBinaryResolution(
+        state="ok",
+        binary_path=binary_path,
+        proof_level=proof_level,
+        evidence=("Binary digest matches the install baseline.",),
+    )
+
+
+def _recorded_binary_sha256(record: dict[str, Any]) -> str | None:
+    metadata = record.get("metadata")
+    if isinstance(metadata, dict):
+        value = metadata.get("binary_sha256")
+        if value:
+            return str(value)
+    return None
+
+
+def _record_proof_level(record: dict[str, Any]) -> str | None:
+    metadata = record.get("metadata")
+    if isinstance(metadata, dict):
+        verification = metadata.get("verification")
+        if isinstance(verification, dict) and verification.get("proof_level"):
+            return str(verification["proof_level"])
+    return None
 
 
 def managed_tool_evidence(
@@ -687,6 +910,7 @@ def managed_tool_evidence(
         marker_path=marker_path,
         evidence=tuple(evidence),
         problems=tuple(problems),
+        proof_level=_record_proof_level(record),
     )
 
 
@@ -713,6 +937,9 @@ def build_tool_install_preview(tool: dict[str, Any], managed_evidence: ManagedTo
             "execution_reason": "Available only for verified DëvSec-owned copies of the approved managed proof tool.",
             "managed": True,
             "ownership": managed_evidence.to_dict(),
+            "proof_level": managed_evidence.proof_level or PROOF_CHECKSUM_PINNED,
+            "proof_level_label": proof_level_label(managed_evidence.proof_level or PROOF_CHECKSUM_PINNED),
+            "proof_caveat": PROOF_SAFETY_CAVEAT,
             "install_root": managed_evidence.install_root,
             "binary_path": managed_evidence.binary_path,
             "owned_paths": _owned_paths(managed_evidence.install_root, managed_evidence.binary_path, detected_binary),
@@ -740,6 +967,9 @@ def build_tool_install_preview(tool: dict[str, Any], managed_evidence: ManagedTo
             "approved_managed_proof": True,
             "target_version": version,
             "target_version_label": approved_target.get("target_version_label", version),
+            "expected_proof_level": _expected_proof_level(approved_target),
+            "expected_proof_level_label": proof_level_label(_expected_proof_level(approved_target)),
+            "proof_caveat": PROOF_SAFETY_CAVEAT,
             "install_method": "devsec-managed-copy",
             "install_root": str(root),
             "binary_path": str(binary_path),
@@ -754,15 +984,23 @@ def build_tool_install_preview(tool: dict[str, Any], managed_evidence: ManagedTo
             "notes": ["DëvSec will not relink, overwrite, upgrade, or uninstall a user-owned PATH copy."],
         }
 
-    reason = (
-        "Detected tools are user-owned and are not managed by DëvSec."
-        if install_state == "detected"
-        else "No managed installer is approved for this tool in the MVP."
-    )
-    return _no_action_preview(tool_id, install_state, reason)
+    if install_state == "detected":
+        return _no_action_preview(
+            tool_id,
+            install_state,
+            "Detected tools are user-owned and are not managed by DëvSec.",
+            proof_level=PROOF_USER_OWNED,
+        )
+    return _no_action_preview(tool_id, install_state, "No managed installer is approved for this tool in the MVP.")
 
 
-def _no_action_preview(tool_id: str, install_state: str, reason: str) -> dict[str, Any]:
+def _no_action_preview(
+    tool_id: str,
+    install_state: str,
+    reason: str,
+    *,
+    proof_level: str | None = None,
+) -> dict[str, Any]:
     return {
         "tool_id": tool_id,
         "install_state": install_state,
@@ -771,10 +1009,17 @@ def _no_action_preview(tool_id: str, install_state: str, reason: str) -> dict[st
         "execution_available": False,
         "execution_reason": reason,
         "managed": False,
+        "proof_level": proof_level,
+        "proof_level_label": proof_level_label(proof_level) if proof_level else None,
         "pack_install_supported": False,
         "leaves_detected_tools_alone": True,
         "notes": [reason],
     }
+
+
+def _expected_proof_level(target: dict[str, Any]) -> str:
+    method = str((target.get("verification") or {}).get("method") or "checksum")
+    return PROOF_UPSTREAM_SIGNED if method == "cosign" else PROOF_CHECKSUM_PINNED
 
 
 def _owned_paths(install_root: str | None, binary_path: str | None, binary: Any) -> list[str]:

@@ -206,6 +206,7 @@ def test_run_scanner_uses_runtime_binary_detection_not_catalog_metadata(tmp_path
 
     assert result.status.available is False
     assert result.status.error == "semgrep is not installed or not on PATH."
+    assert result.status.proof_level is None
 
 
 def test_legitify_env_reads_token_from_keychain(monkeypatch):
@@ -321,6 +322,99 @@ def test_run_scanner_uses_verified_managed_gitleaks_when_path_is_empty(tmp_path:
     assert result.status.available is True
     assert result.status.command[0] == str(binary_path.resolve())
     assert result.status.error is None
+
+
+def _seed_managed_gitleaks(home: Path, *, binary_body: str, recorded_sha: str | None) -> dict[str, object]:
+    seed = _managed_gitleaks_record(home)
+    metadata = {"binary_sha256": recorded_sha} if recorded_sha else {}
+    db = ObservatoryDB(home / "db" / "observatory.sqlite")
+    try:
+        record = db.record_managed_tool(
+            tool_id=str(seed["tool_id"]),
+            version=str(seed["version"]),
+            install_root=str(seed["install_root"]),
+            binary_path=str(seed["binary_path"]),
+            source=str(seed["source"]),
+            checksum=str(seed["checksum"]),
+            installer_version=str(seed["installer_version"]),
+            ownership_id=str(seed["ownership_id"]),
+            installed_at=str(seed["installed_at"]),
+            version_check_status=str(seed["version_check_status"]),
+            version_check_output="gitleaks 1.0.0",
+            version_checked_at="2026-05-21T00:00:00+00:00",
+            metadata=metadata,
+        )
+    finally:
+        db.close()
+    binary_path = Path(str(record["binary_path"]))
+    binary_path.parent.mkdir(parents=True, exist_ok=True)
+    binary_path.write_text(binary_body, encoding="utf-8")
+    binary_path.chmod(0o755)
+    marker = ownership_marker_path(str(record["install_root"]))
+    marker.write_text(json.dumps(marker_payload_from_record(record), indent=2) + "\n", encoding="utf-8")
+    return record
+
+
+def test_run_scanner_refuses_tampered_managed_binary(tmp_path: Path, monkeypatch):
+    import hashlib
+
+    home = tmp_path / "observatory"
+    monkeypatch.setenv("SECURITY_OBSERVATORY_HOME", str(home))
+    # A PATH copy IS available — the point is that a tampered managed binary must
+    # refuse, not silently fall back to it.
+    monkeypatch.setattr("security_observatory.scanners.shutil.which", lambda binary: f"/usr/local/bin/{binary}")
+    # Baseline digest recorded at install time...
+    good_body = "#!/bin/sh\nprintf '[]\\n'\n"
+    recorded_sha = hashlib.sha256(good_body.encode("utf-8")).hexdigest()
+    # ...but the binary on disk has since been swapped for something else.
+    _seed_managed_gitleaks(home, binary_body="#!/bin/sh\necho pwned\n", recorded_sha=recorded_sha)
+
+    result = run_scanner("gitleaks", tmp_path, "repo", tmp_path / "scan", tmp_path / "rules")
+
+    assert result.status.available is False
+    assert result.status.status == "skipped"
+    assert "integrity" in (result.status.error or "").lower()
+    assert result.status.proof_level == "unverified"
+    # It must NOT have silently fallen back to a PATH copy and run it.
+    assert result.status.exit_code is None
+    assert result.status.command[0] == "gitleaks"
+
+
+def test_run_scanner_runs_managed_binary_when_digest_matches(tmp_path: Path, monkeypatch):
+    import hashlib
+
+    home = tmp_path / "observatory"
+    monkeypatch.setenv("SECURITY_OBSERVATORY_HOME", str(home))
+    monkeypatch.setenv("PATH", "")
+    monkeypatch.setattr("security_observatory.scanners.shutil.which", lambda binary: None)
+    body = "#!/bin/sh\nprintf '[]\\n'\n"
+    recorded_sha = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    record = _seed_managed_gitleaks(home, binary_body=body, recorded_sha=recorded_sha)
+
+    result = run_scanner("gitleaks", tmp_path, "repo", tmp_path / "scan", tmp_path / "rules")
+
+    assert result.status.available is True
+    assert result.status.command[0] == str(Path(str(record["binary_path"])).resolve())
+    assert result.status.error is None
+    assert result.status.proof_level == "checksum-pinned"
+
+
+def test_doctor_reports_tampered_managed_binary(tmp_path: Path, monkeypatch, capsys):
+    import hashlib
+    from security_observatory.cli import doctor
+
+    home = tmp_path / "observatory"
+    monkeypatch.setenv("SECURITY_OBSERVATORY_HOME", str(home))
+    good = "#!/bin/sh\nprintf '[]\\n'\n"
+    recorded = hashlib.sha256(good.encode("utf-8")).hexdigest()
+    _seed_managed_gitleaks(home, binary_body="#!/bin/sh\necho pwned\n", recorded_sha=recorded)
+
+    doctor(home)
+    out = capsys.readouterr().out
+
+    # doctor must agree with the scan-time gate, not report the swapped binary as verified.
+    assert "DëvSec-managed tools" in out
+    assert "TAMPERED" in out
 
 
 def _contract_entry(
