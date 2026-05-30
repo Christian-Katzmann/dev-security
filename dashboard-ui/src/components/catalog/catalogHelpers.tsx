@@ -1,14 +1,14 @@
 import {ReactNode} from 'react';
 import {
-  Database,
   FileCode2,
-  Gauge,
-  GitBranch,
   KeyRound,
   Layers3,
-  Shield,
+  PackageSearch,
+  Radar,
   ShieldCheck,
-  TerminalSquare,
+  ShieldQuestion,
+  Waypoints,
+  Workflow,
 } from 'lucide-react';
 import {
   DashboardSummary,
@@ -212,13 +212,14 @@ export function catalogStatusTone(item: ToolCatalogItem, runtime?: ScannerDoctor
 export function catalogIcon(category: ToolCategory): ReactNode {
   if (category === 'code-security') return <FileCode2 size={18} />;
   if (category === 'secrets') return <KeyRound size={18} />;
-  if (category === 'dependencies') return <Database size={18} />;
-  if (category === 'supply-chain') return <GitBranch size={18} />;
+  if (category === 'dependencies') return <PackageSearch size={18} />;
+  if (category === 'supply-chain') return <Waypoints size={18} />;
   if (category === 'infrastructure') return <Layers3 size={18} />;
-  if (category === 'ai-agent') return <TerminalSquare size={18} />;
+  if (category === 'ai-agent') return <Workflow size={18} />;
   if (category === 'platform-posture') return <ShieldCheck size={18} />;
-  if (category === 'external-surface') return <Gauge size={18} />;
-  return <Shield size={18} />;
+  if (category === 'external-surface') return <Radar size={18} />;
+  if (category === 'defense-intel') return <ShieldQuestion size={18} />;
+  return <ShieldQuestion size={18} />;
 }
 
 // Render the tool's branded logo when one is bundled under

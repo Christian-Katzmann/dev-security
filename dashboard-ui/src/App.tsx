@@ -60,21 +60,22 @@ import {
   Archive,
   BarChart3,
   BookOpen,
-  Bot,
   CheckCircle2,
+  CircleAlert,
   ChevronDown,
   ChevronRight,
   CircleSlash,
+  ClipboardCheck,
   ClipboardList,
   Clock3,
   Copy,
   Database,
   EyeOff,
-  FileCode2,
+  FileSearch,
   FileText,
+  FolderCheck,
   FolderGit2,
-  Gauge,
-  GitBranch,
+  FolderSearch,
   Home,
   KeyRound,
   Layers3,
@@ -82,17 +83,22 @@ import {
   Lock,
   Play,
   Plus,
+  PackageCheck,
+  PackageSearch,
   RefreshCw,
   RotateCcw,
+  Radar,
+  ScanLine,
   Search,
   Settings,
   Shield,
-  ShieldAlert,
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
   Stethoscope,
-  TerminalSquare,
+  SquareTerminal,
+  Trash2,
+  Workflow,
   X,
 } from 'lucide-react';
 
@@ -157,8 +163,6 @@ import {
   suppressedDisplayCases,
   targetLabel,
   targetValue,
-  totalFindings,
-  toolCatalogItems,
 } from './dashboardData';
 
 type TabId = 'overview' | 'findings' | 'honey-keys' | 'scanners' | 'agent-lab' | 'playbooks' | 'verification' | 'activity' | 'reports' | 'settings';
@@ -206,6 +210,26 @@ type CheckJob = {
   scan?: CompletedScan;
 };
 
+type ResetPlan = {
+  scope: 'all' | 'repo';
+  repos: string[];
+  tables: {table: string; rows: number}[];
+  files: string[];
+  preserved: string[];
+};
+
+type ResetPreview = {
+  plan: ResetPlan;
+  confirmation_phrase: string;
+  backup_default: string;
+};
+
+type ResetResult = {
+  plan: ResetPlan;
+  backup: Record<string, string>;
+  result: {repos: string[]; tables: Record<string, number>; files: string[]};
+};
+
 type AllRepoRunItem = {
   repoName: string;
   repoPath: string;
@@ -245,29 +269,49 @@ type ActivityItem = {
 };
 
 type RecoveryPlaybookView = RecoveryPlaybook & {tone: Tone};
+type PostureTier = 'excellent' | 'steady' | 'watch' | 'attention';
+type OverviewRepoHealth = {
+  total: number;
+  healthy: number;
+  needsAttention: number;
+  critical: number;
+  noRecentScan: number;
+  reposWithIssues: number;
+};
 
-const navGroups: {title: string; items: NavItem[]}[] = [
+const numberFormatter = new Intl.NumberFormat(undefined);
+
+function formatCount(value: number): string {
+  return numberFormatter.format(value);
+}
+
+function sentenceWithPeriod(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  return /[.!?)]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+const navGroups: {title?: string; items: NavItem[]}[] = [
   {
-    title: 'Workspace',
     items: [
       {id: 'overview', label: 'Overview', icon: Home},
-      {id: 'findings', label: 'Cases', icon: ShieldAlert},
-      {id: 'honey-keys', label: 'Honey keys', icon: ShieldCheck},
+      {id: 'activity', label: 'Activity', icon: Activity},
     ],
   },
   {
     title: 'Operate',
     items: [
-      {id: 'scanners', label: 'Tool Catalog', icon: Search},
-      {id: 'agent-lab', label: 'Agent Lab', icon: Bot},
+      {id: 'findings', label: 'Cases', icon: FileSearch},
+      {id: 'honey-keys', label: 'Honey keys', icon: KeyRound},
+      {id: 'scanners', label: 'Tool catalog', icon: PackageSearch},
+      {id: 'agent-lab', label: 'Agent lab', icon: Workflow},
       {id: 'playbooks', label: 'Recovery playbooks', icon: BookOpen},
-      {id: 'verification', label: 'Verification', icon: CheckCircle2},
+      {id: 'verification', label: 'Verification', icon: ClipboardCheck},
     ],
   },
   {
-    title: 'Records',
+    title: 'Reports',
     items: [
-      {id: 'activity', label: 'Activity', icon: Activity},
       {id: 'reports', label: 'Reports', icon: FileText},
     ],
   },
@@ -277,8 +321,8 @@ const tabTitles: Record<TabId, string> = {
   overview: 'Overview',
   findings: 'Cases',
   'honey-keys': 'Honey keys',
-  scanners: 'Tool Catalog',
-  'agent-lab': 'Agent Lab',
+  scanners: 'Tool catalog',
+  'agent-lab': 'Agent lab',
   playbooks: 'Recovery playbooks',
   verification: 'Verification',
   activity: 'Activity',
@@ -423,13 +467,17 @@ function postureDelta(summary: DashboardSummary): number {
 function postureWeek(summary: DashboardSummary): {label: string; value: number}[] {
   const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
   const history = [...summary.history].slice(-7);
-  if (!history.length) {
-    const score = postureScore(summary);
-    return labels.map((label, index) => ({label, value: index === labels.length - 1 ? score : Math.max(0, score - (labels.length - index) * 0.2)}));
-  }
+  if (!history.length) return [];
   const values = history.map((item) => Math.max(0, Math.min(10, item.health_score / 10)));
   while (values.length < 7) values.unshift(values[0] ?? postureScore(summary));
   return values.slice(-7).map((value, index) => ({label: labels[index], value: Number(value.toFixed(1))}));
+}
+
+function postureTier(score: number): {label: string; tone: Tone; tier: PostureTier} {
+  if (score >= 9) return {label: 'Excellent', tone: 'low', tier: 'excellent'};
+  if (score >= 7.5) return {label: 'Steady', tone: 'low', tier: 'steady'};
+  if (score >= 5.5) return {label: 'Watch', tone: 'warn', tier: 'watch'};
+  return {label: 'Needs attention', tone: 'high', tier: 'attention'};
 }
 
 function toneForSeverity(value?: string): Tone {
@@ -523,7 +571,7 @@ function buildActivity(summary: DashboardSummary, includeRepo = false): Activity
       id: `honey-${event.id}`,
       at: timeLabel(event.triggered_at),
       date,
-      icon: <ShieldAlert size={18} />,
+      icon: <KeyRound size={18} />,
       label: `Honey-key touched${key?.name ? ` · ${key.name}` : ''}`,
       sub: `${includeRepo ? `${repoLabel} · ` : ''}${event.ip_address ?? 'unknown IP'} · ${event.reason}`,
       tone: event.incident?.closed_at ? 'warn' : 'crit',
@@ -548,7 +596,7 @@ function buildActivity(summary: DashboardSummary, includeRepo = false): Activity
       id: `scan-${scan.id}`,
       at: finished ? timeLabel(finished) : '--:--',
       date,
-      icon: <RefreshCw size={18} />,
+      icon: <ScanLine size={18} />,
       label: `${scan.profile || 'Scan'} completed`,
       sub: `${includeRepo ? `${scan.repo_name} · ` : ''}${scan.health_score}/100 health · ${scan.status}`,
       tone: scan.health_score < 70 ? 'warn' : 'low',
@@ -560,7 +608,7 @@ function buildActivity(summary: DashboardSummary, includeRepo = false): Activity
       id: `project-${status.project_id}`,
       at: status.last_event_at ? timeLabel(status.last_event_at) : '--:--',
       date,
-      icon: <Gauge size={18} />,
+      icon: <Radar size={18} />,
       label: `${status.project_id} · ${status.status}`,
       sub: status.reason,
       tone: status.status === 'red' ? 'crit' : status.status === 'yellow' ? 'warn' : 'low',
@@ -578,11 +626,12 @@ function timeLabel(value: string): string {
 }
 
 function iconForCategory(category?: string): ReactNode {
-  if (category === 'dependencies' || category === 'behavioral-drift' || category === 'silent-upgrade') return <Database size={18} />;
-  if (category === 'iac' || category === 'platform-posture') return <Layers3 size={18} />;
+  if (category === 'dependencies' || category === 'behavioral-drift' || category === 'silent-upgrade') return <PackageSearch size={18} />;
+  if (category === 'iac') return <Layers3 size={18} />;
+  if (category === 'platform-posture') return <ShieldCheck size={18} />;
   if (category === 'secrets') return <KeyRound size={18} />;
-  if (category === 'ai-risk') return <TerminalSquare size={18} />;
-  return <ShieldAlert size={18} />;
+  if (category === 'ai-risk') return <SquareTerminal size={18} />;
+  return <FileSearch size={18} />;
 }
 
 function severityCounts(summary: DashboardSummary) {
@@ -654,6 +703,155 @@ function caseSeverityCounts(cases: DisplayCase[]) {
     },
     {critical: 0, elevated: 0, warning: 0, low: 0},
   );
+}
+
+function activeCaseSeverityCounts(cases: DisplayCase[]): {critical: number; high: number} {
+  return cases.reduce(
+    (counts, item) => {
+      if (item.severity === 'critical') counts.critical += 1;
+      if (item.severity === 'high') counts.high += 1;
+      return counts;
+    },
+    {critical: 0, high: 0},
+  );
+}
+
+function repoIdentityKeys(repo: ProjectRepo | RepositorySummary): Set<string> {
+  const name = 'name' in repo ? repo.name : repo.repo;
+  return new Set([
+    repo.path,
+    name,
+    repoKeyFromPath(repo.path),
+    repoKeyFromPath(name),
+    'repo' in repo ? repo.repo : '',
+  ].filter(Boolean));
+}
+
+function targetRepoList(target: TargetSelection, targetRepos: ProjectRepo[], summary: DashboardSummary): ProjectRepo[] {
+  if (target.mode === 'repo') return [target.repo];
+  if (targetRepos.length) return uniqueRepos(targetRepos);
+  return summary.repos.map((repo) => ({name: repo.path.split('/').filter(Boolean).at(-1) ?? repo.repo, path: repo.path}));
+}
+
+function overviewRepoHealth(summary: DashboardSummary, target: TargetSelection, targetRepos: ProjectRepo[], cases: DisplayCase[]): OverviewRepoHealth {
+  const repos = targetRepoList(target, targetRepos, summary);
+  const scannedByPath = new Map(summary.repos.map((repo) => [repo.path, repo]));
+  const caseBuckets = new Map<string, {critical: boolean; hasIssue: boolean}>();
+  for (const item of cases) {
+    const key = repoKeyFromPath(item.repoName);
+    const current = caseBuckets.get(key) ?? {critical: false, hasIssue: false};
+    current.hasIssue = true;
+    current.critical ||= item.severity === 'critical';
+    caseBuckets.set(key, current);
+  }
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  let healthy = 0;
+  let needsAttention = 0;
+  let critical = 0;
+  let noRecentScan = 0;
+  let reposWithIssues = 0;
+
+  for (const repo of repos) {
+    const scanned = scannedByPath.get(repo.path) ?? summary.repos.find((item) => repoIdentityKeys(repo).has(item.repo));
+    const keys = repoIdentityKeys(scanned ?? repo);
+    const issue = [...keys].map((key) => caseBuckets.get(repoKeyFromPath(key))).find(Boolean);
+    const hasIssue = Boolean(issue?.hasIssue);
+    const hasCritical = Boolean(issue?.critical);
+    const scanTime = scanned?.last_scan ? Date.parse(scanned.last_scan) : NaN;
+    const stale = !scanned || !scanned.last_scan || Number.isNaN(scanTime) || scanTime < cutoff;
+
+    if (stale) noRecentScan += 1;
+    if (hasCritical) critical += 1;
+    if (hasIssue) reposWithIssues += 1;
+    if (hasIssue && !hasCritical) needsAttention += 1;
+    if (!hasIssue && !stale) healthy += 1;
+  }
+
+  return {
+    total: repos.length,
+    healthy,
+    needsAttention,
+    critical,
+    noRecentScan,
+    reposWithIssues,
+  };
+}
+
+function overviewHeroCopy({
+  summary,
+  cases,
+  preCaseRepos,
+  posture,
+  repoHealth,
+  target,
+  targetRepos,
+}: {
+  summary: DashboardSummary;
+  cases: DisplayCase[];
+  preCaseRepos: RepositorySummary[];
+  posture: {score: number};
+  repoHealth: OverviewRepoHealth;
+  target: TargetSelection;
+  targetRepos: ProjectRepo[];
+}): {headline: string; subtitle: string} {
+  const targetName = target.mode === 'repo' ? target.repo.name : 'your repos';
+  const criticalCase = cases.find((item) => item.severity === 'critical');
+  if (!summary.repos.length) {
+    return {
+      headline: target.mode === 'repo' || repoHealth.total > 0 ? 'Ready for the first scan.' : 'Add a repo to start scanning.',
+      subtitle: target.mode === 'repo'
+        ? `Run a quick scan to create the first local security record for ${targetName}.`
+        : repoHealth.total
+        ? `${repoHealth.total} repos are known. Run a quick scan to create the first local security record.`
+        : 'DëvSec will keep the results local once a scan has something to record.',
+    };
+  }
+  if (criticalCase) {
+    const criticalRepoKey = repoKeyFromPath(criticalCase.repoName);
+    const criticalRepoName = target.mode === 'repo'
+      ? target.repo.name
+      : targetRepos.find((repo) => repoKeyFromPath(repo.name) === criticalRepoKey || repoKeyFromPath(repo.path) === criticalRepoKey)?.name ?? criticalCase.repoName;
+    return {
+      headline: 'Critical case needs attention.',
+      subtitle: `${criticalRepoName}: ${sentenceWithPeriod(criticalCase.title)}`,
+    };
+  }
+  if (cases.length) {
+    return {
+      headline: `${cases.length} open case${cases.length === 1 ? '' : 's'} need review.`,
+      subtitle: repoHealth.reposWithIssues
+        ? `${repoHealth.reposWithIssues} repo${repoHealth.reposWithIssues === 1 ? '' : 's'} need attention. Start with the highest severity case.`
+        : 'Review the case list, then rerun checks after the fix.',
+    };
+  }
+  if (preCaseRepos.length) {
+    return {
+      headline: preCaseRepos.length === 1 ? 'One older scan needs a fresh run.' : `${preCaseRepos.length} older scans need a fresh run.`,
+      subtitle: 'The raw evidence is saved, but a new scan will group it into current cases.',
+    };
+  }
+  if (repoHealth.noRecentScan) {
+    return {
+      headline: repoHealth.noRecentScan === 1 ? 'One repo needs a fresh scan.' : `${repoHealth.noRecentScan} repos need a fresh scan.`,
+      subtitle: 'A current scan keeps the posture score grounded in recent local evidence.',
+    };
+  }
+  if (posture.score >= 9) {
+    return {
+      headline: "You're in great shape.",
+      subtitle: 'Everything looks healthy. Keep it up.',
+    };
+  }
+  if (posture.score >= 7.5) {
+    return {
+      headline: 'Posture looks steady.',
+      subtitle: 'No active cases are waiting, and the latest scan evidence is usable.',
+    };
+  }
+  return {
+    headline: 'Posture needs a closer look.',
+    subtitle: 'There are no open cases, but the scan score says this repo deserves a fresh review.',
+  };
 }
 
 export default function App() {
@@ -740,6 +938,7 @@ export default function App() {
           else await loadSummary();
           setUpdatedAt(new Date());
           setIsRunningCheck(false);
+          setIsCheckOpen(false);
         }
         if (payload.job.status === 'failed') {
           setRunError(payload.job.error ?? 'Security check failed');
@@ -989,7 +1188,9 @@ export default function App() {
         <main className="mist-main">
           <Toolbar
             title={tabTitles[activeTab]}
-            targetLabel={targetLabel(target)}
+            target={target}
+            targetRepos={targetRepos}
+            onTargetChange={selectTarget}
             posture={posture}
             search={search}
             setSearch={setSearch}
@@ -1042,6 +1243,14 @@ export default function App() {
               catalogRoute={catalogRoute}
               onCatalogRouteChange={setCatalogRoute}
               onOpenTab={setActiveTab}
+              onOpenCatalogHome={() => {
+                setCatalogRoute({kind: 'home'});
+                setActiveTab('scanners');
+              }}
+              onOpenCatalogBrowse={() => {
+                setCatalogRoute({kind: 'browse'});
+                setActiveTab('scanners');
+              }}
               onChooseChecks={chooseChecks}
               onRunQuick={runQuickCheck}
               onRunAll={runFullCheck}
@@ -1073,6 +1282,8 @@ function ActiveView({
   catalogRoute,
   onCatalogRouteChange,
   onOpenTab,
+  onOpenCatalogHome,
+  onOpenCatalogBrowse,
   onChooseChecks,
   onRunQuick,
   onRunAll,
@@ -1096,6 +1307,8 @@ function ActiveView({
   catalogRoute: CatalogRoute;
   onCatalogRouteChange: (route: CatalogRoute) => void;
   onOpenTab: (tab: TabId) => void;
+  onOpenCatalogHome: () => void;
+  onOpenCatalogBrowse: () => void;
   onChooseChecks: (profile?: string) => void;
   onRunQuick: () => void;
   onRunAll: () => void;
@@ -1124,6 +1337,8 @@ function ActiveView({
         isRunningCheck={isRunningCheck}
         runError={runError}
         onOpenTab={onOpenTab}
+        onOpenCatalogHome={onOpenCatalogHome}
+        onOpenCatalogBrowse={onOpenCatalogBrowse}
         onRunQuick={onRunQuick}
         onRunAll={onRunAll}
         onChooseChecks={onChooseChecks}
@@ -1139,7 +1354,7 @@ function ActiveView({
   if (tab === 'verification') return <VerificationView summary={summary} target={target} targetRepos={targetRepos} onChooseChecks={onChooseChecks} onTargetChange={onTargetChange} />;
   if (tab === 'activity') return <ActivityView summary={summary} search={search} target={target} />;
   if (tab === 'reports') return <ReportsView summary={summary} target={target} />;
-  return <SettingsView summary={summary} target={target} targetRepos={targetRepos} updatedAt={updatedAt} onTargetChange={onTargetChange} />;
+  return <SettingsView summary={summary} target={target} targetRepos={targetRepos} updatedAt={updatedAt} onTargetChange={onTargetChange} onResetComplete={onRefresh} />;
 }
 
 // CatalogRouter — dispatches the Tool Catalog substate to the four route
@@ -1219,14 +1434,18 @@ function Sidebar({
   onTargetChange: (value: string) => void;
   onNav: (tab: TabId) => void;
 }) {
+  const workspaceSubtitle = target.mode === 'repo'
+    ? 'Selected repository'
+    : `${targetRepos.length} ${targetRepos.length === 1 ? 'repository' : 'repositories'}`;
+  const workspaceTitle = target.mode === 'repo' ? target.repo.name : 'All repositories';
   return (
     <aside className="mist-sidebar">
       <div className="dotgrid-dark mist-sidebar-texture" />
       <div className="workspace-card">
-        <div className="workspace-mark"><ShieldCheck size={17} /></div>
+        <div className="workspace-mark" aria-hidden="true">A</div>
         <div className="workspace-copy">
-          <div className="workspace-title">{targetLabel(target)}</div>
-          <div className="workspace-subtitle">{target.mode === 'repo' ? 'Specific repo' : 'All repositories'}</div>
+          <div className="workspace-title">{workspaceTitle}</div>
+          <div className="workspace-subtitle">{workspaceSubtitle}</div>
           <select
             className="workspace-select"
             name="workspace-target"
@@ -1234,22 +1453,21 @@ function Sidebar({
             value={targetValue(target)}
             onChange={(event) => onTargetChange(event.target.value)}
           >
-            <option value="all-repos">All repos</option>
+            <option value="all-repos">All repositories</option>
             {targetRepos.map((repo) => (
-              <option key={repo.path} value={`repo:${repo.path}`}>Specific repo · {repo.name}</option>
+              <option key={repo.path} value={`repo:${repo.path}`}>Specific repository · {repo.name}</option>
             ))}
-            <option value="add-repo">+ Add repo...</option>
+            <option value="add-repo">+ Add repository...</option>
           </select>
         </div>
         <ChevronDown size={15} className="muted-icon" />
       </div>
       <nav className="sidebar-nav">
         {navGroups.map((group) => (
-          <div key={group.title} className="sidebar-group">
-            <div className="sidebar-group-title">{group.title}</div>
+          <div key={group.title ?? 'primary'} className="sidebar-group">
+            {group.title && <div className="sidebar-group-title">{group.title}</div>}
             {group.items.map((item) => {
               const unavailable = viewIsUnavailableInMode(item.id, target.mode);
-              const scope = navScopeLabel(item.id);
               return (
                 <button
                   key={item.id}
@@ -1262,7 +1480,6 @@ function Sidebar({
                   <item.icon size={17} />
                   <span>{item.label}</span>
                   {!!counts[item.id] && <strong>{counts[item.id]}</strong>}
-                  {scope && <em className="nav-scope">{scope}</em>}
                 </button>
               );
             })}
@@ -1284,16 +1501,11 @@ function viewIsUnavailableInMode(tab: TabId, mode: DashboardMode): boolean {
   return entry.availability === 'repo-required' && mode !== 'repo';
 }
 
-function navScopeLabel(tab: TabId): string | null {
-  const entry = viewsByMode[tab];
-  if (entry.availability === 'repo-required') return 'Repo';
-  if (entry.availability === 'global') return 'Global';
-  return null;
-}
-
 function Toolbar({
   title,
-  targetLabel,
+  target,
+  targetRepos,
+  onTargetChange,
   posture,
   search,
   setSearch,
@@ -1307,7 +1519,9 @@ function Toolbar({
   runAllHint,
 }: {
   title: string;
-  targetLabel: string;
+  target: TargetSelection;
+  targetRepos: ProjectRepo[];
+  onTargetChange: (value: string) => void;
   posture: {score: number; delta: number};
   search: string;
   setSearch: (value: string) => void;
@@ -1320,21 +1534,30 @@ function Toolbar({
   canRun: boolean;
   runAllHint: string;
 }) {
-  const searchPlaceholder = title === 'Tool Catalog' ? 'Search tools, packs' : title === 'Agent Lab' ? 'Search proposals, tools' : 'Search cases, manifests';
-  const runAllLabel = canRun ? 'Run all' : 'Run all (pick a repo)';
-  const runQuickLabel = canRun ? 'Run quick' : 'Run quick (pick a repo)';
+  const searchPlaceholder = title === 'Tool catalog' ? 'Search tools, packs' : title === 'Agent lab' ? 'Search proposals, tools' : 'Search cases, tools, repositories...';
+  const runAllLabel = canRun ? 'Run all' : 'Run all (pick a repository)';
+  const runQuickLabel = canRun ? 'Run quick' : 'Run quick (pick a repository)';
   return (
     <header className="mist-toolbar">
       <div className="toolbar-title">
         <strong>{title}</strong>
-        <span>{targetLabel}</span>
+        <label className="toolbar-target">
+          <span className="sr-only">Dashboard scope</span>
+          <select value={targetValue(target)} onChange={(event) => onTargetChange(event.target.value)}>
+            <option value="all-repos">All repositories</option>
+            {targetRepos.map((repo) => (
+              <option key={repo.path} value={`repo:${repo.path}`}>{repo.name}</option>
+            ))}
+            <option value="add-repo">Add repository...</option>
+          </select>
+          <ChevronDown size={13} aria-hidden="true" />
+        </label>
       </div>
       <div className="toolbar-spacer" />
       <div className="posture-pill">
         <span className={`status-dot ${error ? 'paused' : isLoading ? 'syncing' : 'live'}`} />
-        <span>Posture</span>
-        <strong>{posture.score.toFixed(1)}</strong>
-        <em>{posture.delta >= 0 ? `+${posture.delta.toFixed(1)}` : posture.delta.toFixed(1)}</em>
+        <span>Posture:</span>
+        <strong>{posture.score.toFixed(1)} / 10</strong>
       </div>
       <label className="toolbar-search">
         <Search size={16} />
@@ -1535,6 +1758,8 @@ function OverviewView({
   isRunningCheck,
   runError,
   onOpenTab,
+  onOpenCatalogHome,
+  onOpenCatalogBrowse,
   onRunQuick,
   onRunAll,
   onChooseChecks,
@@ -1551,6 +1776,8 @@ function OverviewView({
   isRunningCheck: boolean;
   runError: string | null;
   onOpenTab: (tab: TabId) => void;
+  onOpenCatalogHome: () => void;
+  onOpenCatalogBrowse: () => void;
   onRunQuick: () => void;
   onRunAll: () => void;
   onChooseChecks: (profile?: string) => void;
@@ -1558,29 +1785,23 @@ function OverviewView({
 }) {
   const scopeLabel = targetLabel(target);
   const cases = activeCaseList(summary);
-  const rawCounts = severityCounts(summary);
-  const caseCounts = caseSeverityCounts(cases);
-  const rawFindingTotal = activeRawFindingCount(summary) || rawCounts.critical + rawCounts.elevated + rawCounts.warning + rawCounts.low;
-  const loadedFindingRows = totalFindings(summary);
-  const nonLowFindings = rawCounts.critical + rawCounts.elevated + rawCounts.warning;
+  const activeSeverityCounts = activeCaseSeverityCounts(cases);
+  const repoHealth = overviewRepoHealth(summary, target, targetRepos, cases);
   const preCaseRepos = preCaseScanRepos(summary);
   const preCaseRawTotal = preCaseRawFindingCount(summary);
-  const caseBackedRawTotal = caseBackedRawFindingCount(summary);
-  const openCaseValue = String(cases.length);
-  const rawFindingDetail = preCaseRawTotal
-    ? target.mode === 'repo'
-      ? `${preCaseRawTotal} pre-cases raw findings · rescan to build cases`
-      : `${caseBackedRawTotal} case-backed raw · ${preCaseRawTotal} pre-cases raw need rescan`
-    : rawFindingTotal > loadedFindingRows
-    ? `${rawFindingTotal} raw findings · ${loadedFindingRows} rows loaded`
-    : `${rawFindingTotal || loadedFindingRows} raw findings · ${nonLowFindings} non-low`;
-  const honeyCounts = honeyKeyCounts(summary);
+  const openCaseValue = formatCount(cases.length);
   const scanners = topScannerItems(globalSummary);
-  const catalogCount = toolCatalogItems(globalSummary).length || scanners.length;
   const scannerHealthy = scanners.filter((item) => item.status === 'ran').length;
+  const scannerTotal = scanners.length;
   const activities = buildActivity(summary, target.mode === 'all-repos');
   const recentActivities = activities.slice(0, 6);
   const lastScan = latestScanTime(summary);
+  const tier = postureTier(posture.score);
+  const heroCopy = overviewHeroCopy({summary, cases, preCaseRepos, posture, repoHealth, target, targetRepos});
+  const dateLabel = new Intl.DateTimeFormat(undefined, {weekday: 'long', month: 'long', day: 'numeric'}).format(new Date());
+  const openCaseTone: Tone = activeSeverityCounts.critical ? 'crit' : activeSeverityCounts.high ? 'high' : cases.length ? 'warn' : 'low';
+  const reposWithIssuesTone: Tone = repoHealth.critical ? 'crit' : repoHealth.reposWithIssues ? 'warn' : 'low';
+  const coverageTone: Tone = scannerTotal && scannerHealthy < scannerTotal ? 'warn' : 'low';
   // summary.repos[].repo is the slugified scan-history key (e.g.
   // ``besk-ftigelse.dk``); ProjectRepo.name is the un-slugified display name
   // (``beskæftigelse.dk``). Match against the slug so per-repo rotation state
@@ -1597,99 +1818,229 @@ function OverviewView({
       ? `repo:${targetRepos[0].path}`
       : null;
   const canOpenDiagnostic = target.mode === 'repo' || diagnosticAutoRepoValue !== null;
-  const headline = cases[0]
-    ? `${severityLabelForCase(cases[0])}: ${cases[0].title}`
-    : preCaseRepos.length
-      ? target.mode === 'repo'
-        ? 'This older scan needs a fresh run before cases can be grouped.'
-        : `${preCaseRepos.length} older scan${preCaseRepos.length === 1 ? '' : 's'} need a fresh run before cases are complete.`
-    : summary.repos.length
-      ? 'Quiet overnight. No active cases from the checks that ran.'
-      : 'Choose a repo and run a quick safety sweep.';
   return (
     <div className="view-stack">
       <section className="hero-digest">
         <div className="dotgrid-light hero-dots" />
         <div className="hero-copy">
-          <Eyebrow onSurface>Today · {new Intl.DateTimeFormat(undefined, {weekday: 'long', month: 'long', day: 'numeric'}).format(new Date())} · {scopeLabel}</Eyebrow>
-          <h1>{headline}</h1>
+          <div className="hero-date-label">{dateLabel}</div>
+          <h1>{heroCopy.headline}</h1>
+          <p>{heroCopy.subtitle}</p>
           <div className="hero-actions">
-            <Button variant="glassOnGlass" onClick={() => onOpenTab('findings')}>Open cases</Button>
-            <Button variant="glass" icon={<Activity size={15} />} onClick={() => onOpenTab('activity')}>See activity</Button>
+            <Button variant="glassOnGlass" icon={<ScanLine size={15} />} onClick={onRunQuick}>Run a scan</Button>
+            <Button variant="glass" icon={<Activity size={15} />} onClick={() => onOpenTab('activity')}>View activity</Button>
           </div>
         </div>
         <div className="hero-metrics">
-          <Donut value={posture.score} />
-          <div className="posture-big">
-            <Eyebrow onSurface>Posture · 30 d · {scopeLabel}</Eyebrow>
-            <strong>{posture.score.toFixed(1)}</strong><span>/ 10</span>
-            <em>{posture.delta >= 0 ? `+${posture.delta.toFixed(1)}` : posture.delta.toFixed(1)} vs previous</em>
+          <div className="posture-summary">
+            <div className="hero-panel-label">Overall posture</div>
+            <Donut value={posture.score} tier={tier.label} tone={tier.tone} />
           </div>
           <div className="hero-bars">
-            <Eyebrow onSurface>Posture · 7 d · {scopeLabel}</Eyebrow>
+            <div className="hero-panel-label">Posture over the last 7 days</div>
             <BarChart data={posture.week} onSurface />
           </div>
         </div>
       </section>
 
       <section className="kpi-grid">
-        <KpiCard title="Open cases" value={openCaseValue} detail={`${scopeLabel} · ${rawFindingDetail}`} icon={<ShieldAlert size={18} />} onClick={() => onOpenTab('findings')} />
-        <KpiCard title="Honey keys armed" value={String(honeyCounts.active)} detail={`${scopeLabel} · ${honeyCounts.triggered ? `${honeyCounts.triggered} tripped` : 'all quiet'}`} icon={<ShieldCheck size={18} />} onClick={() => onOpenTab('honey-keys')} />
-        <KpiCard title="Tool Catalog" value={`${scannerHealthy} / ${Math.max(scanners.length, 1)}`} detail={`Across all repos · ${catalogCount} catalog entries`} icon={<ScanIcon size={18} />} onClick={() => onOpenTab('scanners')} />
+        <KpiCard
+          title="Open cases"
+          value={openCaseValue}
+          detail={`${formatCount(activeSeverityCounts.critical)} critical · ${formatCount(activeSeverityCounts.high)} high`}
+          detailTone={openCaseTone}
+          icon={<FileSearch size={18} />}
+          onClick={() => onOpenTab('findings')}
+        />
+        <KpiCard
+          title="Repositories with issues"
+          value={formatCount(repoHealth.reposWithIssues)}
+          detail={repoHealth.reposWithIssues ? `${formatCount(repoHealth.reposWithIssues)} need attention` : 'No repositories need attention'}
+          detailTone={reposWithIssuesTone}
+          icon={<FolderSearch size={18} />}
+          onClick={() => onOpenTab('findings')}
+        />
+        <KpiCard
+          title="Tool coverage"
+          value={`${scannerHealthy} / ${scannerTotal}`}
+          detail={scannerTotal ? `${scannerTotal} tools available` : 'No scanner inventory yet'}
+          detailTone={coverageTone}
+          icon={<PackageCheck size={18} />}
+          onClick={onOpenCatalogHome}
+        />
       </section>
 
-      <ScanControlPanel
-        summary={summary}
-        target={target}
-        targetRepos={targetRepos}
-        activeJob={activeJob}
-        allRepoRun={allRepoRun}
-        isRunningCheck={isRunningCheck}
-        runError={runError}
-        onRunQuick={onRunQuick}
-        onRunAll={onRunAll}
-        onChooseChecks={onChooseChecks}
-        onOpenDiagnostic={canOpenDiagnostic ? () => {
-          if (diagnosticAutoRepoValue) onTargetChange(diagnosticAutoRepoValue);
-          onOpenTab('verification');
-        } : undefined}
-      />
+      {(isRunningCheck || runError || (activeJob && activeJob.status !== 'complete') || (allRepoRun && allRepoRun.status === 'running')) && (
+        <CompactScanStatus
+          target={target}
+          activeJob={activeJob}
+          allRepoRun={allRepoRun}
+          runError={runError}
+          onChooseChecks={onChooseChecks}
+          onOpenVerification={canOpenDiagnostic ? () => {
+            if (diagnosticAutoRepoValue) onTargetChange(diagnosticAutoRepoValue);
+            onOpenTab('verification');
+          } : undefined}
+        />
+      )}
+
+      <section className="overview-lower-grid">
+        <div className="overview-left-stack">
+          <QuickActionsPanel
+            target={target}
+            targetRepos={targetRepos}
+            isRunningCheck={isRunningCheck}
+            onRunQuick={onRunQuick}
+            onOpenCatalog={onOpenCatalogHome}
+            onOpenCatalogBrowse={onOpenCatalogBrowse}
+            onAddRepo={() => onTargetChange('add-repo')}
+            onOpenTab={onOpenTab}
+          />
+          <RepositoryHealthOverview health={repoHealth} onOpenReports={() => onOpenTab('reports')} />
+        </div>
+        <RecentActivityPanel
+          activities={recentActivities}
+          activityCount={activities.length}
+          scopeLabel={scopeLabel}
+          onOpenActivity={() => onOpenTab('activity')}
+          lastScan={lastScan}
+        />
+      </section>
 
       {!!preCaseRepos.length && <PreCaseScanNote repos={preCaseRepos} rawFindingTotal={preCaseRawTotal} />}
 
-      {target.mode === 'all-repos' && <RepositoryComparisonStrip summary={summary} cases={cases} />}
-
       {error && <Notice tone="warn" icon={<AlertTriangle size={17} />} title="Dashboard data could not refresh" body="Saved data may be older than shown." />}
-
-      <section className="split-grid wide-left">
-        <PaperCard>
-          <SectionHeader
-            title="Open cases"
-            right={<div className="section-actions"><ScopePill label={scopeLabel} /><button onClick={() => onOpenTab('findings')}>All {cases.length} <ChevronRight size={14} /></button></div>}
-          />
-          <SeverityDistribution counts={caseCounts} />
-          <div className="soft-list">
-            {cases.slice(0, 5).map((item, index) => <FindingLine key={item.id} item={item} index={index} onClick={() => onOpenTab('findings')} />)}
-            {!cases.length && <EmptyLine title="No active cases" detail={lastScan ? `Latest scan ${formatDate(lastScan)}` : 'No scan has run yet'} />}
-          </div>
-        </PaperCard>
-        <PaperCard>
-          <SectionHeader
-            title="Recent activity"
-            right={<div className="section-actions"><ScopePill label={scopeLabel} /><button onClick={() => onOpenTab('activity')}>All <ChevronRight size={14} /></button></div>}
-          />
-          <ActivityTimelineMini items={recentActivities} />
-          <div className="activity-list compact">
-            {recentActivities.map((item) => <ActivityRow key={item.id} item={item} />)}
-            {!activities.length && <EmptyLine title="No activity yet" detail="Run a scan to build the local record." />}
-          </div>
-        </PaperCard>
-      </section>
 
       {target.mode === 'repo' && (
         <RotationStatusCard repo={target.repo} precomputed={rotationSignal} />
       )}
     </div>
+  );
+}
+
+function QuickActionsPanel({
+  target,
+  targetRepos,
+  isRunningCheck,
+  onRunQuick,
+  onOpenCatalog,
+  onOpenCatalogBrowse,
+  onAddRepo,
+  onOpenTab,
+}: {
+  target: TargetSelection;
+  targetRepos: ProjectRepo[];
+  isRunningCheck: boolean;
+  onRunQuick: () => void;
+  onOpenCatalog: () => void;
+  onOpenCatalogBrowse: () => void;
+  onAddRepo: () => void;
+  onOpenTab: (tab: TabId) => void;
+}) {
+  const canRun = target.mode === 'repo' || targetRepos.length > 0;
+  const actions = [
+    {title: 'Run a scan', detail: 'Check your repositories now', icon: <ScanLine size={18} />, onClick: onRunQuick, disabled: isRunningCheck || !canRun},
+    {title: 'View catalog', detail: 'Explore available tools', icon: <PackageSearch size={18} />, onClick: onOpenCatalog},
+    {title: 'View activity', detail: 'See recent scans and runs', icon: <Activity size={18} />, onClick: () => onOpenTab('activity')},
+    {title: 'View reports', detail: 'Open saved reports', icon: <FileText size={18} />, onClick: () => onOpenTab('reports')},
+    {title: 'Setup integrations', detail: 'Open setup-capable tools', icon: <Workflow size={18} />, onClick: onOpenCatalogBrowse},
+    {title: 'Add repository', detail: 'Register another target', icon: <FolderGit2 size={18} />, onClick: onAddRepo},
+  ];
+  return (
+    <PaperCard className="quick-actions-card">
+      <SectionHeader title="How would you like to proceed?" />
+      <div className="quick-actions-grid">
+        {actions.map((action) => (
+          <button
+            key={action.title}
+            type="button"
+            className="quick-action-tile"
+            onClick={action.onClick}
+            disabled={action.disabled}
+            title={!canRun && action.title === 'Run a scan' ? 'Add a repository before running checks' : undefined}
+          >
+            <span>{action.icon}</span>
+            <strong>{action.title}</strong>
+            <em>{action.detail}</em>
+          </button>
+        ))}
+      </div>
+    </PaperCard>
+  );
+}
+
+function RecentActivityPanel({activities, activityCount, scopeLabel, onOpenActivity, lastScan}: {activities: ActivityItem[]; activityCount: number; scopeLabel: string; onOpenActivity: () => void; lastScan: string | null}) {
+  return (
+    <PaperCard className="recent-activity-card">
+      <SectionHeader
+        title="Recent activity"
+        right={<button type="button" className="text-link" onClick={onOpenActivity}>View all <ChevronRight size={14} /></button>}
+      />
+      <div className="activity-list compact">
+        {activities.map((item) => <ActivityRow key={item.id} item={item} />)}
+        {!activityCount && <EmptyLine title="No activity yet" detail={lastScan ? `${scopeLabel} · latest scan ${formatDate(lastScan)}` : 'Run a scan to build the local record.'} />}
+      </div>
+      <Button variant="secondary" icon={<Activity size={14} />} onClick={onOpenActivity}>View all activity</Button>
+    </PaperCard>
+  );
+}
+
+function CompactScanStatus({
+  target,
+  activeJob,
+  allRepoRun,
+  runError,
+  onChooseChecks,
+  onOpenVerification,
+}: {
+  target: TargetSelection;
+  activeJob: CheckJob | null;
+  allRepoRun: AllRepoRun | null;
+  runError: string | null;
+  onChooseChecks: (profile?: string) => void;
+  onOpenVerification?: () => void;
+}) {
+  return (
+    <PaperCard className="compact-scan-status">
+      <SectionHeader
+        title="Scan status"
+        right={<div className="section-actions">
+          <button type="button" className="text-link" onClick={() => onChooseChecks()}>Choose checks <ChevronRight size={14} /></button>
+          {onOpenVerification && <button type="button" className="text-link" onClick={onOpenVerification}>Verification <ChevronRight size={14} /></button>}
+        </div>}
+      />
+      <LiveScanProgress activeJob={activeJob} allRepoRun={allRepoRun} target={target} />
+      {runError && <div className="inline-error compact">{runError}</div>}
+    </PaperCard>
+  );
+}
+
+function RepositoryHealthOverview({health, onOpenReports}: {health: OverviewRepoHealth; onOpenReports: () => void}) {
+  const rows: {label: string; value: number; tone: Tone; icon: ReactNode; detail: string}[] = [
+    {label: 'Total repositories', value: health.total, tone: 'neutral', icon: <Layers3 size={18} />, detail: 'Selectable repos'},
+    {label: 'Healthy', value: health.healthy, tone: 'low', icon: <FolderCheck size={18} />, detail: 'Recent scan, no open cases'},
+    {label: 'Needs attention', value: health.needsAttention, tone: 'warn', icon: <AlertTriangle size={18} />, detail: 'Open non-critical cases'},
+    {label: 'Critical', value: health.critical, tone: 'crit', icon: <CircleAlert size={18} />, detail: 'Critical open cases'},
+    {label: 'No recent scan', value: health.noRecentScan, tone: 'neutral', icon: <Clock3 size={18} />, detail: 'Stale or never scanned'},
+  ];
+  return (
+    <PaperCard className="repo-health-overview">
+      <SectionHeader
+        title="Repository health overview"
+        right={<button type="button" className="text-link" onClick={onOpenReports}>View reports <ChevronRight size={14} /></button>}
+      />
+      <div className="repo-health-accent" />
+      <div className="repo-health-grid">
+        {rows.map((row) => (
+          <div key={row.label} className={`repo-health-item tone-${row.tone}`}>
+            <span>{row.icon}</span>
+            <strong>{formatCount(row.value)}</strong>
+            <em>{row.label}</em>
+            <small>{row.detail}</small>
+          </div>
+        ))}
+      </div>
+    </PaperCard>
   );
 }
 
@@ -2336,7 +2687,7 @@ function PlaybooksView({summary, target, targetRepos, onChooseChecks, onTargetCh
       <div className="view-stack">
         <PaperCard>
           <div className="empty-state">
-            <Eyebrow>Recovery playbooks</Eyebrow>
+            <Eyebrow>Recovery Playbooks</Eyebrow>
             <h2>No open cases need a recovery playbook right now.</h2>
             <p>Playbooks appear when active cases match a recovery class — leaked secrets, vulnerable dependencies, risky AI/agent config, IaC misconfig, platform-posture drift, workflow surfaces, install hooks, package drift, or named-campaign indicators.</p>
           </div>
@@ -2664,7 +3015,63 @@ function PlatformPostureCard({
   );
 }
 
-function SettingsView({summary, target, targetRepos, updatedAt, onTargetChange}: {summary: DashboardSummary; target: TargetSelection; targetRepos: ProjectRepo[]; updatedAt: Date | null; onTargetChange: (value: string) => void}) {
+function SettingsView({summary, target, targetRepos, updatedAt, onTargetChange, onResetComplete}: {summary: DashboardSummary; target: TargetSelection; targetRepos: ProjectRepo[]; updatedAt: Date | null; onTargetChange: (value: string) => void; onResetComplete: () => Promise<void>}) {
+  const [resetScope, setResetScope] = useState<'all' | 'repo'>(target.mode === 'repo' ? 'repo' : 'all');
+  const [keepBackup, setKeepBackup] = useState(true);
+  const [resetPreview, setResetPreview] = useState<ResetPreview | null>(null);
+  const [resetConfirmation, setResetConfirmation] = useState('');
+  const [resetResult, setResetResult] = useState<ResetResult | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [isResetBusy, setIsResetBusy] = useState(false);
+  const targetRepoName = target.mode === 'repo'
+    ? summary.repos.find((repo) => repo.path === target.repo.path)?.repo ?? target.repo.name
+    : null;
+  const resetPayload = resetScope === 'repo' ? {scope: resetScope, repoName: targetRepoName} : {scope: resetScope};
+  const resetDisabled = resetScope === 'repo' && !targetRepoName;
+
+  async function previewReset() {
+    setIsResetBusy(true);
+    setResetError(null);
+    setResetResult(null);
+    setResetConfirmation('');
+    try {
+      const response = await fetch('/api/reset/scan-results/preview', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(resetPayload),
+      });
+      if (!response.ok) throw new Error(await responseErrorMessage(response, 'Unable to preview reset'));
+      setResetPreview(await response.json());
+    } catch (err) {
+      setResetPreview(null);
+      setResetError(err instanceof Error ? err.message : 'Unable to preview reset');
+    } finally {
+      setIsResetBusy(false);
+    }
+  }
+
+  async function executeReset() {
+    if (!resetPreview) return;
+    setIsResetBusy(true);
+    setResetError(null);
+    try {
+      const response = await fetch('/api/reset/scan-results', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({...resetPayload, keepBackup, confirmation: resetConfirmation}),
+      });
+      if (!response.ok) throw new Error(await responseErrorMessage(response, 'Unable to reset scan results'));
+      setResetResult(await response.json());
+      setResetPreview(null);
+      setResetConfirmation('');
+      void onResetComplete();
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : 'Unable to reset scan results');
+    } finally {
+      setIsResetBusy(false);
+    }
+  }
+
   return (
     <div className="view-stack">
       <PaperCard>
@@ -2697,6 +3104,92 @@ function SettingsView({summary, target, targetRepos, updatedAt, onTargetChange}:
             <strong>{summary.honey_event_retention_days ?? 90} days</strong>
           </SettingRow>
           <SettingRow label="Generated reports" sub="Reports remain local unless you export or share them." />
+        </div>
+      </PaperCard>
+      <PaperCard className="danger-zone-card">
+        <SectionHeader title="Reset local scan history" right={<AlertTriangle size={16} />} />
+        <div className="reset-panel">
+          <Notice
+            tone="warn"
+            icon={<Database size={17} />}
+            title="Only DëvSec-owned scan data is in scope."
+            body="This reset removes local scan history, findings, cases, dependency snapshots, platform snapshots, Agent Lab proposals, and generated report files. It does not modify scanned repositories, Honey Keys, credentials, tool installs, or setup config."
+          />
+          <div className="reset-controls">
+            <label>
+              <span>Scope</span>
+              <select
+                value={resetScope}
+                onChange={(event) => {
+                  setResetScope(event.target.value as 'all' | 'repo');
+                  setResetPreview(null);
+                  setResetResult(null);
+                  setResetConfirmation('');
+                }}
+              >
+                <option value="all">All local scan results</option>
+                <option value="repo">Current repo only</option>
+              </select>
+            </label>
+            <label className="checkbox-row">
+              <input type="checkbox" checked={keepBackup} onChange={(event) => setKeepBackup(event.target.checked)} />
+              <span>Keep a backup first</span>
+            </label>
+          </div>
+          {resetScope === 'repo' && !targetRepoName && (
+            <div className="inline-error">Select a repo target before previewing a repo-only reset.</div>
+          )}
+          <div className="button-row">
+            <Button variant="secondary" icon={<EyeOff size={14} />} onClick={() => void previewReset()} disabled={isResetBusy || resetDisabled}>
+              {isResetBusy ? 'Checking...' : 'Preview reset'}
+            </Button>
+          </div>
+          {resetError && <div className="inline-error">{resetError}</div>}
+          {resetPreview && (
+            <div className="reset-preview">
+              <div className="reset-summary-grid">
+                <MetricBlock label="Repos" value={String(resetPreview.plan.repos.length)} detail={resetPreview.plan.repos.join(', ') || 'none'} />
+                <MetricBlock label="Rows" value={String(resetPreview.plan.tables.reduce((sum, row) => sum + row.rows, 0))} detail={`${resetPreview.plan.tables.length} tables`} />
+                <MetricBlock label="Report folders" value={String(resetPreview.plan.files.length)} detail="under DëvSec reports" />
+              </div>
+              <div className="reset-detail-grid">
+                <div>
+                  <strong>Will delete</strong>
+                  <ul>
+                    {resetPreview.plan.tables.map((row) => <li key={row.table}>{row.table}: {row.rows}</li>)}
+                    {resetPreview.plan.files.map((file) => <li key={file}>{file}</li>)}
+                    {!resetPreview.plan.tables.length && !resetPreview.plan.files.length && <li>Nothing found for this scope.</li>}
+                  </ul>
+                </div>
+                <div>
+                  <strong>Will keep</strong>
+                  <ul>{resetPreview.plan.preserved.map((item) => <li key={item}>{item}</li>)}</ul>
+                </div>
+              </div>
+              {keepBackup && <p className="reset-backup-note">Backup location: <code>{resetPreview.backup_default}</code></p>}
+              <label className="reset-confirmation">
+                <span>Type this exact phrase to reset</span>
+                <code>{resetPreview.confirmation_phrase}</code>
+                <input value={resetConfirmation} onChange={(event) => setResetConfirmation(event.target.value)} />
+              </label>
+              <Button
+                variant="primary"
+                icon={<Trash2 size={14} />}
+                onClick={() => void executeReset()}
+                disabled={isResetBusy || resetConfirmation !== resetPreview.confirmation_phrase}
+              >
+                {isResetBusy ? 'Resetting...' : keepBackup ? 'Back up and reset' : 'Reset scan history'}
+              </Button>
+            </div>
+          )}
+          {resetResult && (
+            <Notice
+              tone="info"
+              icon={<CheckCircle2 size={17} />}
+              title="Local scan history reset."
+              body={Object.keys(resetResult.backup).length ? `Backup written before reset. Removed ${Object.keys(resetResult.result.tables).length} table groups and ${resetResult.result.files.length} report folders.` : `Removed ${Object.keys(resetResult.result.tables).length} table groups and ${resetResult.result.files.length} report folders.`}
+            />
+          )}
         </div>
       </PaperCard>
       <DataCoverageCard summary={summary} />
@@ -3323,9 +3816,9 @@ function ActivityTimelineMini({items}: {items: ActivityItem[]}) {
 function ActivityRow({item, showTone = false}: {item: ActivityItem; showTone?: boolean}) {
   return (
     <div className="activity-row">
-      <time>{item.at}</time>
       <span className="activity-icon">{item.icon}</span>
       <div><strong>{item.label}</strong><em>{item.sub}</em></div>
+      <time>{item.at}</time>
       {showTone && <SeverityPill tone={item.tone} />}
     </div>
   );
@@ -3348,11 +3841,14 @@ function SeverityDistribution({counts}: {counts: ReturnType<typeof severityCount
 }
 
 function BarChart({data, onSurface = false}: {data: {label: string; value: number}[]; onSurface?: boolean}) {
+  if (!data.length) {
+    return <div className={`bar-chart-empty ${onSurface ? 'on-surface' : ''}`}>No scan history yet</div>;
+  }
   const max = Math.max(10, ...data.map((item) => item.value));
   return (
     <div className={`bar-chart ${onSurface ? 'on-surface' : ''}`}>
       {data.map((item, index) => {
-        const height = Math.max(10, (item.value / max) * 70);
+        const height = Math.max(12, (item.value / max) * 92);
         const lit = index === data.length - 1;
         return (
           <span key={`${item.label}-${index}`}>
@@ -3366,17 +3862,26 @@ function BarChart({data, onSurface = false}: {data: {label: string; value: numbe
   );
 }
 
-function Donut({value}: {value: number}) {
-  const size = 96;
+function Donut({value, tier, tone}: {value: number; tier: string; tone: Tone}) {
+  const size = 176;
   const stroke = 10;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (value / 10) * circumference;
+  const clamped = Math.max(0, Math.min(10, value));
+  const offset = circumference - (clamped / 10) * circumference;
   return (
-    <svg className="donut" width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth={stroke} />
-      <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="#fff" strokeWidth={stroke} strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset} />
-    </svg>
+    <div className={`posture-gauge tone-${tone}`} aria-label={`Overall posture ${value.toFixed(1)} out of 10, ${tier}`}>
+      <svg className="donut" width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+        <circle className="donut-track" cx={size / 2} cy={size / 2} r={radius} fill="none" strokeWidth={stroke} />
+        <circle className="donut-progress" cx={size / 2} cy={size / 2} r={radius} fill="none" strokeWidth={stroke} strokeLinecap="butt" strokeDasharray={circumference} strokeDashoffset={offset} />
+      </svg>
+      <div>
+        <ShieldCheck size={16} />
+        <strong>{value.toFixed(1)}</strong>
+        <span>/10</span>
+        <em>{tier}</em>
+      </div>
+    </div>
   );
 }
 
@@ -3409,12 +3914,13 @@ function SeverityPill({tone = 'neutral', label}: {tone?: Tone; label?: string}) 
   return <span className="severity-pill" style={{'--pill-bg': meta.bg, '--pill-fg': meta.fg, '--pill-dot': meta.dot} as CSSProperties}><i />{label ?? meta.label}</span>;
 }
 
-function KpiCard({title, value, detail, icon, onClick}: {title: string; value: string; detail: string; icon: ReactNode; onClick: () => void}) {
+function KpiCard({title, value, detail, detailTone = 'neutral', icon, onClick}: {title: string; value: string; detail: string; detailTone?: Tone; icon: ReactNode; onClick: () => void}) {
   return (
     <button type="button" className="kpi-card" onClick={onClick}>
-      <div><Eyebrow>{title}</Eyebrow>{icon}</div>
+      <div><span className="kpi-icon">{icon}</span><ChevronRight size={17} className="kpi-chevron" aria-hidden="true" /></div>
+      <span className="kpi-label">{title}</span>
       <strong>{value}</strong>
-      <span>{detail}</span>
+      <span className={`kpi-detail tone-${detailTone}`}>{detail}</span>
     </button>
   );
 }
