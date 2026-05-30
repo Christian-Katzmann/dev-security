@@ -223,6 +223,41 @@ auto-merge is not.
 - **Any high/critical suppression** — that goes through the §2 gate, not the fix
   loop, and always needs a human.
 
+### Implemented in Step 2.1 (the propose → review → land surface)
+
+The flow lives in `src/security_observatory/fix_proposals.py`, is audited through
+the `fix_proposals` table in `storage.py`, and is exposed as four write-mode-only
+MCP tools (registered in `main_rw`, never on the read-only adapter or the
+dashboard HTTP surface):
+
+- **`propose_fix(repo, diff, head_branch, title, case_id=None, base_branch="main")`** —
+  records a fix proposal. `repo` is a NAME with scan history (never a raw path);
+  the diff is redacted, classified from its own bytes, hashed, and stored. A
+  proposal that targets a protected branch (`main`/`master`/… ) or whose head
+  equals base is refused — a fix always opens a *new* branch.
+- **`clean_room_review_packet(proposal_id)`** — returns the reviewer's *entire*
+  input: the diff, the diff-derived fix class, the changed files, and the
+  invariant checklist. By construction it carries no `case_id`, title, or finding
+  text. This is the structural fence — `build_review_packet` has no parameter
+  through which finding text could flow, and the packet is rebuilt from the
+  stored diff bytes.
+- **`record_clean_room_review(proposal_id, approved, diff_sha256, …)`** — records
+  the verdict in the audit trail. The reviewer must echo the packet's
+  `diff_sha256`; a mismatch is refused, so an approval can never be attributed to
+  a different diff.
+- **`land_fix(proposal_id)`** — the gate. Returns `auto_merge` **only** when a
+  clean-room *approval* is recorded against the exact diff on file **and** the
+  diff re-derives (from its bytes, ignoring any stored label) to an
+  auto-merge-eligible class on a non-protected branch. Everything else returns
+  `requires_human` (or `blocked`). A mislabeled or post-approval-swapped diff
+  cannot reach auto-merge.
+
+**Boundary:** the guarded surface owns the *decision and the audit trail*. The
+physical git work (open the branch, push the PR, run the merge) stays with the
+orchestrating command (`/devsec-pr` and friends) — consistent with the MCP never
+writing repository files. What the surface guarantees is that **no auto-merge is
+ever authorized without a clean-room approval recorded against the exact diff.**
+
 ---
 
 ## Forward sweep — drift corrected in this step
@@ -239,3 +274,14 @@ paths/shapes this spec changes:
   `devsec-fix` command skills (existing remediation scaffolding), and
   `case_followup.py` (the audited decision path to record proposals/approvals
   through).
+
+Skimmed Step 2.2 after building Step 2.1 (per its forward-sweep instruction):
+
+- **Step 2.2** — the demo assumes it can "auto-merge one low-risk fix (e.g. an
+  action SHA pin) via the clean-room reviewer." That matches the shipped
+  interface exactly: `propose_fix` (action-SHA-pin diff) → `clean_room_review_packet`
+  → `record_clean_room_review(approved=True, diff_sha256=…)` → `land_fix` returns
+  `auto_merge`. For the human-gate half, propose a source-code or high/critical
+  fix and `land_fix` returns `requires_human`. No interface drift; Step 2.2's
+  acceptance stands as written. The tool names are now pinned in §3 above so 2.2's
+  REQUIRED READING of this doc resolves them concretely.

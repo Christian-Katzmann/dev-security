@@ -339,6 +339,37 @@ create table if not exists agent_lab_proposals (
 create index if not exists idx_agent_lab_proposals_repo on agent_lab_proposals(repo_name, imported_at desc);
 create index if not exists idx_agent_lab_proposals_state on agent_lab_proposals(approval_state, updated_at desc);
 
+create table if not exists fix_proposals (
+  id text primary key,
+  repo_name text not null,
+  repo_path text,
+  case_id text,
+  base_branch text not null,
+  head_branch text not null,
+  title text not null,
+  diff text not null,
+  diff_sha256 text not null,
+  fix_class text not null,
+  auto_merge_eligible integer not null default 0,
+  classification_json text not null default '{}',
+  source text not null,
+  status text not null check(status in ('proposed', 'reviewed', 'auto_merge_authorized', 'requires_human')) default 'proposed',
+  clean_room_status text not null check(clean_room_status in ('pending', 'approved', 'rejected')) default 'pending',
+  clean_room_reviewer text,
+  clean_room_checked_invariants_json text not null default '[]',
+  clean_room_notes text,
+  clean_room_diff_sha256 text,
+  clean_room_reviewed_at text,
+  landing_outcome text,
+  landing_reasons_json text not null default '[]',
+  landing_decided_at text,
+  created_at text not null,
+  updated_at text not null
+);
+
+create index if not exists idx_fix_proposals_repo on fix_proposals(repo_name, created_at desc);
+create index if not exists idx_fix_proposals_status on fix_proposals(status, updated_at desc);
+
 create table if not exists honey_keys (
   id text primary key,
   project_id text not null,
@@ -1814,6 +1845,203 @@ class ObservatoryDB:
             )
         return self.get_case_resolution_run(run_id)
 
+    def save_fix_proposal(self, record: dict[str, Any]) -> dict[str, Any]:
+        proposal_id = str(record.get("id") or "").strip()
+        if not proposal_id:
+            raise ValueError("Fix proposal id is required.")
+        repo_name = str(record.get("repo_name") or "").strip()
+        if not repo_name:
+            raise ValueError("Fix proposal repo is required.")
+        status = str(record.get("status") or "proposed").strip()
+        if status not in {"proposed", "reviewed", "auto_merge_authorized", "requires_human"}:
+            raise ValueError("Unsupported fix proposal status.")
+        clean_room_status = str(record.get("clean_room_status") or "pending").strip()
+        if clean_room_status not in {"pending", "approved", "rejected"}:
+            raise ValueError("Unsupported clean-room review status.")
+        now = _optional_text(record.get("updated_at")) or utc_now()
+        # The diff is stored verbatim: the caller (fix_proposals.propose_fix) has
+        # already redacted it and hashed *that* redacted text, so re-redacting here
+        # would risk drifting the stored bytes from the recorded diff_sha256.
+        with self.conn:
+            self.conn.execute(
+                """
+                insert into fix_proposals
+                (id, repo_name, repo_path, case_id, base_branch, head_branch, title, diff, diff_sha256,
+                 fix_class, auto_merge_eligible, classification_json, source, status, clean_room_status,
+                 clean_room_reviewer, clean_room_checked_invariants_json, clean_room_notes,
+                 clean_room_diff_sha256, clean_room_reviewed_at, landing_outcome, landing_reasons_json,
+                 landing_decided_at, created_at, updated_at)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                on conflict(id) do update set
+                  repo_name = excluded.repo_name,
+                  repo_path = excluded.repo_path,
+                  case_id = excluded.case_id,
+                  base_branch = excluded.base_branch,
+                  head_branch = excluded.head_branch,
+                  title = excluded.title,
+                  diff = excluded.diff,
+                  diff_sha256 = excluded.diff_sha256,
+                  fix_class = excluded.fix_class,
+                  auto_merge_eligible = excluded.auto_merge_eligible,
+                  classification_json = excluded.classification_json,
+                  source = excluded.source,
+                  status = excluded.status,
+                  clean_room_status = excluded.clean_room_status,
+                  updated_at = excluded.updated_at
+                """,
+                (
+                    proposal_id,
+                    repo_name,
+                    _optional_text(record.get("repo_path")),
+                    _optional_text(record.get("case_id")),
+                    str(record.get("base_branch") or "main"),
+                    str(record.get("head_branch") or ""),
+                    redact_text(str(record.get("title") or ""))[:300],
+                    str(record.get("diff") or ""),
+                    str(record.get("diff_sha256") or ""),
+                    str(record.get("fix_class") or "unknown"),
+                    1 if record.get("auto_merge_eligible") else 0,
+                    _json(record.get("classification") or {}),
+                    str(record.get("source") or "mcp_write"),
+                    status,
+                    clean_room_status,
+                    _optional_text(record.get("clean_room_reviewer")),
+                    _json(record.get("clean_room_checked_invariants") or []),
+                    redact_text(str(record.get("clean_room_notes") or "").strip())[:2000] or None,
+                    _optional_text(record.get("clean_room_diff_sha256")),
+                    _optional_text(record.get("clean_room_reviewed_at")),
+                    _optional_text(record.get("landing_outcome")),
+                    _json(record.get("landing_reasons") or []),
+                    _optional_text(record.get("landing_decided_at")),
+                    str(record.get("created_at") or now),
+                    now,
+                ),
+            )
+        saved = self.get_fix_proposal(proposal_id)
+        if not saved:
+            raise ValueError("Fix proposal could not be saved.")
+        return saved
+
+    def get_fix_proposal(self, proposal_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "select * from fix_proposals where id = ?",
+            (str(proposal_id or "").strip(),),
+        ).fetchone()
+        return _public_fix_proposal(row) if row else None
+
+    def list_fix_proposals(
+        self,
+        *,
+        repo_name: str | None = None,
+        status: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        conditions = []
+        params: list[Any] = []
+        if repo_name:
+            conditions.append("repo_name = ?")
+            params.append(repo_name.strip())
+        if status:
+            conditions.append("status = ?")
+            params.append(status.strip())
+        where = f"where {' and '.join(conditions)}" if conditions else ""
+        params.append(max(1, min(int(limit or 50), 200)))
+        rows = self.conn.execute(
+            f"""
+            select *
+            from fix_proposals
+            {where}
+            order by created_at desc, id asc
+            limit ?
+            """,
+            params,
+        ).fetchall()
+        return [_public_fix_proposal(row) for row in rows]
+
+    def record_fix_proposal_review(
+        self,
+        *,
+        proposal_id: str,
+        approved: bool,
+        checked_invariants: list[str] | None = None,
+        reviewer: str | None = None,
+        notes: str | None = None,
+        clean_room_diff_sha256: str | None = None,
+    ) -> dict[str, Any]:
+        clean_id = str(proposal_id or "").strip()
+        current = self.get_fix_proposal(clean_id)
+        if not current:
+            raise ValueError("Fix proposal not found.")
+        clean_room_status = "approved" if approved else "rejected"
+        now = utc_now()
+        with self.conn:
+            self.conn.execute(
+                """
+                update fix_proposals
+                set clean_room_status = ?,
+                    clean_room_reviewer = ?,
+                    clean_room_checked_invariants_json = ?,
+                    clean_room_notes = ?,
+                    clean_room_diff_sha256 = ?,
+                    clean_room_reviewed_at = ?,
+                    status = case
+                      when status in ('auto_merge_authorized', 'requires_human') then status
+                      else 'reviewed'
+                    end,
+                    updated_at = ?
+                where id = ?
+                """,
+                (
+                    clean_room_status,
+                    redact_text((reviewer or "").strip())[:120] or None,
+                    _json([str(item).strip() for item in (checked_invariants or []) if str(item).strip()]),
+                    redact_text((notes or "").strip())[:2000] or None,
+                    _optional_text(clean_room_diff_sha256) or current.get("diff_sha256"),
+                    now,
+                    now,
+                    clean_id,
+                ),
+            )
+        return self.get_fix_proposal(clean_id)
+
+    def record_fix_proposal_landing(
+        self,
+        *,
+        proposal_id: str,
+        outcome: str,
+        reasons: list[str] | None = None,
+    ) -> dict[str, Any]:
+        clean_id = str(proposal_id or "").strip()
+        clean_outcome = str(outcome or "").strip()
+        if clean_outcome not in {"auto_merge", "requires_human", "blocked"}:
+            raise ValueError("Unsupported fix landing outcome.")
+        current = self.get_fix_proposal(clean_id)
+        if not current:
+            raise ValueError("Fix proposal not found.")
+        status = "auto_merge_authorized" if clean_outcome == "auto_merge" else "requires_human"
+        now = utc_now()
+        with self.conn:
+            self.conn.execute(
+                """
+                update fix_proposals
+                set landing_outcome = ?,
+                    landing_reasons_json = ?,
+                    landing_decided_at = ?,
+                    status = ?,
+                    updated_at = ?
+                where id = ?
+                """,
+                (
+                    clean_outcome,
+                    _json([str(item).strip() for item in (reasons or []) if str(item).strip()]),
+                    now,
+                    status,
+                    now,
+                    clean_id,
+                ),
+            )
+        return self.get_fix_proposal(clean_id)
+
     def set_case_decision(
         self,
         *,
@@ -2387,6 +2615,37 @@ def _public_agent_lab_proposal(row: sqlite3.Row | dict[str, Any]) -> dict[str, A
         "denied_at": data.get("denied_at"),
         "raw_proposal": _json_load(data.get("raw_proposal_json"), {}),
         "final_execution_plan": final_plan,
+    }
+
+
+def _public_fix_proposal(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+    data = dict(row)
+    return {
+        "id": data.get("id"),
+        "repo_name": data.get("repo_name"),
+        "repo_path": data.get("repo_path"),
+        "case_id": data.get("case_id"),
+        "base_branch": data.get("base_branch"),
+        "head_branch": data.get("head_branch"),
+        "title": data.get("title"),
+        "diff": data.get("diff"),
+        "diff_sha256": data.get("diff_sha256"),
+        "fix_class": data.get("fix_class"),
+        "auto_merge_eligible": bool(data.get("auto_merge_eligible")),
+        "classification": _json_load(data.get("classification_json"), {}),
+        "source": data.get("source"),
+        "status": data.get("status"),
+        "clean_room_status": data.get("clean_room_status"),
+        "clean_room_reviewer": data.get("clean_room_reviewer"),
+        "clean_room_checked_invariants": _json_load(data.get("clean_room_checked_invariants_json"), []),
+        "clean_room_notes": data.get("clean_room_notes"),
+        "clean_room_diff_sha256": data.get("clean_room_diff_sha256"),
+        "clean_room_reviewed_at": data.get("clean_room_reviewed_at"),
+        "landing_outcome": data.get("landing_outcome"),
+        "landing_reasons": _json_load(data.get("landing_reasons_json"), []),
+        "landing_decided_at": data.get("landing_decided_at"),
+        "created_at": data.get("created_at"),
+        "updated_at": data.get("updated_at"),
     }
 
 

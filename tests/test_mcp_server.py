@@ -208,6 +208,10 @@ def test_write_tools_are_opt_in_only(tmp_path):
         "case_followup_prompt",
         "preview_case_resolutions",
         "apply_case_resolutions",
+        "propose_fix",
+        "clean_room_review_packet",
+        "record_clean_room_review",
+        "land_fix",
     }
 
     assert read_only_names.isdisjoint(write_tools)

@@ -27,6 +27,12 @@ from .case_followup import (
     validate_case_resolutions as _validate_case_resolutions,
 )
 from .cli import build_parser as _build_scan_parser, scan_repo as _scan_repo
+from .fix_proposals import (
+    clean_room_review_packet as _clean_room_review_packet,
+    decide_landing as _decide_landing,
+    propose_fix as _propose_fix,
+    record_clean_room_review as _record_clean_room_review,
+)
 from .cases import (
     _DEFAULT_PLAYBOOK_ID,
     _PLAYBOOK_BY_CATEGORY,
@@ -63,8 +69,12 @@ _WRITE_MODE_BOUNDARY = (
     "JSON, apply validated case decisions through the audited case-resolution path, and trigger a "
     "guarded local-offline scan of an already-scanned repo (by name, fixed profile, rate-limited). "
     "Suppressing a high/critical case never auto-applies — it is held for explicit human confirmation. "
+    "It can also record a code-fix proposal on a new branch and run it through a clean-room reviewer that "
+    "sees only the diff and the invariants (never the finding text); only narrow low-risk classes "
+    "(action SHA pins, single patch/minor dependency bumps, lockfile patches) reach auto-merge on a "
+    "recorded clean-room approval, and every other class stops for a human. "
     "It cannot delete raw findings, delete scans, scan an arbitrary filesystem path, rotate credentials, "
-    "execute SQL, install tools, or write repository files."
+    "execute SQL, install tools, write repository files, or merge to a protected branch."
 )
 DEVSEC_MCP_INSTRUCTIONS = f"""You are the DëvSec security helper. Speak like a calm operational security analyst, not a chatbot, hype product, or fake tactical persona.
 
@@ -986,6 +996,98 @@ def create_server(
                     expected_case_ids=expected_case_ids,
                 )
             )
+
+        @server.tool()
+        def propose_fix(
+            repo: str,
+            diff: str,
+            head_branch: str,
+            title: str,
+            case_id: str | None = None,
+            base_branch: str = "main",
+        ) -> dict[str, Any]:
+            """Record a code-fix proposal on a new, non-protected branch.
+
+            ``repo`` is a repo NAME with scan history (never a filesystem path).
+            The unified ``diff`` is classified from its own bytes into a fix class;
+            only narrow low-risk classes (action SHA pins, single patch/minor
+            dependency bumps, lockfile patches) are auto-merge-eligible. A proposal
+            that targets a protected branch — or whose ``head_branch`` equals
+            ``base_branch`` — is refused: a fix opens a branch/PR, it never commits
+            to a protected branch directly. Returns the audited proposal record
+            (id, fix class, auto-merge eligibility, branches). This records the
+            proposal; opening the actual branch/PR is the orchestrating command's
+            git work.
+            """
+            return _with_db(
+                lambda db: _propose_fix(
+                    _require_db(db),
+                    repo=repo,
+                    diff=diff,
+                    head_branch=head_branch,
+                    title=title,
+                    case_id=case_id,
+                    base_branch=base_branch,
+                    source="mcp_write",
+                )
+            )
+
+        @server.tool()
+        def clean_room_review_packet(proposal_id: str) -> dict[str, Any]:
+            """Return the clean-room review packet for a fix proposal — diff only.
+
+            This is the surface the *separate* clean-room reviewer agent is handed.
+            It contains the diff, the diff-derived fix class, the changed files, and
+            the invariant checklist — and, by construction, no finding/case text:
+            the packet is rebuilt from the stored diff bytes and never reads the
+            proposal's case id, title, or any finding context. Echo the returned
+            ``diff_sha256`` back when recording the verdict.
+            """
+            return _with_db(
+                lambda db: _clean_room_review_packet(_require_db(db), proposal_id=proposal_id)
+            )
+
+        @server.tool()
+        def record_clean_room_review(
+            proposal_id: str,
+            approved: bool,
+            diff_sha256: str,
+            checked_invariants: list[str] | None = None,
+            reviewer: str | None = None,
+            notes: str | None = None,
+        ) -> dict[str, Any]:
+            """Record the clean-room reviewer's verdict in the audit trail.
+
+            ``diff_sha256`` must be the hash from the review packet; the verdict is
+            refused if it does not match the diff on file, so an approval can never
+            be attributed to a different diff. Recording an approval is a
+            precondition for ``land_fix`` to authorize an auto-merge.
+            """
+            return _with_db(
+                lambda db: _record_clean_room_review(
+                    _require_db(db),
+                    proposal_id=proposal_id,
+                    approved=approved,
+                    diff_sha256=diff_sha256,
+                    checked_invariants=checked_invariants,
+                    reviewer=reviewer,
+                    notes=notes,
+                )
+            )
+
+        @server.tool()
+        def land_fix(proposal_id: str) -> dict[str, Any]:
+            """Decide whether a proposal may auto-merge, and record the decision.
+
+            Returns ``auto_merge`` only when a clean-room approval is recorded
+            against the exact diff on file and that diff re-derives to an
+            auto-merge-eligible class on a real (non-protected) branch. Anything
+            else returns ``requires_human`` (or ``blocked``). The fix class is
+            recomputed from the diff bytes here, so a mislabeled proposal cannot
+            reach auto-merge. Authorizing the merge does not perform it — the
+            physical ``gh``/git merge stays with the orchestrating command.
+            """
+            return _with_db(lambda db: _decide_landing(_require_db(db), proposal_id=proposal_id))
 
     return server
 
