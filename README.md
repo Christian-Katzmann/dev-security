@@ -40,7 +40,7 @@ DëvSec's status line says *"the dashboard is honest about what's still partial.
 - A local CLI: `security-scan`
 - A local dashboard: `security-scan dashboard`
 - A local SQLite history store under `~/.security-observatory`
-- An MCP server for local agent access (optional install: `uv sync --extra mcp`). See [mcp/README.md](mcp/README.md).
+- A read-only MCP server for local agent access, plus an explicit guarded MCP write mode for AI case resolutions (optional install: `uv sync --extra mcp`). See [mcp/README.md](mcp/README.md).
 - A scanner orchestration layer around established open-source tools
 - A normalizer that converts scanner output into one consistent raw-finding shape
 - A case builder that groups raw findings into human-readable remediation cases
@@ -100,6 +100,20 @@ DëvSec's status line says *"the dashboard is honest about what's still partial.
        you paste the follow-up into your own agent
               (Claude | Cursor | Aider | ...)
 ```
+
+## AI follow-up workflow
+
+After a scan, the dashboard can hand open cases to an AI agent without sending
+anything anywhere by itself:
+
+```text
+Run scan -> AI follow-up -> import/apply resolutions -> rescan
+```
+
+Use **AI follow-up** to choose an action, scope the cases, copy the prompt, and
+paste the agent's JSON result back into DëvSec. False positives, docs examples,
+accepted risks, and verified fixes are written through the audited case-decision
+path; unclear cases stay open.
 
 ## Current Features
 

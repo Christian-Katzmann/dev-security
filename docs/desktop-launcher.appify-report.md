@@ -1,7 +1,7 @@
 ## Appify report
 
 **1. Project type detected:**
-Python project with `pyproject.toml`, a local HTTP dashboard served by `security-scan dashboard`, bundled Vite/React dashboard assets under `dashboard-ui/`, no existing Electron/Tauri/NW.js config, no FSA usage, `swiftc` available, no git worktree detected because this directory is not currently a git repository.
+Python project with `pyproject.toml`, a local HTTP dashboard served by `security-scan dashboard`, bundled Vite/React dashboard assets under `dashboard-ui/`, no existing Electron/Tauri/NW.js config, no FSA usage, `swiftc` available, canonical checkout with unrelated report edits present.
 
 **1.5. Name resolution** *(if multiple naming sources disagreed)*
 Picked: "Security Observatory". Sources surveyed: folder name `dëv-security`, `pyproject.toml` project name `security-observatory`, README title, existing `scripts/appify.config.json`. Reason: README, package metadata, and existing launcher config describe the actual user-facing system. To override: edit `scripts/appify.config.json`, then `make desktop-build && make desktop-install`.
@@ -29,6 +29,7 @@ The project already has a local web dashboard, so the smallest reliable desktop 
 - `desktop/Security Observatory.app/...` — rebuilt with the new `AppIcon.icns`
 - `scripts/wrapper.swift`, `scripts/run-template.sh`, `scripts/run-template-chrome.sh`, `scripts/run-template-multiserver.sh`, `scripts/info-plist-template.xml`
 - `scripts/desktop-build.sh`, `scripts/desktop-icons.sh`, `scripts/desktop-install.sh`, `scripts/desktop-quit.sh`
+- `scripts/run-shim.c` — native Mach-O entrypoint shim for LaunchServices; it execs the generated `Contents/MacOS/run.sh`
 - `scripts/inspect.sh`, `scripts/placeholder-icon-gen.sh`
 - `scripts/appify.config.json`
 - `scripts/run-dashboard.sh`
@@ -53,13 +54,13 @@ Replace `assets/security-observatory-icon.png`, then `make desktop-icons && make
 - Runtime port (after first click): `~/Library/Logs/Security Observatory/server.port`
 
 **10. Verification (per app):**
-- [x] Build succeeded; `.app` exists; wrapper is universal Mach-O; `.icns` is multi-resolution
+- [x] Build succeeded; `.app` exists; entrypoint shim and wrapper are universal Mach-O; `.icns` is multi-resolution
 - [x] Bundle metadata correct (no `__PLACEHOLDER__` leakage)
-- [x] Cold launch: `server.port` recorded; HTTP responds on runtime port `8766` with HTTP `200` over IPv4
+- [x] Cold launch from installed path: `server.port` recorded; HTTP responds on runtime port `8766` with HTTP `200`
 - [x] Single instance; `lsappinfo` confirms bundle id `com.user.security-observatory`
 - [x] Cmd+Q (via osascript) kills server tree
-- [ ] deferred — macOS Apple Events permission: Red-X scripted close was blocked with `Not authorized to send Apple events to Security Observatory. (-1743)`. User-action one-liner: click the window close button manually; the server should stay warm, or run `make desktop-quit` to stop it.
-- [x] Warm re-launch responds in `0.468s` (descendant-walk reattach works)
+- [x] Window close via Cmd+W leaves server warm; HTTP remains `200`
+- [x] Warm re-launch responds in `0.416s` (descendant-walk reattach works)
 - [x] Install-path open exits 0; `lsregister` shows exactly one installed bundle entry
 - [ ] needs human: actual `.app` window content and Dock icon identity. Browser smoke check loaded title `Dëv Security Observatory`, confirmed `/logo.png`, `/favicon.png`, and `/favicon.ico` return the new PNG assets.
 - [ ] deferred — env hostile: n/a
@@ -72,7 +73,7 @@ Replace `assets/security-observatory-icon.png`, then `make desktop-icons && make
 - Unsigned bundle — Gatekeeper warns on first launch; right-click -> Open once.
 - WebKit, not Chromium — open the runtime URL in a regular browser for Chromium devtools.
 - Baked `PROJECT_ROOT` — rerun `make desktop-build && make desktop-install` if the repo moves.
-- This directory is not a git repository, so `git add` staging could not be performed.
+- LaunchServices on this machine did not reliably start the shell script when it was the direct `CFBundleExecutable`; the app now uses a tiny native `run` shim that invokes `run.sh`.
 - Universal arm64+x86_64 wrapper binary was built.
 
 ## Decision history
@@ -80,3 +81,4 @@ Replace `assets/security-observatory-icon.png`, then `make desktop-icons && make
 - 2026-05-11: Brand refresh (Strategy A1 native unchanged, bundle-id `com.user.security-observatory`, preferred port `8766`, icon replaced with `assets/security-observatory-icon.png`; wordmark copied to `assets/security-observatory-logo.png`; brand sheet copied to `assets/security-observatory-brand-sheet.png`).
 - 2026-05-11: Logo source updated to transparent high-resolution PNG (`assets/security-observatory-logo-new.png`, 4000 x 796 RGBA); canonical `assets/security-observatory-logo.png`, dashboard public `logo.png`, and bundled dashboard `logo.png` now use those bytes.
 - 2026-05-11: App icon replaced from `/Users/christiankatzmann/Downloads/ChatGPT Image May 11, 2026, 11_39_15 PM.png` (1254 x 1254 PNG); rebuilt and reinstalled `Security Observatory.app`; installed `AppIcon.icns` refreshed in `~/Desktop/MyApps/`.
+- 2026-05-30: Rebuilt after installed app would not open through LaunchServices. Added native `scripts/run-shim.c` and updated `desktop-build.sh` so `CFBundleExecutable=run` is Mach-O and the generated shell launcher lives at `run.sh`. Verified installed launch on port `8766`, HTTP `200`, single instance, warm close/relaunch, and Cmd+Q cleanup.

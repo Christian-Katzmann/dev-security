@@ -27,6 +27,11 @@ from .agent_lab import (
     proposal_from_import_payload,
     validate_agent_proposal,
 )
+from .case_followup import (
+    apply_case_resolutions,
+    build_case_followup_prompt,
+    validate_case_resolutions,
+)
 from .credentials import (
     CredentialStorageError,
     KEYCHAIN_SERVICE,
@@ -78,6 +83,13 @@ from .rotation import (
 from .rotation_inference import infer_secret_name, load_catalog_secret_names
 from .scanners import scan_profile_catalog, scanner_names_for_profile, security_pack_catalog, tool_catalog
 from .storage import ObservatoryDB
+from .reset import (
+    backup_scan_results,
+    execute_scan_results_reset,
+    list_scan_result_repos,
+    plan_scan_results_reset,
+    reset_scan_results_confirmation_phrase,
+)
 
 
 CHECK_JOBS: dict[str, dict[str, object]] = {}
@@ -2219,6 +2231,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/agent-lab/proposals/execution-preview":
             self.preview_agent_lab_proposal_execution(parsed)
             return
+        if parsed.path == "/api/ai-follow-up/prompt":
+            self.serve_ai_followup_prompt(parsed)
+            return
+        if parsed.path == "/api/ai-follow-up/resolution-runs":
+            self.serve_ai_followup_resolution_runs(parsed)
+            return
         if parsed.path == "/api/install-preview":
             query = parse_qs(parsed.query)
             tool_id = query.get("toolId", query.get("tool_id", [""]))[0]
@@ -2376,6 +2394,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/case-decision":
             self.save_case_decision()
             return
+        if parsed.path == "/api/ai-follow-up/resolutions/preview":
+            self.preview_ai_followup_resolutions()
+            return
+        if parsed.path == "/api/ai-follow-up/resolutions/apply":
+            self.apply_ai_followup_resolutions()
+            return
         if parsed.path == "/api/agent-lab/proposals":
             self.import_agent_lab_proposal()
             return
@@ -2414,6 +2438,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/tools/recheck-install-state":
             self.recheck_install_state()
+            return
+        if parsed.path == "/api/reset/scan-results/preview":
+            self.preview_scan_results_reset()
+            return
+        if parsed.path == "/api/reset/scan-results":
+            self.reset_scan_results()
             return
         if parsed.path.startswith("/api/rotation/scaffold/"):
             repo_name = parsed.path.removeprefix("/api/rotation/scaffold/")
@@ -2889,6 +2919,115 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_error(400, str(exc))
         except Exception as exc:
             self.send_error(500, str(exc))
+
+    def serve_ai_followup_prompt(self, parsed) -> None:
+        query = parse_qs(parsed.query)
+        repo = query.get("repo", query.get("repoName", query.get("repo_name", [""])))[0]
+        action = query.get("action", ["verify_findings"])[0]
+        scope = query.get("scope", ["critical"])[0]
+        case_ids = query.get("caseId", []) + query.get("case_id", [])
+        db = ObservatoryDB(self.db_path)
+        try:
+            try:
+                prompt = build_case_followup_prompt(
+                    db,
+                    repo_name=repo,
+                    action=action,
+                    scope=scope,
+                    case_ids=case_ids,
+                )
+            except ValueError as exc:
+                self.send_json_error(400, str(exc))
+                return
+        finally:
+            db.close()
+        self.send_json(prompt)
+
+    def serve_ai_followup_resolution_runs(self, parsed) -> None:
+        query = parse_qs(parsed.query)
+        repo = query.get("repo", query.get("repoName", query.get("repo_name", [""])))[0] or None
+        try:
+            limit = int(query.get("limit", ["50"])[0])
+        except ValueError:
+            limit = 50
+        db = ObservatoryDB(self.db_path)
+        try:
+            runs = db.list_case_resolution_runs(repo_name=repo, limit=limit)
+        finally:
+            db.close()
+        self.send_json({"items": runs})
+
+    def preview_ai_followup_resolutions(self) -> None:
+        try:
+            request = self._ai_followup_resolution_request()
+        except (ValueError, json.JSONDecodeError) as exc:
+            self.send_json_error(400, str(exc))
+            return
+        db = ObservatoryDB(self.db_path)
+        try:
+            try:
+                preview = validate_case_resolutions(
+                    db,
+                    request["payload"],
+                    expected_repo=request.get("expected_repo"),
+                    expected_scope=request.get("expected_scope"),
+                    expected_case_ids=request.get("expected_case_ids"),
+                )
+            except ValueError as exc:
+                self.send_json_error(400, str(exc))
+                return
+        finally:
+            db.close()
+        self.send_json(preview)
+
+    def apply_ai_followup_resolutions(self) -> None:
+        try:
+            request = self._ai_followup_resolution_request(allow_run_id=True)
+        except (ValueError, json.JSONDecodeError) as exc:
+            self.send_json_error(400, str(exc))
+            return
+        db = ObservatoryDB(self.db_path)
+        try:
+            try:
+                result = apply_case_resolutions(
+                    db,
+                    request["run_id"] if request.get("run_id") else request["payload"],
+                    expected_repo=request.get("expected_repo"),
+                    expected_scope=request.get("expected_scope"),
+                    expected_case_ids=request.get("expected_case_ids"),
+                )
+            except ValueError as exc:
+                self.send_json_error(400, str(exc))
+                return
+        finally:
+            db.close()
+        self.send_json(result)
+
+    def _ai_followup_resolution_request(self, *, allow_run_id: bool = False) -> dict[str, Any]:
+        payload = self.read_json_body(max_bytes=1_000_000)
+        run_id = str(payload.get("runId") or payload.get("run_id") or "").strip()
+        if allow_run_id and run_id:
+            return {"run_id": run_id, "payload": {}}
+
+        ai_payload = payload.get("payload") if isinstance(payload.get("payload"), dict) else None
+        if ai_payload is None and isinstance(payload.get("text"), str):
+            try:
+                parsed_text = json.loads(str(payload["text"]))
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"AI result must be valid JSON: {exc.msg}") from exc
+            if not isinstance(parsed_text, dict):
+                raise ValueError("AI result must be a JSON object.")
+            ai_payload = parsed_text
+        if ai_payload is None:
+            ai_payload = payload
+        expected_case_ids_raw = payload.get("expectedCaseIds") or payload.get("expected_case_ids") or []
+        expected_case_ids = [str(item).strip() for item in expected_case_ids_raw if str(item).strip()] if isinstance(expected_case_ids_raw, list) else []
+        return {
+            "payload": ai_payload,
+            "expected_repo": str(payload.get("expectedRepo") or payload.get("expected_repo") or "").strip() or None,
+            "expected_scope": str(payload.get("expectedScope") or payload.get("expected_scope") or "").strip() or None,
+            "expected_case_ids": expected_case_ids,
+        }
 
     def import_agent_lab_proposal(self) -> None:
         try:
@@ -3944,12 +4083,96 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             db.close()
         self.send_accepted_json({"accepted": True})
 
-    def read_json_body(self) -> dict[str, object]:
+    def read_json_body(self, *, max_bytes: int = 64_000) -> dict[str, object]:
         length = int(self.headers.get("Content-Length", "0") or "0")
-        body = self.rfile.read(min(length, 64_000)) if length else b"{}"
+        body = self.rfile.read(min(length, max_bytes)) if length else b"{}"
         if not body:
             return {}
         return json.loads(body.decode("utf-8"))
+
+    def observatory_home(self) -> Path:
+        if self.db_path.parent.name == "db":
+            return self.db_path.parent.parent
+        return Path(os.environ.get("SECURITY_OBSERVATORY_HOME", "~/.security-observatory")).expanduser()
+
+    def preview_scan_results_reset(self) -> None:
+        try:
+            payload = self.read_json_body()
+            scope, repos = self._scan_reset_scope(payload)
+        except (ValueError, json.JSONDecodeError) as exc:
+            self.send_json_error(400, str(exc))
+            return
+
+        db = ObservatoryDB(self.db_path)
+        try:
+            plan = plan_scan_results_reset(db, self.observatory_home(), repos=repos)
+        except ValueError as exc:
+            self.send_json_error(400, str(exc))
+            return
+        finally:
+            db.close()
+
+        repo = repos[0] if scope == "repo" and repos else None
+        self.send_json(
+            {
+                "plan": plan,
+                "confirmation_phrase": reset_scan_results_confirmation_phrase(scope, repo),
+                "backup_default": str(self.observatory_home() / "backups" / "scan-result-reset"),
+            }
+        )
+
+    def reset_scan_results(self) -> None:
+        try:
+            payload = self.read_json_body()
+            scope, repos = self._scan_reset_scope(payload)
+        except (ValueError, json.JSONDecodeError) as exc:
+            self.send_json_error(400, str(exc))
+            return
+
+        repo = repos[0] if scope == "repo" and repos else None
+        expected = reset_scan_results_confirmation_phrase(scope, repo)
+        if str(payload.get("confirmation") or "") != expected:
+            self.send_json_error(400, "Confirmation phrase did not match.", expected_confirmation=expected)
+            return
+
+        db = ObservatoryDB(self.db_path)
+        try:
+            home = self.observatory_home()
+            plan = plan_scan_results_reset(db, home, repos=repos)
+            backups: dict[str, str] = {}
+            if bool(payload.get("keepBackup", True)):
+                backups = backup_scan_results(
+                    db,
+                    home,
+                    home / "backups" / "scan-result-reset",
+                    repos=repos,
+                )
+            result = execute_scan_results_reset(db, home, repos=repos)
+        except ValueError as exc:
+            self.send_json_error(400, str(exc))
+            return
+        finally:
+            db.close()
+
+        self.send_json({"plan": plan, "backup": backups, "result": result})
+
+    def _scan_reset_scope(self, payload: dict[str, object]) -> tuple[str, list[str] | None]:
+        scope = str(payload.get("scope") or "all").strip()
+        if scope == "all":
+            return scope, None
+        if scope != "repo":
+            raise ValueError("Reset scope must be `all` or `repo`.")
+        repo_name = str(payload.get("repoName") or "").strip()
+        if not repo_name:
+            raise ValueError("repoName is required for a repo-scoped reset.")
+        db = ObservatoryDB(self.db_path)
+        try:
+            known = set(list_scan_result_repos(db))
+        finally:
+            db.close()
+        if repo_name not in known:
+            raise ValueError("Repo has no local scan results to reset.")
+        return scope, [repo_name]
 
     def request_base_url(self) -> str:
         host = self.headers.get("Host") or f"127.0.0.1:{self.server.server_port}"

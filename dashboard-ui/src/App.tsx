@@ -4,6 +4,7 @@ import CatalogBrowse from './components/catalog/CatalogBrowse';
 import CatalogToolPage from './components/catalog/CatalogToolPage';
 import CatalogPackPage from './components/catalog/CatalogPackPage';
 import AgentLabView from './components/agent-lab/AgentLabView';
+import AiFollowUpPanel from './components/AiFollowUpPanel';
 import NeedsRepoTarget from './components/NeedsRepoTarget';
 import RotationStatusCard from './components/RotationStatusCard';
 import RotationTriggerFlow from './components/RotationTriggerFlow';
@@ -152,8 +153,10 @@ import {
   platformPostureSnapshots,
   preCaseRawFindingCount,
   preCaseScanRepos,
+  repoDisplayName,
   repoKeyFromPath,
   repoHasPreCaseScan,
+  repositoryDisplayName,
   reportViewUrl,
   scanCompleteness,
   scannerCoverageSummary,
@@ -278,6 +281,7 @@ type OverviewRepoHealth = {
   noRecentScan: number;
   reposWithIssues: number;
 };
+type ScanHistoryEntry = DashboardSummary['history'][number];
 
 const numberFormatter = new Intl.NumberFormat(undefined);
 
@@ -419,14 +423,47 @@ function incompleteToolCount(scan?: CompletedScan): number {
   return scan?.scanners.filter((scanner) => !scanner.available || scanner.error).length ?? 0;
 }
 
-function latestHistoryScan(summary: DashboardSummary): DashboardSummary['history'][number] | null {
+function scanHistoryTime(scan: ScanHistoryEntry): number {
+  const time = new Date(scan.finished_at ?? scan.started_at ?? 0).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function recentScanHistory(summary: DashboardSummary, limit: number): ScanHistoryEntry[] {
   return [...summary.history]
-    .sort((a, b) => new Date(b.finished_at ?? b.started_at ?? 0).getTime() - new Date(a.finished_at ?? a.started_at ?? 0).getTime())[0] ?? null;
+    .sort((a, b) => scanHistoryTime(b) - scanHistoryTime(a))
+    .slice(0, limit);
+}
+
+function latestHistoryScan(summary: DashboardSummary): ScanHistoryEntry | null {
+  return recentScanHistory(summary, 1)[0] ?? null;
 }
 
 function scanDuration(summary: DashboardSummary): string {
   const latest = latestHistoryScan(summary);
   return latest ? formatDuration(latest.started_at, latest.finished_at) : 'No scan';
+}
+
+function scanActivityTitle(profile?: string): string {
+  const scanLabels: Record<string, string> = {
+    quick: 'Quick scan',
+    full: 'Full scan',
+    code: 'Code scan',
+    deps: 'Dependency scan',
+    secrets: 'Secrets scan',
+    iac: 'Infrastructure scan',
+    ai: 'AI agent scan',
+    'platform-posture': 'Platform posture scan',
+  };
+  if (profile && scanLabels[profile]) return `${scanLabels[profile]} completed`;
+  const label = profile ? categoryLabel(profile) : 'Scan';
+  return label.toLowerCase().includes('scan') ? `${label} completed` : `${label} scan completed`;
+}
+
+function scanRunStatusLabel(status: string): string {
+  const normalized = status.toLowerCase().replace(/[_\s-]+/g, '-');
+  if (normalized === 'ok' || normalized === 'complete' || normalized === 'completed') return 'scan finished';
+  if (normalized === 'failed' || normalized === 'error') return 'scan failed';
+  return status.replace(/[_-]+/g, ' ');
 }
 
 function setupGapCount(summary: DashboardSummary): number {
@@ -466,7 +503,7 @@ function postureDelta(summary: DashboardSummary): number {
 
 function postureWeek(summary: DashboardSummary): {label: string; value: number}[] {
   const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-  const history = [...summary.history].slice(-7);
+  const history = recentScanHistory(summary, 7).reverse();
   if (!history.length) return [];
   const values = history.map((item) => Math.max(0, Math.min(10, item.health_score / 10)));
   while (values.length < 7) values.unshift(values[0] ?? postureScore(summary));
@@ -579,26 +616,28 @@ function buildActivity(summary: DashboardSummary, includeRepo = false): Activity
   }
   for (const item of activeCaseList(summary).slice(0, 20)) {
     const date = item.createdAt ? new Date(item.createdAt) : null;
+    const repoLabel = repoDisplayName(summary, item.repoName);
     items.push({
       id: `case-${item.id}`,
       at: item.createdAt ? timeLabel(item.createdAt) : '--:--',
       date,
       icon: iconForCategory(item.category),
       label: `${caseScanner(item)} · ${item.title}`,
-      sub: `${includeRepo ? `${item.repoName} · ` : ''}${item.location}`,
+      sub: `${includeRepo ? `${repoLabel} · ` : ''}${item.location}`,
       tone: toneForCase(item),
     });
   }
-  for (const scan of summary.history.slice(-16)) {
+  for (const scan of recentScanHistory(summary, 16)) {
     const finished = scan.finished_at ?? scan.started_at;
     const date = finished ? new Date(finished) : null;
+    const repoLabel = repoDisplayName(summary, scan.repo_name);
     items.push({
       id: `scan-${scan.id}`,
       at: finished ? timeLabel(finished) : '--:--',
       date,
       icon: <ScanLine size={18} />,
-      label: `${scan.profile || 'Scan'} completed`,
-      sub: `${includeRepo ? `${scan.repo_name} · ` : ''}${scan.health_score}/100 health · ${scan.status}`,
+      label: scanActivityTitle(scan.profile),
+      sub: `${includeRepo ? `${repoLabel} · ` : ''}${scan.health_score}/100 health · ${scanRunStatusLabel(scan.status)}`,
       tone: scan.health_score < 70 ? 'warn' : 'low',
     });
   }
@@ -1343,10 +1382,11 @@ function ActiveView({
         onRunAll={onRunAll}
         onChooseChecks={onChooseChecks}
         onTargetChange={onTargetChange}
+        onRefresh={onRefresh}
       />
     );
   }
-  if (tab === 'findings') return <FindingsView summary={summary} search={search} target={target} onCaseDecision={onCaseDecision} />;
+  if (tab === 'findings') return <FindingsView summary={summary} search={search} target={target} onCaseDecision={onCaseDecision} onRefresh={onRefresh} />;
   if (tab === 'honey-keys') return <HoneyKeysView summary={summary} target={target} onRefresh={onRefresh} />;
   if (tab === 'scanners') return <CatalogRouter route={catalogRoute} summary={summary} onRouteChange={onCatalogRouteChange} onRefresh={onRefresh} onChooseChecks={onChooseChecks} />;
   if (tab === 'agent-lab') return <AgentLabView summary={summary} target={target} targetRepos={targetRepos} onRefresh={onRefresh} onTargetChange={onTargetChange} />;
@@ -1764,6 +1804,7 @@ function OverviewView({
   onRunAll,
   onChooseChecks,
   onTargetChange,
+  onRefresh,
 }: {
   summary: DashboardSummary;
   globalSummary: DashboardSummary;
@@ -1782,6 +1823,7 @@ function OverviewView({
   onRunAll: () => void;
   onChooseChecks: (profile?: string) => void;
   onTargetChange: (value: string) => void;
+  onRefresh: () => Promise<void>;
 }) {
   const scopeLabel = targetLabel(target);
   const cases = activeCaseList(summary);
@@ -1869,6 +1911,8 @@ function OverviewView({
           onClick={onOpenCatalogHome}
         />
       </section>
+
+      <AiFollowUpPanel summary={summary} target={target} onApplied={onRefresh} />
 
       {(isRunningCheck || runError || (activeJob && activeJob.status !== 'complete') || (allRepoRun && allRepoRun.status === 'running')) && (
         <CompactScanStatus
@@ -2226,9 +2270,10 @@ function RepoScanStrip({summary}: {summary: DashboardSummary}) {
       <div className="repo-scan-grid">
         {repos.map((repo) => {
           const gaps = repo.scanners.filter((scanner) => !scanner.available || scanner.error).length;
+          const displayName = repositoryDisplayName(repo);
           return (
             <div key={`${repo.repo}-${repo.scan_id ?? repo.path}`} className="repo-scan-tile">
-              <strong>{repo.repo}</strong>
+              <strong>{displayName}</strong>
               <span>{repo.last_scan ? formatDate(repo.last_scan) : 'No scan'} · {repo.profile || 'profile'}</span>
               <div>
                 <em>{repo.health}/100 health</em>
@@ -2244,7 +2289,7 @@ function RepoScanStrip({summary}: {summary: DashboardSummary}) {
 }
 
 function PreCaseScanNote({repos, rawFindingTotal}: {repos: RepositorySummary[]; rawFindingTotal: number}) {
-  const names = repos.map((repo) => repo.repo).join(', ');
+  const names = repos.map(repositoryDisplayName).join(', ');
   const repoLabel = repos.length === 1 ? names : `${repos.length} repos`;
   return (
     <PaperCard className="precase-note">
@@ -2271,10 +2316,11 @@ function RepositoryComparisonStrip({summary, cases}: {summary: DashboardSummary;
             const openCases = cases.filter((item) => item.repoName === repo.repo || repoKeyFromPath(item.repoName) === repo.repo).length;
             const trend = typeof repo.health_delta === 'number' ? `${repo.health_delta >= 0 ? '+' : ''}${repo.health_delta}` : 'flat';
             const preCase = repoHasPreCaseScan(repo);
+            const displayName = repositoryDisplayName(repo);
             return (
               <div key={`${repo.repo}-${repo.scan_id ?? repo.path}`} className={`repo-comparison-tile ${index === 0 ? 'lowest' : ''}`}>
                 <div>
-                  <strong>{repo.repo}</strong>
+                  <strong>{displayName}</strong>
                   <span>{preCase ? 'Needs rescan' : index === 0 ? 'Lowest posture' : 'Repository posture'}</span>
                 </div>
                 <div className="repo-comparison-metrics">
@@ -2294,7 +2340,7 @@ function RepositoryComparisonStrip({summary, cases}: {summary: DashboardSummary;
   );
 }
 
-function FindingsView({summary, search, target, onCaseDecision}: {summary: DashboardSummary; search: string; target: TargetSelection; onCaseDecision: (caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) => Promise<void>}) {
+function FindingsView({summary, search, target, onCaseDecision, onRefresh}: {summary: DashboardSummary; search: string; target: TargetSelection; onCaseDecision: (caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) => Promise<void>; onRefresh: () => Promise<void>}) {
   const [severityFilter, setSeverityFilter] = useState<Tone | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [repoFilter, setRepoFilter] = useState<string>('all');
@@ -2309,6 +2355,7 @@ function FindingsView({summary, search, target, onCaseDecision}: {summary: Dashb
   const counts = caseSeverityCounts(cases);
   const categories = [...new Set(cases.map((item) => item.category).filter(Boolean) as string[])];
   const repoNames = [...new Set(cases.map((item) => item.repoName))].sort((a, b) => a.localeCompare(b, undefined, {sensitivity: 'base'}));
+  const displayRepoName = (repoName: string) => repoDisplayName(summary, repoName);
   useEffect(() => {
     if (target.mode === 'repo') setRepoFilter('all');
   }, [target.mode]);
@@ -2322,7 +2369,7 @@ function FindingsView({summary, search, target, onCaseDecision}: {summary: Dashb
       const scaffolded = Boolean(repo.rotation_state?.scaffolded);
       map.set(repo.repo, {
         scaffolded,
-        repo: {name: repo.repo, path: repo.path},
+        repo: {name: repositoryDisplayName(repo), path: repo.path},
       });
     }
     return map;
@@ -2332,7 +2379,7 @@ function FindingsView({summary, search, target, onCaseDecision}: {summary: Dashb
     if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
     if (showRepoColumn && repoFilter !== 'all' && item.repoName !== repoFilter) return false;
     if (search.trim()) {
-      const haystack = `${item.title} ${item.why} ${item.location} ${item.nextStep} ${item.repoName} ${item.category ?? ''}`.toLowerCase();
+      const haystack = `${item.title} ${item.why} ${item.location} ${item.nextStep} ${item.repoName} ${displayRepoName(item.repoName)} ${item.category ?? ''}`.toLowerCase();
       if (!haystack.includes(search.toLowerCase())) return false;
     }
     return true;
@@ -2384,6 +2431,7 @@ function FindingsView({summary, search, target, onCaseDecision}: {summary: Dashb
           <a className="button secondary sm" href={reportViewUrl(latest.scan_id, 'prompt')}><Sparkles size={14} /> Whole-repo prompt</a>
         </div>
       )}
+      <AiFollowUpPanel summary={summary} target={target} selectedCaseIds={selected ? [selected.id] : []} compact onApplied={onRefresh} />
       <PaperCard className="landscape-card">
         <SectionHeader title="Risk landscape · severity × age" right={<span>{scopeLabel} · {cases.filter((item) => toneForCase(item) !== 'low' && relativeAge(item.createdAt).includes('d')).length} non-low cases aged past 24 h</span>} />
         <RiskLandscape items={cases} onPick={setSelectedId} />
@@ -2399,7 +2447,7 @@ function FindingsView({summary, search, target, onCaseDecision}: {summary: Dashb
         <div className="chip-row">
           <Chip active={repoFilter === 'all'} onClick={() => setRepoFilter('all')}>All repos</Chip>
           {repoNames.map((repoName) => (
-            <Chip key={repoName} active={repoFilter === repoName} onClick={() => setRepoFilter(repoFilter === repoName ? 'all' : repoName)}>{repoName}</Chip>
+            <Chip key={repoName} active={repoFilter === repoName} onClick={() => setRepoFilter(repoFilter === repoName ? 'all' : repoName)}>{displayRepoName(repoName)}</Chip>
           ))}
         </div>
       )}
@@ -2409,10 +2457,12 @@ function FindingsView({summary, search, target, onCaseDecision}: {summary: Dashb
             items={shown}
             selectedId={selected?.id ?? null}
             showRepoColumn={showRepoColumn}
+            repoDisplayName={displayRepoName}
             onPick={setSelectedId}
             selectedDetail={selected ? (
               <CaseDetailCard
                 item={selected}
+                repoDisplayName={displayRepoName(selected.repoName)}
                 onDecision={onCaseDecision}
                 rotationScaffolded={rotationByRepo.get(selected.repoName)?.scaffolded ?? false}
                 onRotate={openRotation}
@@ -2430,6 +2480,7 @@ function FindingsView({summary, search, target, onCaseDecision}: {summary: Dashb
           {selected ? (
             <CaseDetailCard
               item={selected}
+              repoDisplayName={displayRepoName(selected.repoName)}
               onDecision={onCaseDecision}
               rotationScaffolded={rotationByRepo.get(selected.repoName)?.scaffolded ?? false}
               onRotate={openRotation}
@@ -2855,13 +2906,14 @@ function ReportsView({summary, target}: {summary: DashboardSummary; target: Targ
   const platformSnapshots = platformPostureSnapshots(summary);
   const cveCounts = dependencyCveCounts(summary);
   const iocMatches = iocMatchFindings(summary);
+  const latestRepoName = latest ? repositoryDisplayName(latest) : '';
   return (
     <div className="view-stack">
       <section className="report-hero">
         <div>
           <Eyebrow onSurface>{allReposMode ? 'Latest report across all repos' : 'Current repo report'} · {scopeLabel}</Eyebrow>
-          <h1>{latest ? `${allReposMode ? latest.repo : scopeLabel} · ${latest.profile}` : 'No scan reports yet'}</h1>
-          <p>{latest ? `Finished ${formatDate(latest.last_scan)} · ${allReposMode ? `${latest.repo} · ` : ''}${latest.health}/100 health` : 'Run a repo check to create the first local report.'}</p>
+          <h1>{latest ? `${allReposMode ? latestRepoName : scopeLabel} · ${latest.profile}` : 'No scan reports yet'}</h1>
+          <p>{latest ? `Finished ${formatDate(latest.last_scan)} · ${allReposMode ? `${latestRepoName} · ` : ''}${latest.health}/100 health` : 'Run a repo check to create the first local report.'}</p>
         </div>
         {latest?.scan_id && (
           <div className="hero-actions">
@@ -2880,9 +2932,9 @@ function ReportsView({summary, target}: {summary: DashboardSummary; target: Targ
       <PaperCard>
         <SectionHeader title={allReposMode ? 'Saved scan reports' : 'Report history'} right={<span>{scopeLabel} · {summary.history.length} total</span>} />
         <div className="report-table">
-          {summary.history.slice().reverse().slice(0, 12).map((scan) => (
+          {recentScanHistory(summary, 12).map((scan) => (
             <div key={scan.id} className="report-row">
-              <div><strong>{scan.profile}</strong><span>{formatDate(scan.finished_at ?? scan.started_at)} · {scan.repo_name}</span></div>
+              <div><strong>{scan.profile}</strong><span>{formatDate(scan.finished_at ?? scan.started_at)} · {repoDisplayName(summary, scan.repo_name)}</span></div>
               <MetricPill label="Health" value={scan.health_score} />
               <div className="report-actions">
                 <a href={reportViewUrl(scan.id, 'raw')}>Raw</a>
@@ -2931,7 +2983,7 @@ function ReportsView({summary, target}: {summary: DashboardSummary; target: Targ
           <div className="data-head"><span>Indicator</span><span>Match</span><span>Pack</span><span>Evidence</span></div>
           {iocMatches.slice(0, 10).map((finding) => (
             <div key={finding.fingerprint} className="data-row">
-              <strong>{finding.package_name ?? finding.ioc_indicator ?? finding.title}<em>{finding.repo_name}</em></strong>
+              <strong>{finding.package_name ?? finding.ioc_indicator ?? finding.title}<em>{repoDisplayName(summary, finding.repo_name)}</em></strong>
               <span>{finding.ioc_match_type ?? 'IOC match'} · {finding.ioc_confidence ?? 'unknown'}</span>
               <span>{finding.ioc_source ?? finding.ioc_pack_id ?? 'Unknown pack'}</span>
               <span>{finding.file ?? finding.ioc_advisory_url ?? 'Repository evidence'}</span>
@@ -2940,7 +2992,12 @@ function ReportsView({summary, target}: {summary: DashboardSummary; target: Targ
           {!iocMatches.length && <EmptyLine title="No named-campaign matches" detail="IOC Watch found no exact, namespace, or domain matches in the latest evidence." />}
         </div>
       </PaperCard>
-      <PlatformPostureCard snapshots={platformSnapshots} findings={platform} scopeLabel={scopeLabel} />
+      <PlatformPostureCard
+        snapshots={platformSnapshots}
+        findings={platform}
+        scopeLabel={scopeLabel}
+        repoDisplayName={(repoName) => repoDisplayName(summary, repoName)}
+      />
     </div>
   );
 }
@@ -2960,7 +3017,7 @@ function RepositorySnapshotCard({summary, target}: {summary: DashboardSummary; t
         </div>
         {summary.repos.map((repo) => (
           <div key={`${repo.repo}-${repo.scan_id ?? repo.path}`} className="data-row">
-            <strong>{repo.repo}<em>{repo.path}</em></strong>
+            <strong>{repositoryDisplayName(repo)}<em>{repo.path}</em></strong>
             <span>{repo.health}/100</span>
             <span>{repo.previous_health ?? 'none'}{typeof repo.health_delta === 'number' ? ` (${repo.health_delta >= 0 ? '+' : ''}${repo.health_delta})` : ''}</span>
             <span>{countRecord(repo.counts)} {repoHasPreCaseScan(repo) ? 'pre-cases raw' : 'active raw'}</span>
@@ -2979,10 +3036,12 @@ function PlatformPostureCard({
   snapshots,
   findings,
   scopeLabel,
+  repoDisplayName,
 }: {
   snapshots: ReturnType<typeof platformPostureSnapshots>;
   findings: ReturnType<typeof platformPostureFindings>;
   scopeLabel: string;
+  repoDisplayName: (repoName: string) => string;
 }) {
   return (
     <PaperCard>
@@ -2993,7 +3052,7 @@ function PlatformPostureCard({
         </div>
         {snapshots.map((snapshot) => (
           <div key={`${snapshot.scan_id}-${snapshot.target}-${snapshot.source}`} className="data-row">
-            <strong>{snapshot.target}<em>{snapshot.repo_name}</em></strong>
+            <strong>{snapshot.target}<em>{repoDisplayName(snapshot.repo_name)}</em></strong>
             <span>{snapshot.status}{snapshot.reason ? ` · ${snapshot.reason}` : ''}</span>
             <span>{snapshot.summary?.records ?? 'n/a'}</span>
             <span>{snapshot.summary?.failed ?? 0}</span>
@@ -3002,7 +3061,7 @@ function PlatformPostureCard({
         ))}
         {findings.slice(0, 6).map((finding) => (
           <div key={finding.fingerprint} className="data-row">
-            <strong>{finding.title}<em>{finding.file ?? finding.repo_name}</em></strong>
+            <strong>{finding.title}<em>{finding.file ?? repoDisplayName(finding.repo_name)}</em></strong>
             <span>{finding.severity}</span>
             <span>{finding.category}</span>
             <span>{formatDate(finding.created_at)}</span>
@@ -3267,12 +3326,14 @@ function EmptyRepoView({repoName, onRunQuick, onChooseChecks}: {repoName: string
 
 function CaseDetailCard({
   item,
+  repoDisplayName,
   onDecision,
   rotationScaffolded = false,
   onRotate,
   rotateError = null,
 }: {
   item: DisplayCase;
+  repoDisplayName?: string;
   onDecision: (caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) => Promise<void>;
   rotationScaffolded?: boolean;
   onRotate?: (item: DisplayCase) => void;
@@ -3317,7 +3378,7 @@ function CaseDetailCard({
       <h2>{item.title}</h2>
       <p>{item.why}</p>
       <KV label="Case" value={caseDisplayId(item)} />
-      <KV label="Repository" value={item.repoName} />
+      <KV label="Repository" value={repoDisplayName ?? item.repoName} />
       <KV label="Location" value={item.location} />
       <KV label="Category" value={item.category ? categoryLabel(item.category) : 'Uncategorized'} />
       <KV label="Scanner" value={item.sources.join(', ') || 'Not reported'} />
@@ -3391,12 +3452,14 @@ function FindingsTable({
   items,
   selectedId,
   showRepoColumn,
+  repoDisplayName,
   onPick,
   selectedDetail,
 }: {
   items: DisplayCase[];
   selectedId: string | null;
   showRepoColumn: boolean;
+  repoDisplayName: (repoName: string) => string;
   onPick: (id: string) => void;
   selectedDetail?: ReactNode;
 }) {
@@ -3410,7 +3473,7 @@ function FindingsTable({
         <div key={item.id} className="finding-row-group">
           <button type="button" className={`finding-row ${modeClass} ${selectedId === item.id ? 'selected' : ''}`} onClick={() => onPick(item.id)} aria-expanded={selectedId === item.id}>
             <span className="mono-cell">{displayId(item, index)}</span>
-            {showRepoColumn && <span className="mono-cell">{item.repoName}</span>}
+            {showRepoColumn && <span className="mono-cell">{repoDisplayName(item.repoName)}</span>}
             <span><strong>{item.title}</strong><em>{item.location}</em></span>
             <span>{item.category ? categoryLabel(item.category) : 'Security'}</span>
             <span className="mono-cell">{caseScanner(item)}</span>

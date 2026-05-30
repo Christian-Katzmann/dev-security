@@ -19,9 +19,11 @@ import pytest
 # cleanly rather than crashing the entire test collection.
 pytest.importorskip("mcp")
 
+from security_observatory.case_followup import SCHEMA_VERSION
 from security_observatory.cases import build_security_cases
 from security_observatory.mcp_server import (
     DEVSEC_MCP_INSTRUCTIONS,
+    DEVSEC_MCP_RW_INSTRUCTIONS,
     RepoNotFoundError,
     SUPPORTED_CASE_STATUSES,
     SUPPORTED_SEVERITIES,
@@ -193,6 +195,27 @@ def test_server_instructions_reference_doctrine(tmp_path):
     assert "docs/agent-voice.md" in server.instructions
     assert "docs/agent-safety.md" in server.instructions
     assert "read-only and stdio-only" in server.instructions
+
+
+def test_write_tools_are_opt_in_only(tmp_path):
+    read_only_server = create_server(home=tmp_path)
+    rw_server = create_server(home=tmp_path, allow_case_decisions=True)
+
+    read_only_names = {tool.name for tool in asyncio.run(read_only_server.list_tools())}
+    rw_names = {tool.name for tool in asyncio.run(rw_server.list_tools())}
+    write_tools = {
+        "case_followup_prompt",
+        "preview_case_resolutions",
+        "apply_case_resolutions",
+    }
+
+    assert read_only_names.isdisjoint(write_tools)
+    assert write_tools.issubset(rw_names)
+    assert rw_names == read_only_names | write_tools
+    assert read_only_server.instructions == DEVSEC_MCP_INSTRUCTIONS
+    assert rw_server.instructions == DEVSEC_MCP_RW_INSTRUCTIONS
+    assert "case-decision write mode" in rw_server.instructions
+    assert "read-only and stdio-only" not in rw_server.instructions
 
 
 def test_create_server_uses_env_home_by_default(monkeypatch, tmp_path):
@@ -1077,6 +1100,99 @@ def test_call_tool_findings_returns_results(tmp_path):
     assert items[0]["path"] == "config/secrets.py"
 
 
+def test_call_tool_case_followup_prompt_in_write_mode(tmp_path):
+    db = _make_db(tmp_path)
+    try:
+        _seed_scan(db, tmp_path)
+    finally:
+        db.close()
+
+    server = create_server(home=tmp_path, allow_case_decisions=True)
+    result = asyncio.run(
+        server.call_tool(
+            "case_followup_prompt",
+            {"repo": REPO_NAME, "action": "verify_findings", "scope": "critical"},
+        )
+    )
+    prompt = _tool_result_value(result)
+
+    assert prompt["repo"] == REPO_NAME
+    assert prompt["action"] == "verify_findings"
+    assert prompt["scope"] == "critical"
+    assert prompt["case_count"] == 1
+    assert prompt["case_ids"]
+    assert SCHEMA_VERSION in prompt["prompt"]
+    assert "Do not fix code." in prompt["prompt"]
+
+
+def test_call_tool_preview_and_apply_case_resolutions_in_write_mode(tmp_path):
+    db = _make_db(tmp_path)
+    try:
+        seeded_cases = _seed_scan(db, tmp_path)
+        target = next(case for case in seeded_cases if case.category == "code-security")
+        case_id = target.case_id
+    finally:
+        db.close()
+
+    payload = {
+        "schema_version": SCHEMA_VERSION,
+        "repo": REPO_NAME,
+        "scan_id": SCAN_ID,
+        "action": "verify_findings",
+        "scope": "selected_cases",
+        "summary": {"cases_reviewed": 1},
+        "resolutions": [
+            {
+                "case_id": case_id,
+                "disposition": "confirmed_real",
+                "confidence": "high",
+                "reason": "The unsafe deserialization call is in live application code.",
+                "evidence": [
+                    {
+                        "path": "app/api/decode.py",
+                        "line": 17,
+                        "interpretation": "pickle.loads handles request data.",
+                    }
+                ],
+            }
+        ],
+    }
+
+    server = create_server(home=tmp_path, allow_case_decisions=True)
+    preview_result = asyncio.run(
+        server.call_tool(
+            "preview_case_resolutions",
+            {
+                "payload": payload,
+                "expected_repo": REPO_NAME,
+                "expected_scope": "selected_cases",
+                "expected_case_ids": [case_id],
+            },
+        )
+    )
+    preview = _tool_result_value(preview_result)
+
+    assert preview["valid"] is True
+    assert preview["source"] == "mcp_write"
+    assert preview["summary"]["will_apply"] == 1
+
+    apply_result = asyncio.run(
+        server.call_tool("apply_case_resolutions", {"run_id": preview["run_id"]})
+    )
+    applied = _tool_result_value(apply_result)
+
+    assert applied["applied"] == 1
+    assert applied["left_open"] == 0
+    assert applied["rejected"] == 0
+    assert applied["case_ids"] == [case_id]
+
+    db = _make_db(tmp_path)
+    try:
+        assert db.case_decisions_map()[case_id]["status"] == "verified"
+    finally:
+        db.close()
+
+
 # ---------------------------------------------------------------------------
 # helpers for the FastMCP call_tool result shape
 # ---------------------------------------------------------------------------
@@ -1103,3 +1219,8 @@ def _structured_content(result) -> dict:
             except (TypeError, ValueError):
                 continue
     return {}
+
+
+def _tool_result_value(result):
+    structured = _structured_content(result)
+    return structured.get("result", structured)

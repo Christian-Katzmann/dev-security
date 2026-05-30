@@ -194,6 +194,23 @@
       "when_to_run": "Only when an MCP client (Claude Desktop, Cursor, Codex) needs read-only access to local scan results. Normally launched by the client per its mcpServers config, not invoked manually.",
       "success_signal": "Holds stdio open and responds to JSON-RPC requests; logs go to stderr.",
       "recovery_hint": "If startup fails, confirm `uv sync --extra mcp` has been run and the `mcp` Python package is installed. See mcp/README.md."
+    },
+    {
+      "id": "devsec-mcp-rw",
+      "intent": "run the guarded MCP adapter for AI case-resolution write-back",
+      "command": [
+        "uv",
+        "run",
+        "devsec-mcp-rw"
+      ],
+      "cwd": ".",
+      "safety": "local_mutation",
+      "long_running": true,
+      "transport": "stdio",
+      "timeout_seconds": null,
+      "when_to_run": "Only when an MCP client needs explicit case-resolution prompt, preview, and apply tools. Prefer the read-only devsec-mcp command unless the user has opted into AI follow-up write-back.",
+      "success_signal": "Holds stdio open, lists the read-only tools plus case_followup_prompt, preview_case_resolutions, and apply_case_resolutions, and responds to JSON-RPC requests.",
+      "recovery_hint": "If startup fails, confirm `uv sync --extra mcp` has been run and the `mcp` Python package is installed. Use devsec-mcp for read-only access."
     }
   ]
 }

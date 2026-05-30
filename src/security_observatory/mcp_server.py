@@ -1,10 +1,11 @@
-"""Read-only MCP adapter for the local Security Observatory.
+"""MCP adapter for the local Security Observatory.
 
-Exposes eleven tools over stdio so local agents (Claude Desktop, Cursor, Codex,
-etc.) can ask focused questions about scan history without an HTTP listener,
-write paths, or cloud round-trip. Wraps existing methods on ObservatoryDB,
-small scan-history reads, the case-builder vocabulary in cases.py, and the
-on-disk state files written by the secrets-rotation skill.
+The default ``devsec-mcp`` server exposes eleven read-only tools over stdio so
+local agents (Claude Desktop, Cursor, Codex, etc.) can ask focused questions
+about scan history without an HTTP listener, write paths, or cloud round-trip.
+
+The explicit ``devsec-mcp-rw`` entrypoint keeps the same stdio-only transport
+and adds only the guarded AI case-resolution prompt/preview/apply tools.
 
 See mcp/README.md for connection instructions and the deliberate hard limits.
 """
@@ -19,6 +20,11 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
+from .case_followup import (
+    apply_case_resolutions as _apply_case_resolutions,
+    build_case_followup_prompt as _build_case_followup_prompt,
+    validate_case_resolutions as _validate_case_resolutions,
+)
 from .cases import (
     _DEFAULT_PLAYBOOK_ID,
     _PLAYBOOK_BY_CATEGORY,
@@ -36,7 +42,21 @@ logger = logging.getLogger("security_observatory.mcp")
 SUPPORTED_SEVERITIES = ("critical", "high", "medium", "low", "info")
 SUPPORTED_CASE_STATUSES = ("open", "verified", "accepted_risk", "resolved")
 SUPPORTED_CATEGORIES = tuple(sorted(_PLAYBOOK_BY_CATEGORY.keys()))
-DEVSEC_MCP_INSTRUCTIONS = """You are the DëvSec security helper. Speak like a calm operational security analyst, not a chatbot, hype product, or fake tactical persona.
+_READ_ONLY_BOUNDARY = (
+    "Respect the MCP boundary: this adapter is read-only and stdio-only. It can report scan history, "
+    "cases, raw findings, playbooks, dependency trust, Honey Key state, and rotation state for repos "
+    "where the secrets-rotation skill is scaffolded. It cannot delete raw findings, mark cases resolved, "
+    "modify the store, install scanners, or rotate credentials — rotation triggering happens through "
+    "the dashboard or the /devsec-rotate slash command, not through MCP."
+)
+_WRITE_MODE_BOUNDARY = (
+    "Respect the MCP write boundary: this adapter was launched in explicit case-decision write mode "
+    "and remains stdio-only. It can build AI case follow-up prompts, preview devsec.case_resolutions.v1 "
+    "JSON, and apply validated case decisions through the audited case-resolution path. It cannot delete "
+    "raw findings, delete scans, run scanners, rotate credentials, execute SQL, install tools, or write "
+    "repository files."
+)
+DEVSEC_MCP_INSTRUCTIONS = f"""You are the DëvSec security helper. Speak like a calm operational security analyst, not a chatbot, hype product, or fake tactical persona.
 
 Purpose: help the user understand local scan history, act safely, and verify closure. DëvSec is local-first: scan evidence and history stay on the user's machine unless they choose otherwise.
 
@@ -59,9 +79,13 @@ Rules:
 - Never shame the developer.
 - No panic, softness, jokes, casual filler, exclamation marks, or emoji.
 - Exception: use ⚠ only for an actively triggered Honey Key.
-- Respect the MCP boundary: this adapter is read-only and stdio-only. It can report scan history, cases, raw findings, playbooks, dependency trust, Honey Key state, and rotation state for repos where the secrets-rotation skill is scaffolded. It cannot delete raw findings, mark cases resolved, modify the store, install scanners, or rotate credentials — rotation triggering happens through the dashboard or the /devsec-rotate slash command, not through MCP.
+- {_READ_ONLY_BOUNDARY}
 
 Full doctrine: docs/agent-voice.md. Safety tiers and refusal language: docs/agent-safety.md."""
+DEVSEC_MCP_RW_INSTRUCTIONS = DEVSEC_MCP_INSTRUCTIONS.replace(
+    _READ_ONLY_BOUNDARY,
+    _WRITE_MODE_BOUNDARY,
+)
 
 
 class RepoNotFoundError(ValueError):
@@ -81,6 +105,14 @@ def _open_db(home: Path) -> ObservatoryDB | None:
     if not path.exists():
         return None
     return ObservatoryDB(path)
+
+
+def _require_db(db: ObservatoryDB | None) -> ObservatoryDB:
+    if db is None:
+        raise RepoNotFoundError(
+            "No DëvSec database found. Run a scan before using MCP case tools."
+        )
+    return db
 
 
 def _redact_path(value: Any, repo_path: str | None = None) -> str | None:
@@ -530,7 +562,72 @@ def _rotation_history(
     return _read_rotation_history(repo_path, limit)
 
 
-def create_server(home: Path | None = None) -> FastMCP:
+def _case_followup_prompt(
+    db: ObservatoryDB | None,
+    *,
+    repo: str,
+    action: str = "verify_findings",
+    scope: str = "critical",
+    case_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    return _build_case_followup_prompt(
+        _require_db(db),
+        repo_name=repo,
+        action=action,
+        scope=scope,
+        case_ids=case_ids or [],
+    )
+
+
+def _preview_case_resolutions(
+    db: ObservatoryDB | None,
+    *,
+    payload: dict[str, Any],
+    expected_repo: str | None = None,
+    expected_scope: str | None = None,
+    expected_case_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    return _validate_case_resolutions(
+        _require_db(db),
+        payload,
+        expected_repo=expected_repo,
+        expected_scope=expected_scope,
+        expected_case_ids=expected_case_ids,
+        source="mcp_write",
+        persist=True,
+    )
+
+
+def _apply_case_resolution_payload(
+    db: ObservatoryDB | None,
+    *,
+    payload: dict[str, Any] | None = None,
+    run_id: str | None = None,
+    expected_repo: str | None = None,
+    expected_scope: str | None = None,
+    expected_case_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    if run_id:
+        payload_or_run_id: dict[str, Any] | str = run_id
+    elif isinstance(payload, dict):
+        payload_or_run_id = payload
+    else:
+        raise ValueError("Provide either run_id or payload.")
+    return _apply_case_resolutions(
+        _require_db(db),
+        payload_or_run_id,
+        expected_repo=expected_repo,
+        expected_scope=expected_scope,
+        expected_case_ids=expected_case_ids,
+        source="mcp_write",
+    )
+
+
+def create_server(
+    home: Path | None = None,
+    *,
+    allow_case_decisions: bool = False,
+) -> FastMCP:
     """Build a FastMCP server bound to the observatory at ``home``.
 
     Exposed in factory form so tests can point at a temp directory and the
@@ -539,7 +636,11 @@ def create_server(home: Path | None = None) -> FastMCP:
     resolved = home or observatory_home()
     server = FastMCP(
         "devsec",
-        instructions=DEVSEC_MCP_INSTRUCTIONS,
+        instructions=(
+            DEVSEC_MCP_RW_INSTRUCTIONS
+            if allow_case_decisions
+            else DEVSEC_MCP_INSTRUCTIONS
+        ),
     )
 
     def _with_db(action):
@@ -692,6 +793,79 @@ def create_server(home: Path | None = None) -> FastMCP:
         """
         return _with_db(lambda db: _rotation_history(db, repo, limit))
 
+    if allow_case_decisions:
+
+        @server.tool()
+        def case_followup_prompt(
+            repo: str,
+            action: str = "verify_findings",
+            scope: str = "critical",
+            case_ids: list[str] | None = None,
+        ) -> dict[str, Any]:
+            """Build a bounded AI follow-up prompt for selected open cases.
+
+            This is a write-mode tool because it is paired with preview/apply,
+            but it does not mutate the store. ``action`` and ``scope`` use the
+            same values as the dashboard AI follow-up panel.
+            """
+            return _with_db(
+                lambda db: _case_followup_prompt(
+                    db,
+                    repo=repo,
+                    action=action,
+                    scope=scope,
+                    case_ids=case_ids,
+                )
+            )
+
+        @server.tool()
+        def preview_case_resolutions(
+            payload: dict[str, Any],
+            expected_repo: str | None = None,
+            expected_scope: str | None = None,
+            expected_case_ids: list[str] | None = None,
+        ) -> dict[str, Any]:
+            """Validate and audit AI case-resolution JSON without applying it.
+
+            Accepts ``devsec.case_resolutions.v1`` payloads only. The preview
+            is stored as an audit run and returns item-level warnings, mapped
+            decisions, and apply counts.
+            """
+            return _with_db(
+                lambda db: _preview_case_resolutions(
+                    db,
+                    payload=payload,
+                    expected_repo=expected_repo,
+                    expected_scope=expected_scope,
+                    expected_case_ids=expected_case_ids,
+                )
+            )
+
+        @server.tool()
+        def apply_case_resolutions(
+            payload: dict[str, Any] | None = None,
+            run_id: str | None = None,
+            expected_repo: str | None = None,
+            expected_scope: str | None = None,
+            expected_case_ids: list[str] | None = None,
+        ) -> dict[str, Any]:
+            """Apply validated AI case resolutions through the audited path.
+
+            Pass a ``run_id`` returned by ``preview_case_resolutions`` to apply
+            a reviewed preview, or pass a fresh ``payload`` to validate and
+            apply in one call. Only supported case decisions are written.
+            """
+            return _with_db(
+                lambda db: _apply_case_resolution_payload(
+                    db,
+                    payload=payload,
+                    run_id=run_id,
+                    expected_repo=expected_repo,
+                    expected_scope=expected_scope,
+                    expected_case_ids=expected_case_ids,
+                )
+            )
+
     return server
 
 
@@ -703,6 +877,17 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     server = create_server()
+    server.run()
+
+
+def main_rw() -> None:
+    """Console entrypoint for ``devsec-mcp-rw``. Stdio transport only."""
+    logging.basicConfig(
+        stream=sys.stderr,
+        level=os.environ.get("DEVSEC_MCP_LOG_LEVEL", "INFO"),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    server = create_server(allow_case_decisions=True)
     server.run()
 
 

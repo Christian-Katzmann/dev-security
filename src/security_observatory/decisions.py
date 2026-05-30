@@ -184,7 +184,7 @@ def assemble_suppression(
 
 def suppression_for_case(case: dict[str, Any], decisions: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
     exact_decision = _case_decision(case, decisions)
-    if is_suppressing_decision(exact_decision) and _is_dependency_case(case):
+    if is_suppressing_decision(exact_decision) and _repo_matches(exact_decision or {}, case):
         return _suppression_payload(exact_decision, matched_by="case_id")
 
     if not _is_dependency_case(case):

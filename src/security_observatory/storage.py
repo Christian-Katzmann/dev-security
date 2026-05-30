@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -230,6 +231,42 @@ create table if not exists case_decisions (
 );
 
 create index if not exists idx_case_decisions_repo on case_decisions(repo_name, status);
+
+create table if not exists case_resolution_runs (
+  id text primary key,
+  repo_name text not null,
+  scan_id text,
+  action text not null,
+  scope text not null,
+  source text not null,
+  imported_at text not null,
+  applied_at text,
+  status text not null check(status in ('previewed', 'applied', 'partially_applied', 'rejected')),
+  summary_json text not null default '{}'
+);
+
+create table if not exists case_resolution_items (
+  id text primary key,
+  run_id text not null,
+  case_id text not null,
+  repo_name text not null,
+  scan_id text,
+  ai_disposition text not null,
+  mapped_decision text,
+  confidence text not null,
+  reason text not null,
+  evidence_json text not null default '[]',
+  recommended_next_step text,
+  applied_decision_json text,
+  status text not null check(status in ('pending', 'applied', 'left_open', 'rejected')),
+  warning text,
+  created_at text not null,
+  foreign key(run_id) references case_resolution_runs(id)
+);
+
+create index if not exists idx_case_resolution_runs_repo on case_resolution_runs(repo_name, imported_at desc);
+create index if not exists idx_case_resolution_items_run on case_resolution_items(run_id);
+create index if not exists idx_case_resolution_items_case on case_resolution_items(case_id);
 
 create table if not exists observatory_settings (
   key text primary key,
@@ -1255,6 +1292,7 @@ class ObservatoryDB:
                     "dependency_delta": dependency_delta,
                     "dependency_trust": self.list_dependency_trust_enrichments(scan_id=row["id"], repo_name=row["repo_name"]),
                     "platform_posture": self.latest_platform_posture_snapshot(repo_name=row["repo_name"], scan_id=row["id"]),
+                    "case_resolution_runs": self.list_case_resolution_runs(repo_name=row["repo_name"], limit=5),
                 }
             )
         findings = []
@@ -1356,6 +1394,7 @@ class ObservatoryDB:
             "scan_profiles": scan_profile_catalog(detect_install_state=True, managed_tool_records=managed_tool_records),
             "managed_tools": managed_tool_records,
             "agent_lab_proposals": self.list_agent_lab_proposals(limit=50),
+            "case_resolution_runs": self.list_case_resolution_runs(limit=50),
         }
 
     def scan_export(self, scan_id: str) -> dict[str, Any] | None:
@@ -1510,6 +1549,181 @@ class ObservatoryDB:
             "case_ids": imported_case_ids,
             "warnings": _dedupe_text(warnings),
         }
+
+    def save_case_resolution_run(self, run: dict[str, Any]) -> dict[str, Any]:
+        run_id = str(run.get("run_id") or run.get("id") or "").strip()
+        repo_name = str(run.get("repo_name") or run.get("repo") or "").strip()
+        action = str(run.get("action") or "").strip()
+        scope = str(run.get("scope") or "").strip()
+        source = str(run.get("source") or "json_import").strip() or "json_import"
+        status = str(run.get("status") or "previewed").strip()
+        if not run_id:
+            raise ValueError("Resolution run id is required.")
+        if not repo_name:
+            raise ValueError("Resolution run repo is required.")
+        if status not in {"previewed", "applied", "partially_applied", "rejected"}:
+            raise ValueError("Unsupported resolution run status.")
+        imported_at = str(run.get("imported_at") or utc_now())
+        applied_at = _optional_text(run.get("applied_at"))
+        summary = run.get("summary") if isinstance(run.get("summary"), dict) else {}
+        items = [item for item in (run.get("items") or []) if isinstance(item, dict)]
+        with self.conn:
+            self.conn.execute(
+                """
+                insert into case_resolution_runs
+                (id, repo_name, scan_id, action, scope, source, imported_at, applied_at, status, summary_json)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                on conflict(id) do update set
+                  repo_name = excluded.repo_name,
+                  scan_id = excluded.scan_id,
+                  action = excluded.action,
+                  scope = excluded.scope,
+                  source = excluded.source,
+                  applied_at = excluded.applied_at,
+                  status = excluded.status,
+                  summary_json = excluded.summary_json
+                """,
+                (
+                    run_id,
+                    repo_name,
+                    _optional_text(run.get("scan_id")),
+                    action,
+                    scope,
+                    source,
+                    imported_at,
+                    applied_at,
+                    status,
+                    _json(summary),
+                ),
+            )
+            self.conn.execute("delete from case_resolution_items where run_id = ?", (run_id,))
+            for item in items:
+                item_id = str(item.get("id") or "").strip() or f"{run_id}:{item.get('case_id')}"
+                item_status = str(item.get("status") or "pending").strip()
+                if item_status not in {"pending", "applied", "left_open", "rejected"}:
+                    item_status = "rejected"
+                self.conn.execute(
+                    """
+                    insert into case_resolution_items
+                    (id, run_id, case_id, repo_name, scan_id, ai_disposition, mapped_decision,
+                     confidence, reason, evidence_json, recommended_next_step, applied_decision_json,
+                     status, warning, created_at)
+                    values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        item_id,
+                        run_id,
+                        str(item.get("case_id") or "").strip(),
+                        str(item.get("repo_name") or repo_name).strip(),
+                        _optional_text(item.get("scan_id") or run.get("scan_id")),
+                        str(item.get("ai_disposition") or item.get("disposition") or "").strip(),
+                        _optional_text(item.get("mapped_decision")),
+                        str(item.get("confidence") or "medium").strip() or "medium",
+                        redact_text(str(item.get("reason") or "").strip())[:2000],
+                        _json(item.get("evidence") if isinstance(item.get("evidence"), list) else []),
+                        _decision_text(item.get("recommended_next_step")),
+                        _json(item.get("applied_decision")) if item.get("applied_decision") is not None else None,
+                        item_status,
+                        _decision_text(item.get("warning")),
+                        str(item.get("created_at") or imported_at),
+                    ),
+                )
+        saved = self.get_case_resolution_run(run_id)
+        if not saved:
+            raise ValueError("Resolution run was not saved.")
+        return saved
+
+    def get_case_resolution_run(self, run_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute("select * from case_resolution_runs where id = ?", (run_id,)).fetchone()
+        if not row:
+            return None
+        items = self.conn.execute(
+            "select * from case_resolution_items where run_id = ? order by created_at asc, id asc",
+            (run_id,),
+        ).fetchall()
+        return _public_case_resolution_run(row, items)
+
+    def list_case_resolution_runs(self, *, repo_name: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+        clean_limit = max(1, min(int(limit or 50), 200))
+        params: list[Any] = []
+        where = ""
+        if repo_name:
+            where = "where repo_name = ?"
+            params.append(repo_name.strip())
+        params.append(clean_limit)
+        rows = self.conn.execute(
+            f"""
+            select *
+            from case_resolution_runs
+            {where}
+            order by imported_at desc
+            limit ?
+            """,
+            params,
+        ).fetchall()
+        runs = []
+        for row in rows:
+            item_rows = self.conn.execute(
+                "select * from case_resolution_items where run_id = ? order by created_at asc, id asc",
+                (row["id"],),
+            ).fetchall()
+            runs.append(_public_case_resolution_run(row, item_rows))
+        return runs
+
+    def update_case_resolution_run(
+        self,
+        run_id: str,
+        *,
+        status: str,
+        item_updates: dict[str, dict[str, Any]] | None = None,
+    ) -> dict[str, Any] | None:
+        if status not in {"previewed", "applied", "partially_applied", "rejected"}:
+            raise ValueError("Unsupported resolution run status.")
+        now = utc_now()
+        updates = item_updates or {}
+        with self.conn:
+            self.conn.execute(
+                "update case_resolution_runs set status = ?, applied_at = ? where id = ?",
+                (status, now if status != "previewed" else None, run_id),
+            )
+            for item_id, update in updates.items():
+                item_status = str(update.get("status") or "").strip()
+                if item_status not in {"pending", "applied", "left_open", "rejected"}:
+                    continue
+                self.conn.execute(
+                    """
+                    update case_resolution_items
+                    set status = ?,
+                        warning = coalesce(?, warning),
+                        applied_decision_json = ?
+                    where id = ? and run_id = ?
+                    """,
+                    (
+                        item_status,
+                        _decision_text(update.get("warning")),
+                        _json(update.get("applied_decision")) if update.get("applied_decision") is not None else None,
+                        item_id,
+                        run_id,
+                    ),
+                )
+            item_rows = self.conn.execute(
+                "select status, ai_disposition from case_resolution_items where run_id = ?",
+                (run_id,),
+            ).fetchall()
+            status_counts = Counter(str(row["status"]) for row in item_rows)
+            disposition_counts = Counter(str(row["ai_disposition"]) for row in item_rows)
+            row = self.conn.execute("select summary_json from case_resolution_runs where id = ?", (run_id,)).fetchone()
+            summary = _json_load(row["summary_json"], {}) if row else {}
+            summary["statuses"] = dict(sorted(status_counts.items()))
+            summary["dispositions"] = dict(sorted(disposition_counts.items()))
+            summary["will_apply"] = int(status_counts.get("pending", 0))
+            summary["will_leave_open"] = int(status_counts.get("left_open", 0))
+            summary["rejected"] = int(status_counts.get("rejected", 0))
+            self.conn.execute(
+                "update case_resolution_runs set summary_json = ? where id = ?",
+                (_json(summary), run_id),
+            )
+        return self.get_case_resolution_run(run_id)
 
     def set_case_decision(
         self,
@@ -2071,6 +2285,55 @@ def _public_agent_lab_proposal(row: sqlite3.Row | dict[str, Any]) -> dict[str, A
         "denied_at": data.get("denied_at"),
         "raw_proposal": _json_load(data.get("raw_proposal_json"), {}),
         "final_execution_plan": final_plan,
+    }
+
+
+def _public_case_resolution_run(
+    row: sqlite3.Row | dict[str, Any],
+    item_rows: list[sqlite3.Row | dict[str, Any]],
+) -> dict[str, Any]:
+    data = dict(row)
+    summary = _json_load(data.get("summary_json"), {})
+    items = [_public_case_resolution_item(item) for item in item_rows]
+    return {
+        "id": data.get("id"),
+        "run_id": data.get("id"),
+        "repo": data.get("repo_name"),
+        "repo_name": data.get("repo_name"),
+        "scan_id": data.get("scan_id"),
+        "action": data.get("action"),
+        "scope": data.get("scope"),
+        "source": data.get("source"),
+        "imported_at": data.get("imported_at"),
+        "applied_at": data.get("applied_at"),
+        "status": data.get("status"),
+        "summary": summary,
+        "items": items,
+    }
+
+
+def _public_case_resolution_item(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+    data = dict(row)
+    case_id = str(data.get("case_id") or "")
+    display_tail = re.sub(r"[^A-Za-z0-9]", "", case_id)[-4:].upper() or "0000"
+    return {
+        "id": data.get("id"),
+        "run_id": data.get("run_id"),
+        "case_id": case_id,
+        "display_id": f"F-{display_tail}",
+        "repo_name": data.get("repo_name"),
+        "scan_id": data.get("scan_id"),
+        "ai_disposition": data.get("ai_disposition"),
+        "disposition": data.get("ai_disposition"),
+        "mapped_decision": data.get("mapped_decision"),
+        "confidence": data.get("confidence"),
+        "reason": data.get("reason"),
+        "evidence": _json_load(data.get("evidence_json"), []),
+        "recommended_next_step": data.get("recommended_next_step"),
+        "applied_decision": _json_load(data.get("applied_decision_json"), {}) if data.get("applied_decision_json") else None,
+        "status": data.get("status"),
+        "warning": data.get("warning"),
+        "created_at": data.get("created_at"),
     }
 
 

@@ -50,3 +50,7 @@
 - `2026-05-20T19:53:29+00:00` Paused current Step 2.2 automation after verified final-review launch.
 - `2026-05-20T19:53:36+00:00` Recorded current Step 2.2 automation status as PAUSED.
 - `2026-05-20T19:53:36+00:00` Verified current Step 2.2 automation is PAUSED in the Codex registry.
+- `2026-05-27T19:58:51+00:00` Recorded final_review_complete verdict=APPROVED reasons=[verification-clean, offline-scope].
+- `2026-05-27T19:58:56+00:00` Whole-campaign final review approved; Named-Campaign Defense campaign complete.
+- `2026-05-27T19:59:20+00:00` Paused final-review automation after approved campaign completion.
+- `2026-05-27T19:59:25+00:00` Verified final-review automation is PAUSED in Codex registry.

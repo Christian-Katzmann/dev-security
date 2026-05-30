@@ -7,8 +7,8 @@
     "campaign_path": "/Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/named-campaign-defense.md",
     "run_dir": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/named-campaign-defense",
     "created_at": "2026-05-20T18:57:35+00:00",
-    "updated_at": "2026-05-20T19:53:36+00:00",
-    "status": "active",
+    "updated_at": "2026-05-27T19:59:20+00:00",
+    "status": "complete",
     "model": "gpt-5.5",
     "reasoning_effort": "xhigh",
     "execution_environment": "worktree",
@@ -16,10 +16,10 @@
     "schedule_mode": "fast-chain",
     "fast_chain_delay_minutes": 2
   },
-  "phase": "final_review",
+  "phase": "complete",
   "cursor": {
-    "step_id": null,
-    "phase": "2",
+    "step_id": "",
+    "phase": null,
     "attempt": 0
   },
   "policy": {
@@ -85,14 +85,28 @@
     },
     {
       "id": "campaign-named-campaign-defense-20260520-2153-final-review",
-      "status": "ACTIVE",
+      "status": "PAUSED",
       "kind": "cron",
       "execution_environment": "worktree",
       "model": "gpt-5.5",
       "reasoning_effort": "xhigh",
       "created_at": "2026-05-20T19:52:00+00:00",
-      "expected_next": "final_review — Named-Campaign Defense and Tripwires"
+      "expected_next": "final_review — Named-Campaign Defense and Tripwires",
+      "updated_at": "2026-05-27T19:59:20+00:00"
     }
   ],
-  "blockers": []
+  "blockers": [],
+  "receipts": [],
+  "history": [
+    {
+      "ts": "2026-05-27T19:58:51+00:00",
+      "event": "final_review_complete",
+      "verdict": "APPROVED",
+      "reasons": [
+        "verification-clean",
+        "offline-scope"
+      ],
+      "review_path": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/campaign-automation/named-campaign-defense/final-review.md"
+    }
+  ]
 }

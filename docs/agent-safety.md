@@ -103,6 +103,12 @@ or case/raw-finding state outside a first-class audited product path.
 **Examples:** delete a case, mark `accepted_risk` through direct SQLite, rewrite
 raw-finding history, backfill scan records, or remove local report evidence.
 
+**First-class exception:** the AI follow-up JSON import path and explicit
+`devsec-mcp-rw` case-resolution tools are allowed because they validate the
+`devsec.case_resolutions.v1` schema, store an audit run, and apply only
+supported case decisions. They cannot delete raw findings, delete scan history,
+rotate credentials, or close `needs_review` cases.
+
 **Default behavior:** Refuse by default. Explain the specific change and the
 risk. Offer the safer dashboard or CLI path if one exists. Continue only after
 an explicit confirmation phrase.

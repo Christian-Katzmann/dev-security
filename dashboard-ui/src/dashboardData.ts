@@ -499,6 +499,7 @@ export type RepositorySummary = {
   dependency_trust?: DependencyTrustRecord[];
   platform_posture?: PlatformPostureSnapshot | null;
   rotation_state?: RotationStateSignal | null;
+  case_resolution_runs?: CaseResolutionRun[];
 };
 
 // Rotation status vocabulary — mirrors security_observatory/rotation.py.
@@ -854,6 +855,77 @@ export type AttentionBucket = 'fix-now' | 'verify' | 'watch' | 'info';
 export type CaseDecisionStatus = 'verified' | 'false_positive' | 'accepted_risk' | 'fixed';
 export type CaseChangeStatus = 'new' | 'recurring' | 'resolved';
 export type VexStatus = 'affected' | 'not_affected' | 'fixed' | 'under_investigation';
+export type AiFollowUpActionId = 'verify_findings' | 'fix_vulnerabilities' | 'create_remediation_plan' | 'explain_risk' | 'recheck_after_fixes';
+export type AiFollowUpScopeId = 'critical' | 'critical_high' | 'all_open' | 'selected_cases' | 'new_since_last_scan';
+export type AiDisposition = 'confirmed_real' | 'false_positive' | 'docs_example' | 'accepted_risk' | 'already_fixed' | 'fixed_by_agent' | 'needs_review';
+
+export type AiFollowUpPromptResponse = {
+  repo: string;
+  repo_path?: string | null;
+  scan_id?: string | null;
+  action: AiFollowUpActionId;
+  scope: AiFollowUpScopeId;
+  case_count: number;
+  preview: string;
+  prompt: string;
+  case_ids?: string[];
+};
+
+export type CaseResolutionPreviewItem = {
+  id: string;
+  case_id: string;
+  display_id?: string;
+  repo_name?: string | null;
+  scan_id?: string | null;
+  ai_disposition?: AiDisposition | string;
+  disposition: AiDisposition | string;
+  mapped_decision?: CaseDecisionStatus | null;
+  confidence: 'high' | 'medium' | 'low' | string;
+  reason: string;
+  evidence?: unknown[];
+  recommended_next_step?: string | null;
+  status: 'pending' | 'applied' | 'left_open' | 'rejected';
+  warning?: string | null;
+  created_at?: string;
+};
+
+export type CaseResolutionRun = {
+  id: string;
+  run_id: string;
+  repo: string;
+  repo_name: string;
+  scan_id?: string | null;
+  action: AiFollowUpActionId | string;
+  scope: AiFollowUpScopeId | string;
+  source: string;
+  imported_at: string;
+  applied_at?: string | null;
+  status: 'previewed' | 'applied' | 'partially_applied' | 'rejected' | string;
+  summary: {
+    total?: number;
+    will_apply?: number;
+    will_leave_open?: number;
+    rejected?: number;
+    warnings?: string[];
+    dispositions?: Record<string, number>;
+    statuses?: Record<string, number>;
+  };
+  items: CaseResolutionPreviewItem[];
+  valid?: boolean;
+};
+
+export type CaseResolutionPreviewResponse = CaseResolutionRun & {
+  valid: boolean;
+};
+
+export type CaseResolutionApplyResponse = {
+  run_id: string;
+  applied: number;
+  left_open: number;
+  rejected: number;
+  case_ids: string[];
+  warnings: string[];
+};
 
 export type CaseDelta = {
   new: number;
@@ -1165,6 +1237,7 @@ export type DashboardSummary = {
   scan_profiles?: ScanProfileCatalogItem[];
   managed_tools?: unknown[];
   agent_lab_proposals?: AgentLabProposal[];
+  case_resolution_runs?: CaseResolutionRun[];
   completeness?: {
     checks_ran?: string[];
     checks_skipped?: string[];
@@ -1895,7 +1968,7 @@ function latestScannerStatuses(summary: DashboardSummary): Map<string, {repoName
   for (const repo of summary.repos) {
     for (const status of repo.scanners) {
       const list = records.get(status.scanner) ?? [];
-      list.push({repoName: repo.repo, lastScan: repo.last_scan, status});
+      list.push({repoName: repositoryDisplayName(repo), lastScan: repo.last_scan, status});
       records.set(status.scanner, list);
     }
   }
@@ -2118,6 +2191,21 @@ export function repoKeyFromPath(path: string): string {
   return name.trim().replace(/[^A-Za-z0-9_.-]+/g, '-').replace(/^-+|-+$/g, '') || 'repo';
 }
 
+export function repositoryDisplayName(repo: Pick<RepositorySummary, 'repo' | 'path'>): string {
+  return repo.path.split('/').filter(Boolean).at(-1)?.trim() || repo.repo;
+}
+
+export function repoDisplayName(summary: DashboardSummary, repoKey: string): string {
+  const normalizedKey = repoKeyFromPath(repoKey);
+  const match = summary.repos.find((repo) => (
+    repo.repo === repoKey ||
+    repo.repo === normalizedKey ||
+    repo.path === repoKey ||
+    repoKeyFromPath(repo.path) === normalizedKey
+  ));
+  return match ? repositoryDisplayName(match) : repoKey;
+}
+
 export function targetValue(target: TargetSelection): string {
   return target.mode === 'all-repos' ? 'all-repos' : `repo:${target.repo.path}`;
 }
@@ -2217,6 +2305,7 @@ export function filterSummaryByTarget(summary: DashboardSummary, target: TargetS
       const proposalRepoPath = String(proposal.repo_path ?? '');
       return repoNames.has(proposalRepoName) || proposalRepoPath === target.repo.path || repoKeyFromPath(proposalRepoPath) === repoKey;
     }),
+    case_resolution_runs: summary.case_resolution_runs?.filter((run) => repoNames.has(run.repo_name) || repoNames.has(run.repo)),
     recovery_playbooks: summary.recovery_playbooks?.filter((playbook) => playbook.items.some((item) => repoNames.has(item.repo))),
     completeness: summary.completeness,
     scan_completeness: summary.scan_completeness,

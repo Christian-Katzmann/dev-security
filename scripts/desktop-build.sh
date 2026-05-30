@@ -113,11 +113,28 @@ fi
 PLIST_TEMPLATE="$SCRIPT_DIR/info-plist-template.xml"
 WRAPPER_SRC="$SCRIPT_DIR/wrapper.swift"
 WRAPPER_BUILD="$ROOT/assets/icons/build/wrapper"
+RUN_SHIM_SRC="$SCRIPT_DIR/run-shim.c"
+RUN_SHIM_BUILD="$ROOT/assets/icons/build/run-shim"
 
 if [ "$LAUNCHER_MODE" = "swift" ]; then
     RUN_TEMPLATE_SINGLE="$SCRIPT_DIR/run-template.sh"
 else
     RUN_TEMPLATE_SINGLE="$SCRIPT_DIR/run-template-chrome.sh"
+fi
+
+# LaunchServices is more reliable with a Mach-O CFBundleExecutable than a
+# shell script entrypoint. The shim execs Contents/MacOS/run.sh, which keeps
+# the template launcher readable while giving macOS a native executable to run.
+if [ ! -f "$RUN_SHIM_SRC" ]; then
+    echo "Missing run shim source: $RUN_SHIM_SRC" >&2
+    exit 1
+fi
+if [ ! -x "$RUN_SHIM_BUILD" ] || [ "$RUN_SHIM_SRC" -nt "$RUN_SHIM_BUILD" ]; then
+    mkdir -p "$(dirname "$RUN_SHIM_BUILD")"
+    if ! clang -O2 -arch arm64 -arch x86_64 "$RUN_SHIM_SRC" -o "$RUN_SHIM_BUILD" 2>/dev/null; then
+        echo "Universal run shim build failed — building for host arch only." >&2
+        clang -O2 "$RUN_SHIM_SRC" -o "$RUN_SHIM_BUILD"
+    fi
 fi
 RUN_TEMPLATE_MULTI="$SCRIPT_DIR/run-template-multiserver.sh"
 
@@ -233,7 +250,7 @@ for entry in "${APPS[@]}"; do
             "__BACKEND_PORT__=$BACKEND_PORT" \
             "__BACKEND_START_COMMAND__=$BACKEND_START_COMMAND" \
             "__POLYFILL_PATH__=$POLYFILL_PATH" \
-            > "$MACOS/run"
+            > "$MACOS/run.sh"
     else
         substitute "$SELECTED_RUN_TEMPLATE" \
             "__APP_NAME__=$APP_NAME" \
@@ -242,8 +259,10 @@ for entry in "${APPS[@]}"; do
             "__PORT__=$PORT" \
             "__START_COMMAND__=$START_COMMAND" \
             "__POLYFILL_PATH__=$POLYFILL_PATH" \
-            > "$MACOS/run"
+            > "$MACOS/run.sh"
     fi
+    chmod +x "$MACOS/run.sh"
+    cp "$RUN_SHIM_BUILD" "$MACOS/run"
     chmod +x "$MACOS/run"
 
     if [ "$LAUNCHER_MODE" = "swift" ]; then

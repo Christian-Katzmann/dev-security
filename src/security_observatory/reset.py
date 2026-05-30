@@ -22,6 +22,18 @@ from .rotation import history_file_path, receipts_dir, state_file_path
 from .storage import ObservatoryDB
 
 
+SCAN_RESULT_TABLES = [
+    "findings",
+    "sbom_components",
+    "dependency_manifest_entries",
+    "dependency_trust_enrichments",
+    "platform_posture_snapshots",
+    "case_decisions",
+    "agent_lab_proposals",
+    "scans",
+]
+
+
 def reset_confirmation_phrase(repo: str) -> str:
     return f"Yes, wipe `{repo}` and accept that this is irreversible."
 
@@ -31,6 +43,124 @@ def list_known_repos(db: ObservatoryDB) -> list[str]:
         "SELECT DISTINCT repo_name FROM scans ORDER BY repo_name"
     ).fetchall()
     return [row["repo_name"] for row in rows]
+
+
+def list_scan_result_repos(db: ObservatoryDB) -> list[str]:
+    repos: set[str] = set()
+    for table in SCAN_RESULT_TABLES:
+        try:
+            rows = db.conn.execute(f"SELECT DISTINCT repo_name FROM {table}").fetchall()
+        except sqlite3.OperationalError:
+            continue
+        repos.update(str(row["repo_name"]) for row in rows if row["repo_name"])
+    return sorted(repos)
+
+
+def reset_scan_results_confirmation_phrase(scope: str, repo: str | None = None) -> str:
+    if scope == "repo" and repo:
+        return f"RESET SCAN RESULTS FOR {repo}"
+    return "RESET ALL LOCAL SCAN RESULTS"
+
+
+def plan_scan_results_reset(
+    db: ObservatoryDB,
+    home: Path,
+    *,
+    repos: list[str] | None = None,
+) -> dict[str, Any]:
+    target_repos = sorted(set(repos or list_scan_result_repos(db)))
+    plan: dict[str, Any] = {
+        "scope": "repo" if len(target_repos) == 1 else "all",
+        "repos": target_repos,
+        "tables": [],
+        "files": [],
+        "preserved": [
+            "scanned repositories",
+            "Honey Keys and Honey Key events",
+            "managed tools and install records",
+            "tool credentials and setup config",
+            "DëvSec app settings",
+        ],
+    }
+    if not target_repos:
+        return plan
+
+    for table in SCAN_RESULT_TABLES:
+        try:
+            count = _count_repo_rows(db, table, target_repos)
+        except sqlite3.OperationalError:
+            count = 0
+        if count > 0:
+            plan["tables"].append({"table": table, "rows": count})
+
+    reports_root = home / "reports"
+    for repo in target_repos:
+        report_dir = reports_root / repo
+        if report_dir.exists():
+            plan["files"].append(str(_safe_report_dir(reports_root, repo)))
+    return plan
+
+
+def backup_scan_results(
+    db: ObservatoryDB,
+    home: Path,
+    backup_dir: Path,
+    *,
+    repos: list[str] | None = None,
+) -> dict[str, str]:
+    target_repos = sorted(set(repos or list_scan_result_repos(db)))
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    label = _backup_label(target_repos[0]) if len(target_repos) == 1 else "all-scan-results"
+    result: dict[str, str] = {}
+
+    dump_path = backup_dir / f"{label}-{ts}.scan-results.json"
+    _write_scan_results_dump(db, target_repos, dump_path)
+    result["scan_results_json"] = str(dump_path)
+
+    reports_root = home / "reports"
+    report_dirs = [
+        _safe_report_dir(reports_root, repo)
+        for repo in target_repos
+        if (reports_root / repo).exists()
+    ]
+    if report_dirs:
+        tar_path = backup_dir / f"{label}-{ts}-reports.tar.gz"
+        with tarfile.open(tar_path, "w:gz") as tar:
+            for report_dir in report_dirs:
+                tar.add(report_dir, arcname=str(report_dir.relative_to(reports_root)))
+        result["reports_tarball"] = str(tar_path)
+
+    return result
+
+
+def execute_scan_results_reset(
+    db: ObservatoryDB,
+    home: Path,
+    *,
+    repos: list[str] | None = None,
+) -> dict[str, Any]:
+    target_repos = sorted(set(repos or list_scan_result_repos(db)))
+    deleted: dict[str, Any] = {"repos": target_repos, "tables": {}, "files": []}
+    if not target_repos:
+        return deleted
+
+    with db.conn:
+        for table in SCAN_RESULT_TABLES:
+            cursor = _delete_repo_rows(db, table, target_repos)
+            if cursor.rowcount:
+                deleted["tables"][table] = cursor.rowcount
+
+    reports_root = home / "reports"
+    for repo in target_repos:
+        report_dir = reports_root / repo
+        if not report_dir.exists():
+            continue
+        safe_dir = _safe_report_dir(reports_root, repo)
+        shutil.rmtree(safe_dir)
+        deleted["files"].append(str(safe_dir))
+
+    return deleted
 
 
 def plan_reset(
@@ -318,3 +448,54 @@ def _write_sqldump(db: ObservatoryDB, repo: str, dump_path: Path) -> None:
         dump["security_project_status"] = []
 
     dump_path.write_text(json.dumps(dump, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _repo_placeholders(repos: list[str]) -> str:
+    return ",".join("?" for _ in repos)
+
+
+def _backup_label(repo: str) -> str:
+    clean = "".join(char if char.isalnum() or char in ("-", "_", ".") else "-" for char in repo)
+    return clean.strip("-") or "repo"
+
+
+def _count_repo_rows(db: ObservatoryDB, table: str, repos: list[str]) -> int:
+    row = db.conn.execute(
+        f"SELECT COUNT(*) as cnt FROM {table} WHERE repo_name IN ({_repo_placeholders(repos)})",
+        tuple(repos),
+    ).fetchone()
+    return int(row["cnt"] if row else 0)
+
+
+def _delete_repo_rows(db: ObservatoryDB, table: str, repos: list[str]) -> sqlite3.Cursor:
+    return db.conn.execute(
+        f"DELETE FROM {table} WHERE repo_name IN ({_repo_placeholders(repos)})",
+        tuple(repos),
+    )
+
+
+def _write_scan_results_dump(db: ObservatoryDB, repos: list[str], dump_path: Path) -> None:
+    dump: dict[str, list[dict[str, Any]]] = {}
+    if not repos:
+        for table in SCAN_RESULT_TABLES:
+            dump[table] = []
+        dump_path.write_text(json.dumps(dump, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return
+    for table in SCAN_RESULT_TABLES:
+        try:
+            rows = db.conn.execute(
+                f"SELECT * FROM {table} WHERE repo_name IN ({_repo_placeholders(repos)})",
+                tuple(repos),
+            ).fetchall()
+            dump[table] = [dict(row) for row in rows]
+        except sqlite3.OperationalError:
+            dump[table] = []
+    dump_path.write_text(json.dumps(dump, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _safe_report_dir(reports_root: Path, repo: str) -> Path:
+    root = reports_root.resolve()
+    target = (reports_root / repo).resolve()
+    if target == root or root not in target.parents:
+        raise ValueError("Refusing to delete a report path outside the DëvSec reports directory.")
+    return target

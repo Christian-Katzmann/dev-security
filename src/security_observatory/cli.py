@@ -11,6 +11,7 @@ import sys
 
 from . import __version__
 from .behavioral import select_behavioral_drift_targets
+from .case_followup import apply_case_resolutions, build_case_followup_prompt, validate_case_resolutions
 from .cases import build_security_cases, scanner_evidence_gaps
 from .credentials import (
     CredentialStorageError,
@@ -81,6 +82,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo", help="Repository name for local VEX import/export decisions.")
     parser.add_argument("--input", "-i", help="Input JSON path for vex-import.")
     parser.add_argument("--output", "-o", help="Output JSON path for vex-export.")
+    parser.add_argument("--action", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--scope", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--case-id", dest="case_ids", action="append", default=[], help=argparse.SUPPRESS)
+    parser.add_argument("--preview", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--apply", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     # Reset-only flags. Hidden from --help so they don't clutter the scan
     # surface; reset_command surfaces them via its own usage line.
@@ -114,6 +120,8 @@ def main(argv: list[str] | None = None) -> int:
         return vex_export(args, home)
     if args.target == "vex-import":
         return vex_import(args, home)
+    if args.target == "cases":
+        return cases_command(args, home)
     if args.target == "credentials":
         return credentials_command(args)
     if args.target == "reset":
@@ -586,6 +594,129 @@ def vex_import(args: argparse.Namespace, home: Path) -> int:
 
     print(f"Imported {summary['imported']} VEX decision{'s' if summary['imported'] != 1 else ''}; skipped {summary['skipped']}.")
     warnings = summary.get("warnings") or []
+    if warnings:
+        print("Notes:")
+        for warning in warnings:
+            print(f"- {warning}")
+    return 0
+
+
+def cases_command(args: argparse.Namespace, home: Path) -> int:
+    subcommand = (args.ioc_target or "").strip()
+    if subcommand == "prompt":
+        return cases_prompt(args, home)
+    if subcommand == "import-resolutions":
+        return cases_import_resolutions(args, home)
+    print(
+        "Usage:\n"
+        "  security-scan cases prompt --repo <repo> --action verify_findings --scope critical\n"
+        "  security-scan cases import-resolutions --repo <repo> --input resolutions.json --preview\n"
+        "  security-scan cases import-resolutions --repo <repo> --input resolutions.json --apply",
+        file=sys.stderr,
+    )
+    return 2
+
+
+def cases_prompt(args: argparse.Namespace, home: Path) -> int:
+    if not args.repo:
+        print("Use --repo to choose a repository with scan history.", file=sys.stderr)
+        return 2
+    db = ObservatoryDB(home / "db" / "observatory.sqlite")
+    try:
+        try:
+            prompt = build_case_followup_prompt(
+                db,
+                repo_name=args.repo,
+                action=args.action or "verify_findings",
+                scope=args.scope or "critical",
+                case_ids=list(args.case_ids or []),
+            )
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+    finally:
+        db.close()
+
+    if args.json:
+        print(json.dumps(prompt, indent=2, sort_keys=True))
+        return 0
+    if args.output:
+        output_path = Path(args.output).expanduser()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(str(prompt["prompt"]) + "\n", encoding="utf-8")
+        print(f"Wrote AI follow-up prompt for {prompt['case_count']} case{'s' if prompt['case_count'] != 1 else ''} to {output_path}.")
+        return 0
+    print(str(prompt["prompt"]), end="")
+    return 0
+
+
+def cases_import_resolutions(args: argparse.Namespace, home: Path) -> int:
+    if not args.repo:
+        print("Use --repo to choose a repository with scan history.", file=sys.stderr)
+        return 2
+    if not args.input:
+        print("Use --input to choose the AI resolution JSON file.", file=sys.stderr)
+        return 2
+    if args.preview and args.apply:
+        print("Use either --preview or --apply, not both.", file=sys.stderr)
+        return 2
+    input_path = Path(args.input).expanduser()
+    try:
+        payload = json.loads(input_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        print(f"Resolution input not found: {input_path}", file=sys.stderr)
+        return 2
+    except json.JSONDecodeError as exc:
+        print(f"Resolution input is not valid JSON: {exc}", file=sys.stderr)
+        return 2
+    if not isinstance(payload, dict):
+        print("Resolution input must be a JSON object.", file=sys.stderr)
+        return 2
+
+    db = ObservatoryDB(home / "db" / "observatory.sqlite")
+    try:
+        try:
+            if args.apply:
+                result = apply_case_resolutions(
+                    db,
+                    payload,
+                    expected_repo=args.repo,
+                    expected_scope=args.scope,
+                    expected_case_ids=list(args.case_ids or []),
+                    source="cli",
+                )
+            else:
+                result = validate_case_resolutions(
+                    db,
+                    payload,
+                    expected_repo=args.repo,
+                    expected_scope=args.scope,
+                    expected_case_ids=list(args.case_ids or []),
+                    source="cli",
+                    persist=True,
+                )
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+    finally:
+        db.close()
+
+    if args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+    if args.apply:
+        print(
+            f"Applied {result['applied']} case resolution{'s' if result['applied'] != 1 else ''}; "
+            f"left open {result['left_open']}; rejected {result['rejected']}."
+        )
+        warnings = result.get("warnings") or []
+    else:
+        summary = result.get("summary", {})
+        print(
+            f"Previewed {summary.get('total', 0)} case resolution{'s' if summary.get('total', 0) != 1 else ''}; "
+            f"will apply {summary.get('will_apply', 0)}, leave open {summary.get('will_leave_open', 0)}, reject {summary.get('rejected', 0)}."
+        )
+        warnings = summary.get("warnings") or []
     if warnings:
         print("Notes:")
         for warning in warnings:

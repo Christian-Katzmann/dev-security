@@ -1,20 +1,31 @@
 # DëvSec MCP adapter
 
-A read-only [Model Context Protocol](https://modelcontextprotocol.io) server
-that lets local agents (Claude Desktop, Cursor, Codex, any MCP-capable client)
-ask focused questions about the scan history sitting in your local
-`~/.security-observatory/` database. Stdio-only, no network listener, no write
-tools, no telemetry. The same posture as the rest of DëvSec.
+The default [Model Context Protocol](https://modelcontextprotocol.io) server
+lets local agents (Claude Desktop, Cursor, Codex, any MCP-capable client) ask
+focused questions about the scan history sitting in your local
+`~/.security-observatory/` database. `devsec-mcp` is stdio-only, read-only, has
+no network listener, no write tools, and no telemetry.
+
+When you explicitly want AI case-resolution write-back, use the separate
+`devsec-mcp-rw` command. It keeps the same stdio-only transport and adds only
+the guarded AI follow-up prompt, preview, and apply tools.
 
 ## What it exposes — and what it doesn't
 
 Eleven read-only tools wrap existing query methods on `ObservatoryDB`, direct
 scan-history reads, the case-builder vocabulary in `cases.py`, and the on-disk
 state files written by the [secrets-rotation](../../.claude/skills/secrets-rotation/)
-skill (for repos where it's been scaffolded). The adapter does not mutate
-state, does not trigger rotations, and does not open a network port. See
-[../docs/threat-model.md](../docs/threat-model.md) for the project's overall
-attack-surface posture; the adapter inherits it.
+skill (for repos where it's been scaffolded). The default adapter does not
+mutate state, does not trigger rotations, and does not open a network port.
+
+The write-enabled adapter adds three case-resolution tools only:
+`case_followup_prompt`, `preview_case_resolutions`, and
+`apply_case_resolutions`. They use the same `devsec.case_resolutions.v1`
+validation and audited case-decision path as the dashboard and CLI import
+workflow.
+
+See [../docs/threat-model.md](../docs/threat-model.md) for the project's
+overall attack-surface posture; the adapter inherits it.
 
 ## Install
 
@@ -23,7 +34,8 @@ uv sync --extra mcp
 ```
 
 This pulls in the official `mcp` Python SDK (FastMCP) and registers the
-`devsec-mcp` script entry point in the local uv-managed venv.
+`devsec-mcp` and `devsec-mcp-rw` script entry points in the local uv-managed
+venv.
 
 Verify it starts:
 
@@ -36,6 +48,16 @@ printf '%s\n' \
 ```
 
 The `tools/list` response should list eleven tools.
+
+To verify the explicit write mode, change the last line to:
+
+```bash
+  | uv run devsec-mcp-rw
+```
+
+That `tools/list` response should list the same eleven read-only tools plus
+`case_followup_prompt`, `preview_case_resolutions`, and
+`apply_case_resolutions`.
 
 The JSON-RPC `initialize` response also advertises DëvSec's compact agent
 voice doctrine in the MCP `instructions` field. The full doctrine lives in
@@ -72,6 +94,10 @@ Same shape as the Claude Desktop config — most clients accept the
 Codex, add the server to your `~/.codex/config.json` `mcp_servers` section.
 The launch command is identical: `uv --directory <repo> run devsec-mcp`.
 
+For guarded AI case-resolution write-back, use the same config shape but launch
+`devsec-mcp-rw` instead of `devsec-mcp`. Do that only for an MCP client you
+intend to let preview and apply DëvSec case decisions.
+
 ## The eleven tools
 
 | Tool | What it returns |
@@ -94,9 +120,13 @@ the local machine via this surface.
 
 ## Hard limits — deliberate, not yet-to-do
 
-- **Read-only.** No `mark_resolved`, `add_note`, `delete_*`, or any tool that
-  mutates state. The store is your source of truth; the adapter does not
-  touch it.
+- **Read-only by default.** `devsec-mcp` has no `mark_resolved`, `add_note`,
+  `delete_*`, or other state-mutating tools. The store is your source of truth;
+  the default adapter does not touch it.
+- **Write mode is case-only.** `devsec-mcp-rw` can build AI follow-up prompts,
+  preview `devsec.case_resolutions.v1` JSON, and apply validated case decisions.
+  It cannot delete raw findings, delete scans, execute SQL, rotate credentials,
+  install tools, run scanners, or write repository files.
 - **Local-only.** Stdio transport only. No `--http`, no `--sse`, no port
   listening. The consumer is a parent process (your MCP client), not the
   network.
@@ -106,13 +136,25 @@ the local machine via this surface.
 - **No telemetry.** No analytics, no "phone home." This is a local-first
   project; the MCP adapter is local-only too.
 
-## Why no write tools yet
+## Guarded write mode
 
-Writes in a security tool need explicit thinking about agent safety. An agent
-that can mark raw findings as resolved, dismiss cases, or rotate Honey Keys is an
-agent that can also accidentally erase evidence or close incidents that
-shouldn't be closed. We chose to ship the read surface first, get it in use,
-and design the write surface separately — with confirmation, audit, and
-scope-limited tools. No dates promised; the read surface is useful on its
-own, and writes are deferred until they can be shipped with the same care as
-the rest of the project.
+Writes in a security tool need a tight boundary. `devsec-mcp-rw` is intentionally
+separate from the default server so a local agent only gets write access when
+the operator opts into it.
+
+The write flow is:
+
+```text
+case_followup_prompt -> AI inspects repo -> preview_case_resolutions -> apply_case_resolutions
+```
+
+`preview_case_resolutions(payload)` validates and stores an audit run without
+changing case state. `apply_case_resolutions(run_id)` applies a reviewed preview
+through the same case-decision code path as the dashboard. You may also pass a
+fresh `payload` to `apply_case_resolutions`, which validates and applies in one
+call.
+
+Supported decisions are limited to the AI follow-up mapping: confirmed real
+becomes `verified`, false positives and documentation examples become
+`false_positive`, accepted risks become `accepted_risk`, and verified fixes
+become `fixed`. `needs_review` stays open.

@@ -10,9 +10,13 @@ import pytest
 
 from security_observatory.reset import (
     backup_repo_state,
+    backup_scan_results,
     execute_reset,
+    execute_scan_results_reset,
     list_known_repos,
+    plan_scan_results_reset,
     plan_reset,
+    reset_scan_results_confirmation_phrase,
     reset_confirmation_phrase,
 )
 from security_observatory.storage import ObservatoryDB
@@ -260,3 +264,85 @@ def test_execute_reset_idempotent(seeded_db: ObservatoryDB, observatory_home: Pa
     result = execute_reset(seeded_db, "test-repo", observatory_home)
     assert result["tables"] == {}
     assert result["files"] == []
+
+
+def test_scan_results_reset_preserves_repo_files_and_honey_keys(
+    seeded_db: ObservatoryDB,
+    observatory_home: Path,
+    tmp_path: Path,
+):
+    repo_path = tmp_path / "test-repo"
+    repo_path.mkdir()
+    source_file = repo_path / "app.py"
+    source_file.write_text("print('safe')\n", encoding="utf-8")
+    with seeded_db.conn:
+        seeded_db.conn.execute(
+            """INSERT INTO honey_keys
+               (id, project_id, repo_id, name, token_prefix, token_hash, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            ("hk-1", "test-repo", "test-repo", "Decoy", "devsec_", "hash", "active", "2026-01-01T00:00:00Z"),
+        )
+
+    backup_dir = observatory_home / "backups" / "scan-result-reset"
+    backups = backup_scan_results(seeded_db, observatory_home, backup_dir, repos=["test-repo"])
+    result = execute_scan_results_reset(seeded_db, observatory_home, repos=["test-repo"])
+
+    assert source_file.read_text(encoding="utf-8") == "print('safe')\n"
+    assert result["tables"]["scans"] == 1
+    assert result["tables"]["findings"] == 1
+    assert "honey_keys" not in result["tables"]
+    assert Path(backups["scan_results_json"]).exists()
+    assert seeded_db.conn.execute("SELECT COUNT(*) as cnt FROM scans WHERE repo_name = ?", ("test-repo",)).fetchone()["cnt"] == 0
+    assert seeded_db.conn.execute("SELECT COUNT(*) as cnt FROM honey_keys WHERE repo_id = ?", ("test-repo",)).fetchone()["cnt"] == 1
+
+
+def test_scan_results_backup_sanitizes_repo_name(seeded_db: ObservatoryDB, observatory_home: Path):
+    with seeded_db.conn:
+        seeded_db.conn.execute(
+            """UPDATE scans SET repo_name = ? WHERE repo_name = ?""",
+            ("owner/test-repo", "test-repo"),
+        )
+        seeded_db.conn.execute(
+            """UPDATE findings SET repo_name = ? WHERE repo_name = ?""",
+            ("owner/test-repo", "test-repo"),
+        )
+
+    backups = backup_scan_results(
+        seeded_db,
+        observatory_home,
+        observatory_home / "backups" / "scan-result-reset",
+        repos=["owner/test-repo"],
+    )
+
+    assert Path(backups["scan_results_json"]).exists()
+    assert "owner-test-repo" in Path(backups["scan_results_json"]).name
+
+
+def test_scan_results_plan_rejects_report_path_escape(seeded_db: ObservatoryDB, observatory_home: Path):
+    with seeded_db.conn:
+        seeded_db.conn.execute(
+            """INSERT INTO scans (id, repo_name, repo_path, started_at, finished_at,
+               profile, health_score, status, scanner_status_json, cases_json, report_path)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                "escape-20260101",
+                "../db",
+                "/tmp/escape",
+                "2026-01-01T00:00:00Z",
+                "2026-01-01T00:01:00Z",
+                "quick",
+                100,
+                "ok",
+                "[]",
+                "[]",
+                str(observatory_home / "db" / "normalized-report.json"),
+            ),
+        )
+
+    with pytest.raises(ValueError, match="outside"):
+        plan_scan_results_reset(seeded_db, observatory_home, repos=["../db"])
+
+
+def test_scan_results_confirmation_phrase():
+    assert reset_scan_results_confirmation_phrase("all") == "RESET ALL LOCAL SCAN RESULTS"
+    assert reset_scan_results_confirmation_phrase("repo", "demo") == "RESET SCAN RESULTS FOR demo"

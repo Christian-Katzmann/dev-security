@@ -11,6 +11,32 @@ Use this order:
 
 Never suppress a secret raw finding until the credential has been rotated or proven fake.
 
+## AI-Assisted Case Resolution
+
+The dashboard's AI follow-up panel can generate a bounded prompt for open cases.
+Paste the prompt into the local AI agent you already trust, then import the
+agent's structured JSON result back into DëvSec.
+
+The import contract is `devsec.case_resolutions.v1`. Imported decisions are
+stored in an audit trail before they are applied, so unclear cases and rejected
+items are still inspectable later.
+
+AI disposition mapping:
+
+| AI disposition | Stored decision | Open count behavior |
+| --- | --- | --- |
+| `confirmed_real` | `verified` | Stays open. |
+| `false_positive` | `false_positive` | Suppresses the exact case. |
+| `docs_example` | `false_positive` | Suppresses the exact case because the risky pattern is intentionally shown as documentation/example evidence, not live project behavior. |
+| `accepted_risk` | `accepted_risk` | Suppresses the exact case. |
+| `already_fixed` | `fixed` | Reappears if the latest scan still finds the same case. |
+| `fixed_by_agent` | `fixed` | Requires verification evidence; reappears if the latest scan still finds the same case. |
+| `needs_review` | none | Stays open. |
+
+Secret cases have a stricter rule: an AI result cannot close a secret as a false
+positive unless the reason explains why the value is synthetic, test-only,
+revoked, or otherwise non-sensitive.
+
 Dependency decisions may also carry a VEX-style status:
 
 - `affected` for confirmed or accepted dependency risk.

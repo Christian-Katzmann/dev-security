@@ -235,7 +235,9 @@ def test_cases_are_persisted_and_exported(tmp_path):
     assert scan is not None
     assert scan["cases"][0]["action_level"] == "fix_now"
     assert scan["cases"][0]["decision"]["note"] == "Synthetic fixture value."
-    assert summary["repos"][0]["case_counts"]["action_level"]["fix_now"] == 1
+    assert summary["repos"][0]["case_counts"]["action_level"].get("fix_now", 0) == 0
+    assert summary["active_cases"] == []
+    assert summary["suppressed_cases"][0]["case_id"] == cases[0].case_id
     assert summary["cases"][0]["title"] == scan["cases"][0]["title"]
     assert summary["cases"][0]["decision"]["status"] == "false_positive"
     assert summary["case_decisions"][0]["case_id"] == cases[0].case_id

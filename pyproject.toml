@@ -11,6 +11,7 @@ mcp = ["mcp>=1.0"]
 [project.scripts]
 security-scan = "security_observatory.cli:main"
 devsec-mcp = "security_observatory.mcp_server:main"
+devsec-mcp-rw = "security_observatory.mcp_server:main_rw"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
@@ -18,7 +19,7 @@ testpaths = ["tests"]
 
 [tool.uv]
 # Install the package itself into the uv-managed venv so the `security-scan`
-# and `devsec-mcp` script entry points work via `uv run <name>`.
+# and MCP script entry points work via `uv run <name>`.
 package = true
 
 [tool.hatch.build.targets.wheel]
