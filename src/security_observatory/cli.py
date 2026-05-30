@@ -87,6 +87,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--case-id", dest="case_ids", action="append", default=[], help=argparse.SUPPRESS)
     parser.add_argument("--preview", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--apply", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--confirm-suppression", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     # Reset-only flags. Hidden from --help so they don't clutter the scan
     # surface; reset_command surfaces them via its own usage line.
@@ -684,6 +685,10 @@ def cases_import_resolutions(args: argparse.Namespace, home: Path) -> int:
                     expected_scope=args.scope,
                     expected_case_ids=list(args.case_ids or []),
                     source="cli",
+                    # The CLI apply path is scriptable/unattended, so it is treated
+                    # like the automated path: high/critical suppressions are held
+                    # for confirmation unless the operator explicitly opts in.
+                    human_authorized=bool(getattr(args, "confirm_suppression", False)),
                 )
             else:
                 result = validate_case_resolutions(
@@ -705,16 +710,24 @@ def cases_import_resolutions(args: argparse.Namespace, home: Path) -> int:
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
     if args.apply:
+        needs_confirmation = int(result.get("requires_confirmation", 0))
         print(
             f"Applied {result['applied']} case resolution{'s' if result['applied'] != 1 else ''}; "
-            f"left open {result['left_open']}; rejected {result['rejected']}."
+            f"left open {result['left_open']}; rejected {result['rejected']}; "
+            f"awaiting human confirmation {needs_confirmation}."
         )
+        if needs_confirmation:
+            print(
+                "High/critical suppressions are held for a human. Confirm them in the "
+                "dashboard, or re-run with --confirm-suppression to authorize this batch."
+            )
         warnings = result.get("warnings") or []
     else:
         summary = result.get("summary", {})
         print(
             f"Previewed {summary.get('total', 0)} case resolution{'s' if summary.get('total', 0) != 1 else ''}; "
-            f"will apply {summary.get('will_apply', 0)}, leave open {summary.get('will_leave_open', 0)}, reject {summary.get('rejected', 0)}."
+            f"will apply {summary.get('will_apply', 0)}, leave open {summary.get('will_leave_open', 0)}, "
+            f"reject {summary.get('rejected', 0)}, await confirmation {summary.get('requires_confirmation', 0)}."
         )
         warnings = summary.get("warnings") or []
     if warnings:

@@ -204,6 +204,7 @@ def test_write_tools_are_opt_in_only(tmp_path):
     read_only_names = {tool.name for tool in asyncio.run(read_only_server.list_tools())}
     rw_names = {tool.name for tool in asyncio.run(rw_server.list_tools())}
     write_tools = {
+        "trigger_scan",
         "case_followup_prompt",
         "preview_case_resolutions",
         "apply_case_resolutions",
@@ -522,6 +523,9 @@ def test_cases_status_filter_defaults_to_open(tmp_path):
             repo_name=REPO_NAME,
             status="accepted_risk",
             note="Test fixture: synthetic credential.",
+            # Critical secrets case: the severity gate requires explicit human
+            # authorization to suppress (a dashboard click in production).
+            human_authorized=True,
         )
         default_result = _cases(db, REPO_NAME, status=None)
         explicit_open = _cases(db, REPO_NAME, status="open")

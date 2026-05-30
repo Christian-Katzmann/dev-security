@@ -2911,6 +2911,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     package_url=str(payload.get("packageUrl") or payload.get("package_url") or "").strip() or None,
                     component_package_key=str(payload.get("componentPackageKey") or payload.get("component_package_key") or "").strip() or None,
                     fixed_version=str(payload.get("fixedVersion") or payload.get("fixed_version") or "").strip() or None,
+                    # A direct dashboard click on "false positive" / "accept risk"
+                    # is the human confirmation the severity gate asks for.
+                    human_authorized=True,
                 )
             finally:
                 db.close()

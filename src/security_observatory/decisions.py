@@ -9,6 +9,10 @@ from .model import redact_text
 
 CASE_DECISION_STATUSES = {"verified", "false_positive", "accepted_risk", "fixed"}
 SUPPRESSING_DECISION_STATUSES = {"false_positive", "accepted_risk"}
+# Suppressing a case at these severities hides a serious finding, so it can
+# never auto-apply through an automated/AI path — it requires explicit human
+# confirmation (see storage.set_case_decision and the case-resolution apply path).
+GATED_SUPPRESSION_SEVERITIES = {"high", "critical"}
 VEX_STATUSES = {"affected", "not_affected", "fixed", "under_investigation"}
 
 DEFAULT_VEX_STATUS_BY_DECISION = {

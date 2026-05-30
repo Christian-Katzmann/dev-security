@@ -116,16 +116,36 @@ def test_ai_followup_prompt_preview_apply_and_history(harness: dict[str, object]
     )
     assert status == HTTPStatus.OK
     assert preview["valid"] is True
-    assert preview["summary"]["will_apply"] == 1
+    # The case is critical, so suppressing it via the automated AI path is held
+    # for a human rather than counted as "will apply".
+    assert preview["summary"]["will_apply"] == 0
+    assert preview["summary"]["requires_confirmation"] == 1
 
     status, apply = _http_json(port, "/api/ai-follow-up/resolutions/apply", body={"runId": preview["run_id"]})
     assert status == HTTPStatus.OK
-    assert apply["applied"] == 1
+    assert apply["applied"] == 0
+    assert apply["requires_confirmation"] == 1
+    assert apply["requires_confirmation_case_ids"] == [case_id]
 
     status, runs = _http_json(port, f"/api/ai-follow-up/resolution-runs?repo={quote('repo')}")
     assert status == HTTPStatus.OK
-    assert runs["items"][0]["status"] == "applied"
+    assert runs["items"][0]["status"] == "requires_confirmation"
 
+    db = ObservatoryDB(Path(harness["db_path"]))
+    try:
+        # The critical finding was NOT hidden by the AI path — it stays open.
+        assert case_id not in db.case_decisions_map()
+    finally:
+        db.close()
+
+    # A human confirming the same decision with a direct dashboard click IS
+    # authorized, so the suppression now writes through.
+    status, decision = _http_json(
+        port,
+        "/api/case-decision",
+        body={"caseId": case_id, "repoName": "repo", "status": "false_positive", "note": "Confirmed: documentation example."},
+    )
+    assert status == HTTPStatus.OK
     db = ObservatoryDB(Path(harness["db_path"]))
     try:
         assert db.case_decisions_map()[case_id]["status"] == "false_positive"

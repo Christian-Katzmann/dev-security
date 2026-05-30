@@ -230,6 +230,7 @@ def test_same_package_cve_dependency_decision_suppresses_active_report_counts(tm
             repo_name="repo",
             status="false_positive",
             note="The vulnerable lodash path is not present in this app bundle.",
+            human_authorized=True,
         )
         _save_dependency_scan(db, tmp_path, "repo-20260102T000000Z", [second], second_cases)
         summary = db.dashboard_payload()
@@ -270,7 +271,9 @@ def test_dependency_suppression_requires_human_reason(tmp_path):
     try:
         _save_dependency_scan(db, tmp_path, "repo-20260101T000000Z", [finding], cases)
         try:
-            db.set_case_decision(case_id=cases[0].case_id, repo_name="repo", status="false_positive")
+            # human_authorized=True clears the severity gate so this exercises
+            # the separate dependency-justification guard.
+            db.set_case_decision(case_id=cases[0].case_id, repo_name="repo", status="false_positive", human_authorized=True)
         except ValueError as exc:
             error = str(exc)
         else:
@@ -307,6 +310,7 @@ def test_dependency_suppression_does_not_hide_unrelated_package_with_same_cve(tm
             repo_name="repo",
             status="false_positive",
             note="The vulnerable lodash path is not present in this app bundle.",
+            human_authorized=True,
         )
         _save_dependency_scan(db, tmp_path, "repo-20260102T000000Z", [express], express_cases)
         summary = db.dashboard_payload()

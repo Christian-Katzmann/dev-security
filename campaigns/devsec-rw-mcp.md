@@ -33,8 +33,8 @@ Each step has a fenced **prompt card** — copy it into a fresh agent session (C
 
 ### Phase 1 — Let the AI start scans
 
-- [ ] Step 1.1 — Grill + spec the scan-trigger and the severity gate
-- [ ] Step 1.2 — Add the guarded scan-trigger tool + confirm the human gate
+- [x] Step 1.1 — Grill + spec the scan-trigger and the severity gate
+- [x] Step 1.2 — Add the guarded scan-trigger tool + confirm the human gate
 
 ### Phase 2 — Hands-off code fixes
 

@@ -224,6 +224,7 @@ def test_cases_are_persisted_and_exported(tmp_path):
             repo_name="repo",
             status="false_positive",
             note="Synthetic fixture value.",
+            human_authorized=True,
         )
         scan = db.scan_export("repo-20260101T000000Z")
         summary = db.dashboard_payload()
