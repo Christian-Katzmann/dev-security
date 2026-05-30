@@ -4,6 +4,8 @@ A security tool has to be honest about its own threat model, because *"we ran a 
 
 For the system-shape view, see [design/diagrams/trust-boundary.md](../design/diagrams/trust-boundary.md). This document covers attack surface and mitigations.
 
+For the read+write MCP extension — the guarded scan-trigger, the high/critical suppression gate, and the auto-merge fix-class allowlist — see [rw-extend-spec.md](rw-extend-spec.md). That surface operates on attacker-influenceable finding text, so its decisions directly harden the prompt-injection gap named in [Known gaps](#known-gaps-the-load-bearing-section) below.
+
 ## Assets
 
 What DëvSec stores or touches that has value to an attacker:

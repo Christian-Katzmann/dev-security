@@ -76,14 +76,14 @@ Implement the scan-trigger as a new `devsec-mcp-rw` tool that wraps the existing
 ```text
 SCOPE: Add a guarded scan-trigger tool to the read+write MCP and ensure the high/critical suppression gate is enforced. Reuse the existing scan path and audited decision path; do not bypass either.
 REQUIRED READING:
-1. The Step 1.1 spec section (scan-trigger contract + severity-gate decision)
-2. src/security_observatory/mcp_server.py — where main_rw registers write tools (add the new tool here)
-3. src/security_observatory/scanners.py and src/security_observatory/cli.py — the scan entry the tool wraps
-4. src/security_observatory/case_followup.py — the apply path, to confirm/add the severity gate
+1. docs/rw-extend-spec.md (the Step 1.1 spec: scan-trigger contract + the two-layer severity gate)
+2. src/security_observatory/mcp_server.py — where main_rw registers write tools (add the new tool here). The tool name decided in 1.1 is `trigger_scan(repo, profile="quick")`.
+3. src/security_observatory/scanners.py and src/security_observatory/cli.py — the scan entry the tool wraps is `scan_repo(repo, args, home)` (cli.py), append-only via `save_scan`
+4. src/security_observatory/case_followup.py AND src/security_observatory/storage.py — the gate is enforced primarily in `set_case_decision` (storage.py), with the automated MCP path in `apply_case_resolutions` (case_followup.py) recording case severity and never asserting human authorization. 1.1 confirmed NO severity gate exists today — it must be added.
 ACCEPTANCE:
-- A new stdio write-mode tool triggers a scan/rescan of an allowlisted repo, with the 1.1 constraints (no scan parameters taken from finding text; rate-limited). It routes through the existing scan path, not a reimplementation.
+- A new stdio write-mode tool `trigger_scan` triggers a scan/rescan of an allowlisted repo (resolved from a repo NAME to its recorded path — never a raw path), with the 1.1 constraints: profile restricted to the `{quick, default}` enum, local-offline only (no --trust/--platform-posture/network drift), per-repo cooldown (~10 min). It routes through the existing `scan_repo` path, not a reimplementation.
 - The tool is registered only in main_rw (write mode), never on the HTTP/dashboard surface — a test confirms the read-only adapter and the dashboard don't expose it.
-- Suppressing a high/critical case does not auto-apply: it returns the "requires human confirmation" outcome (add the gate to the apply path if 1.1 found it missing).
+- Suppressing a high/critical case does not auto-apply through the MCP path: it returns the distinct `requires_human_confirmation` outcome (case stays open/visible, proposed decision preserved in the audit trail). Add the gate to `set_case_decision`, keyed on an explicit human-authorization signal that the MCP path never asserts.
 - pytest coverage for the new tool and the gate, including a poisoned-input case that tries to pass a malicious scan target.
 FORWARD SWEEP: before checking this step off, skim Step 2.x; if the tool name or trigger interface differs from what they assume, update them.
 ```
@@ -98,8 +98,8 @@ Build the hands-off fix loop. The proposing agent (which read the findings) draf
 ```text
 SCOPE: Build the propose-review-land flow for code fixes, with the proposing agent and the reviewing agent structurally separated so auto-merge of low-risk classes is safe.
 REQUIRED READING:
-1. The Step 1.1 spec — the clean-room reviewer contract and the auto-merge-eligible fix-class allowlist
-2. src/security_observatory/recovery.py and the /devsec-pr, /devsec-fix flows — existing remediation scaffolding to extend, not duplicate
+1. docs/rw-extend-spec.md — the clean-room reviewer contract and the auto-merge-eligible fix-class allowlist (§3)
+2. src/security_observatory/priority.py (fix-class / action-level reasoning) and the `devsec-pr` / `devsec-fix` command skills — existing remediation scaffolding to extend, not duplicate. NOTE: 1.1 confirmed there is no `recovery.py`; do not look for one.
 3. src/security_observatory/case_followup.py — record proposals/approvals through the audited decision path
 ACCEPTANCE:
 - A fix proposal opens a branch/PR (never commits to a protected branch directly).
@@ -121,8 +121,8 @@ Prove both halves: the fence holds under attack, and the full loop runs without 
 ```text
 SCOPE: Verify the extended surface is both safe and useful. Adversarial first, then the hands-off loop, with captured evidence.
 REQUIRED READING:
-1. The Step 1.1 spec — invariants, scan-trigger constraints, severity gate
-2. src/security_observatory/case_followup.py and its tests — the apply path + adversarial cases
+1. docs/rw-extend-spec.md — invariants, scan-trigger constraints (`trigger_scan`), the `requires_human_confirmation` severity gate
+2. src/security_observatory/case_followup.py, src/security_observatory/storage.py (`set_case_decision`), and their tests — the apply path + adversarial cases
 3. src/security_observatory/mcp_server.py — the live write + scan-trigger tools
 4. src/security_observatory/dashboard_server.py — confirm none of the new tools leaked onto the HTTP surface
 ACCEPTANCE — adversarial (each refused, with an audit entry):
