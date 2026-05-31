@@ -40,7 +40,7 @@ Each step has a fenced **prompt card** — copy it into a fresh agent session (C
 
 - [x] Step 2.1 — Clean-room reviewer + bounded auto-merge
 - [x] Step 2.2 — Red-team + hands-off end-to-end demo
-- [ ] Final review
+- [x] Final review
 
 ## Step 1.1 — Grill + spec the scan-trigger and the severity gate
 
