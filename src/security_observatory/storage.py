@@ -12,6 +12,7 @@ import sqlite3
 from .model import Finding, SecurityCase, redact_text, sanitize_json
 from .decisions import (
     CASE_DECISION_STATUSES,
+    GATED_SUPPRESSION_SEVERITIES,
     SUPPRESSING_DECISION_STATUSES,
     VEX_STATUSES,
     assemble_suppression,
@@ -20,6 +21,18 @@ from .decisions import (
     normalize_vex_status,
     suppression_counts,
 )
+
+
+class HumanConfirmationRequired(ValueError):
+    """Raised when a high/critical case suppression is attempted without an
+    explicit human-authorization signal.
+
+    Subclasses ``ValueError`` so existing callers that already treat a refused
+    decision as a ``ValueError`` keep failing safe; callers that want to surface
+    the distinct *pending* outcome (the case-resolution apply path) catch this
+    type first and divert the item to ``requires_human_confirmation`` instead of
+    rejecting it.
+    """
 from .honey_keys import HONEY_KEY_PREFIX, utc_now
 from .platform_posture import platform_posture_snapshot_fingerprint
 from .managed_tools import new_ownership_id, upsert_manifest_record, utc_now as managed_utc_now
@@ -241,7 +254,7 @@ create table if not exists case_resolution_runs (
   source text not null,
   imported_at text not null,
   applied_at text,
-  status text not null check(status in ('previewed', 'applied', 'partially_applied', 'rejected')),
+  status text not null check(status in ('previewed', 'applied', 'partially_applied', 'rejected', 'requires_confirmation')),
   summary_json text not null default '{}'
 );
 
@@ -258,7 +271,7 @@ create table if not exists case_resolution_items (
   evidence_json text not null default '[]',
   recommended_next_step text,
   applied_decision_json text,
-  status text not null check(status in ('pending', 'applied', 'left_open', 'rejected')),
+  status text not null check(status in ('pending', 'applied', 'left_open', 'rejected', 'requires_human_confirmation')),
   warning text,
   created_at text not null,
   foreign key(run_id) references case_resolution_runs(id)
@@ -325,6 +338,37 @@ create table if not exists agent_lab_proposals (
 
 create index if not exists idx_agent_lab_proposals_repo on agent_lab_proposals(repo_name, imported_at desc);
 create index if not exists idx_agent_lab_proposals_state on agent_lab_proposals(approval_state, updated_at desc);
+
+create table if not exists fix_proposals (
+  id text primary key,
+  repo_name text not null,
+  repo_path text,
+  case_id text,
+  base_branch text not null,
+  head_branch text not null,
+  title text not null,
+  diff text not null,
+  diff_sha256 text not null,
+  fix_class text not null,
+  auto_merge_eligible integer not null default 0,
+  classification_json text not null default '{}',
+  source text not null,
+  status text not null check(status in ('proposed', 'reviewed', 'auto_merge_authorized', 'requires_human')) default 'proposed',
+  clean_room_status text not null check(clean_room_status in ('pending', 'approved', 'rejected')) default 'pending',
+  clean_room_reviewer text,
+  clean_room_checked_invariants_json text not null default '[]',
+  clean_room_notes text,
+  clean_room_diff_sha256 text,
+  clean_room_reviewed_at text,
+  landing_outcome text,
+  landing_reasons_json text not null default '[]',
+  landing_decided_at text,
+  created_at text not null,
+  updated_at text not null
+);
+
+create index if not exists idx_fix_proposals_repo on fix_proposals(repo_name, created_at desc);
+create index if not exists idx_fix_proposals_status on fix_proposals(status, updated_at desc);
 
 create table if not exists honey_keys (
   id text primary key,
@@ -464,6 +508,77 @@ class ObservatoryDB:
         ):
             if managed_columns and column not in managed_columns:
                 self.conn.execute(f"alter table managed_tool_installations add column {column} {definition}")
+        self._migrate_resolution_status_constraints()
+
+    def _migrate_resolution_status_constraints(self) -> None:
+        """Widen the case-resolution status CHECK constraints on older databases.
+
+        The high/critical suppression gate adds a ``requires_confirmation`` run
+        status and a ``requires_human_confirmation`` item status. SQLite can't
+        ALTER a CHECK constraint in place, so when an existing table still carries
+        the narrow constraint we rebuild it (preserving every audit row). Fresh
+        databases already get the wide constraint from SCHEMA, so this is a no-op
+        for them.
+        """
+        rebuilds = (
+            (
+                "case_resolution_runs",
+                "requires_confirmation",
+                """
+                create table case_resolution_runs__migrate (
+                  id text primary key,
+                  repo_name text not null,
+                  scan_id text,
+                  action text not null,
+                  scope text not null,
+                  source text not null,
+                  imported_at text not null,
+                  applied_at text,
+                  status text not null check(status in ('previewed', 'applied', 'partially_applied', 'rejected', 'requires_confirmation')),
+                  summary_json text not null default '{}'
+                )
+                """,
+            ),
+            (
+                "case_resolution_items",
+                "requires_human_confirmation",
+                """
+                create table case_resolution_items__migrate (
+                  id text primary key,
+                  run_id text not null,
+                  case_id text not null,
+                  repo_name text not null,
+                  scan_id text,
+                  ai_disposition text not null,
+                  mapped_decision text,
+                  confidence text not null,
+                  reason text not null,
+                  evidence_json text not null default '[]',
+                  recommended_next_step text,
+                  applied_decision_json text,
+                  status text not null check(status in ('pending', 'applied', 'left_open', 'rejected', 'requires_human_confirmation')),
+                  warning text,
+                  created_at text not null,
+                  foreign key(run_id) references case_resolution_runs(id)
+                )
+                """,
+            ),
+        )
+        for table, sentinel, create_sql in rebuilds:
+            row = self.conn.execute(
+                "select sql from sqlite_master where type = 'table' and name = ?",
+                (table,),
+            ).fetchone()
+            if not row or not row["sql"] or sentinel in row["sql"]:
+                continue
+            self.conn.execute(create_sql)
+            self.conn.execute(f"insert into {table}__migrate select * from {table}")
+            self.conn.execute(f"drop table {table}")
+            self.conn.execute(f"alter table {table}__migrate rename to {table}")
+        # Recreate the indexes the rebuild may have dropped (no-op if present).
+        self.conn.execute("create index if not exists idx_case_resolution_runs_repo on case_resolution_runs(repo_name, imported_at desc)")
+        self.conn.execute("create index if not exists idx_case_resolution_items_run on case_resolution_items(run_id)")
+        self.conn.execute("create index if not exists idx_case_resolution_items_case on case_resolution_items(case_id)")
 
     def record_managed_tool(
         self,
@@ -1536,6 +1651,10 @@ class ObservatoryDB:
                     package_url=decision.get("package_url"),
                     component_package_key=decision.get("component_package_key"),
                     fixed_version=decision.get("fixed_version"),
+                    # A VEX document is an explicit, operator-authored suppression
+                    # record (imported by hand or CI), not an AI proposal derived
+                    # from finding text — so it carries human authorization.
+                    human_authorized=True,
                 )
             except ValueError as exc:
                 warnings.append(f"{decision.get('case_id') or 'decision'}: {exc}")
@@ -1561,7 +1680,7 @@ class ObservatoryDB:
             raise ValueError("Resolution run id is required.")
         if not repo_name:
             raise ValueError("Resolution run repo is required.")
-        if status not in {"previewed", "applied", "partially_applied", "rejected"}:
+        if status not in {"previewed", "applied", "partially_applied", "rejected", "requires_confirmation"}:
             raise ValueError("Unsupported resolution run status.")
         imported_at = str(run.get("imported_at") or utc_now())
         applied_at = _optional_text(run.get("applied_at"))
@@ -1600,7 +1719,7 @@ class ObservatoryDB:
             for item in items:
                 item_id = str(item.get("id") or "").strip() or f"{run_id}:{item.get('case_id')}"
                 item_status = str(item.get("status") or "pending").strip()
-                if item_status not in {"pending", "applied", "left_open", "rejected"}:
+                if item_status not in {"pending", "applied", "left_open", "rejected", "requires_human_confirmation"}:
                     item_status = "rejected"
                 self.conn.execute(
                     """
@@ -1677,7 +1796,7 @@ class ObservatoryDB:
         status: str,
         item_updates: dict[str, dict[str, Any]] | None = None,
     ) -> dict[str, Any] | None:
-        if status not in {"previewed", "applied", "partially_applied", "rejected"}:
+        if status not in {"previewed", "applied", "partially_applied", "rejected", "requires_confirmation"}:
             raise ValueError("Unsupported resolution run status.")
         now = utc_now()
         updates = item_updates or {}
@@ -1688,7 +1807,7 @@ class ObservatoryDB:
             )
             for item_id, update in updates.items():
                 item_status = str(update.get("status") or "").strip()
-                if item_status not in {"pending", "applied", "left_open", "rejected"}:
+                if item_status not in {"pending", "applied", "left_open", "rejected", "requires_human_confirmation"}:
                     continue
                 self.conn.execute(
                     """
@@ -1719,11 +1838,209 @@ class ObservatoryDB:
             summary["will_apply"] = int(status_counts.get("pending", 0))
             summary["will_leave_open"] = int(status_counts.get("left_open", 0))
             summary["rejected"] = int(status_counts.get("rejected", 0))
+            summary["requires_confirmation"] = int(status_counts.get("requires_human_confirmation", 0))
             self.conn.execute(
                 "update case_resolution_runs set summary_json = ? where id = ?",
                 (_json(summary), run_id),
             )
         return self.get_case_resolution_run(run_id)
+
+    def save_fix_proposal(self, record: dict[str, Any]) -> dict[str, Any]:
+        proposal_id = str(record.get("id") or "").strip()
+        if not proposal_id:
+            raise ValueError("Fix proposal id is required.")
+        repo_name = str(record.get("repo_name") or "").strip()
+        if not repo_name:
+            raise ValueError("Fix proposal repo is required.")
+        status = str(record.get("status") or "proposed").strip()
+        if status not in {"proposed", "reviewed", "auto_merge_authorized", "requires_human"}:
+            raise ValueError("Unsupported fix proposal status.")
+        clean_room_status = str(record.get("clean_room_status") or "pending").strip()
+        if clean_room_status not in {"pending", "approved", "rejected"}:
+            raise ValueError("Unsupported clean-room review status.")
+        now = _optional_text(record.get("updated_at")) or utc_now()
+        # The diff is stored verbatim: the caller (fix_proposals.propose_fix) has
+        # already redacted it and hashed *that* redacted text, so re-redacting here
+        # would risk drifting the stored bytes from the recorded diff_sha256.
+        with self.conn:
+            self.conn.execute(
+                """
+                insert into fix_proposals
+                (id, repo_name, repo_path, case_id, base_branch, head_branch, title, diff, diff_sha256,
+                 fix_class, auto_merge_eligible, classification_json, source, status, clean_room_status,
+                 clean_room_reviewer, clean_room_checked_invariants_json, clean_room_notes,
+                 clean_room_diff_sha256, clean_room_reviewed_at, landing_outcome, landing_reasons_json,
+                 landing_decided_at, created_at, updated_at)
+                values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                on conflict(id) do update set
+                  repo_name = excluded.repo_name,
+                  repo_path = excluded.repo_path,
+                  case_id = excluded.case_id,
+                  base_branch = excluded.base_branch,
+                  head_branch = excluded.head_branch,
+                  title = excluded.title,
+                  diff = excluded.diff,
+                  diff_sha256 = excluded.diff_sha256,
+                  fix_class = excluded.fix_class,
+                  auto_merge_eligible = excluded.auto_merge_eligible,
+                  classification_json = excluded.classification_json,
+                  source = excluded.source,
+                  status = excluded.status,
+                  clean_room_status = excluded.clean_room_status,
+                  updated_at = excluded.updated_at
+                """,
+                (
+                    proposal_id,
+                    repo_name,
+                    _optional_text(record.get("repo_path")),
+                    _optional_text(record.get("case_id")),
+                    str(record.get("base_branch") or "main"),
+                    str(record.get("head_branch") or ""),
+                    redact_text(str(record.get("title") or ""))[:300],
+                    str(record.get("diff") or ""),
+                    str(record.get("diff_sha256") or ""),
+                    str(record.get("fix_class") or "unknown"),
+                    1 if record.get("auto_merge_eligible") else 0,
+                    _json(record.get("classification") or {}),
+                    str(record.get("source") or "mcp_write"),
+                    status,
+                    clean_room_status,
+                    _optional_text(record.get("clean_room_reviewer")),
+                    _json(record.get("clean_room_checked_invariants") or []),
+                    redact_text(str(record.get("clean_room_notes") or "").strip())[:2000] or None,
+                    _optional_text(record.get("clean_room_diff_sha256")),
+                    _optional_text(record.get("clean_room_reviewed_at")),
+                    _optional_text(record.get("landing_outcome")),
+                    _json(record.get("landing_reasons") or []),
+                    _optional_text(record.get("landing_decided_at")),
+                    str(record.get("created_at") or now),
+                    now,
+                ),
+            )
+        saved = self.get_fix_proposal(proposal_id)
+        if not saved:
+            raise ValueError("Fix proposal could not be saved.")
+        return saved
+
+    def get_fix_proposal(self, proposal_id: str) -> dict[str, Any] | None:
+        row = self.conn.execute(
+            "select * from fix_proposals where id = ?",
+            (str(proposal_id or "").strip(),),
+        ).fetchone()
+        return _public_fix_proposal(row) if row else None
+
+    def list_fix_proposals(
+        self,
+        *,
+        repo_name: str | None = None,
+        status: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        conditions = []
+        params: list[Any] = []
+        if repo_name:
+            conditions.append("repo_name = ?")
+            params.append(repo_name.strip())
+        if status:
+            conditions.append("status = ?")
+            params.append(status.strip())
+        where = f"where {' and '.join(conditions)}" if conditions else ""
+        params.append(max(1, min(int(limit or 50), 200)))
+        rows = self.conn.execute(
+            f"""
+            select *
+            from fix_proposals
+            {where}
+            order by created_at desc, id asc
+            limit ?
+            """,
+            params,
+        ).fetchall()
+        return [_public_fix_proposal(row) for row in rows]
+
+    def record_fix_proposal_review(
+        self,
+        *,
+        proposal_id: str,
+        approved: bool,
+        checked_invariants: list[str] | None = None,
+        reviewer: str | None = None,
+        notes: str | None = None,
+        clean_room_diff_sha256: str | None = None,
+    ) -> dict[str, Any]:
+        clean_id = str(proposal_id or "").strip()
+        current = self.get_fix_proposal(clean_id)
+        if not current:
+            raise ValueError("Fix proposal not found.")
+        clean_room_status = "approved" if approved else "rejected"
+        now = utc_now()
+        with self.conn:
+            self.conn.execute(
+                """
+                update fix_proposals
+                set clean_room_status = ?,
+                    clean_room_reviewer = ?,
+                    clean_room_checked_invariants_json = ?,
+                    clean_room_notes = ?,
+                    clean_room_diff_sha256 = ?,
+                    clean_room_reviewed_at = ?,
+                    status = case
+                      when status in ('auto_merge_authorized', 'requires_human') then status
+                      else 'reviewed'
+                    end,
+                    updated_at = ?
+                where id = ?
+                """,
+                (
+                    clean_room_status,
+                    redact_text((reviewer or "").strip())[:120] or None,
+                    _json([str(item).strip() for item in (checked_invariants or []) if str(item).strip()]),
+                    redact_text((notes or "").strip())[:2000] or None,
+                    _optional_text(clean_room_diff_sha256) or current.get("diff_sha256"),
+                    now,
+                    now,
+                    clean_id,
+                ),
+            )
+        return self.get_fix_proposal(clean_id)
+
+    def record_fix_proposal_landing(
+        self,
+        *,
+        proposal_id: str,
+        outcome: str,
+        reasons: list[str] | None = None,
+    ) -> dict[str, Any]:
+        clean_id = str(proposal_id or "").strip()
+        clean_outcome = str(outcome or "").strip()
+        if clean_outcome not in {"auto_merge", "requires_human", "blocked"}:
+            raise ValueError("Unsupported fix landing outcome.")
+        current = self.get_fix_proposal(clean_id)
+        if not current:
+            raise ValueError("Fix proposal not found.")
+        status = "auto_merge_authorized" if clean_outcome == "auto_merge" else "requires_human"
+        now = utc_now()
+        with self.conn:
+            self.conn.execute(
+                """
+                update fix_proposals
+                set landing_outcome = ?,
+                    landing_reasons_json = ?,
+                    landing_decided_at = ?,
+                    status = ?,
+                    updated_at = ?
+                where id = ?
+                """,
+                (
+                    clean_outcome,
+                    _json([str(item).strip() for item in (reasons or []) if str(item).strip()]),
+                    now,
+                    status,
+                    now,
+                    clean_id,
+                ),
+            )
+        return self.get_fix_proposal(clean_id)
 
     def set_case_decision(
         self,
@@ -1741,6 +2058,7 @@ class ObservatoryDB:
         package_url: str | None = None,
         component_package_key: str | None = None,
         fixed_version: str | None = None,
+        human_authorized: bool = False,
     ) -> dict[str, Any] | None:
         clean_case_id = case_id.strip()
         clean_repo_name = repo_name.strip() or "repository"
@@ -1755,6 +2073,18 @@ class ObservatoryDB:
         if clean_status not in CASE_DECISION_STATUSES:
             raise ValueError("Unsupported case decision")
         inferred_case = self._latest_case_for_decision(clean_case_id, clean_repo_name)
+        # Severity gate (the one irreversible-ish control on this surface): hiding
+        # a high/critical finding always needs a human. Severity is read from the
+        # recorded case — never from caller-supplied text — so poisoned finding
+        # text cannot lower a case's severity to slip past the gate. This is the
+        # chokepoint every write path crosses, so the gate cannot be bypassed by a
+        # caller that skips the higher-level case-resolution layer.
+        if not human_authorized and clean_status in SUPPRESSING_DECISION_STATUSES:
+            severity = str((inferred_case or {}).get("severity") or "").strip().casefold()
+            if severity in GATED_SUPPRESSION_SEVERITIES:
+                raise HumanConfirmationRequired(
+                    f"Suppressing a {severity} case requires explicit human confirmation."
+                )
         inferred_fields = dependency_fields_from_case(inferred_case) if inferred_case else {}
         dependency_fields = {
             "vulnerability_id": vulnerability_id,
@@ -2285,6 +2615,37 @@ def _public_agent_lab_proposal(row: sqlite3.Row | dict[str, Any]) -> dict[str, A
         "denied_at": data.get("denied_at"),
         "raw_proposal": _json_load(data.get("raw_proposal_json"), {}),
         "final_execution_plan": final_plan,
+    }
+
+
+def _public_fix_proposal(row: sqlite3.Row | dict[str, Any]) -> dict[str, Any]:
+    data = dict(row)
+    return {
+        "id": data.get("id"),
+        "repo_name": data.get("repo_name"),
+        "repo_path": data.get("repo_path"),
+        "case_id": data.get("case_id"),
+        "base_branch": data.get("base_branch"),
+        "head_branch": data.get("head_branch"),
+        "title": data.get("title"),
+        "diff": data.get("diff"),
+        "diff_sha256": data.get("diff_sha256"),
+        "fix_class": data.get("fix_class"),
+        "auto_merge_eligible": bool(data.get("auto_merge_eligible")),
+        "classification": _json_load(data.get("classification_json"), {}),
+        "source": data.get("source"),
+        "status": data.get("status"),
+        "clean_room_status": data.get("clean_room_status"),
+        "clean_room_reviewer": data.get("clean_room_reviewer"),
+        "clean_room_checked_invariants": _json_load(data.get("clean_room_checked_invariants_json"), []),
+        "clean_room_notes": data.get("clean_room_notes"),
+        "clean_room_diff_sha256": data.get("clean_room_diff_sha256"),
+        "clean_room_reviewed_at": data.get("clean_room_reviewed_at"),
+        "landing_outcome": data.get("landing_outcome"),
+        "landing_reasons": _json_load(data.get("landing_reasons_json"), []),
+        "landing_decided_at": data.get("landing_decided_at"),
+        "created_at": data.get("created_at"),
+        "updated_at": data.get("updated_at"),
     }
 
 

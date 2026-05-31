@@ -20,14 +20,16 @@ def test_vex_export_includes_accepted_and_not_affected_dependency_decisions(tmp_
             repo_name="repo",
             status="false_positive",
             note="The vulnerable lodash code is not reachable in this app.",
+            human_authorized=True,
         )
         db.set_case_decision(
             case_id=express_case.case_id,
             repo_name="repo",
             status="accepted_risk",
             note="Temporarily accepted until the upstream patch lands.",
+            human_authorized=True,
         )
-        db.set_case_decision(case_id=secret_case.case_id, repo_name="repo", status="false_positive", note="Synthetic fixture.")
+        db.set_case_decision(case_id=secret_case.case_id, repo_name="repo", status="false_positive", note="Synthetic fixture.", human_authorized=True)
         document = db.export_vex_decisions(tool_version="test")
     finally:
         db.close()

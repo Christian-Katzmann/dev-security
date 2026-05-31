@@ -7,7 +7,12 @@ import json
 import re
 import uuid
 
-from .decisions import dependency_fields_from_case
+from .decisions import (
+    GATED_SUPPRESSION_SEVERITIES,
+    SUPPRESSING_DECISION_STATUSES,
+    dependency_fields_from_case,
+)
+from .storage import HumanConfirmationRequired
 
 
 SCHEMA_VERSION = "devsec.case_resolutions.v1"
@@ -170,12 +175,19 @@ def validate_case_resolutions(
     will_apply = 0
     will_leave_open = 0
     rejected = 0
+    requires_confirmation = 0
 
     for raw in resolutions:
         item = _validate_resolution_item(raw, known_cases, selected_ids=selected_ids, scope=scope)
         disposition_counts[item["disposition"]] += 1
         if item["status"] == "pending":
-            will_apply += 1
+            # A high/critical suppression can't auto-apply through the automated
+            # path; it is split out so the preview shows the human-confirmation
+            # queue honestly rather than counting it as "will apply".
+            if _is_gated_suppression(item):
+                requires_confirmation += 1
+            else:
+                will_apply += 1
         elif item["status"] == "left_open":
             will_leave_open += 1
         else:
@@ -189,6 +201,7 @@ def validate_case_resolutions(
         "will_apply": will_apply,
         "will_leave_open": will_leave_open,
         "rejected": rejected,
+        "requires_confirmation": requires_confirmation,
         "warnings": _dedupe(warnings),
         "dispositions": dict(sorted(disposition_counts.items())),
     }
@@ -222,6 +235,7 @@ def apply_case_resolutions(
     expected_scope: str | None = None,
     expected_case_ids: list[str] | None = None,
     source: str = "json_import",
+    human_authorized: bool = False,
 ) -> dict[str, Any]:
     if isinstance(payload_or_run_id, str):
         run = db.get_case_resolution_run(payload_or_run_id)
@@ -241,7 +255,9 @@ def apply_case_resolutions(
     applied = 0
     left_open = 0
     rejected = 0
+    requires_confirmation = 0
     applied_case_ids: list[str] = []
+    requires_confirmation_case_ids: list[str] = []
     item_updates: dict[str, dict[str, Any]] = {}
     warnings: list[str] = list(run.get("summary", {}).get("warnings") or [])
 
@@ -261,7 +277,21 @@ def apply_case_resolutions(
                 repo_name=str(item.get("repo_name") or run.get("repo_name") or run.get("repo")),
                 status=str(mapped),
                 note=_decision_note(item),
+                human_authorized=human_authorized,
             )
+        except HumanConfirmationRequired as exc:
+            # Distinct from a rejection: the AI is confident, but hiding a
+            # high/critical finding is irreversible-enough to need a human. Keep
+            # the case open and preserve the proposed decision in the audit trail
+            # so a human can confirm it later with one click (or the CLI opt-in).
+            requires_confirmation += 1
+            requires_confirmation_case_ids.append(str(item["case_id"]))
+            item_updates[item_id] = {
+                "status": "requires_human_confirmation",
+                "warning": str(exc),
+                "applied_decision": None,
+            }
+            continue
         except ValueError as exc:
             rejected += 1
             warning = f"{item.get('case_id')}: {exc}"
@@ -273,15 +303,22 @@ def apply_case_resolutions(
         item_updates[item_id] = {"status": "applied", "applied_decision": decision}
 
     status = "applied"
-    if rejected:
-        status = "partially_applied" if applied or left_open else "rejected"
+    if rejected or requires_confirmation:
+        if applied or left_open:
+            status = "partially_applied"
+        elif rejected:
+            status = "rejected"
+        else:
+            status = "requires_confirmation"
     db.update_case_resolution_run(run["run_id"], status=status, item_updates=item_updates)
     return {
         "run_id": run["run_id"],
         "applied": applied,
         "left_open": left_open,
         "rejected": rejected,
+        "requires_confirmation": requires_confirmation,
         "case_ids": applied_case_ids,
+        "requires_confirmation_case_ids": requires_confirmation_case_ids,
         "warnings": _dedupe(warnings),
     }
 
@@ -329,6 +366,9 @@ def _validate_resolution_item(
         "display_id": _display_id(case_id),
         "repo_name": str(case.get("repo_name") or case.get("repo") or ""),
         "scan_id": case.get("scan_id"),
+        # Severity is read from the recorded case, never from caller text, and
+        # drives the high/critical suppression gate at apply time.
+        "severity": str(case.get("severity") or "").strip().casefold(),
         "disposition": disposition,
         "ai_disposition": disposition,
         "mapped_decision": mapped_decision,
@@ -565,6 +605,19 @@ def _prompt_preview(repo: dict[str, Any], action: str, scope: str, cases: list[d
     noun = "finding" if len(cases) == 1 else "findings"
     suffix = " and classify them" if action == "verify_findings" else ""
     return f"{action_verb} {len(cases)} {scope_label} {noun} in {repo['repo']}{suffix}..."
+
+
+def _is_gated_suppression(item: dict[str, Any]) -> bool:
+    """True when applying this item would suppress a high/critical case.
+
+    Severity comes from the recorded case (set in ``_validate_resolution_item``),
+    not from caller-supplied text, so poisoned finding text cannot lower a
+    severity to escape the gate.
+    """
+    return (
+        str(item.get("mapped_decision") or "") in SUPPRESSING_DECISION_STATUSES
+        and str(item.get("severity") or "").strip().casefold() in GATED_SUPPRESSION_SEVERITIES
+    )
 
 
 def _decision_note(item: dict[str, Any]) -> str:

@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,13 @@ from .case_followup import (
     apply_case_resolutions as _apply_case_resolutions,
     build_case_followup_prompt as _build_case_followup_prompt,
     validate_case_resolutions as _validate_case_resolutions,
+)
+from .cli import build_parser as _build_scan_parser, scan_repo as _scan_repo
+from .fix_proposals import (
+    clean_room_review_packet as _clean_room_review_packet,
+    decide_landing as _decide_landing,
+    propose_fix as _propose_fix,
+    record_clean_room_review as _record_clean_room_review,
 )
 from .cases import (
     _DEFAULT_PLAYBOOK_ID,
@@ -42,6 +50,12 @@ logger = logging.getLogger("security_observatory.mcp")
 SUPPORTED_SEVERITIES = ("critical", "high", "medium", "low", "info")
 SUPPORTED_CASE_STATUSES = ("open", "verified", "accepted_risk", "resolved")
 SUPPORTED_CATEGORIES = tuple(sorted(_PLAYBOOK_BY_CATEGORY.keys()))
+# Scan-trigger contract (docs/rw-extend-spec.md §1): the only profiles the AI may
+# request, both local and network-free. Anything outside the enum is refused.
+SCAN_PROFILES = ("quick", "default")
+# Per-repo cooldown for AI-triggered scans. Bounds scan-spam / resource abuse.
+# Manual CLI scans are unaffected — this only rate-limits the MCP trigger.
+SCAN_COOLDOWN_SECONDS = 600
 _READ_ONLY_BOUNDARY = (
     "Respect the MCP boundary: this adapter is read-only and stdio-only. It can report scan history, "
     "cases, raw findings, playbooks, dependency trust, Honey Key state, and rotation state for repos "
@@ -52,9 +66,15 @@ _READ_ONLY_BOUNDARY = (
 _WRITE_MODE_BOUNDARY = (
     "Respect the MCP write boundary: this adapter was launched in explicit case-decision write mode "
     "and remains stdio-only. It can build AI case follow-up prompts, preview devsec.case_resolutions.v1 "
-    "JSON, and apply validated case decisions through the audited case-resolution path. It cannot delete "
-    "raw findings, delete scans, run scanners, rotate credentials, execute SQL, install tools, or write "
-    "repository files."
+    "JSON, apply validated case decisions through the audited case-resolution path, and trigger a "
+    "guarded local-offline scan of an already-scanned repo (by name, fixed profile, rate-limited). "
+    "Suppressing a high/critical case never auto-applies — it is held for explicit human confirmation. "
+    "It can also record a code-fix proposal on a new branch and run it through a clean-room reviewer that "
+    "sees only the diff and the invariants (never the finding text); only narrow low-risk classes "
+    "(action SHA pins, single patch/minor dependency bumps, lockfile patches) reach auto-merge on a "
+    "recorded clean-room approval, and every other class stops for a human. "
+    "It cannot delete raw findings, delete scans, scan an arbitrary filesystem path, rotate credentials, "
+    "execute SQL, install tools, write repository files, or merge to a protected branch."
 )
 DEVSEC_MCP_INSTRUCTIONS = f"""You are the DëvSec security helper. Speak like a calm operational security analyst, not a chatbot, hype product, or fake tactical persona.
 
@@ -546,6 +566,98 @@ def _resolve_repo_path(db: ObservatoryDB | None, repo: str) -> str:
     return str(repo_path)
 
 
+def _scan_args(profile: str) -> Any:
+    """Build a bounded scan args namespace for an AI-triggered scan.
+
+    Reuses the CLI parser so every flag scan_repo reads exists with its real
+    default, then forces the local-offline invariants: no network egress
+    (dependency-trust, connected platform-posture, behavioral-drift artifact
+    fetches) regardless of profile. ``profile`` is already validated against
+    ``SCAN_PROFILES`` by the caller.
+    """
+    args = _build_scan_parser().parse_args([])
+    args.trust = False
+    args.trust_cache_only = False
+    args.behavioral_drift = False
+    args.platform_posture = False
+    args.full = False
+    # "quick" → low-cost local scanners; "default" → the standard local scanner
+    # set (all flags off makes scanner_names_for_profile fall through to it).
+    args.quick = profile == "quick"
+    return args
+
+
+def _scan_cooldown_remaining(latest_scan: dict[str, Any] | None, *, now: datetime | None = None) -> int:
+    """Seconds left on the per-repo cooldown, or 0 if a scan may run now."""
+    if not latest_scan:
+        return 0
+    started_raw = latest_scan.get("started_at")
+    if not started_raw:
+        return 0
+    try:
+        started = datetime.fromisoformat(str(started_raw))
+    except ValueError:
+        return 0
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=timezone.utc)
+    current = now or datetime.now(timezone.utc)
+    remaining = SCAN_COOLDOWN_SECONDS - (current - started).total_seconds()
+    return int(remaining) if remaining > 0 else 0
+
+
+def _trigger_scan(
+    db: ObservatoryDB | None,
+    home: Path,
+    *,
+    repo: str,
+    profile: str = "quick",
+) -> dict[str, Any]:
+    """Trigger a guarded local-offline scan of an allowlisted repo.
+
+    Constraints (docs/rw-extend-spec.md §1): ``repo`` is a NAME resolved to its
+    recorded path via the scan history (never a raw caller-supplied path);
+    ``profile`` is a fixed enum; the scan is rate-limited per repo; and it routes
+    through the existing append-only ``scan_repo`` path, not a reimplementation.
+    No parameter is derived from finding text.
+    """
+    db = _require_db(db)
+    clean_profile = str(profile or "").strip().lower()
+    if clean_profile not in SCAN_PROFILES:
+        raise ValueError(
+            f"Unknown scan profile {profile!r}. Use one of: {', '.join(SCAN_PROFILES)}"
+        )
+    # Resolve the repo NAME to its recorded path. Raises RepoNotFoundError when
+    # the repo has no scan history — so the AI can only re-scan repos already in
+    # the local store, never an arbitrary filesystem path injected from text.
+    repo_path = _resolve_repo_path(db, repo)
+    latest = db.latest_scan_for_repo(repo)
+    remaining = _scan_cooldown_remaining(latest)
+    if remaining > 0:
+        return {
+            "outcome": "rate_limited",
+            "repo": repo,
+            "retry_after_seconds": remaining,
+            "cooldown_seconds": SCAN_COOLDOWN_SECONDS,
+            "last_scan_started_at": (latest or {}).get("started_at"),
+        }
+    args = _scan_args(clean_profile)
+    summary = _scan_repo(Path(repo_path), args, home)
+    scanners = summary.get("scanners") or []
+    findings = summary.get("findings") or []
+    return {
+        "outcome": "completed",
+        "repo": repo,
+        "profile": clean_profile,
+        "scan_id": summary.get("scan_id"),
+        "started_at": summary.get("started_at"),
+        "finished_at": summary.get("finished_at"),
+        "scanner_count": len(scanners) if isinstance(scanners, list) else 0,
+        "finding_count": len(findings) if isinstance(findings, list) else 0,
+        "health_score": summary.get("health_score"),
+        "status": summary.get("status"),
+    }
+
+
 def _rotation_status(db: ObservatoryDB | None, repo: str) -> list[dict[str, Any]]:
     """Return per-secret rotation status for ``repo`` via the shared parser."""
     repo_path = _resolve_repo_path(db, repo)
@@ -796,6 +908,25 @@ def create_server(
     if allow_case_decisions:
 
         @server.tool()
+        def trigger_scan(repo: str, profile: str = "quick") -> dict[str, Any]:
+            """Trigger a guarded local-offline scan of an already-scanned repo.
+
+            ``repo`` is a repo NAME from ``list_repos`` (never a filesystem path);
+            it resolves to the repo's recorded path. ``profile`` is one of
+            ``quick`` (low-cost local scanners) or ``default`` (the standard local
+            scanner set) — no other value, no scanner names, no flags. The scan is
+            network-free and rate-limited per repo (10-minute cooldown); a trigger
+            inside the cooldown returns a structured ``rate_limited`` outcome with
+            the seconds remaining. It runs the existing append-only scan path and
+            returns the new scan summary (scan_id, timing, counts, health, status).
+            It cannot scan an arbitrary path, take scan parameters from finding
+            text, reach the network, or delete/alter prior scans or decisions.
+            """
+            return _with_db(
+                lambda db: _trigger_scan(db, resolved, repo=repo, profile=profile)
+            )
+
+        @server.tool()
         def case_followup_prompt(
             repo: str,
             action: str = "verify_findings",
@@ -865,6 +996,98 @@ def create_server(
                     expected_case_ids=expected_case_ids,
                 )
             )
+
+        @server.tool()
+        def propose_fix(
+            repo: str,
+            diff: str,
+            head_branch: str,
+            title: str,
+            case_id: str | None = None,
+            base_branch: str = "main",
+        ) -> dict[str, Any]:
+            """Record a code-fix proposal on a new, non-protected branch.
+
+            ``repo`` is a repo NAME with scan history (never a filesystem path).
+            The unified ``diff`` is classified from its own bytes into a fix class;
+            only narrow low-risk classes (action SHA pins, single patch/minor
+            dependency bumps, lockfile patches) are auto-merge-eligible. A proposal
+            that targets a protected branch — or whose ``head_branch`` equals
+            ``base_branch`` — is refused: a fix opens a branch/PR, it never commits
+            to a protected branch directly. Returns the audited proposal record
+            (id, fix class, auto-merge eligibility, branches). This records the
+            proposal; opening the actual branch/PR is the orchestrating command's
+            git work.
+            """
+            return _with_db(
+                lambda db: _propose_fix(
+                    _require_db(db),
+                    repo=repo,
+                    diff=diff,
+                    head_branch=head_branch,
+                    title=title,
+                    case_id=case_id,
+                    base_branch=base_branch,
+                    source="mcp_write",
+                )
+            )
+
+        @server.tool()
+        def clean_room_review_packet(proposal_id: str) -> dict[str, Any]:
+            """Return the clean-room review packet for a fix proposal — diff only.
+
+            This is the surface the *separate* clean-room reviewer agent is handed.
+            It contains the diff, the diff-derived fix class, the changed files, and
+            the invariant checklist — and, by construction, no finding/case text:
+            the packet is rebuilt from the stored diff bytes and never reads the
+            proposal's case id, title, or any finding context. Echo the returned
+            ``diff_sha256`` back when recording the verdict.
+            """
+            return _with_db(
+                lambda db: _clean_room_review_packet(_require_db(db), proposal_id=proposal_id)
+            )
+
+        @server.tool()
+        def record_clean_room_review(
+            proposal_id: str,
+            approved: bool,
+            diff_sha256: str,
+            checked_invariants: list[str] | None = None,
+            reviewer: str | None = None,
+            notes: str | None = None,
+        ) -> dict[str, Any]:
+            """Record the clean-room reviewer's verdict in the audit trail.
+
+            ``diff_sha256`` must be the hash from the review packet; the verdict is
+            refused if it does not match the diff on file, so an approval can never
+            be attributed to a different diff. Recording an approval is a
+            precondition for ``land_fix`` to authorize an auto-merge.
+            """
+            return _with_db(
+                lambda db: _record_clean_room_review(
+                    _require_db(db),
+                    proposal_id=proposal_id,
+                    approved=approved,
+                    diff_sha256=diff_sha256,
+                    checked_invariants=checked_invariants,
+                    reviewer=reviewer,
+                    notes=notes,
+                )
+            )
+
+        @server.tool()
+        def land_fix(proposal_id: str) -> dict[str, Any]:
+            """Decide whether a proposal may auto-merge, and record the decision.
+
+            Returns ``auto_merge`` only when a clean-room approval is recorded
+            against the exact diff on file and that diff re-derives to an
+            auto-merge-eligible class on a real (non-protected) branch. Anything
+            else returns ``requires_human`` (or ``blocked``). The fix class is
+            recomputed from the diff bytes here, so a mislabeled proposal cannot
+            reach auto-merge. Authorizing the merge does not perform it — the
+            physical ``gh``/git merge stays with the orchestrating command.
+            """
+            return _with_db(lambda db: _decide_landing(_require_db(db), proposal_id=proposal_id))
 
     return server
 

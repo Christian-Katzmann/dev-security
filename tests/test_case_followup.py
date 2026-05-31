@@ -111,15 +111,25 @@ def test_resolution_application_maps_dispositions_and_audits_run(tmp_path: Path)
     finally:
         db.close()
 
-    assert result["applied"] == 4
+    # cases[0] (critical) docs_example→false_positive and cases[2] (high)
+    # accepted_risk are high/critical suppressions: the automated apply path holds
+    # them for human confirmation instead of hiding the finding. The non-suppressing
+    # decisions still apply, and the unclear case is left open.
+    assert result["applied"] == 2
     assert result["left_open"] == 1
-    assert decisions[cases[0].case_id]["status"] == "false_positive"
+    assert result["requires_confirmation"] == 2
+    assert set(result["requires_confirmation_case_ids"]) == {cases[0].case_id, cases[2].case_id}
     assert decisions[cases[1].case_id]["status"] == "verified"
-    assert decisions[cases[2].case_id]["status"] == "accepted_risk"
     assert decisions[cases[3].case_id]["status"] == "fixed"
+    # The held suppressions never wrote a decision — the findings stay visible.
+    assert cases[0].case_id not in decisions
+    assert cases[2].case_id not in decisions
     assert cases[4].case_id not in decisions
-    assert runs[0]["status"] == "applied"
+    assert runs[0]["status"] == "partially_applied"
     assert len(runs[0]["items"]) == 5
+    held = {item["case_id"]: item for item in runs[0]["items"]}
+    assert held[cases[0].case_id]["status"] == "requires_human_confirmation"
+    assert held[cases[2].case_id]["status"] == "requires_human_confirmation"
 
 
 def _seed_cases(tmp_path: Path, findings: list[Finding]) -> tuple[ObservatoryDB, list]:
