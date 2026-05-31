@@ -8,7 +8,7 @@ The deterministic, CI-runnable version of these same checks lives in
 `tests/test_red_team_e2e.py`.
 
 ```text
-Seeded throwaway observatory at: /tmp/claude-501/claude-501/claude-501/claude-501/claude-501/devsec-redteam-t41zezfd
+Seeded throwaway observatory at: /tmp/claude-501/claude-501/claude-501/claude-501/claude-501/devsec-redteam-_g8vrvrg
 Scan demo-20260101T000000Z — 4 cases:
   - critical secrets        case-e90d3d16e10f7c0d  «Possible exposed credential in .env»
   - high     workflow       case-6acec87a676a63de  «Unpinned GitHub Action actions/checkout@v4»
@@ -47,13 +47,30 @@ RED TEAM 3 — no tool can delete a finding, rewrite history, or reach HTTP
 HANDS-OFF 1 — AI triggers a scan (append-only; scanner stubbed)
 ==============================================================================
   trigger_scan(repo='demo-repo', profile='quick') -> completed scan_id=demo-20260201T000000Z
-  immediate re-trigger -> completed (retry_after=Nones)
+  immediate re-trigger -> rate_limited (retry_after=599s)
   scans on file now: 2 (prior scan preserved — append-only)
+  [PASS] scan triggered hands-off; re-trigger rate-limited; history only ever grows
+
+==============================================================================
+HANDS-OFF 2 — auto-close routine low/info findings, with evidence
+==============================================================================
+  apply outcome: applied=2 requires_confirmation=0 rejected=0
+  [PASS] low + info auto-closed with evidence; no human needed for routine severities
+
+==============================================================================
+HANDS-OFF 3 — auto-merge one low-risk fix via the clean-room reviewer
+==============================================================================
+  propose_fix -> id=fix_demo-repo_20260531T000716Z_c62500a185d4
+               fix_class=workflow_change auto_merge_eligible=False
+  clean-room packet keys: ['auto_merge_eligible', 'base_branch', 'changed_files', 'diff', 'diff_sha256', 'fix_class', 'head_branch', 'instructions', 'invariants', 'proposal_id', 'schema_version']
+               contains finding text? case_id=False title=False
+  land_fix -> outcome=requires_human auto_merge=False
+  stored status=requires_human clean_room_status=approved
 Traceback (most recent call last):
-  File "/Users/christiankatzmann/Dev/Projects/dëv-security/scripts/redteam_demo.py", line 289, in <module>
+  File "/Users/christiankatzmann/Dev/Projects/dëv-security/scripts/redteam_demo.py", line 293, in <module>
     main()
-  File "/Users/christiankatzmann/Dev/Projects/dëv-security/scripts/redteam_demo.py", line 200, in main
-    assert triggered["outcome"] == "completed" and again["outcome"] == "rate_limited" and n_scans == 2
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/christiankatzmann/Dev/Projects/dëv-security/scripts/redteam_demo.py", line 247, in main
+    assert landing["outcome"] == "auto_merge" and stored["status"] == "auto_merge_authorized"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 AssertionError
 ```

@@ -22,6 +22,7 @@ CI-runnable proof; the doc is the captured evidence.
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -360,14 +361,18 @@ def _fake_scan_repo_factory(home: Path, cases, findings, *, new_scan_id: str):
     """
 
     def fake_scan_repo(repo_path, args, home_arg):
+        # Stamp the appended scan at the real current time so the per-repo
+        # cooldown is genuinely exercised: an immediate re-trigger then falls
+        # inside the 10-minute window. (The real scan_repo stamps "now" too.)
+        now_iso = datetime.now(timezone.utc).isoformat()
         db = ObservatoryDB(home / "db" / "observatory.sqlite")
         try:
             db.save_scan(
                 scan_id=new_scan_id,
                 repo_name=REPO,
                 repo_path=REPO_PATH,
-                started_at="2026-02-01T00:00:00+00:00",
-                finished_at="2026-02-01T00:01:00+00:00",
+                started_at=now_iso,
+                finished_at=now_iso,
                 profile="quick" if getattr(args, "quick", False) else "default",
                 health_score=62,
                 status="ok",
@@ -380,8 +385,8 @@ def _fake_scan_repo_factory(home: Path, cases, findings, *, new_scan_id: str):
             db.close()
         return {
             "scan_id": new_scan_id,
-            "started_at": "2026-02-01T00:00:00+00:00",
-            "finished_at": "2026-02-01T00:01:00+00:00",
+            "started_at": now_iso,
+            "finished_at": now_iso,
             "health_score": 62,
             "status": "ok",
             "scanners": [{"scanner": "multi"}],

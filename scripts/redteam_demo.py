@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 from security_observatory import mcp_server
@@ -166,17 +167,20 @@ def main() -> None:
     _print_header("HANDS-OFF 1 — AI triggers a scan (append-only; scanner stubbed)")
 
     def fake_scan_repo(repo_path, args, home_arg):
+        # Stamp at the real current time so the per-repo cooldown genuinely
+        # applies to an immediate re-trigger (the real scan_repo stamps "now").
+        now_iso = datetime.now(timezone.utc).isoformat()
         d = ObservatoryDB(home / "db" / "observatory.sqlite")
         d.save_scan(
             scan_id="demo-20260201T000000Z", repo_name=REPO, repo_path=REPO_PATH,
-            started_at="2026-02-01T00:00:00+00:00", finished_at="2026-02-01T00:01:00+00:00",
+            started_at=now_iso, finished_at=now_iso,
             profile="quick", health_score=62, status="ok",
             scanner_statuses=[{"scanner": "multi", "available": True, "findings": len(findings)}],
             findings=findings, report_path=str(home / "report.json"), cases=cases,
         )
         d.close()
-        return {"scan_id": "demo-20260201T000000Z", "started_at": "2026-02-01T00:00:00+00:00",
-                "finished_at": "2026-02-01T00:01:00+00:00", "health_score": 62, "status": "ok",
+        return {"scan_id": "demo-20260201T000000Z", "started_at": now_iso,
+                "finished_at": now_iso, "health_score": 62, "status": "ok",
                 "scanners": [{"scanner": "multi"}], "findings": [{"id": i} for i in range(len(findings))]}
 
     # Backdate the seed scan so the first trigger is outside the 10-min cooldown.
