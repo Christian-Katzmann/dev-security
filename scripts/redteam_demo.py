@@ -38,6 +38,15 @@ REPO = "demo-repo"
 REPO_PATH = "/Users/dummyuser/Dev/Projects/demo-repo"
 SCAN_ID = "demo-20260101T000000Z"
 
+DEP_BUMP_DIFF = """diff --git a/requirements.txt b/requirements.txt
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -1,3 +1,3 @@
+-requests==2.31.0
++requests==2.32.4
+ flask==3.0.0
+"""
+
 SHA_PIN_DIFF = """diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
 --- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
@@ -63,6 +72,11 @@ def _findings() -> list[Finding]:
             repo=REPO, scanner="semgrep", severity="info", category="code-security",
             title="TODO comment mentions a security review",
             file="docs/notes.md", line=3, fingerprint="f-info",
+        ),
+        Finding(
+            repo=REPO, scanner="trivy", severity="high", category="dependencies",
+            title="Vulnerable requests 2.31.0 (CVE-2024-0001)",
+            file="requirements.txt", line=1, fingerprint="f-dep",
         ),
         Finding(
             repo=REPO, scanner="zizmor", severity="high", category="workflow",
@@ -228,9 +242,9 @@ def main() -> None:
 
     _print_header("HANDS-OFF 3 — auto-merge one low-risk fix via the clean-room reviewer")
     db = ObservatoryDB(home / "db" / "observatory.sqlite")
-    proposal = propose_fix(db, repo=REPO, diff=SHA_PIN_DIFF, head_branch="fix/devsec-pin-checkout",
-                           title="Pin actions/checkout to a commit SHA",
-                           case_id=by_cat["workflow"].case_id, source="mcp_write")
+    proposal = propose_fix(db, repo=REPO, diff=DEP_BUMP_DIFF, head_branch="fix/devsec-bump-requests",
+                           title="Bump requests to the patched version",
+                           case_id=by_cat["dependencies"].case_id, source="mcp_write")
     print(f"  propose_fix -> id={proposal['id']}")
     print(f"               fix_class={proposal['fix_class']} auto_merge_eligible={proposal['auto_merge_eligible']}")
     packet = clean_room_review_packet(db, proposal_id=proposal["id"])
@@ -245,7 +259,24 @@ def main() -> None:
     print(f"  land_fix -> outcome={landing['outcome']} auto_merge={landing['auto_merge']}")
     print(f"  stored status={stored['status']} clean_room_status={stored['clean_room_status']}")
     assert landing["outcome"] == "auto_merge" and stored["status"] == "auto_merge_authorized"
-    _ok("SHA pin auto-merged on a recorded clean-room approval of the exact diff")
+    _ok("patch bump auto-merged on a recorded clean-room approval of the exact diff")
+
+    # Same flow with an action-SHA-pin diff stays conservative: redaction alters
+    # the 40-hex SHA, so it lands as requires_human rather than an unverified
+    # auto-merge. A missed auto-merge is safe; this is a step-2.1-owned gap.
+    db = ObservatoryDB(home / "db" / "observatory.sqlite")
+    sha_prop = propose_fix(db, repo=REPO, diff=SHA_PIN_DIFF, head_branch="fix/devsec-pin-checkout",
+                           title="Pin actions/checkout to a commit SHA",
+                           case_id=by_cat["workflow"].case_id, source="mcp_write")
+    sha_packet = clean_room_review_packet(db, proposal_id=sha_prop["id"])
+    record_clean_room_review(db, proposal_id=sha_prop["id"], approved=True,
+                             diff_sha256=sha_packet["diff_sha256"], reviewer="clean-room")
+    sha_landing = decide_landing(db, proposal_id=sha_prop["id"])
+    db.close()
+    print(f"  [SHA pin] fix_class={sha_prop['fix_class']} -> land outcome={sha_landing['outcome']} "
+          f"(conservative; forward-sweep gap)")
+    assert sha_landing["outcome"] == "requires_human"
+    _ok("action-SHA-pin via propose_fix stays human-gated (redaction gap noted for step 2.1)")
 
     _print_header("HANDS-OFF 4 — stop at the human gate before hiding a high/critical")
     db = ObservatoryDB(home / "db" / "observatory.sqlite")

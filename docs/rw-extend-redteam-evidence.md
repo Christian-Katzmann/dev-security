@@ -8,10 +8,11 @@ The deterministic, CI-runnable version of these same checks lives in
 `tests/test_red_team_e2e.py`.
 
 ```text
-Seeded throwaway observatory at: /tmp/claude-501/claude-501/claude-501/claude-501/claude-501/devsec-redteam-_g8vrvrg
+Seeded throwaway observatory at: /tmp/claude-501/claude-501/claude-501/claude-501/claude-501/devsec-redteam-lvkj20a3
 Scan demo-20260101T000000Z — 4 cases:
   - critical secrets        case-e90d3d16e10f7c0d  «Possible exposed credential in .env»
   - high     workflow       case-6acec87a676a63de  «Unpinned GitHub Action actions/checkout@v4»
+  - high     dependencies   case-06aaf757e2421678  «Vulnerable requests 2.31.0 (CVE-2024-0001)»
   - low      iac            case-105d34b66de7244b  «Public bucket ACL in a sample manifest»
   - info     code-security  case-6798e6b0cd9d090c  «TODO comment mentions a security review»
 
@@ -60,17 +61,45 @@ HANDS-OFF 2 — auto-close routine low/info findings, with evidence
 ==============================================================================
 HANDS-OFF 3 — auto-merge one low-risk fix via the clean-room reviewer
 ==============================================================================
-  propose_fix -> id=fix_demo-repo_20260531T000716Z_c62500a185d4
-               fix_class=workflow_change auto_merge_eligible=False
+  propose_fix -> id=fix_demo-repo_20260531T001321Z_ab12a1e279c1
+               fix_class=dependency_bump auto_merge_eligible=True
   clean-room packet keys: ['auto_merge_eligible', 'base_branch', 'changed_files', 'diff', 'diff_sha256', 'fix_class', 'head_branch', 'instructions', 'invariants', 'proposal_id', 'schema_version']
                contains finding text? case_id=False title=False
-  land_fix -> outcome=requires_human auto_merge=False
-  stored status=requires_human clean_room_status=approved
-Traceback (most recent call last):
-  File "/Users/christiankatzmann/Dev/Projects/dëv-security/scripts/redteam_demo.py", line 293, in <module>
-    main()
-  File "/Users/christiankatzmann/Dev/Projects/dëv-security/scripts/redteam_demo.py", line 247, in main
-    assert landing["outcome"] == "auto_merge" and stored["status"] == "auto_merge_authorized"
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-AssertionError
+  land_fix -> outcome=auto_merge auto_merge=True
+  stored status=auto_merge_authorized clean_room_status=approved
+  [PASS] patch bump auto-merged on a recorded clean-room approval of the exact diff
+  [SHA pin] fix_class=workflow_change -> land outcome=requires_human (conservative; forward-sweep gap)
+  [PASS] action-SHA-pin via propose_fix stays human-gated (redaction gap noted for step 2.1)
+
+==============================================================================
+HANDS-OFF 4 — stop at the human gate before hiding a high/critical
+==============================================================================
+  set_case_decision(accepted_risk on critical) -> refused: Suppressing a critical case requires explicit human confirmation.
+  critical still visible: True
+  [PASS] the standing human gate holds at the storage chokepoint, not just the AI layer
+
+==============================================================================
+AUDIT LOG — what the run left behind (evidence)
+==============================================================================
+
+-- case-resolution runs --
+  run resolution-run-24160ac0d147499c  source=mcp_write  status=applied
+      item applied                      disp=false_positive mapped=false_positive case=case-105d34b66de7244b
+      item applied                      disp=false_positive mapped=false_positive case=case-6798e6b0cd9d090c
+  run resolution-run-e1e3b9a148214c4d  source=mcp_write  status=requires_confirmation
+      item requires_human_confirmation  disp=false_positive mapped=false_positive case=case-e90d3d16e10f7c0d
+
+-- fix proposals --
+  fix_demo-repo_20260531T001321Z_c62500a185d4  class=workflow_change  clean_room=approved  status=requires_human  landing=requires_human
+  fix_demo-repo_20260531T001321Z_ab12a1e279c1  class=dependency_bump  clean_room=approved  status=auto_merge_authorized  landing=auto_merge
+
+-- applied case decisions (suppressions that actually landed) --
+  case-105d34b66de7244b  -> false_positive
+  case-6798e6b0cd9d090c  -> false_positive
+
+  (note: the critical secret case-e90d3d16e10f7c0d is absent above — never hidden)
+
+==============================================================================
+RESULT: all red-team attacks refused; full hands-off loop completed
+==============================================================================
 ```

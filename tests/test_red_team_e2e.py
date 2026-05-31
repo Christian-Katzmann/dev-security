@@ -47,8 +47,24 @@ REPO = "demo-repo"
 REPO_PATH = "/Users/dummyuser/Dev/Projects/demo-repo"
 SCAN_ID = "demo-20260101T000000Z"
 
-# A real action-SHA-pin diff: only a `uses:` ref changes, to a 40-hex SHA of the
-# same action. This is the single low-risk class the demo auto-merges.
+# A single-package patch bump — the low-risk class the demo auto-merges. It
+# survives diff redaction intact (no secret-shaped tokens), so it round-trips
+# propose -> clean-room -> land to auto_merge.
+DEP_BUMP_DIFF = """diff --git a/requirements.txt b/requirements.txt
+--- a/requirements.txt
++++ b/requirements.txt
+@@ -1,3 +1,3 @@
+-requests==2.31.0
++requests==2.32.4
+ flask==3.0.0
+"""
+
+# A real action-SHA-pin diff. classify_fix_class() reads this as action_sha_pin
+# directly, but propose_fix() redacts the diff first and the 40-hex SHA does not
+# survive redaction byte-for-byte — so the proposal conservatively lands as a
+# human-review class. That conservatism is the safe direction; the underlying
+# redaction-vs-action-ref interaction is a step-2.1-owned gap (see the forward
+# sweep in the receipt and test_action_sha_pin_path_is_conservative).
 SHA_PIN_DIFF = """diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
 --- a/.github/workflows/ci.yml
 +++ b/.github/workflows/ci.yml
@@ -135,7 +151,20 @@ def _findings() -> dict[str, Finding]:
             line=3,
             fingerprint="f-info",
         ),
-        # The fixable one: an unpinned GitHub Action — fixed by a SHA pin.
+        # The fixable one: a vulnerable dependency — fixed by a patch bump,
+        # the auto-merge class that survives diff redaction intact.
+        "dep": Finding(
+            repo=REPO,
+            scanner="trivy",
+            severity="high",
+            category="dependencies",
+            title="Vulnerable requests 2.31.0 (CVE-2024-0001)",
+            file="requirements.txt",
+            line=1,
+            fingerprint="f-dep",
+        ),
+        # An unpinned GitHub Action — a SHA pin is the *intended* fix, but it
+        # documents a known gap (see test_action_sha_pin_path_is_conservative).
         "workflow": Finding(
             repo=REPO,
             scanner="zizmor",
@@ -462,20 +491,20 @@ def test_hands_off_loop_end_to_end(tmp_path, monkeypatch):
         proposal = propose_fix(
             db,
             repo=REPO,
-            diff=SHA_PIN_DIFF,
-            head_branch="fix/devsec-pin-checkout",
-            title="Pin actions/checkout to a commit SHA",
-            case_id=by_cat["workflow"].case_id,
+            diff=DEP_BUMP_DIFF,
+            head_branch="fix/devsec-bump-requests",
+            title="Bump requests to the patched version",
+            case_id=by_cat["dependencies"].case_id,
             source="mcp_write",
         )
-        assert proposal["fix_class"] == "action_sha_pin"
+        assert proposal["fix_class"] == "dependency_bump"
         assert proposal["auto_merge_eligible"] is True
 
         packet = clean_room_review_packet(db, proposal_id=proposal["id"])
         # The reviewer's packet carries the diff + invariants but no finding text.
         assert "case_id" not in packet
         assert "title" not in packet
-        assert packet["fix_class"] == "action_sha_pin"
+        assert packet["fix_class"] == "dependency_bump"
 
         record_clean_room_review(
             db,
@@ -511,3 +540,45 @@ def test_hands_off_loop_end_to_end(tmp_path, monkeypatch):
     assert gated["requires_confirmation"] == 1
     # The critical secret remains visible — never auto-hidden.
     assert by_cat["secrets"].case_id not in decisions
+
+
+def test_action_sha_pin_path_is_conservative(tmp_path):
+    """Forward-sweep gap, captured as a guard: an action-SHA-pin diff classifies
+    as ``action_sha_pin`` when read directly, but once ``propose_fix`` redacts the
+    diff the 40-hex SHA no longer survives byte-for-byte, so the proposal lands as
+    a human-review class — never an unverified auto-merge. That is the safe
+    direction; the redaction-vs-action-ref interaction is a step-2.1-owned fix
+    (redaction should preserve git SHAs / action refs)."""
+    from security_observatory.fix_proposals import classify_fix_class
+
+    # Read directly, the diff IS a clean SHA pin.
+    assert classify_fix_class(SHA_PIN_DIFF).fix_class == "action_sha_pin"
+
+    home, cases = _seed(tmp_path)
+    db = _open(home)
+    try:
+        proposal = propose_fix(
+            db,
+            repo=REPO,
+            diff=SHA_PIN_DIFF,
+            head_branch="fix/devsec-pin-checkout",
+            title="Pin actions/checkout to a commit SHA",
+            case_id=_by_category(cases)["workflow"].case_id,
+            source="mcp_write",
+        )
+        packet = clean_room_review_packet(db, proposal_id=proposal["id"])
+        record_clean_room_review(
+            db,
+            proposal_id=proposal["id"],
+            approved=True,
+            diff_sha256=packet["diff_sha256"],
+            reviewer="clean-room",
+        )
+        landing = decide_landing(db, proposal_id=proposal["id"])
+    finally:
+        db.close()
+    # Even with a clean-room approval, the redacted SHA pin does not auto-merge.
+    assert proposal["fix_class"] != "action_sha_pin"
+    assert proposal["auto_merge_eligible"] is False
+    assert landing["outcome"] == "requires_human"
+    assert landing["auto_merge"] is False
