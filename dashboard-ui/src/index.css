@@ -90,6 +90,9 @@
   --r-md: 6px;
   --r-lg: 8px;
   --r-xl: 10px;
+  /* Keyboard focus ring. A brightened brand green chosen to clear 3:1 contrast
+     on both the light paper surfaces and the dark sidebar. */
+  --focus-ring: #2f8f6e;
   --dotgrid-light: radial-gradient(rgba(255,255,255,0.10) 1px, transparent 1px);
   --dotgrid-dark: radial-gradient(rgba(28,36,34,0.06) 1px, transparent 1px);
   --dotgrid-size: 14px 14px;
@@ -6068,9 +6071,9 @@ a.button,
 }
 
 .setup-card-input:focus-visible {
-  outline: none;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
   border-color: var(--ink-strong);
-  box-shadow: 0 0 0 1px var(--ink-strong);
 }
 
 .setup-card-textarea-row {
@@ -6094,9 +6097,9 @@ a.button,
 }
 
 .setup-card-textarea:focus-visible {
-  outline: none;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
   border-color: var(--ink-strong);
-  box-shadow: 0 0 0 1px var(--ink-strong);
 }
 
 .setup-card-actions {
@@ -7769,4 +7772,63 @@ a.button,
   justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+/* ===========================================================================
+   Accessibility floor — keyboard focus ring + skip link
+   ---------------------------------------------------------------------------
+   One global :focus-visible ring on every primary control. Element-level
+   selectors (specificity 0,1,1) placed last in the file so they win source-
+   order ties against the seamless inputs that set `outline: 0` on their base
+   rule (.toolbar-search input, .setting-row select, …). The ring shows only on
+   keyboard focus — :focus-visible never fires for plain mouse clicks — so the
+   crafted mouse-driven look is untouched.
+   =========================================================================== */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[role="button"]:focus-visible,
+[role="link"]:focus-visible,
+[role="tab"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+/* The programmatically-focused <main> target should not paint a ring when the
+   skip link sends focus there — it is a landing region, not a control. */
+.mist-main:focus,
+.mist-main:focus-visible {
+  outline: none;
+}
+
+/* Skip-to-content link: visually hidden until focused, then pinned to the top
+   so a keyboard user sees where focus went before jumping into <main>. */
+.skip-link {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  margin: 8px;
+  padding: 10px 16px;
+  transform: translateY(-150%);
+  background: var(--ink-strong);
+  color: var(--on-surface-strong);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-decoration: none;
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-2);
+  transition: transform 120ms ease;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }

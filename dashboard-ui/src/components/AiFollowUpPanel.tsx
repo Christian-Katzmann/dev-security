@@ -13,6 +13,7 @@ import {
   repoKeyFromPath,
   repositoryDisplayName,
 } from '../dashboardData';
+import Dialog from './Dialog';
 
 type AiFollowUpPanelProps = {
   summary: DashboardSummary;
@@ -228,44 +229,48 @@ export default function AiFollowUpPanel({summary, target, selectedCaseIds = EMPT
       </section>
 
       {modalOpen && (
-        <div className="ai-follow-modal-backdrop" role="presentation">
-          <section className="ai-follow-modal" role="dialog" aria-modal="true" aria-label="Import AI result">
-            <div className="ai-follow-modal-head">
-              <div>
-                <div className="eyebrow">Paste AI result JSON</div>
-                <strong>{repoDisplayName(summary, repoName)}</strong>
-              </div>
-              <button type="button" className="icon-button" onClick={() => setModalOpen(false)} aria-label="Close import modal"><X size={16} /></button>
+        <Dialog
+          ariaLabel="Import AI result"
+          onClose={() => setModalOpen(false)}
+          closeOnBackdropClick={false}
+          backdropClassName="ai-follow-modal-backdrop"
+          className="ai-follow-modal"
+        >
+          <div className="ai-follow-modal-head">
+            <div>
+              <div className="eyebrow">Paste AI result JSON</div>
+              <strong>{repoDisplayName(summary, repoName)}</strong>
             </div>
-            <textarea
-              value={importText}
-              onChange={(event) => {
-                setImportText(event.target.value);
-                setPreview(null);
-                setApplyResult(null);
-              }}
-              rows={10}
-              placeholder='{"schema_version":"devsec.case_resolutions.v1",...}'
-            />
-            {modalError && <div className="inline-error compact">{modalError}</div>}
-            {preview && <ResolutionPreview preview={preview} />}
-            {applyResult && (
-              <div className="ai-follow-result">
-                <ClipboardCheck size={15} />
-                Applied {applyResult.applied}; left open {applyResult.left_open}; rejected {applyResult.rejected}.
-              </div>
-            )}
-            <div className="ai-follow-modal-actions">
-              <button type="button" className="button ghost sm" onClick={() => setModalOpen(false)}>Cancel</button>
-              <button type="button" className="button secondary sm" onClick={() => void previewImport()} disabled={isImporting || !importText.trim()}>
-                Preview result
-              </button>
-              <button type="button" className="button primary sm" onClick={() => void applyImport()} disabled={isImporting || !preview || !preview.summary.will_apply}>
-                Apply resolutions
-              </button>
+            <button type="button" className="icon-button" onClick={() => setModalOpen(false)} aria-label="Close import modal"><X size={16} /></button>
+          </div>
+          <textarea
+            value={importText}
+            onChange={(event) => {
+              setImportText(event.target.value);
+              setPreview(null);
+              setApplyResult(null);
+            }}
+            rows={10}
+            placeholder='{"schema_version":"devsec.case_resolutions.v1",...}'
+          />
+          {modalError && <div className="inline-error compact">{modalError}</div>}
+          {preview && <ResolutionPreview preview={preview} />}
+          {applyResult && (
+            <div className="ai-follow-result">
+              <ClipboardCheck size={15} />
+              Applied {applyResult.applied}; left open {applyResult.left_open}; rejected {applyResult.rejected}.
             </div>
-          </section>
-        </div>
+          )}
+          <div className="ai-follow-modal-actions">
+            <button type="button" className="button ghost sm" onClick={() => setModalOpen(false)}>Cancel</button>
+            <button type="button" className="button secondary sm" onClick={() => void previewImport()} disabled={isImporting || !importText.trim()}>
+              Preview result
+            </button>
+            <button type="button" className="button primary sm" onClick={() => void applyImport()} disabled={isImporting || !preview || !preview.summary.will_apply}>
+              Apply resolutions
+            </button>
+          </div>
+        </Dialog>
       )}
     </>
   );

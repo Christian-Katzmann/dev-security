@@ -11,6 +11,7 @@ import {
   repoKeyFromPath,
 } from '../dashboardData';
 import {VerificationReportRenderer} from './RotationTriggerFlow';
+import Dialog from './Dialog';
 
 type BatchStep = 'select' | 'confirm' | 'running' | 'done';
 
@@ -268,138 +269,137 @@ export default function RotationBatchFlow({repo, secrets, onClose, onDone}: Rota
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Rotate all — ${repo.name}`}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+    <Dialog
+      ariaLabel={`Rotate all — ${repo.name}`}
+      onClose={close}
+      closeOnBackdropClick={false}
+      backdropClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="bg-white border border-black/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
     >
-      <div className="bg-white border border-black/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
-        <header className="flex items-start justify-between gap-3 border-b border-black/10 px-5 py-4">
-          <div>
-            <div className="font-mono text-[10px] uppercase tracking-widest text-black/40 flex items-center gap-2">
-              <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.5} />
-              Batch rotation · Tier 5R
-            </div>
-            <h2 className="mt-1 text-lg font-medium text-black">
-              Rotate {candidates.length} secret{candidates.length === 1 ? '' : 's'} —{' '}
-              <span className="font-mono">{repo.name}</span>
-            </h2>
-            <p className="mt-1 text-xs text-black/45">
-              Sequential execution. Each secret rotates one at a time.
-            </p>
+      <header className="flex items-start justify-between gap-3 border-b border-black/10 px-5 py-4">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-widest text-black/40 flex items-center gap-2">
+            <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.5} />
+            Batch rotation · Tier 5R
           </div>
-          <button
-            type="button"
-            onClick={close}
-            className="text-black/40 hover:text-black"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" strokeWidth={1.5} />
-          </button>
-        </header>
-
-        <div className="px-5 py-4">
-          {step === 'select' && (
-            <SelectStep
-              secrets={secrets}
-              filter={filter}
-              onFilter={setFilter}
-              useCustom={useCustom}
-              onUseCustom={setUseCustom}
-              customSelection={customSelection}
-              onToggleSecret={toggleCustomSecret}
-              candidates={candidates}
-            />
-          )}
-          {step === 'confirm' && (
-            <ConfirmStep
-              candidates={candidates}
-              hasClassB={hasClassB}
-              expectedPhrase={expectedPhrase}
-              typedPhrase={typedPhrase}
-              onTypedPhrase={setTypedPhrase}
-              notableWarnings={notableWarnings}
-              submitError={submitError}
-            />
-          )}
-          {step === 'running' && batch && (
-            <RunningStep
-              batch={batch}
-              pollError={pollError}
-              stopRequested={stopRequested}
-              onRequestStop={requestStop}
-              onCancelStop={cancelStop}
-              onContinue={requestContinue}
-              onStop={requestBatchStop}
-            />
-          )}
-          {step === 'done' && batch && (
-            <DoneStep
-              batch={batch}
-              receiptText={receiptText}
-              receiptCopied={receiptCopied}
-              onCopy={copyReceipt}
-            />
-          )}
+          <h2 className="mt-1 text-lg font-medium text-black">
+            Rotate {candidates.length} secret{candidates.length === 1 ? '' : 's'} —{' '}
+            <span className="font-mono">{repo.name}</span>
+          </h2>
+          <p className="mt-1 text-xs text-black/45">
+            Sequential execution. Each secret rotates one at a time.
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={close}
+          className="text-black/40 hover:text-black"
+          aria-label="Close"
+        >
+          <X className="w-5 h-5" strokeWidth={1.5} />
+        </button>
+      </header>
 
-        <footer className="flex flex-col-reverse md:flex-row md:items-center md:justify-end gap-2 border-t border-black/10 px-5 py-4">
-          {step === 'select' && (
-            <>
-              <button
-                type="button"
-                onClick={close}
-                className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black/10 hover:border-black/40"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={candidates.length === 0}
-                onClick={() => setStep('confirm')}
-                className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black bg-black text-white hover:bg-[#222] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Continue with {candidates.length} secret{candidates.length === 1 ? '' : 's'}
-              </button>
-            </>
-          )}
-          {step === 'confirm' && (
-            <>
-              <button
-                type="button"
-                onClick={() => { setStep('select'); setTypedPhrase(''); setSubmitError(null); }}
-                className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black/10 hover:border-black/40"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                disabled={!canSubmit}
-                onClick={() => { void submitBatch(); }}
-                className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black bg-black text-white hover:bg-[#222] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Rotate {candidates.length} secret{candidates.length === 1 ? '' : 's'}
-              </button>
-            </>
-          )}
-          {step === 'running' && (
-            <span className="text-right text-[11px] leading-relaxed text-black/45">
-              The batch runs each rotation sequentially. If one halts, the queue stops.
-            </span>
-          )}
-          {step === 'done' && (
+      <div className="px-5 py-4">
+        {step === 'select' && (
+          <SelectStep
+            secrets={secrets}
+            filter={filter}
+            onFilter={setFilter}
+            useCustom={useCustom}
+            onUseCustom={setUseCustom}
+            customSelection={customSelection}
+            onToggleSecret={toggleCustomSecret}
+            candidates={candidates}
+          />
+        )}
+        {step === 'confirm' && (
+          <ConfirmStep
+            candidates={candidates}
+            hasClassB={hasClassB}
+            expectedPhrase={expectedPhrase}
+            typedPhrase={typedPhrase}
+            onTypedPhrase={setTypedPhrase}
+            notableWarnings={notableWarnings}
+            submitError={submitError}
+          />
+        )}
+        {step === 'running' && batch && (
+          <RunningStep
+            batch={batch}
+            pollError={pollError}
+            stopRequested={stopRequested}
+            onRequestStop={requestStop}
+            onCancelStop={cancelStop}
+            onContinue={requestContinue}
+            onStop={requestBatchStop}
+          />
+        )}
+        {step === 'done' && batch && (
+          <DoneStep
+            batch={batch}
+            receiptText={receiptText}
+            receiptCopied={receiptCopied}
+            onCopy={copyReceipt}
+          />
+        )}
+      </div>
+
+      <footer className="flex flex-col-reverse md:flex-row md:items-center md:justify-end gap-2 border-t border-black/10 px-5 py-4">
+        {step === 'select' && (
+          <>
             <button
               type="button"
               onClick={close}
-              className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black bg-black text-white hover:bg-[#222] transition-colors"
+              className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black/10 hover:border-black/40"
             >
-              Close
+              Cancel
             </button>
-          )}
-        </footer>
-      </div>
-    </div>
+            <button
+              type="button"
+              disabled={candidates.length === 0}
+              onClick={() => setStep('confirm')}
+              className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black bg-black text-white hover:bg-[#222] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Continue with {candidates.length} secret{candidates.length === 1 ? '' : 's'}
+            </button>
+          </>
+        )}
+        {step === 'confirm' && (
+          <>
+            <button
+              type="button"
+              onClick={() => { setStep('select'); setTypedPhrase(''); setSubmitError(null); }}
+              className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black/10 hover:border-black/40"
+            >
+              Back
+            </button>
+            <button
+              type="button"
+              disabled={!canSubmit}
+              onClick={() => { void submitBatch(); }}
+              className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black bg-black text-white hover:bg-[#222] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Rotate {candidates.length} secret{candidates.length === 1 ? '' : 's'}
+            </button>
+          </>
+        )}
+        {step === 'running' && (
+          <span className="text-right text-[11px] leading-relaxed text-black/45">
+            The batch runs each rotation sequentially. If one halts, the queue stops.
+          </span>
+        )}
+        {step === 'done' && (
+          <button
+            type="button"
+            onClick={close}
+            className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black bg-black text-white hover:bg-[#222] transition-colors"
+          >
+            Close
+          </button>
+        )}
+      </footer>
+    </Dialog>
   );
 }
 

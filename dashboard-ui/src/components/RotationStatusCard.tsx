@@ -23,6 +23,7 @@ import {
 } from '../dashboardData';
 import RotationBatchFlow from './RotationBatchFlow';
 import RotationTriggerFlow from './RotationTriggerFlow';
+import Dialog from './Dialog';
 
 type RotationStatusCardProps = {
   repo: ProjectRepo;
@@ -556,95 +557,94 @@ function PasteResumeDialog({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Resume ${secret.secret}`}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+    <Dialog
+      ariaLabel={`Resume ${secret.secret}`}
+      onClose={onClose}
+      closeOnBackdropClick={false}
+      backdropClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="w-full max-w-lg border border-black/10 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
     >
-      <div className="w-full max-w-lg border border-black/10 bg-white shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
-        <header className="flex items-start justify-between gap-3 border-b border-black/10 px-5 py-4">
-          <div>
-            <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-black/40">
-              <KeyRound className="h-3.5 w-3.5" strokeWidth={1.5} />
-              Waiting for paste
-            </div>
-            <h3 className="mt-1 text-lg font-medium text-black">
-              Resume <span className="font-mono">{secret.secret}</span>
-            </h3>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-black/40 hover:text-black"
-            aria-label="Close paste dialog"
-          >
-            <X className="h-5 w-5" strokeWidth={1.5} />
-          </button>
-        </header>
-        <div className="grid gap-4 px-5 py-4">
-          <p className="text-sm leading-relaxed text-black/60">
-            Paste the new provider value generated in the console. The value is
-            sent to the waiting rotation process and is not shown again.
-          </p>
-          {secret.console_url ? (
-            <a
-              href={secret.console_url}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-2 self-start border border-black/10 bg-[#fbfbfb] px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-black hover:border-black/40"
-            >
-              <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} />
-              Provider console
-            </a>
-          ) : (
-            <p className="text-xs leading-relaxed text-black/45">
-              Open the provider console for this secret, create the replacement
-              value, then paste it here.
-            </p>
-          )}
-          <label className="grid gap-1">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-black/45">
-              New secret value
-            </span>
-            <input
-              type="password"
-              value={pasteValue}
-              autoComplete="off"
-              spellCheck={false}
-              onChange={(event) => setPasteValue(event.target.value)}
-              className="w-full border border-black/20 bg-white px-3 py-2 font-mono text-sm text-black focus:border-black focus:outline-none"
-              placeholder="Paste provider value"
-            />
-          </label>
-          {error && (
-            <div className="border border-[#b91c1c]/40 bg-white p-3 text-xs text-[#7f1d1d]">
-              {error}
-            </div>
-          )}
-        </div>
-        <footer className="flex flex-col-reverse gap-2 border-t border-black/10 px-5 py-4 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black/10 hover:border-black/40"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={!trimmed || isSubmitting}
-            onClick={() => {
-              void submit();
-            }}
-            className="inline-flex items-center justify-center gap-2 border border-black bg-black px-4 py-2 font-mono text-[10px] uppercase tracking-widest text-white transition-colors hover:bg-[#222] disabled:cursor-not-allowed disabled:opacity-40"
-          >
+      <header className="flex items-start justify-between gap-3 border-b border-black/10 px-5 py-4">
+        <div>
+          <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-black/40">
             <KeyRound className="h-3.5 w-3.5" strokeWidth={1.5} />
-            {isSubmitting ? 'Submitting' : 'Submit paste'}
-          </button>
-        </footer>
+            Waiting for paste
+          </div>
+          <h3 className="mt-1 text-lg font-medium text-black">
+            Resume <span className="font-mono">{secret.secret}</span>
+          </h3>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-black/40 hover:text-black"
+          aria-label="Close paste dialog"
+        >
+          <X className="h-5 w-5" strokeWidth={1.5} />
+        </button>
+      </header>
+      <div className="grid gap-4 px-5 py-4">
+        <p className="text-sm leading-relaxed text-black/60">
+          Paste the new provider value generated in the console. The value is
+          sent to the waiting rotation process and is not shown again.
+        </p>
+        {secret.console_url ? (
+          <a
+            href={secret.console_url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 self-start border border-black/10 bg-[#fbfbfb] px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-black hover:border-black/40"
+          >
+            <ExternalLink className="h-3.5 w-3.5" strokeWidth={1.5} />
+            Provider console
+          </a>
+        ) : (
+          <p className="text-xs leading-relaxed text-black/45">
+            Open the provider console for this secret, create the replacement
+            value, then paste it here.
+          </p>
+        )}
+        <label className="grid gap-1">
+          <span className="font-mono text-[10px] uppercase tracking-widest text-black/45">
+            New secret value
+          </span>
+          <input
+            type="password"
+            value={pasteValue}
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(event) => setPasteValue(event.target.value)}
+            className="w-full border border-black/20 bg-white px-3 py-2 font-mono text-sm text-black focus:border-black focus:outline-none"
+            placeholder="Paste provider value"
+          />
+        </label>
+        {error && (
+          <div className="border border-[#b91c1c]/40 bg-white p-3 text-xs text-[#7f1d1d]">
+            {error}
+          </div>
+        )}
       </div>
-    </div>
+      <footer className="flex flex-col-reverse gap-2 border-t border-black/10 px-5 py-4 sm:flex-row sm:justify-end">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black/10 hover:border-black/40"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          disabled={!trimmed || isSubmitting}
+          onClick={() => {
+            void submit();
+          }}
+          className="inline-flex items-center justify-center gap-2 border border-black bg-black px-4 py-2 font-mono text-[10px] uppercase tracking-widest text-white transition-colors hover:bg-[#222] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <KeyRound className="h-3.5 w-3.5" strokeWidth={1.5} />
+          {isSubmitting ? 'Submitting' : 'Submit paste'}
+        </button>
+      </footer>
+    </Dialog>
   );
 }
 

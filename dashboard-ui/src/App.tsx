@@ -6,6 +6,7 @@ import CatalogPackPage from './components/catalog/CatalogPackPage';
 import AgentLabView from './components/agent-lab/AgentLabView';
 import AiFollowUpPanel from './components/AiFollowUpPanel';
 import NeedsRepoTarget from './components/NeedsRepoTarget';
+import SkipToContent from './components/SkipToContent';
 import RotationStatusCard from './components/RotationStatusCard';
 import RotationTriggerFlow from './components/RotationTriggerFlow';
 import {
@@ -1280,6 +1281,7 @@ export default function App() {
 
   return (
     <div className="mist-viewport">
+      <SkipToContent />
       <div className="mist-shell">
         <Sidebar
           active={activeTab}
@@ -1289,7 +1291,7 @@ export default function App() {
           onTargetChange={selectTarget}
           onNav={setActiveTab}
         />
-        <main className="mist-main">
+        <main className="mist-main" id="main-content" tabIndex={-1}>
           <Toolbar
             title={tabTitles[activeTab]}
             target={target}

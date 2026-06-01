@@ -11,6 +11,7 @@ import {
   repoKeyFromPath,
   rotationConfirmationPhrase,
 } from '../dashboardData';
+import Dialog from './Dialog';
 
 type PipelinePhase = {
   phase: RotationJobPhase;
@@ -317,125 +318,124 @@ export default function RotationTriggerFlow({
   }
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-label={`Rotate ${secret.secret}`}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+    <Dialog
+      ariaLabel={`Rotate ${secret.secret}`}
+      onClose={close}
+      closeOnBackdropClick={false}
+      backdropClassName="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="bg-white border border-black/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
     >
-      <div className="bg-white border border-black/10 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-[0_24px_80px_rgba(0,0,0,0.18)]">
-        <header className="flex items-start justify-between gap-3 border-b border-black/10 px-5 py-4">
-          <div>
-            <div className="font-mono text-[10px] uppercase tracking-widest text-black/40 flex items-center gap-2">
-              <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.5} />
-              Rotation · Tier 5R
-            </div>
-            <h2 className="mt-1 text-lg font-medium text-black">
-              Rotate{' '}
-              <span className="font-mono">{secret.secret}</span>
-            </h2>
-            <p className="mt-1 text-xs text-black/45">
-              {repo.name} · {repo.path}
-            </p>
+      <header className="flex items-start justify-between gap-3 border-b border-black/10 px-5 py-4">
+        <div>
+          <div className="font-mono text-[10px] uppercase tracking-widest text-black/40 flex items-center gap-2">
+            <RotateCcw className="w-3.5 h-3.5" strokeWidth={1.5} />
+            Rotation · Tier 5R
           </div>
-          <button
-            type="button"
-            onClick={close}
-            className="text-black/40 hover:text-black"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" strokeWidth={1.5} />
-          </button>
-        </header>
-
-        <div className="px-5 py-4">
-          {step === 'confirm' && (
-            <ConfirmStep
-              secret={secret}
-              expectedPhrase={expectedPhrase}
-              typedPhrase={typedPhrase}
-              onTypedPhrase={setTypedPhrase}
-              testMode={testMode}
-              onTestMode={setTestMode}
-              noSoak={noSoak}
-              onNoSoak={setNoSoak}
-              soakAck={soakAck}
-              onSoakAck={setSoakAck}
-              skipHealthCheck={skipHealthCheck}
-              onSkipHealthCheck={setSkipHealthCheck}
-              healthCheckAck={healthCheckAck}
-              onHealthCheckAck={setHealthCheckAck}
-              soakMinutes={soakMinutes}
-              onSoakMinutes={setSoakMinutes}
-              emergencyMode={emergencyMode}
-              onEmergencyMode={setEmergencyMode}
-              emergencyAck={emergencyAck}
-              onEmergencyAck={setEmergencyAck}
-              submitError={submitError}
-            />
-          )}
-          {step === 'running' && job && (
-            <RunningStep secret={secret} job={job} pollError={pollError} />
-          )}
-          {step === 'done' && job && (
-            <DoneStep
-              job={job}
-              receiptText={receiptText}
-              receiptCopied={receiptCopied}
-              onCopy={copyReceipt}
-            />
-          )}
+          <h2 className="mt-1 text-lg font-medium text-black">
+            Rotate{' '}
+            <span className="font-mono">{secret.secret}</span>
+          </h2>
+          <p className="mt-1 text-xs text-black/45">
+            {repo.name} · {repo.path}
+          </p>
         </div>
+        <button
+          type="button"
+          onClick={close}
+          className="text-black/40 hover:text-black"
+          aria-label="Close"
+        >
+          <X className="w-5 h-5" strokeWidth={1.5} />
+        </button>
+      </header>
 
-        <footer className="flex flex-col-reverse md:flex-row md:items-center md:justify-end gap-2 border-t border-black/10 px-5 py-4">
-          {step === 'confirm' && (
-            <>
-              <button
-                type="button"
-                onClick={close}
-                className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black/10 hover:border-black/40"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!canSubmit}
-                onClick={() => {
-                  void submitTrigger();
-                }}
-                className={`px-4 py-2 font-mono text-[10px] uppercase tracking-widest border disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
-                  emergencyMode
-                    ? 'border-[#b91c1c] bg-[#b91c1c] text-white hover:bg-[#991b1b]'
-                    : 'border-black bg-black text-white hover:bg-[#222]'
-                }`}
-              >
-                {emergencyMode ? 'Emergency rotate' : 'Rotate now'}
-              </button>
-            </>
-          )}
-          {step === 'running' && (
-            <span className="text-right text-[11px] leading-relaxed text-black/45">
-              Cancellation isn't supported in v1. The pipeline is safe to abandon.
-              <br />
-              If you must abort:{' '}
-              <span className="font-mono text-black/60">
-                pkill -f 'npm run rotate -- {secret.secret}'
-              </span>
-              . Re-clicking Rotate resumes from disk.
-            </span>
-          )}
-          {step === 'done' && (
+      <div className="px-5 py-4">
+        {step === 'confirm' && (
+          <ConfirmStep
+            secret={secret}
+            expectedPhrase={expectedPhrase}
+            typedPhrase={typedPhrase}
+            onTypedPhrase={setTypedPhrase}
+            testMode={testMode}
+            onTestMode={setTestMode}
+            noSoak={noSoak}
+            onNoSoak={setNoSoak}
+            soakAck={soakAck}
+            onSoakAck={setSoakAck}
+            skipHealthCheck={skipHealthCheck}
+            onSkipHealthCheck={setSkipHealthCheck}
+            healthCheckAck={healthCheckAck}
+            onHealthCheckAck={setHealthCheckAck}
+            soakMinutes={soakMinutes}
+            onSoakMinutes={setSoakMinutes}
+            emergencyMode={emergencyMode}
+            onEmergencyMode={setEmergencyMode}
+            emergencyAck={emergencyAck}
+            onEmergencyAck={setEmergencyAck}
+            submitError={submitError}
+          />
+        )}
+        {step === 'running' && job && (
+          <RunningStep secret={secret} job={job} pollError={pollError} />
+        )}
+        {step === 'done' && job && (
+          <DoneStep
+            job={job}
+            receiptText={receiptText}
+            receiptCopied={receiptCopied}
+            onCopy={copyReceipt}
+          />
+        )}
+      </div>
+
+      <footer className="flex flex-col-reverse md:flex-row md:items-center md:justify-end gap-2 border-t border-black/10 px-5 py-4">
+        {step === 'confirm' && (
+          <>
             <button
               type="button"
               onClick={close}
-              className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black bg-black text-white hover:bg-[#222] transition-colors"
+              className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black/10 hover:border-black/40"
             >
-              Close
+              Cancel
             </button>
-          )}
-        </footer>
-      </div>
-    </div>
+            <button
+              type="button"
+              disabled={!canSubmit}
+              onClick={() => {
+                void submitTrigger();
+              }}
+              className={`px-4 py-2 font-mono text-[10px] uppercase tracking-widest border disabled:opacity-40 disabled:cursor-not-allowed transition-colors ${
+                emergencyMode
+                  ? 'border-[#b91c1c] bg-[#b91c1c] text-white hover:bg-[#991b1b]'
+                  : 'border-black bg-black text-white hover:bg-[#222]'
+              }`}
+            >
+              {emergencyMode ? 'Emergency rotate' : 'Rotate now'}
+            </button>
+          </>
+        )}
+        {step === 'running' && (
+          <span className="text-right text-[11px] leading-relaxed text-black/45">
+            Cancellation isn't supported in v1. The pipeline is safe to abandon.
+            <br />
+            If you must abort:{' '}
+            <span className="font-mono text-black/60">
+              pkill -f 'npm run rotate -- {secret.secret}'
+            </span>
+            . Re-clicking Rotate resumes from disk.
+          </span>
+        )}
+        {step === 'done' && (
+          <button
+            type="button"
+            onClick={close}
+            className="px-4 py-2 font-mono text-[10px] uppercase tracking-widest border border-black bg-black text-white hover:bg-[#222] transition-colors"
+          >
+            Close
+          </button>
+        )}
+      </footer>
+    </Dialog>
   );
 }
 
