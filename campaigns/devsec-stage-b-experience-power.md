@@ -8,7 +8,7 @@
 - **Repo:** `/Users/christiankatzmann/Dev/Projects/dëv-security`.
 - **Source of truth:** `reports/codebase-health/devsec-industry-grade/synthesis-2026-06-01.md` and `plans/active/devsec-industry-grade/`. Each step implements one batch's `context.md` + `acceptance.md`.
 - **Mode:** fully unattended. Each step implements one batch, runs its Required Checks, writes a receipt, adaptively patches later steps if the code moved, then advances. A step that cannot make its checks pass calls `claude-automate fail` to halt rather than pass broken work forward.
-- **Chain-after:** `devsec-stage-c-foundations-truth` — Stage C launches automatically when Stage B's steps complete.
+- **Chain-after:** when Stage B's steps complete and finalize APPROVES, auto-launches `/Users/christiankatzmann/Dev/Projects/dëv-security/campaigns/devsec-stage-c-foundations-truth.md` next.
 
 ## Progress checklist
 
