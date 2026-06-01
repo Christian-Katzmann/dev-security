@@ -917,6 +917,36 @@ async function getConfirmToken(): Promise<string> {
   return confirmTokenPromise;
 }
 
+// `/api/summary` is a trusted same-origin contract, but an older build or a
+// self-healed store could return a payload missing arrays the render path
+// iterates directly (`summary.repos.filter`, `summary.findings.map`, and the
+// `displayCases` / `actionBucketCounts` / `scanCompleteness` helpers). Coerce
+// the known array fields so an unexpected shape degrades to the crafted empty
+// state instead of throwing through render. Deliberately thin — this is a
+// shape guard, not schema validation.
+const REQUIRED_SUMMARY_ARRAYS = ['repos', 'history', 'findings', 'agent_lab_proposals'] as const;
+const OPTIONAL_SUMMARY_ARRAYS = [
+  'active_findings',
+  'suppressed_findings',
+  'cases',
+  'active_cases',
+  'suppressed_cases',
+  'honey_keys',
+  'honey_key_events',
+] as const;
+
+function normalizeSummary(raw: unknown): DashboardSummary {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return emptySummary;
+  const data = {...(raw as Record<string, unknown>)};
+  for (const field of REQUIRED_SUMMARY_ARRAYS) {
+    if (!Array.isArray(data[field])) data[field] = [];
+  }
+  for (const field of OPTIONAL_SUMMARY_ARRAYS) {
+    if (field in data && !Array.isArray(data[field])) data[field] = [];
+  }
+  return data as DashboardSummary;
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [catalogRoute, setCatalogRoute] = useState<CatalogRoute>({kind: 'home'});
@@ -941,7 +971,7 @@ export default function App() {
     try {
       const response = await fetch('/api/summary', {cache: 'no-store'});
       if (!response.ok) throw new Error(`Dashboard API returned ${response.status}`);
-      setSummary(await response.json());
+      setSummary(normalizeSummary(await response.json()));
       setUpdatedAt(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to load dashboard data');
@@ -1216,7 +1246,9 @@ export default function App() {
   }
 
   async function saveCaseDecision(caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) {
-    setRunError(null);
+    // Surface failures to the calling card instead of routing them into the
+    // `runError` channel, which the Findings tab never renders — a rejected
+    // decision used to no-op silently and leave the card looking unchanged.
     try {
       const confirmToken = await getConfirmToken();
       const response = await fetch('/api/case-decision', {
@@ -1227,7 +1259,7 @@ export default function App() {
       if (!response.ok) throw new Error(await response.text());
       await loadSummary();
     } catch (err) {
-      setRunError(err instanceof Error ? err.message : 'Unable to save case decision');
+      throw err instanceof Error ? err : new Error('Unable to save case decision');
     }
   }
 
@@ -1978,7 +2010,19 @@ function OverviewView({
 
       {!!preCaseRepos.length && <PreCaseScanNote repos={preCaseRepos} rawFindingTotal={preCaseRawTotal} />}
 
-      {error && <Notice tone="warn" icon={<AlertTriangle size={17} />} title="Dashboard data could not refresh" body="Saved data may be older than shown." />}
+      {error && (
+        <Notice
+          tone="warn"
+          icon={<AlertTriangle size={17} />}
+          title="Dashboard data could not refresh"
+          body="Saved data may be older than shown."
+          action={(
+            <button type="button" className="button secondary sm" onClick={() => void onRefresh()}>
+              <RotateCcw size={14} /> Retry
+            </button>
+          )}
+        />
+      )}
 
       {target.mode === 'repo' && (
         <RotationStatusCard repo={target.repo} precomputed={rotationSignal} />
@@ -3388,12 +3432,27 @@ function CaseDetailCard({
   rotateError?: string | null;
 }) {
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
-  useEffect(() => setCopyState('idle'), [item.id]);
+  const [pendingDecision, setPendingDecision] = useState<CaseDecisionStatus | 'open' | null>(null);
+  const [decisionError, setDecisionError] = useState<string | null>(null);
+  useEffect(() => {
+    setCopyState('idle');
+    setPendingDecision(null);
+    setDecisionError(null);
+  }, [item.id]);
 
   async function save(status: CaseDecisionStatus | 'open') {
+    if (pendingDecision) return;
     const note = status === 'open' ? '' : window.prompt('Optional note for this decision', item.decision?.note ?? '');
     if (note === null) return;
-    await onDecision(item.id, item.repoName, status, note);
+    setDecisionError(null);
+    setPendingDecision(status);
+    try {
+      await onDecision(item.id, item.repoName, status, note);
+    } catch (err) {
+      setDecisionError(err instanceof Error ? err.message : 'Unknown error.');
+    } finally {
+      setPendingDecision(null);
+    }
   }
   // "Rotate this" affordance: only on secrets-category cases when the repo
   // has rotation scaffolded AND the backend inferred a tracked secret name.
@@ -3486,12 +3545,34 @@ function CaseDetailCard({
           ['accepted_risk', 'Accept risk', ShieldCheck],
           ['fixed', 'Mark fixed', Lock],
         ] as const).map(([status, label, Icon]) => (
-          <button key={status} type="button" className={item.decision?.status === status ? 'active' : ''} onClick={() => void save(status)}>
-            <Icon size={13} /> {label}
+          <button
+            key={status}
+            type="button"
+            className={item.decision?.status === status ? 'active' : ''}
+            disabled={pendingDecision !== null}
+            aria-busy={pendingDecision === status}
+            onClick={() => void save(status)}
+          >
+            <Icon size={13} /> {pendingDecision === status ? 'Saving…' : label}
           </button>
         ))}
-        {item.decision && <button type="button" onClick={() => void save('open')}><RotateCcw size={13} /> Reopen</button>}
+        {item.decision && (
+          <button
+            type="button"
+            disabled={pendingDecision !== null}
+            aria-busy={pendingDecision === 'open'}
+            onClick={() => void save('open')}
+          >
+            <RotateCcw size={13} /> {pendingDecision === 'open' ? 'Saving…' : 'Reopen'}
+          </button>
+        )}
       </div>
+      {decisionError && (
+        <div className="decision-error" role="alert">
+          <AlertTriangle size={14} />
+          <span>This decision was not saved, so the case status is unchanged. {decisionError}</span>
+        </div>
+      )}
     </PaperCard>
   );
 }
@@ -4058,8 +4139,14 @@ function KV({label, value}: {label: string; value: string}) {
   return <div className="kv"><span>{label}</span><strong>{value}</strong></div>;
 }
 
-function Notice({tone, icon, title, body}: {tone: Tone; icon: ReactNode; title: string; body: string}) {
-  return <div className={`notice ${tone}`}><span>{icon}</span><div><strong>{title}</strong><p>{body}</p></div></div>;
+function Notice({tone, icon, title, body, action}: {tone: Tone; icon: ReactNode; title: string; body: string; action?: ReactNode}) {
+  return (
+    <div className={`notice ${tone}`}>
+      <span>{icon}</span>
+      <div><strong>{title}</strong><p>{body}</p></div>
+      {action && <div className="notice-action">{action}</div>}
+    </div>
+  );
 }
 
 function EmptyLine({title, detail}: {title: string; detail: string}) {

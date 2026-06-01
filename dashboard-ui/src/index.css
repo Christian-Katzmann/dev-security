@@ -2227,6 +2227,30 @@ kbd {
   color: #fff;
 }
 
+.decision-grid button:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+.decision-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(185, 28, 28, 0.34);
+  background: rgba(185, 28, 28, 0.05);
+  color: #7f1d1d;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.decision-error svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
 .button.primary,
 a.button.primary {
   background: var(--ink-strong);
@@ -4766,6 +4790,78 @@ a.button,
 
 .notice p {
   margin: 4px 0 0;
+  color: var(--ink-muted);
+}
+
+.notice-action {
+  margin-left: auto;
+  align-self: center;
+}
+
+/* --- Top-level error boundary fallback (S-005) --- */
+.app-error-boundary {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: var(--app-bg, #f4f3ee);
+}
+
+.app-error-card {
+  max-width: 560px;
+  width: 100%;
+  padding: 32px;
+  border-radius: var(--r-lg, 16px);
+  border: 1px solid var(--border-hair);
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(28, 36, 34, 0.08);
+}
+
+.app-error-card h1 {
+  margin: 0 0 12px;
+  font-size: 24px;
+  line-height: 1.2;
+  color: var(--ink-strong);
+}
+
+.app-error-card > p {
+  margin: 0 0 20px;
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+
+.app-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.app-error-detail {
+  margin-top: 20px;
+  border-top: 1px solid var(--border-hair);
+  padding-top: 14px;
+}
+
+.app-error-detail summary {
+  cursor: pointer;
+  font: 700 11px/1 var(--font-sans);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-muted);
+}
+
+.app-error-detail pre {
+  margin: 12px 0 0;
+  max-height: 240px;
+  overflow: auto;
+  padding: 12px;
+  border-radius: var(--r-md);
+  background: rgba(28, 36, 34, 0.04);
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
   color: var(--ink-muted);
 }
 

@@ -2,6 +2,7 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import SetupCardDemo from './components/catalog/SetupCardDemo.tsx';
+import ErrorBoundary from './components/ErrorBoundary.tsx';
 import './index.css';
 
 function installHardRefreshShortcut() {
@@ -35,6 +36,8 @@ const showSetupCardDemo = new URLSearchParams(window.location.search).has('setup
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {showSetupCardDemo ? <SetupCardDemo /> : <App />}
+    <ErrorBoundary>
+      {showSetupCardDemo ? <SetupCardDemo /> : <App />}
+    </ErrorBoundary>
   </StrictMode>,
 );
