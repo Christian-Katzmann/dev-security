@@ -1,3 +1,4 @@
+import json
 import sqlite3
 
 import pytest
@@ -6,7 +7,7 @@ from security_observatory import lifecycle
 from security_observatory.cases import build_recovery_playbooks, build_security_cases
 from security_observatory.dashboard_pages import build_ai_prompt, raw_report_fallback
 from security_observatory.enrichment import correlate_dependency_findings
-from security_observatory.model import Finding
+from security_observatory.model import Finding, SecurityCase
 from security_observatory.sbom import SBOMComponent
 from security_observatory.storage import ObservatoryDB
 
@@ -203,6 +204,81 @@ def test_ai_prompt_is_case_first_with_evidence_verification_and_fix_steps():
     assert "Verification steps:" in prompt
     assert "Fix steps:" in prompt
     assert "Upgrade lodash." in prompt
+
+
+def test_save_scan_redacts_token_for_typed_and_dict_cases(tmp_path):
+    """save_scan can never persist an un-redacted case (S-022).
+
+    A token-like string must be redacted in the stored ``cases_json`` whether the
+    case arrives as a typed ``SecurityCase`` or as a raw dict. The dict path is
+    routed through ``SecurityCase(**case)`` so ``__post_init__`` redaction and the
+    action_level/confidence whitelist always run — the old ``dict(case)`` branch
+    that skipped them is gone.
+    """
+    token = "ghp_0123456789abcdefghij0123"
+    typed_case = SecurityCase(
+        case_id="case-typed",
+        title=f"Exposed key {token}",
+        plain_english_risk=f"Leaked {token} in config",
+        action_level="fix_now",
+        confidence="high",
+        category="secrets",
+        severity="critical",
+        affected_files=[".env"],
+        evidence=[{"note": f"value {token}"}],
+        scanners=["gitleaks"],
+        fix_steps=[f"Rotate {token}"],
+        agent_prompt=f"Handle {token}",
+        source_fingerprints=["fp-typed"],
+    )
+    dict_case = {
+        "case_id": "case-dict",
+        "title": f"Exposed key {token}",
+        "plain_english_risk": f"Leaked {token}",
+        # A dict bypassing __post_init__ could also smuggle an invalid action
+        # level past the whitelist; prove that is normalized too.
+        "action_level": "definitely-not-valid",
+        "confidence": "high",
+        "category": "secrets",
+        "severity": "critical",
+        "affected_files": [".env"],
+        "evidence": [],
+        "scanners": ["gitleaks"],
+        "fix_steps": [f"Rotate {token}"],
+        "agent_prompt": "",
+        "source_fingerprints": ["fp-dict"],
+    }
+    db = ObservatoryDB(tmp_path / "observatory.sqlite")
+    try:
+        db.save_scan(
+            scan_id="repo-20260101T000000Z",
+            repo_name="repo",
+            repo_path="/tmp/repo",
+            started_at="2026-01-01T00:00:00+00:00",
+            finished_at="2026-01-01T00:01:00+00:00",
+            profile="secrets",
+            health_score=10,
+            status="ok",
+            scanner_statuses=[],
+            findings=[],
+            report_path=str(tmp_path / "r.json"),
+            cases=[typed_case, dict_case],
+        )
+        stored = db.conn.execute(
+            "select cases_json from scans where id = ?",
+            ("repo-20260101T000000Z",),
+        ).fetchone()["cases_json"]
+        cases = json.loads(stored)
+    finally:
+        db.close()
+
+    assert token not in stored
+    assert "[REDACTED]" in stored
+    # The dict path was rebuilt through SecurityCase: its invalid action_level
+    # fell back to the whitelist default rather than being persisted verbatim.
+    by_id = {case["case_id"]: case for case in cases}
+    assert by_id["case-dict"]["action_level"] == "verify"
+    assert by_id["case-typed"]["action_level"] == "fix_now"
 
 
 def test_cases_are_persisted_and_exported(tmp_path):

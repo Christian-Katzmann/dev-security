@@ -455,7 +455,7 @@ function loadCustomRepos(): ProjectRepo[] {
   }
 }
 
-function formatDuration(startedAt?: string, finishedAt?: string): string {
+function formatDuration(startedAt?: string | null, finishedAt?: string | null): string {
   if (!startedAt || !finishedAt) return 'Just now';
   const seconds = Math.max(1, Math.round((new Date(finishedAt).getTime() - new Date(startedAt).getTime()) / 1000));
   if (seconds < 60) return `${seconds}s`;
@@ -1897,7 +1897,7 @@ function Toolbar({
   posture: {score: number; delta: number};
   search: string;
   setSearch: (value: string) => void;
-  searchInputRef: RefObject<HTMLInputElement>;
+  searchInputRef: RefObject<HTMLInputElement | null>;
   isLoading: boolean;
   error: string | null;
   onRunAll: () => void;

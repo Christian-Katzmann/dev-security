@@ -20,6 +20,7 @@ from urllib.request import Request, urlopen
 import pytest
 
 from security_observatory.dashboard_server import DashboardHandler
+from security_observatory.model import SecurityCase
 from security_observatory.storage import ObservatoryDB
 
 
@@ -40,8 +41,22 @@ def _get(port: int, path: str) -> tuple[int, dict[str, object]]:
         return exc.code, json.loads(payload) if payload else {}
 
 
-def _case(case_id: str, title: str) -> dict[str, object]:
-    return {"case_id": case_id, "title": title, "severity": "high", "category": "secrets"}
+def _case(case_id: str, title: str) -> SecurityCase:
+    return SecurityCase(
+        case_id=case_id,
+        title=title,
+        plain_english_risk="",
+        action_level="fix_now",
+        confidence="high",
+        category="secrets",
+        severity="high",
+        affected_files=[],
+        evidence=[],
+        scanners=["semgrep"],
+        fix_steps=[],
+        agent_prompt="",
+        source_fingerprints=[],
+    )
 
 
 @pytest.fixture

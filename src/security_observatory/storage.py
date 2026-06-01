@@ -69,6 +69,23 @@ def _decode_cases(cases_json: Any) -> list[Any]:
     return cases
 
 
+# Monotonic schema version tracked via SQLite's ``PRAGMA user_version`` (S-026).
+# It is the single source of truth for whether a destructive, run-once migration
+# still needs to apply, replacing the old fragile "parse sqlite_master SQL for a
+# substring" sentinel. Bump this whenever you add a numbered migration step to
+# ``_run_schema_migrations`` below, and document the step in that ledger.
+#
+# Migration ledger (see ``_run_schema_migrations``):
+#   1 -> widen the case-resolution and case-decision status CHECK constraints
+#        (adds requires_confirmation / requires_human_confirmation / in_progress).
+#
+# Additive ``alter table ... add column`` migrations are NOT versioned here: they
+# live in ``_ensure_columns``, which diffs columns and is naturally idempotent and
+# version-independent. Only destructive table rebuilds, which must run exactly
+# once, are gated on ``user_version``.
+SCHEMA_USER_VERSION = 1
+
+
 SCHEMA = """
 create table if not exists scans (
   id text primary key,
@@ -503,9 +520,23 @@ class ObservatoryDB:
         conn = sqlite3.connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
         try:
+            # A brand-new database (no tables yet) already matches the latest
+            # SCHEMA, so it is stamped straight to SCHEMA_USER_VERSION and skips
+            # every back-fill migration. We detect "fresh" before applying SCHEMA,
+            # since the `create table if not exists` below would otherwise mask it.
+            # Any pre-existing table means a real database that may still need a
+            # versioned migration — including partial fixtures without a `scans`
+            # table — so it is never treated as fresh.
+            fresh = (
+                conn.execute(
+                    "select 1 from sqlite_master where type = 'table' limit 1"
+                ).fetchone()
+                is None
+            )
             conn.executescript(SCHEMA)
             self.conn = conn
             self._ensure_columns()
+            self._run_schema_migrations(fresh=fresh)
             conn.commit()
         except BaseException:
             # Never leak the half-open handle; the caller decides whether the
@@ -600,23 +631,49 @@ class ObservatoryDB:
         ):
             if managed_columns and column not in managed_columns:
                 self.conn.execute(f"alter table managed_tool_installations add column {column} {definition}")
-        self._migrate_resolution_status_constraints()
-        self._migrate_case_decision_status_constraint()
+
+    def _run_schema_migrations(self, *, fresh: bool) -> None:
+        """Apply destructive, run-once schema migrations gated on PRAGMA user_version.
+
+        ``user_version`` (0 on every pre-S-026 database) is the single migration
+        counter. Each numbered step runs only when the stored version is below it,
+        then the version is bumped so the step never re-runs — this replaces the
+        old ``select sql from sqlite_master`` substring sentinel, which inferred
+        "needs migration" by string-matching the live CREATE TABLE SQL.
+
+        Migration ledger — apply strictly in order:
+          1 -> widen the case-resolution and case-decision status CHECK
+               constraints (requires_confirmation / requires_human_confirmation /
+               in_progress).
+
+        Additive column adds stay in ``_ensure_columns`` (self-idempotent,
+        version-independent). A freshly created database already matches the
+        latest SCHEMA, so it is stamped to SCHEMA_USER_VERSION without rebuilding.
+        """
+        if fresh:
+            self.conn.execute(f"pragma user_version = {SCHEMA_USER_VERSION}")
+            return
+        version = self.conn.execute("pragma user_version").fetchone()[0]
+        if version >= SCHEMA_USER_VERSION:
+            return
+        if version < 1:
+            self._migrate_resolution_status_constraints()
+            self._migrate_case_decision_status_constraint()
+        self.conn.execute(f"pragma user_version = {SCHEMA_USER_VERSION}")
 
     def _migrate_resolution_status_constraints(self) -> None:
-        """Widen the case-resolution status CHECK constraints on older databases.
+        """Widen the case-resolution status CHECK constraints (migration step 1).
 
         The high/critical suppression gate adds a ``requires_confirmation`` run
         status and a ``requires_human_confirmation`` item status. SQLite can't
-        ALTER a CHECK constraint in place, so when an existing table still carries
-        the narrow constraint we rebuild it (preserving every audit row). Fresh
-        databases already get the wide constraint from SCHEMA, so this is a no-op
-        for them.
+        ALTER a CHECK constraint in place, so we rebuild each table (preserving
+        every audit row). Whether this rebuild is needed is decided by
+        ``user_version`` in ``_run_schema_migrations`` — fresh and already-migrated
+        databases never reach this method — so it rebuilds unconditionally here.
         """
         rebuilds = (
             (
                 "case_resolution_runs",
-                "requires_confirmation",
                 """
                 create table case_resolution_runs__migrate (
                   id text primary key,
@@ -634,7 +691,6 @@ class ObservatoryDB:
             ),
             (
                 "case_resolution_items",
-                "requires_human_confirmation",
                 """
                 create table case_resolution_items__migrate (
                   id text primary key,
@@ -657,12 +713,12 @@ class ObservatoryDB:
                 """,
             ),
         )
-        for table, sentinel, create_sql in rebuilds:
+        for table, create_sql in rebuilds:
             row = self.conn.execute(
                 "select sql from sqlite_master where type = 'table' and name = ?",
                 (table,),
             ).fetchone()
-            if not row or not row["sql"] or sentinel in row["sql"]:
+            if not row or not row["sql"]:
                 continue
             self.conn.execute(create_sql)
             self.conn.execute(f"insert into {table}__migrate select * from {table}")
@@ -674,20 +730,20 @@ class ObservatoryDB:
         self.conn.execute("create index if not exists idx_case_resolution_items_case on case_resolution_items(case_id)")
 
     def _migrate_case_decision_status_constraint(self) -> None:
-        """Widen the ``case_decisions.status`` CHECK constraint on older DBs.
+        """Widen the ``case_decisions.status`` CHECK constraint (migration step 1).
 
         S-035 added the non-suppressing ``in_progress`` lifecycle state to the
         canonical decision vocabulary (``lifecycle.DECISION_STATUSES``). SQLite
-        cannot ALTER a CHECK constraint in place, so when an existing table
-        still carries the narrow four-value constraint we rebuild it,
+        cannot ALTER a CHECK constraint in place, so we rebuild the table,
         preserving every recorded decision row. This is a widen, never a narrow:
-        old-shape rows survive intact. Fresh databases already get the wide
-        constraint from SCHEMA, so this is a no-op for them.
+        old-shape rows survive intact. Whether the rebuild is needed is decided by
+        ``user_version`` in ``_run_schema_migrations`` (fresh and already-migrated
+        databases never reach this method), so it rebuilds unconditionally here.
         """
         row = self.conn.execute(
             "select sql from sqlite_master where type = 'table' and name = 'case_decisions'"
         ).fetchone()
-        if not row or not row["sql"] or "in_progress" in row["sql"]:
+        if not row or not row["sql"]:
             return
         # Carry every column across by name (the table may have gained columns
         # via ALTER on very old databases, so position-based `select *` is
@@ -1030,7 +1086,15 @@ class ObservatoryDB:
         dependency_trust_enrichments: list[Any] | None = None,
         platform_posture_snapshot: dict[str, Any] | None = None,
     ) -> None:
-        case_dicts = [case.to_dict() if isinstance(case, SecurityCase) else dict(case) for case in (cases or [])]
+        # Persist only redacted, whitelist-validated cases. A raw dict skips
+        # SecurityCase.__post_init__ (token redaction + action_level/confidence
+        # whitelist), so any dict input is rebuilt through the dataclass before
+        # it can reach cases_json — the redaction contract can never be bypassed,
+        # whether the caller passed a typed case or a dict.
+        case_dicts = [
+            (case if isinstance(case, SecurityCase) else SecurityCase(**case)).to_dict()
+            for case in (cases or [])
+        ]
         component_dicts = [
             component.to_dict() if isinstance(component, SBOMComponent) else dict(component)
             for component in (sbom_components or [])

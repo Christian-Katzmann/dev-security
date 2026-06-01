@@ -25,7 +25,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from security_observatory.dashboard_payload import assemble_dashboard_payload
-from security_observatory.model import Finding
+from security_observatory.model import Finding, SecurityCase
 from security_observatory.storage import ObservatoryDB
 
 
@@ -99,36 +99,40 @@ def _posture(status: str) -> dict:
     }
 
 
-def _dependency_case(repo: str, case_id: str, name: str, version: str, severity: str) -> dict:
-    return {
-        "case_id": case_id,
-        "repo": repo,
-        "repo_name": repo,
-        "title": f"Vulnerable dependency {name}",
-        "category": "dependencies",
-        "severity": severity,
-        "action_level": "fix_now" if severity in {"critical", "high"} else "watch",
-        "confidence": "high",
-        "package_name": name,
-        "package_version": version,
-        "package_ecosystem": "npm",
-        "package_url": f"pkg:npm/{name}@{version}",
-        "plain_english_risk": f"{name} {version} has a known issue.",
-    }
+def _dependency_case(repo: str, case_id: str, name: str, version: str, severity: str) -> SecurityCase:
+    return SecurityCase(
+        case_id=case_id,
+        title=f"Vulnerable dependency {name}",
+        plain_english_risk=f"{name} {version} has a known issue.",
+        action_level="fix_now" if severity in {"critical", "high"} else "watch",
+        confidence="high",
+        category="dependencies",
+        severity=severity,
+        affected_files=[],
+        evidence=[],
+        scanners=["syft"],
+        fix_steps=[],
+        agent_prompt="",
+        source_fingerprints=[case_id],
+    )
 
 
-def _secrets_case(repo: str, case_id: str, severity: str) -> dict:
-    return {
-        "case_id": case_id,
-        "repo": repo,
-        "repo_name": repo,
-        "title": "Exposed secret",
-        "category": "secrets",
-        "severity": severity,
-        "action_level": "fix_now",
-        "confidence": "medium",
-        "plain_english_risk": "A credential may be exposed.",
-    }
+def _secrets_case(repo: str, case_id: str, severity: str) -> SecurityCase:
+    return SecurityCase(
+        case_id=case_id,
+        title="Exposed secret",
+        plain_english_risk="A credential may be exposed.",
+        action_level="fix_now",
+        confidence="medium",
+        category="secrets",
+        severity=severity,
+        affected_files=[],
+        evidence=[],
+        scanners=["gitleaks"],
+        fix_steps=[],
+        agent_prompt="",
+        source_fingerprints=[case_id],
+    )
 
 
 def _resolution_run(repo: str, run_id: str, scan_id: str, imported_at: str) -> dict:

@@ -7,6 +7,7 @@ new / recurring / resolved case sets, including the closure-proof binding on a
 resolved case.
 """
 
+from security_observatory.model import SecurityCase
 from security_observatory.storage import ObservatoryDB
 
 
@@ -28,7 +29,21 @@ def _save(db, *, scan_id, started_at, health, cases):
 
 
 def _case(case_id, title):
-    return {"case_id": case_id, "title": title, "severity": "high", "category": "secrets"}
+    return SecurityCase(
+        case_id=case_id,
+        title=title,
+        plain_english_risk="",
+        action_level="fix_now",
+        confidence="high",
+        category="secrets",
+        severity="high",
+        affected_files=[],
+        evidence=[],
+        scanners=["semgrep"],
+        fix_steps=[],
+        agent_prompt="",
+        source_fingerprints=[],
+    )
 
 
 def test_scan_diff_compares_two_arbitrary_scans(tmp_path):

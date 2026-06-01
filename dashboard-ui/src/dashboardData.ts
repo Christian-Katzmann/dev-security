@@ -1122,35 +1122,30 @@ export type Suppression = {
   updated_at?: string | null;
 };
 
+/**
+ * The case shape as it actually arrives over the wire. These are exactly the
+ * backend `SecurityCase` dataclass fields (`model.py` / built in `cases.py`)
+ * plus the fields the read path injects on top: `scan_id`/`repo`/`repo_name`
+ * identity, the change-tracking lifecycle fields, the decision/suppression
+ * envelope, the honey-incident link, and `inferred_secret_name` (added only for
+ * scaffolded secrets cases in `assemble_summary_payload`). Drifted aliases the
+ * backend never emits used to live here as decorative fallbacks; they have been
+ * removed (S-022) so the type can't lie about the contract.
+ */
 export type SecurityCase = {
-  id?: string | number;
+  // Backend dataclass fields (the canonical wire shape).
   case_id?: string | number;
-  scan_id?: string;
-  repo?: string;
-  repo_name?: string;
   title?: string;
-  plain_title?: string;
-  summary?: string;
   plain_english_risk?: string;
-  why_matters?: string;
-  why_it_matters?: string;
-  affected_files?: string[];
-  affected_path?: string | null;
-  path?: string | null;
-  file?: string | null;
-  line?: number | null;
-  confidence?: string | number | null;
-  source_scanners?: string[];
-  scanners?: string[];
-  scanner?: string;
-  next_step?: string;
-  remediation?: string | null;
-  severity?: Severity;
-  category?: string;
   action_level?: AttentionBucket | string;
-  bucket?: AttentionBucket | string;
-  action_bucket?: AttentionBucket | string;
+  confidence?: string | number | null;
+  category?: string;
+  severity?: Severity;
+  affected_files?: string[];
+  evidence?: unknown[];
+  scanners?: string[];
   fix_steps?: string[];
+  agent_prompt?: string;
   priority_reasons?: string[];
   install_recency?: {
     confidence?: 'strong' | 'weak' | 'unknown' | string | null;
@@ -1158,11 +1153,11 @@ export type SecurityCase = {
     evidence?: string[];
   } | null;
   rotation_surfaces?: string[];
+  // Server-injected on the read path.
+  scan_id?: string;
+  repo?: string;
+  repo_name?: string;
   inferred_secret_name?: string | null;
-  evidence?: unknown[];
-  agent_prompt?: string;
-  raw_report_url?: string;
-  ai_prompt_url?: string;
   created_at?: string;
   decision?: CaseDecision;
   suppressed?: boolean;
@@ -1190,8 +1185,6 @@ export type DisplayCase = {
   category?: string;
   scanId?: string;
   agentPrompt?: string;
-  rawReportUrl?: string;
-  aiPromptUrl?: string;
   createdAt?: string;
   decision?: CaseDecision;
   suppressed?: boolean;
@@ -1713,38 +1706,35 @@ function remediationForFinding(finding: Finding): string {
 }
 
 function caseLocation(item: SecurityCase): string {
-  const file = item.affected_files?.[0] ?? item.affected_path ?? item.path ?? item.file ?? 'Repository';
-  return item.line ? `${file}:${item.line}` : file;
+  return item.affected_files?.[0] ?? 'Repository';
 }
 
 function caseSources(item: SecurityCase): string[] {
-  const sources = item.source_scanners ?? item.scanners ?? (item.scanner ? [item.scanner] : []);
+  const sources = item.scanners ?? [];
   return [...new Set(sources.filter(Boolean).map((source) => String(source)))];
 }
 
 function caseToDisplayCase(item: SecurityCase, index: number): DisplayCase {
   const severity = item.severity;
   const scanId = item.scan_id;
-  const title = item.plain_title ?? item.title ?? 'Security case needs attention';
+  const title = item.title ?? 'Security case needs attention';
   const firstFixStep = item.fix_steps?.find((step) => step.trim());
   const repoName = String(item.repo_name ?? item.repo ?? 'repository');
   const changeStatus = item.change_status;
   return {
-    id: String(item.case_id ?? item.id ?? `${scanId ?? 'case'}-${index}`),
+    id: String(item.case_id ?? `${scanId ?? 'case'}-${index}`),
     repoName,
-    bucket: normalizeBucket(item.action_level ?? item.action_bucket ?? item.bucket, severity),
+    bucket: normalizeBucket(item.action_level, severity),
     title,
-    why: item.plain_english_risk ?? item.why_it_matters ?? item.why_matters ?? item.summary ?? 'This case may affect the safety or reliability of the project.',
+    why: item.plain_english_risk ?? 'This case may affect the safety or reliability of the project.',
     location: caseLocation(item),
     confidence: confidenceLabel(item.confidence, severity),
     sources: caseSources(item),
-    nextStep: item.next_step ?? item.remediation ?? firstFixStep ?? 'Give this case to an AI agent and ask it to make the smallest safe fix.',
+    nextStep: firstFixStep ?? 'Give this case to an AI agent and ask it to make the smallest safe fix.',
     severity,
     category: item.category,
     scanId,
     agentPrompt: item.agent_prompt,
-    rawReportUrl: item.raw_report_url,
-    aiPromptUrl: item.ai_prompt_url,
     createdAt: item.created_at,
     decision: item.decision,
     suppressed: Boolean(item.suppressed),

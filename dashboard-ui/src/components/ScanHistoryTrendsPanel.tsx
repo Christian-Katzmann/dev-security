@@ -25,11 +25,11 @@ function scanOptionLabel(summary: DashboardSummary, scan: ScanHistoryItem): stri
 }
 
 function caseTitle(item: SecurityCase): string {
-  return item.plain_title ?? item.title ?? 'Security case';
+  return item.title ?? 'Security case';
 }
 
 function caseKey(item: SecurityCase, index: number): string {
-  return String(item.case_id ?? item.id ?? index);
+  return String(item.case_id ?? index);
 }
 
 /**
@@ -96,7 +96,7 @@ function ScanDiffResultView({diff, summary}: {diff: ScanDiffResult; summary: Das
           {resolved.map((item, index) => (
             <li key={caseKey(item, index)}>
               <strong>{caseTitle(item)}</strong>
-              <span>{item.next_step ?? `Verified — not found in scan ${diff.head.scan_id}.`}</span>
+              <span>{`Verified — not found in scan ${diff.head.scan_id}.`}</span>
             </li>
           ))}
         </ul>
