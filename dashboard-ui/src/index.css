@@ -642,18 +642,6 @@ kbd {
   padding: 20px;
 }
 
-/* Suspense fallback while a code-split tab surface loads (S-029). Calm and
-   centered so a tab switch never flashes raw unstyled text. */
-.view-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 64px 20px;
-  color: var(--ink-muted);
-  font-size: 0.92rem;
-  letter-spacing: 0.01em;
-}
-
 .scroll-area {
   scrollbar-width: thin;
   scrollbar-color: rgba(28,36,34,0.20) transparent;
@@ -5015,6 +5003,161 @@ a.button,
   flex-shrink: 0;
   align-items: center;
   gap: 8px;
+}
+
+/* History-recovery banner. Calm by design — a preserved-and-recovered event,
+   not breakage — so it sits in the brand-green register rather than the crit
+   or warn ambers the run-error card uses. Pinned to the top of the overview. */
+.history-recovery-notice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(47, 102, 86, 0.26);
+  background: rgba(47, 102, 86, 0.06);
+  color: var(--ink);
+}
+
+.history-recovery-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--brand-green);
+}
+
+.history-recovery-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-recovery-body .eyebrow {
+  margin-bottom: 3px;
+  color: var(--brand-green);
+}
+
+.history-recovery-body strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--ink-strong);
+}
+
+.history-recovery-body p {
+  margin: 5px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.history-recovery-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.history-recovery-path-label {
+  font: 600 9px/1.4 var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.history-recovery-path code {
+  font: 500 11.5px/1.5 var(--font-mono);
+  color: var(--ink);
+  word-break: break-all;
+}
+
+/* §7.6 loading — static paper-deep blocks at the size of the content to come.
+   No spinner, no shimmer, no pulse: the spec is deliberate about stillness. The
+   blocks simply hold the layout until the real content replaces them. */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 0 24px;
+}
+
+.loading-block {
+  border-radius: var(--r-lg);
+  background: var(--paper-deep);
+}
+
+.loading-block-tall {
+  height: 168px;
+}
+
+.loading-block-wide {
+  height: 220px;
+}
+
+.loading-block-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.loading-block-row .loading-block {
+  height: 96px;
+}
+
+.loading-state-caption {
+  margin-top: 2px;
+  font: 500 11px/1.4 var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+
+/* §7.5 first-fetch failure — a crafted card, never a misleading empty board.
+   Centered in the content area with a single graphite next step. */
+.first-fetch-error {
+  display: flex;
+  justify-content: center;
+  padding: 56px 20px;
+}
+
+.first-fetch-error-card {
+  max-width: 440px;
+  text-align: left;
+}
+
+.first-fetch-error-icon {
+  display: inline-flex;
+  margin-bottom: 8px;
+  color: var(--sev-high);
+}
+
+.first-fetch-error-card .eyebrow {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.first-fetch-error-card strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--ink-strong);
+}
+
+.first-fetch-error-card p {
+  margin: 8px 0 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+
+.first-fetch-error-detail code {
+  font: 500 11.5px/1.5 var(--font-mono);
+  color: var(--ink);
+  word-break: break-word;
+}
+
+.first-fetch-error-card .button {
+  margin-top: 16px;
 }
 
 .notice {

@@ -47,7 +47,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 ### Phase 2 — Shrink the architecture & lock the lifecycle seam
 
 - [x] Step 2.1 — Lift rotation enrichment out of dashboard_server + break the catalog↔setup_runner cycle
-- [ ] Step 2.2 — Derive the case-decision CHECK from lifecycle + add test_lifecycle.py
+- [x] Step 2.2 — Derive the case-decision CHECK from lifecycle + add test_lifecycle.py
 
 ### Phase 3 — Craft the missing states & finish the token sweep
 

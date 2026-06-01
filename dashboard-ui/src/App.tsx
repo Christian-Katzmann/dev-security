@@ -101,6 +101,7 @@ import {
   Trash2,
   GitPullRequest,
   Workflow,
+  Wrench,
   X,
 } from 'lucide-react';
 
@@ -115,6 +116,7 @@ import {
   HoneyKey,
   HoneyKeyEvent,
   HoneyKeyStatus,
+  HistoryRecovery,
   ProjectRepo,
   ProjectsPayload,
   RecoveryPlaybook,
@@ -732,6 +734,27 @@ const runErrorEyebrow: Record<RunErrorKind, string> = {
   errored: 'Run interrupted',
   failed: 'Check failed',
   validation: 'Before you run',
+};
+
+// Each failure kind earns its own glyph so the four states are told apart by
+// shape and word, never by the card's color register alone (§7.5): a wrench for
+// a setup gap, a broken-circle for an interrupted run, a triangle for a check
+// that ran but failed, and a quiet info mark for a precondition.
+const runErrorIcon: Record<RunErrorKind, ReactNode> = {
+  'missing-tool': <Wrench size={16} />,
+  errored: <CircleAlert size={16} />,
+  failed: <AlertTriangle size={16} />,
+  validation: <Info size={16} />,
+};
+
+// The supporting line under the headline, tailored per kind so each state reads
+// as its own thing. Used only when the caller hasn't supplied a more specific
+// `detail` (e.g. a raw error string from `erroredRunError`).
+const runErrorHint: Record<RunErrorKind, string | null> = {
+  'missing-tool': 'The tool this check needs is not installed yet. Open Verification to see how to add it.',
+  errored: 'The run stopped before it finished. Trying again usually clears a transient hiccup.',
+  failed: 'The check ran to completion but reported a failure. Review the details, then run it again.',
+  validation: null,
 };
 
 function iconForCategory(category?: string): ReactNode {
@@ -1461,7 +1484,12 @@ export default function App() {
             />
           )}
           <div className="mist-content scroll-area">
-            <Suspense fallback={<div className="view-loading" role="status" aria-live="polite">Loading…</div>}>
+            {isLoading && !updatedAt ? (
+              <LoadingState label="Loading your security posture" />
+            ) : error && !updatedAt ? (
+              <FirstFetchErrorState detail={error} onRetry={() => void loadSummary()} />
+            ) : (
+            <Suspense fallback={<LoadingState />}>
             <ActiveView
               tab={activeTab}
               summary={scopedSummary}
@@ -1496,6 +1524,7 @@ export default function App() {
               onRetry={retryLastRun}
             />
             </Suspense>
+            )}
           </div>
         </main>
       </div>
@@ -1990,7 +2019,12 @@ function Toolbar({
 // validation just states the precondition. The action only renders when the
 // surface actually provides the matching callback, so the same notice reads
 // correctly inside the run sheet and on the overview.
-function RunErrorNotice({
+// One crafted card, four faces. The RunError union (missing-tool · errored ·
+// failed · validation) routes each failure to its own eyebrow, glyph, supporting
+// line, and next step: a missing scanner sends you to Verification, an
+// interrupted or failed run offers a retry, and a plain precondition stays a
+// quiet, action-free note. Builds on the union rather than replacing it.
+export function RunErrorNotice({
   error,
   onRetry,
   onOpenVerification,
@@ -2002,16 +2036,19 @@ function RunErrorNotice({
   compact?: boolean;
 }) {
   const showVerification = error.kind === 'missing-tool' && !!onOpenVerification;
-  const showRetry = error.kind === 'errored' && !!onRetry;
+  const showRetry = (error.kind === 'errored' || error.kind === 'failed') && !!onRetry;
+  // Caller-supplied detail wins; otherwise fall back to the per-kind hint so
+  // every state still says something specific instead of a bare headline.
+  const supporting = error.detail ?? runErrorHint[error.kind];
   return (
     <div className={`run-error-notice kind-${error.kind}${compact ? ' compact' : ''}`} role="alert">
       <span className="run-error-icon" aria-hidden="true">
-        {error.kind === 'validation' ? <Info size={16} /> : <AlertTriangle size={16} />}
+        {runErrorIcon[error.kind]}
       </span>
       <div className="run-error-body">
         <Eyebrow>{runErrorEyebrow[error.kind]}</Eyebrow>
         <strong>{error.message}</strong>
-        {error.detail && <p>{error.detail}</p>}
+        {supporting && <p>{supporting}</p>}
       </div>
       {(showVerification || showRetry) && (
         <div className="run-error-actions">
@@ -2023,6 +2060,69 @@ function RunErrorNotice({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+// Surfaced only when the history database was unreadable and ObservatoryDB
+// quarantined it (payload.history_recovery). The register is calm, not alarmed:
+// nothing was lost, the old file is preserved on disk, and a fresh history is
+// already running. Carried by a database glyph + words, never color alone — and
+// it shows the quarantined path in mono so the operator can find the old file.
+export function HistoryRecoveryNotice({recovery}: {recovery: HistoryRecovery}) {
+  return (
+    <div className="history-recovery-notice" role="status">
+      <span className="history-recovery-icon" aria-hidden="true"><Database size={18} /></span>
+      <div className="history-recovery-body">
+        <Eyebrow>History recovered</Eyebrow>
+        <strong>Your scan history was quarantined and rebuilt.</strong>
+        <p>{recovery.message}</p>
+        {recovery.quarantined_path && (
+          <p className="history-recovery-path">
+            <span className="history-recovery-path-label">Preserved at</span>
+            <code>{recovery.quarantined_path}</code>
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// §7.6 loading. A calm arrangement of static `--paper-deep` blocks sized to the
+// content that's coming — no spinner, no shimmer. Doubles as the cold-start
+// placeholder and the lazy-view Suspense fallback so neither flashes bare text.
+// The caption carries the live region for assistive tech.
+export function LoadingState({label = 'Loading…'}: {label?: string}) {
+  return (
+    <div className="loading-state" role="status" aria-live="polite" aria-busy="true">
+      <div className="loading-block loading-block-tall" />
+      <div className="loading-block-row">
+        <div className="loading-block" />
+        <div className="loading-block" />
+        <div className="loading-block" />
+      </div>
+      <div className="loading-block loading-block-wide" />
+      <span className="loading-state-caption">{label}</span>
+    </div>
+  );
+}
+
+// §7.5 first-fetch failure. The very first /api/summary load failed, so there is
+// no data at all — rendering the empty dashboard would read as a false "all
+// clear". Instead we show a crafted card with the next step. Distinct from the
+// inline "could not refresh" notice, which only fires once real data exists and
+// a later refresh fails.
+export function FirstFetchErrorState({detail, onRetry}: {detail: string | null; onRetry: () => void}) {
+  return (
+    <div className="first-fetch-error">
+      <PaperCard className="first-fetch-error-card">
+        <span className="first-fetch-error-icon" aria-hidden="true"><CircleAlert size={20} /></span>
+        <Eyebrow>Can't reach the dashboard</Eyebrow>
+        <strong>We couldn't load your security data.</strong>
+        <p>The local dashboard service didn't respond, so there's nothing to show yet. Your saved scan history is untouched — this is a connection problem, not data loss.</p>
+        {detail && <p className="first-fetch-error-detail"><code>{detail}</code></p>}
+        <Button variant="primary" icon={<RotateCcw size={15} />} onClick={onRetry}>Try again</Button>
+      </PaperCard>
     </div>
   );
 }
@@ -2243,8 +2343,12 @@ function OverviewView({
       ? `repo:${targetRepos[0].path}`
       : null;
   const canOpenDiagnostic = target.mode === 'repo' || diagnosticAutoRepoValue !== null;
+  // History recovery is a machine-wide event, so read it from the unfiltered
+  // global summary — it must surface in every repo scope, not just All Repos.
+  const historyRecovery = globalSummary.history_recovery;
   return (
     <div className="view-stack">
+      {historyRecovery && <HistoryRecoveryNotice recovery={historyRecovery} />}
       <section className="hero-digest">
         <div className="dotgrid-light hero-dots" />
         <div className="hero-copy">

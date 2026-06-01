@@ -1221,6 +1221,19 @@ export type ScanHistoryItem = {
   profile: string;
 };
 
+/**
+ * Set only when ObservatoryDB found the history database unreadable, quarantined
+ * it, and started a fresh history. Mirrors the `payload.history_recovery` shape
+ * built in `dashboard_server.assemble_summary_payload`. A machine-wide event, not
+ * repo-scoped — the dashboard surfaces it so an emptied history reads as a
+ * preserved-and-recovered moment, never silent data loss.
+ */
+export type HistoryRecovery = {
+  status: string;
+  message: string;
+  quarantined_path: string | null;
+};
+
 export type DashboardSummary = {
   repos: RepositorySummary[];
   history: ScanHistoryItem[];
@@ -1260,6 +1273,7 @@ export type DashboardSummary = {
     scm_token_present?: boolean;
   };
   recovery_playbooks?: RecoveryPlaybook[];
+  history_recovery?: HistoryRecovery;
 };
 
 export type RecoveryPlaybookItem = {
@@ -2377,5 +2391,8 @@ export function filterSummaryByTarget(summary: DashboardSummary, target: TargetS
     completeness: summary.completeness,
     scan_completeness: summary.scan_completeness,
     environment: summary.environment,
+    // Machine-wide, not repo-scoped — carry it through every target so the
+    // recovery banner survives a repo filter.
+    history_recovery: summary.history_recovery,
   };
 }
