@@ -4,11 +4,16 @@ from typing import Any, Iterable
 from urllib.parse import unquote
 import re
 
+from .lifecycle import DECISION_STATUSES, SUPPRESSING_STATUSES
 from .model import redact_text
 
 
-CASE_DECISION_STATUSES = {"verified", "false_positive", "accepted_risk", "fixed"}
-SUPPRESSING_DECISION_STATUSES = {"false_positive", "accepted_risk"}
+# The canonical case-decision vocabulary lives in ``lifecycle.py`` (the single
+# source of truth). These names are re-exported aliases so existing importers
+# (storage, case_followup, …) keep working — every reference resolves to the
+# lifecycle module, never a second independent definition.
+CASE_DECISION_STATUSES = DECISION_STATUSES
+SUPPRESSING_DECISION_STATUSES = SUPPRESSING_STATUSES
 # Suppressing a case at these severities hides a serious finding, so it can
 # never auto-apply through an automated/AI path — it requires explicit human
 # confirmation (see storage.set_case_decision and the case-resolution apply path).
@@ -20,6 +25,9 @@ DEFAULT_VEX_STATUS_BY_DECISION = {
     "false_positive": "not_affected",
     "accepted_risk": "affected",
     "fixed": "fixed",
+    # A fix is applied but not yet rescan-proven — the vulnerability is still
+    # treated as affected until closure is verified.
+    "in_progress": "under_investigation",
 }
 
 VULNERABILITY_RE = re.compile(r"\b(?:CVE-\d{4}-\d+|GHSA-[A-Za-z0-9-]+|PYSEC-\d{4}-\d+|OSV-\d+)\b", re.IGNORECASE)

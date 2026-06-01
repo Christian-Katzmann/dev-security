@@ -109,6 +109,7 @@ import {
 import {
   AttentionBucket,
   CaseDecisionStatus,
+  CaseLifecycleState,
   DashboardMode,
   DashboardSummary,
   DisplayCase,
@@ -135,6 +136,8 @@ import {
   activeRawFindingCount,
   averageHealth,
   caseBackedRawFindingCount,
+  caseDecisionLabels,
+  caseLifecycleLabels,
   caseNeedsAttention,
   categoryLabel,
   dependencyCveCounts,
@@ -3845,12 +3848,24 @@ function CaseDetailCard({
       <KV label="Scanner" value={item.sources.join(', ') || 'Not reported'} />
       <KV label="Confidence" value={item.confidence} />
       <KV label="Age" value={relativeAge(item.createdAt)} />
+      {item.lifecycleState && <KV label="Lifecycle" value={caseLifecycleLabels[item.lifecycleState]} />}
       {item.changeStatus && <KV label="Change state" value={item.changeStatus} />}
-      {item.resolvedAt && <KV label="Resolved" value={formatDate(item.resolvedAt)} />}
+      {item.lifecycleState === 'resolved' && item.resolvedByScanId ? (
+        // Closure proof (S-035): a just-closed case stays visible for one cycle
+        // as an affirmative "Verified ✓ in scan X" state, bound to the rescan
+        // that closed it — not closure by disappearance.
+        <div className="evidence-panel">
+          <Eyebrow>Closure proof</Eyebrow>
+          <p className="closure-proof"><CheckCircle2 size={14} /> Verified in scan {item.resolvedByScanId} — the rescan that no longer found this case.</p>
+          {item.resolvedAt && <KV label="Closed" value={formatDate(item.resolvedAt)} />}
+        </div>
+      ) : (
+        item.resolvedAt && <KV label="Resolved" value={formatDate(item.resolvedAt)} />
+      )}
       {item.decision && (
         <div className="evidence-panel">
           <Eyebrow>Case decision</Eyebrow>
-          <KV label="Status" value={item.decision.status} />
+          <KV label="Status" value={caseDecisionLabels[item.decision.status] ?? item.decision.status} />
           <KV label="Updated" value={formatDate(item.decision.updated_at)} />
           <KV label="Note" value={item.decision.note ?? 'No note'} />
           {item.decision.vex_status && <KV label="VEX" value={`${item.decision.vex_status}${item.decision.vex_reason ? ` · ${item.decision.vex_reason}` : ''}`} />}
@@ -3910,6 +3925,7 @@ function CaseDetailCard({
       <div className="decision-grid">
         {([
           ['verified', 'Verify', CheckCircle2],
+          ['in_progress', 'Fix in progress', Clock3],
           ['false_positive', 'False positive', X],
           ['accepted_risk', 'Accept risk', ShieldCheck],
           ['fixed', 'Mark fixed', Lock],

@@ -38,6 +38,10 @@ from .cases import (
     _PLAYBOOK_BY_CATEGORY,
     _RECOVERY_PLAYBOOK_TEMPLATES,
 )
+from .lifecycle import (
+    MCP_PRESENTATION_STATES,
+    mcp_status_label as _lifecycle_status_label,
+)
 from .rotation import (
     read_rotation_history as _read_rotation_history,
     read_rotation_status as _read_rotation_status,
@@ -48,7 +52,10 @@ from .storage import ObservatoryDB
 logger = logging.getLogger("security_observatory.mcp")
 
 SUPPORTED_SEVERITIES = ("critical", "high", "medium", "low", "info")
-SUPPORTED_CASE_STATUSES = ("open", "verified", "accepted_risk", "resolved")
+# Derived from the canonical lifecycle module — no second independent enum.
+# Backward compatible (open/verified/accepted_risk/resolved) plus the new
+# in_progress beat (S-035).
+SUPPORTED_CASE_STATUSES = MCP_PRESENTATION_STATES
 SUPPORTED_CATEGORIES = tuple(sorted(_PLAYBOOK_BY_CATEGORY.keys()))
 # Scan-trigger contract (docs/rw-extend-spec.md §1): the only profiles the AI may
 # request, both local and network-free. Anything outside the enum is refused.
@@ -231,13 +238,11 @@ def _finding_payload(row: dict[str, Any], repo_path: str | None) -> dict[str, An
 
 
 def _case_status_label(case: dict[str, Any]) -> str:
+    # Driven by the documented presentation mapping in lifecycle.py, not an
+    # ad-hoc inline fold. ``resolved`` is the display fold of fixed +
+    # false_positive (see lifecycle.DECISION_PRESENTATION).
     decision = case.get("decision") or {}
-    raw = str(decision.get("status") or "").lower()
-    if raw in ("false_positive", "fixed"):
-        return "resolved"
-    if raw in ("verified", "accepted_risk"):
-        return raw
-    return "open"
+    return _lifecycle_status_label(decision.get("status"))
 
 
 def _case_payload(case: dict[str, Any], repo_path: str | None) -> dict[str, Any]:

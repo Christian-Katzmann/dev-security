@@ -1,3 +1,8 @@
+import sqlite3
+
+import pytest
+
+from security_observatory import lifecycle
 from security_observatory.cases import build_recovery_playbooks, build_security_cases
 from security_observatory.dashboard_server import build_ai_prompt, raw_report_fallback
 from security_observatory.enrichment import correlate_dependency_findings
@@ -462,6 +467,152 @@ def test_package_upgrade_can_fix_dependency_vulnerability(tmp_path):
     assert "changed from 4.17.20 to 4.17.21" in case["risk_movement_reason"]
     assert "latest scan no longer finds this issue" in case["plain_english_risk"]
     assert repo["dependency_delta"]["risk_counts"]["vulnerability-fixed"] == 1
+
+
+# ---------------------------------------------------------------------------
+# Case lifecycle (S-020 / S-035): one canonical state machine
+# ---------------------------------------------------------------------------
+
+
+def test_lifecycle_canonical_vocabulary_and_mapping():
+    # The new intermediate state lives in the canonical module.
+    assert lifecycle.IN_PROGRESS in lifecycle.DECISION_STATUSES
+    assert lifecycle.IN_PROGRESS in lifecycle.LIFECYCLE_STATES
+    assert lifecycle.IN_PROGRESS in lifecycle.MCP_PRESENTATION_STATES
+    # Suppression set is unchanged — only false_positive + accepted_risk hide a case.
+    assert lifecycle.SUPPRESSING_STATUSES == {"false_positive", "accepted_risk"}
+    assert not lifecycle.is_suppressing("in_progress")
+    # MCP presentation fold: resolved is the display fold of fixed + false_positive.
+    assert lifecycle.mcp_status_label("fixed") == "resolved"
+    assert lifecycle.mcp_status_label("false_positive") == "resolved"
+    assert lifecycle.mcp_status_label("verified") == "verified"
+    assert lifecycle.mcp_status_label(None) == "open"
+    assert lifecycle.mcp_status_label("in_progress") == "in_progress"
+    # Rich, diff-aware lifecycle state surfaces the verifying beat and proof-bound closure.
+    assert lifecycle.lifecycle_state("fixed") == "in_progress"
+    assert lifecycle.lifecycle_state("fixed", diff_status="resolved") == "resolved"
+    assert lifecycle.lifecycle_state(None, diff_status="resolved") == "resolved"
+    assert lifecycle.lifecycle_state(None) == "open"
+
+
+def test_lifecycle_allowed_transitions():
+    # open → in_progress → resolved is the headline loop; reopening is allowed.
+    assert lifecycle.can_transition("open", "in_progress")
+    assert lifecycle.can_transition("in_progress", "resolved")
+    assert lifecycle.can_transition("resolved", "open")
+    # A resolved case cannot jump straight back to a human disposition without reopening.
+    assert not lifecycle.can_transition("resolved", "verified")
+
+
+def test_set_case_decision_accepts_in_progress(tmp_path):
+    cases = build_security_cases(
+        [Finding(repo="repo", scanner="semgrep", severity="medium", category="code-security", title="Unsafe eval", file="app.py", line=4)],
+        [],
+        {"repo": "repo"},
+    )
+    db = ObservatoryDB(tmp_path / "observatory.sqlite")
+    try:
+        decision = db.set_case_decision(case_id=cases[0].case_id, repo_name="repo", status="in_progress", note="Fix pushed, awaiting rescan.")
+        assert decision["status"] == "in_progress"
+        # in_progress is non-suppressing, so the case stays visible.
+        assert cases[0].case_id in db.case_decisions_map()
+    finally:
+        db.close()
+
+
+def test_legacy_case_decision_status_constraint_is_widened(tmp_path):
+    db_path = tmp_path / "legacy.sqlite"
+    conn = sqlite3.connect(db_path)
+    try:
+        # Recreate the OLD (narrow) four-value constraint and seed one decision row.
+        conn.executescript(
+            """
+            create table case_decisions (
+              case_id text primary key,
+              repo_name text not null,
+              status text not null check(status in ('verified', 'false_positive', 'accepted_risk', 'fixed')),
+              note text,
+              created_at text not null,
+              updated_at text not null
+            );
+            insert into case_decisions (case_id, repo_name, status, note, created_at, updated_at)
+              values ('case-legacy', 'repo', 'verified', 'old row', '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00');
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    db = ObservatoryDB(db_path)
+    try:
+        # Pre-existing decision row survived the widen (no destructive rebuild of data).
+        assert db.case_decisions_map()["case-legacy"]["status"] == "verified"
+        # The new in_progress value is now accepted by the widened constraint.
+        db.conn.execute(
+            "update case_decisions set status = 'in_progress' where case_id = 'case-legacy'"
+        )
+        db.conn.commit()
+    finally:
+        db.close()
+
+
+def test_rescan_binds_resolved_case_with_closure_proof(tmp_path):
+    """A rescan that no longer finds a case closes it with proof bound to the
+    closing scan — closure proof, not closure by disappearance (S-035)."""
+    open_finding = Finding(repo="repo", scanner="semgrep", severity="high", category="code-security", title="Unsafe parser", file="app.py", line=12)
+    closing_finding = Finding(repo="repo", scanner="gitleaks", severity="critical", category="secrets", title="Generic API Key", file=".env", line=3)
+    scanner_statuses = [{"scanner": "semgrep", "available": True, "findings": 1}]
+    first_cases = build_security_cases([open_finding, closing_finding], scanner_statuses, {"repo": "repo"})
+    second_cases = build_security_cases([open_finding], scanner_statuses, {"repo": "repo"})
+    db = ObservatoryDB(tmp_path / "observatory.sqlite")
+    try:
+        db.save_scan(
+            scan_id="repo-20260101T000000Z", repo_name="repo", repo_path="/tmp/repo",
+            started_at="2026-01-01T00:00:00+00:00", finished_at="2026-01-01T00:01:00+00:00",
+            profile="quick", health_score=60, status="ok", scanner_statuses=scanner_statuses,
+            findings=[open_finding, closing_finding], report_path=str(tmp_path / "r1.json"), cases=first_cases,
+        )
+        db.save_scan(
+            scan_id="repo-20260102T000000Z", repo_name="repo", repo_path="/tmp/repo",
+            started_at="2026-01-02T00:00:00+00:00", finished_at="2026-01-02T00:01:00+00:00",
+            profile="quick", health_score=85, status="ok", scanner_statuses=scanner_statuses,
+            findings=[open_finding], report_path=str(tmp_path / "r2.json"), cases=second_cases,
+        )
+        summary = db.dashboard_payload()
+    finally:
+        db.close()
+
+    resolved_case = next(case for case in first_cases if "credential" in case.title)
+    cases_by_id = {case["case_id"]: case for case in summary["cases"]}
+    closed = cases_by_id[resolved_case.case_id]
+    # Bound to the scan that closed it, and reads a proof-bound resolved lifecycle state.
+    assert closed["change_status"] == "resolved"
+    assert closed["resolved_by_scan_id"] == "repo-20260102T000000Z"
+    assert closed["lifecycle_state"] == "resolved"
+    assert "scan repo-20260102T000000Z" in closed["next_step"]
+
+
+def test_fixed_case_still_present_reads_in_progress(tmp_path):
+    """A case marked fixed but still found by the latest scan reads in_progress
+    (verifying / awaiting rescan proof) on the dashboard."""
+    finding = Finding(repo="repo", scanner="semgrep", severity="medium", category="code-security", title="Unsafe eval", file="app.py", line=4)
+    cases = build_security_cases([finding], [], {"repo": "repo"})
+    db = ObservatoryDB(tmp_path / "observatory.sqlite")
+    try:
+        db.save_scan(
+            scan_id="repo-20260101T000000Z", repo_name="repo", repo_path="/tmp/repo",
+            started_at="2026-01-01T00:00:00+00:00", finished_at="2026-01-01T00:01:00+00:00",
+            profile="quick", health_score=70, status="ok",
+            scanner_statuses=[{"scanner": "semgrep", "available": True, "findings": 1}],
+            findings=[finding], report_path=str(tmp_path / "r.json"), cases=cases,
+        )
+        db.set_case_decision(case_id=cases[0].case_id, repo_name="repo", status="fixed", note="Patched.")
+        summary = db.dashboard_payload()
+    finally:
+        db.close()
+
+    case = next(item for item in summary["cases"] if item["case_id"] == cases[0].case_id)
+    assert case["lifecycle_state"] == "in_progress"
 
 
 def _component(name: str, version: str) -> SBOMComponent:

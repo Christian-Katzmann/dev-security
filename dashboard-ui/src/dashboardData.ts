@@ -852,8 +852,18 @@ export type Finding = {
 
 export type AttentionBucket = 'fix-now' | 'verify' | 'watch' | 'info';
 
-export type CaseDecisionStatus = 'verified' | 'false_positive' | 'accepted_risk' | 'fixed';
+// Canonical case-decision vocabulary — mirrors lifecycle.DECISION_STATUSES on
+// the backend. `in_progress` (S-035) is "fix applied, awaiting rescan proof".
+export type CaseDecisionStatus = 'verified' | 'false_positive' | 'accepted_risk' | 'fixed' | 'in_progress';
+// The rich lifecycle / presentation state a case *is* at a glance
+// (lifecycle.LIFECYCLE_STATES). Distinct from the scan-diff axis below.
+export type CaseLifecycleState = 'open' | 'verified' | 'in_progress' | 'accepted_risk' | 'resolved';
+// The scan-diff axis: how a case MOVED between two scans. This is a separate
+// machine from the lifecycle state above — a case can be diff `recurring` and
+// lifecycle `in_progress` at once. Kept as `CaseChangeStatus` for back-compat;
+// `CaseDiffStatus` is the clearer name for the same distinct axis.
 export type CaseChangeStatus = 'new' | 'recurring' | 'resolved';
+export type CaseDiffStatus = CaseChangeStatus;
 export type VexStatus = 'affected' | 'not_affected' | 'fixed' | 'under_investigation';
 export type AiFollowUpActionId = 'verify_findings' | 'fix_vulnerabilities' | 'create_remediation_plan' | 'explain_risk' | 'recheck_after_fixes';
 export type AiFollowUpScopeId = 'critical' | 'critical_high' | 'all_open' | 'selected_cases' | 'new_since_last_scan';
@@ -1158,6 +1168,7 @@ export type SecurityCase = {
   suppressed?: boolean;
   suppression?: Suppression;
   change_status?: CaseChangeStatus;
+  lifecycle_state?: CaseLifecycleState;
   previous_scan_id?: string;
   resolved_by_scan_id?: string;
   resolved_at?: string;
@@ -1186,6 +1197,8 @@ export type DisplayCase = {
   suppressed?: boolean;
   suppression?: Suppression;
   changeStatus?: CaseChangeStatus;
+  lifecycleState?: CaseLifecycleState;
+  resolvedByScanId?: string;
   resolvedAt?: string;
   honeyEventId?: string;
   incident?: HoneyIncident | null;
@@ -1330,6 +1343,17 @@ export const caseDecisionLabels: Record<CaseDecisionStatus, string> = {
   false_positive: 'False positive',
   accepted_risk: 'Accepted risk',
   fixed: 'Marked fixed',
+  in_progress: 'Fix in progress',
+};
+
+// What a case *is* at a glance (lifecycle.LIFECYCLE_STATES). `in_progress` is
+// the "fix applied, awaiting rescan proof" verifying beat.
+export const caseLifecycleLabels: Record<CaseLifecycleState, string> = {
+  open: 'Open',
+  verified: 'Verified',
+  in_progress: 'Verifying',
+  accepted_risk: 'Accepted risk',
+  resolved: 'Resolved',
 };
 
 export const caseChangeLabels: Record<CaseChangeStatus, string> = {
@@ -1726,6 +1750,8 @@ function caseToDisplayCase(item: SecurityCase, index: number): DisplayCase {
     suppressed: Boolean(item.suppressed),
     suppression: item.suppression,
     changeStatus,
+    lifecycleState: item.lifecycle_state,
+    resolvedByScanId: item.resolved_by_scan_id,
     resolvedAt: item.resolved_at,
     honeyEventId: item.honey_event_id,
     incident: item.incident,
@@ -1800,7 +1826,7 @@ function changeRank(status?: CaseChangeStatus): number {
 
 function decisionRank(status?: CaseDecisionStatus): number {
   if (!status) return 0;
-  return {verified: 1, accepted_risk: 2, fixed: 3, false_positive: 4}[status];
+  return {verified: 1, in_progress: 2, accepted_risk: 3, fixed: 4, false_positive: 5}[status];
 }
 
 export function caseNeedsAttention(item: DisplayCase): boolean {
@@ -1810,7 +1836,7 @@ export function caseNeedsAttention(item: DisplayCase): boolean {
 }
 
 export function caseDecisionCounts(summary: DashboardSummary): Record<CaseDecisionStatus | 'open', number> {
-  const counts: Record<CaseDecisionStatus | 'open', number> = {open: 0, verified: 0, false_positive: 0, accepted_risk: 0, fixed: 0};
+  const counts: Record<CaseDecisionStatus | 'open', number> = {open: 0, verified: 0, false_positive: 0, accepted_risk: 0, fixed: 0, in_progress: 0};
   for (const item of displayCases(summary)) {
     counts[item.decision?.status ?? 'open'] += 1;
   }

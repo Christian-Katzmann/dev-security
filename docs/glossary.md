@@ -16,6 +16,28 @@ A group of related raw findings packaged for human or agent action. Cases are wh
 
 **Cases vs. raw findings:** raw findings are scanner-level; cases are human-level. A scanner sees 41 individual CVE matches; a case is the one *"Upgrade vulnerable dependencies"* action that closes all 41 at once.
 
+## Case lifecycle
+
+The states a case moves through and the transitions between them. There is **one** canonical state machine — `src/security_observatory/lifecycle.py` — and every surface (storage, decisions, MCP, dashboard) derives its vocabulary from it. Two related-but-distinct things used to share the bare word "resolved"; they are now kept apart:
+
+**Decision status (stored)** — what a human records on a case, persisted in `case_decisions.status`: `verified`, `false_positive`, `accepted_risk`, `fixed`, `in_progress`. `in_progress` (a.k.a. *awaiting rescan* / *verifying*) means *"fix applied, awaiting rescan proof."* Only `false_positive` and `accepted_risk` suppress a case.
+
+**Lifecycle state (shown)** — what a case *is* at a glance. A single mapping table (also in the `lifecycle.py` docstring) translates the stored decision into what the dashboard and the MCP `cases(status=…)` filter show:
+
+| Lifecycle state | Stored decision form | MCP presentation form |
+| --- | --- | --- |
+| `open` | (no decision) | `open` |
+| `verified` | `verified` | `verified` |
+| `in_progress` | `fixed` / `in_progress` (still present) | `resolved` (coarse fold) |
+| `accepted_risk` | `accepted_risk` | `accepted_risk` |
+| `resolved` | `false_positive`, or any case closed by a rescan | `resolved` |
+
+So an agent querying MCP `status=resolved` can see, in one place, that `resolved` is a **display fold of `fixed` + `false_positive`**. The MCP label is coarse (no per-scan diff context); the dashboard has the diff axis and shows the richer `in_progress` (verifying) beat.
+
+**Closure proof, not closure by absence:** when a rescan no longer finds a case, the case is bound to the scan that closed it (`resolved_by_scan_id`) and stays visible for one cycle as an affirmative *"Verified ✓ in scan X"* state, rather than silently dropping out of the attention list.
+
+**Scan-diff axis (a separate machine):** `change_status ∈ new / recurring / resolved` (namespaced `DIFF_*` in `lifecycle.py`) describes how a case *moved between two scans* — it is **not** a lifecycle state. A case can be diff-`recurring` and lifecycle-`in_progress` at the same time. The shared word "resolved" names two unrelated axes; the diff axis is documented here as distinct so the ambiguity is explicit.
+
 ## Action level
 
 How urgent a case is, separate from how severe its raw findings are. One of four values:

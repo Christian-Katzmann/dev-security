@@ -2255,6 +2255,24 @@ kbd {
   margin-top: 1px;
 }
 
+/* Closure proof: the affirmative "Verified ✓ in scan X" beat shown for one
+   cycle after a rescan closes a case (S-035), bound to that rescan. */
+.closure-proof {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: #166534;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.closure-proof svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: #16a34a;
+}
+
 .button.primary,
 a.button.primary {
   background: var(--ink-strong);

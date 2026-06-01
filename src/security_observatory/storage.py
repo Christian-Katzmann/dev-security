@@ -10,6 +10,7 @@ import re
 import secrets
 import sqlite3
 
+from . import lifecycle
 from .model import Finding, SecurityCase, redact_text, sanitize_json
 from .decisions import (
     CASE_DECISION_STATUSES,
@@ -256,7 +257,12 @@ create index if not exists idx_platform_posture_repo on platform_posture_snapsho
 create table if not exists case_decisions (
   case_id text primary key,
   repo_name text not null,
-  status text not null check(status in ('verified', 'false_positive', 'accepted_risk', 'fixed')),
+  -- Canonical decision vocabulary lives in lifecycle.DECISION_STATUSES; this
+  -- CHECK widens (never narrows) to match it. 'in_progress' (S-035) was added
+  -- as a non-suppressing intermediate state; older DBs are migrated by
+  -- _migrate_case_decision_status_constraint (widen, preserve rows, no rebuild
+  -- of data).
+  status text not null check(status in ('verified', 'false_positive', 'accepted_risk', 'fixed', 'in_progress')),
   note text,
   vex_status text,
   vex_justification text,
@@ -597,6 +603,7 @@ class ObservatoryDB:
             if managed_columns and column not in managed_columns:
                 self.conn.execute(f"alter table managed_tool_installations add column {column} {definition}")
         self._migrate_resolution_status_constraints()
+        self._migrate_case_decision_status_constraint()
 
     def _migrate_resolution_status_constraints(self) -> None:
         """Widen the case-resolution status CHECK constraints on older databases.
@@ -667,6 +674,55 @@ class ObservatoryDB:
         self.conn.execute("create index if not exists idx_case_resolution_runs_repo on case_resolution_runs(repo_name, imported_at desc)")
         self.conn.execute("create index if not exists idx_case_resolution_items_run on case_resolution_items(run_id)")
         self.conn.execute("create index if not exists idx_case_resolution_items_case on case_resolution_items(case_id)")
+
+    def _migrate_case_decision_status_constraint(self) -> None:
+        """Widen the ``case_decisions.status`` CHECK constraint on older DBs.
+
+        S-035 added the non-suppressing ``in_progress`` lifecycle state to the
+        canonical decision vocabulary (``lifecycle.DECISION_STATUSES``). SQLite
+        cannot ALTER a CHECK constraint in place, so when an existing table
+        still carries the narrow four-value constraint we rebuild it,
+        preserving every recorded decision row. This is a widen, never a narrow:
+        old-shape rows survive intact. Fresh databases already get the wide
+        constraint from SCHEMA, so this is a no-op for them.
+        """
+        row = self.conn.execute(
+            "select sql from sqlite_master where type = 'table' and name = 'case_decisions'"
+        ).fetchone()
+        if not row or not row["sql"] or "in_progress" in row["sql"]:
+            return
+        # Carry every column across by name (the table may have gained columns
+        # via ALTER on very old databases, so position-based `select *` is
+        # unsafe — list the canonical columns explicitly).
+        columns = [r["name"] for r in self.conn.execute("pragma table_info(case_decisions)").fetchall()]
+        col_list = ", ".join(columns)
+        self.conn.execute(
+            """
+            create table case_decisions__migrate (
+              case_id text primary key,
+              repo_name text not null,
+              status text not null check(status in ('verified', 'false_positive', 'accepted_risk', 'fixed', 'in_progress')),
+              note text,
+              vex_status text,
+              vex_justification text,
+              vulnerability_id text,
+              package_name text,
+              package_version text,
+              package_ecosystem text,
+              package_url text,
+              component_package_key text,
+              fixed_version text,
+              created_at text not null,
+              updated_at text not null
+            )
+            """
+        )
+        self.conn.execute(
+            f"insert into case_decisions__migrate ({col_list}) select {col_list} from case_decisions"
+        )
+        self.conn.execute("drop table case_decisions")
+        self.conn.execute("alter table case_decisions__migrate rename to case_decisions")
+        self.conn.execute("create index if not exists idx_case_decisions_repo on case_decisions(repo_name, status)")
 
     def record_managed_tool(
         self,
@@ -2893,9 +2949,17 @@ def _scan_delta(latest: sqlite3.Row, previous: dict[str, Any] | None) -> dict[st
         case["repo_name"] = previous["repo_name"]
         case["change_status"] = "resolved"
         case["previous_scan_id"] = previous["id"]
+        # Closure proof (S-035): bind the resolved case to the scan + diff entry
+        # that closed it instead of closing by disappearance. The case itself is
+        # the diff `resolved[]` entry; `resolved_by_scan_id` names the rescan
+        # that proved it gone, and `lifecycle_state` reads `resolved`.
         case["resolved_by_scan_id"] = latest["id"]
         case["resolved_at"] = latest["finished_at"] or latest["started_at"]
-        case["next_step"] = "This case was not found in the latest scan. Keep an eye on future scans for recurrence."
+        case["lifecycle_state"] = lifecycle.RESOLVED
+        case["next_step"] = (
+            f"Verified — this case was not found in scan {latest['id']}, "
+            "which is the rescan that closed it. Watch future scans for recurrence."
+        )
         resolved_cases.append(case)
 
     return {
@@ -3521,6 +3585,20 @@ def _attach_case_decision(case: dict[str, Any], decisions: dict[str, dict[str, A
     decision = decisions.get(case_id)
     if decision:
         case["decision"] = decision
+    _attach_lifecycle_state(case)
+
+
+def _attach_lifecycle_state(case: dict[str, Any]) -> None:
+    """Stamp the canonical lifecycle state on a case from its decision + diff.
+
+    Lets the dashboard show the verifying beat: a ``fixed`` decision on a case
+    that still appears reads ``in_progress`` (awaiting rescan proof), and a case
+    a rescan no longer found reads ``resolved`` bound to the closing scan.
+    """
+    decision_status = (case.get("decision") or {}).get("status")
+    case["lifecycle_state"] = lifecycle.lifecycle_state(
+        decision_status, diff_status=case.get("change_status")
+    )
 
 
 def _public_managed_tool(row: sqlite3.Row) -> dict[str, Any]:
