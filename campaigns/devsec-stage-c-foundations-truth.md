@@ -14,15 +14,15 @@
 ## Progress checklist
 
 ### Phase 1 — Foundations & Truth
-- [ ] Step 1.1 — 14-scan-orchestrator-extract
-- [ ] Step 1.2 — 15-split-dashboard-server
-- [ ] Step 1.3 — 16-storage-payload-and-query-perf
-- [ ] Step 1.4 — 17-scanner-adapter-registry
-- [ ] Step 1.5 — 18-type-floor-and-contracts
-- [ ] Step 1.6 — 19-adx-and-docs-truth
-- [ ] Step 1.7 — 20-release-honesty
-- [ ] Step 1.8 — 21-integration-and-mcp-hygiene
-- [ ] Step 1.9 — feature-health-final audit
+- [x] Step 1.1 — 14-scan-orchestrator-extract
+- [x] Step 1.2 — 15-split-dashboard-server
+- [x] Step 1.3 — 16-storage-payload-and-query-perf
+- [x] Step 1.4 — 17-scanner-adapter-registry
+- [x] Step 1.5 — 18-type-floor-and-contracts
+- [x] Step 1.6 — 19-adx-and-docs-truth
+- [x] Step 1.7 — 20-release-honesty
+- [x] Step 1.8 — 21-integration-and-mcp-hygiene
+- [x] Step 1.9 — feature-health-final audit
 - [ ] Final review
 
 ## Step 1.1 — 14-scan-orchestrator-extract

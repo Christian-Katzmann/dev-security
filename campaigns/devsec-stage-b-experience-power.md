@@ -22,7 +22,7 @@
 - [x] Step 1.7 — 12-surface-scan-history-trends
 - [x] Step 1.8 — 13-code-fix-dashboard-surface
 - [x] Step 1.9 — post-repair behavioral-ux re-audit
-- [ ] Final review
+- [x] Final review
 
 ## Step 1.1 — 06-replace-window-prompt
 
