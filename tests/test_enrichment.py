@@ -1,4 +1,6 @@
+import security_observatory.enrichment as enrichment_module
 from security_observatory.enrichment import (
+    _fill_dependency_facts,
     cisa_kev_lookup,
     enrich_dependency_finding,
     extract_fixed_version,
@@ -42,6 +44,34 @@ def test_cisa_kev_unavailable_is_not_treated_as_not_exploited(tmp_path):
 
     assert result["status"] == "not_checked"
     assert result["known_exploited"] is None
+
+
+def test_default_scan_path_never_enables_kev_or_epss(monkeypatch):
+    """The default scan path (``_fill_dependency_facts``) must pass neither
+    online-check flag, so KEV/EPSS stay designed-but-not-wired (S-008). If a
+    future change wires them on without an explicit opt-in, the network
+    lookups would fire here and this test fails.
+    """
+    def _boom(*_args, **_kwargs):  # pragma: no cover - only runs on regression
+        raise AssertionError("default scan path must not perform KEV/EPSS network lookups")
+
+    monkeypatch.setattr(enrichment_module, "cisa_kev_lookup", _boom)
+    monkeypatch.setattr(enrichment_module, "epss_lookup", _boom)
+
+    finding = Finding(
+        repo="repo",
+        scanner="trivy",
+        severity="high",
+        category="dependencies",
+        title="CVE-2024-12345 in lodash",
+        remediation="Upgrade lodash to 4.17.21.",
+    )
+    _fill_dependency_facts(finding)
+
+    # And the enrichment helper itself defaults both flags off.
+    result = enrich_dependency_finding(finding)
+    assert result.cisa_kev == {"status": "not_checked", "known_exploited": None}
+    assert result.epss == {"status": "not_checked"}
 
 
 def test_cisa_kev_uses_local_cache(tmp_path):

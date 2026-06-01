@@ -1036,6 +1036,10 @@ def _write_kev_cache(cache_dir: Path, payload: dict[str, Any]) -> None:
         return
 
 
+# Outbound threat-intel fetchers. Deliberately single-attempt, fail-closed, no
+# retry/backoff: this is a local-first scanner, so a missing online check
+# degrades to "not checked" rather than stalling a scan with retries. Any
+# failure returns None and the caller treats the data as unavailable.
 def _fetch_json(url: str, *, timeout_seconds: float) -> dict[str, Any] | None:
     request = urllib.request.Request(url, headers={"User-Agent": "security-observatory/0.1"})
     try:

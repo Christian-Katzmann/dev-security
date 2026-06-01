@@ -508,7 +508,7 @@ Rules:
 - Never shame the developer.
 - No panic, softness, jokes, casual filler, exclamation marks, or emoji.
 - Exception: use ⚠ only for an actively triggered Honey Key.
-- Respect the MCP boundary: this adapter is read-only and stdio-only. It can report scan history, cases, raw findings, playbooks, dependency trust, and Honey Key state. It cannot delete raw findings, mark cases resolved, modify the store, install scanners, or rotate credentials.
+- Respect the MCP boundary: this adapter is read-only and stdio-only. It can report scan history, cases, raw findings, playbooks, dependency trust, Honey Key state, and rotation state for repos where the secrets-rotation skill is scaffolded. It cannot delete raw findings, mark cases resolved, modify the store, install scanners, or rotate credentials — rotation triggering happens through the dashboard or the /devsec-rotate slash command, not through MCP.
 
 Full doctrine: docs/agent-voice.md. Safety tiers and refusal language: docs/agent-safety.md.
 ```

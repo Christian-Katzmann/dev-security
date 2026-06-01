@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from security_observatory.case_followup import (
     SCHEMA_VERSION,
     apply_case_resolutions,
@@ -11,6 +13,23 @@ from security_observatory.case_followup import (
 from security_observatory.cases import build_security_cases
 from security_observatory.model import Finding
 from security_observatory.storage import ObservatoryDB
+
+
+def _agent_voice_section_10() -> str:
+    """Return the fenced ```text block under '## 10.' in docs/agent-voice.md."""
+    doc = (Path(__file__).resolve().parent.parent / "docs" / "agent-voice.md").read_text(encoding="utf-8")
+    section = doc.split("## 10.", 1)[1]
+    return section.split("```text", 1)[1].split("```", 1)[0].strip("\n")
+
+
+def test_mcp_instructions_stay_in_sync_with_agent_voice_section_10():
+    """The served DEVSEC_MCP_INSTRUCTIONS constant must match agent-voice.md
+    §10 verbatim (S-012). Editing one without the other fails this guard, so the
+    doctrine every connecting agent reads can't silently drift from the doc."""
+    pytest.importorskip("mcp")
+    from security_observatory.mcp_server import DEVSEC_MCP_INSTRUCTIONS
+
+    assert DEVSEC_MCP_INSTRUCTIONS == _agent_voice_section_10()
 
 
 def test_prompt_filtering_scopes(tmp_path: Path):
@@ -173,5 +192,4 @@ def _resolution(case, disposition: str, reason: str, *, evidence: list[dict[str,
         "reason": reason,
         "evidence": evidence if evidence is not None else [{"path": case.affected_files[0] if case.affected_files else "repo", "line": 1, "interpretation": reason}],
         "recommended_next_step": "Record the result.",
-        "safe_to_apply": disposition != "needs_review",
     }

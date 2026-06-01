@@ -104,6 +104,12 @@ from .dashboard_pages import (
 CHECK_JOBS: dict[str, dict[str, object]] = {}
 CHECK_JOBS_LOCK = threading.Lock()
 _TERMINAL_JOB_STATUSES = frozenset({"complete", "halted", "failed"})
+# Terminal jobs are pruned this long after they finish so a very long-lived
+# single-user server doesn't accumulate completed jobs unboundedly. The window
+# is generous: a polling client reads a finished job's outcome long before it
+# expires, so the check-status contract (live + recently-finished jobs visible,
+# unknown/expired → 404) is unchanged.
+CHECK_JOB_TTL_SECONDS = 3600
 
 BATCH_JOBS: dict[str, dict[str, object]] = {}
 BATCH_JOBS_LOCK = threading.Lock()
@@ -986,7 +992,52 @@ def dashboard_environment_signal() -> dict[str, Any]:
     return {"scm_token_present": scm_token_present}
 
 
+def _job_is_expired_terminal(job: dict[str, object], *, now: datetime, ttl_seconds: int) -> bool:
+    """True if ``job`` is terminal and finished longer ago than the TTL.
+
+    In-flight (non-terminal) jobs are never expired. A terminal job with no
+    parseable timestamp is kept (we can't prove its age), so pruning only ever
+    drops jobs we can confidently date as stale.
+    """
+    if str(job.get("status") or "") not in _TERMINAL_JOB_STATUSES:
+        return False
+    stamp = job.get("finished_at") or job.get("started_at")
+    if not stamp:
+        return False
+    try:
+        finished = datetime.fromisoformat(str(stamp))
+    except (TypeError, ValueError):
+        return False
+    if finished.tzinfo is None:
+        finished = finished.replace(tzinfo=timezone.utc)
+    return (now - finished).total_seconds() >= ttl_seconds
+
+
+def prune_terminal_check_jobs(
+    *, now: datetime | None = None, ttl_seconds: int = CHECK_JOB_TTL_SECONDS
+) -> list[str]:
+    """Drop terminal CHECK_JOBS entries older than the TTL. Lock-safe.
+
+    Live and recently-finished jobs are retained, so the check-status poll
+    contract is unchanged for any job a client could still be watching.
+    Returns the ids that were pruned.
+    """
+    current = now or datetime.now(timezone.utc)
+    with CHECK_JOBS_LOCK:
+        expired = [
+            job_id
+            for job_id, job in CHECK_JOBS.items()
+            if _job_is_expired_terminal(job, now=current, ttl_seconds=ttl_seconds)
+        ]
+        for job_id in expired:
+            del CHECK_JOBS[job_id]
+    return expired
+
+
 def job_snapshot(job_id: str) -> dict[str, object] | None:
+    # Poll path is the natural heartbeat: prune stale terminal jobs whenever a
+    # client checks status, bounding in-memory growth on a long-lived server.
+    prune_terminal_check_jobs()
     with CHECK_JOBS_LOCK:
         job = CHECK_JOBS.get(job_id)
         return dict(job) if job else None

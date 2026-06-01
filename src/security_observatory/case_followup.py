@@ -510,7 +510,6 @@ def _full_prompt(repo: dict[str, Any], action: str, scope: str, cases: list[dict
                 "reason": "Short evidence-bound reason.",
                 "evidence": [{"path": "relative/path", "line": 1, "quote": "short excerpt", "interpretation": "why this matters"}],
                 "recommended_next_step": "Leave open until the unclear point is checked.",
-                "safe_to_apply": False,
             }
         ],
     }

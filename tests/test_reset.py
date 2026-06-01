@@ -266,6 +266,107 @@ def test_execute_reset_idempotent(seeded_db: ObservatoryDB, observatory_home: Pa
     assert result["files"] == []
 
 
+# Every repo-scoped table reset must clear. Re-introducing a table that the
+# reset forgets to wipe makes this list-driven test fail.
+_RESET_NAMED_TABLES = (
+    "findings",
+    "sbom_components",
+    "dependency_manifest_entries",
+    "dependency_trust_enrichments",
+    "platform_posture_snapshots",
+    "case_decisions",
+    "agent_lab_proposals",
+    "honey_key_events",
+    "honey_keys",
+    "security_project_status",
+    "scans",
+)
+
+
+def _row_count_for_repo(db: ObservatoryDB, table: str, repo: str) -> int:
+    if table == "honey_keys":
+        col = "repo_id"
+    elif table == "honey_key_events":
+        return db.conn.execute(
+            "SELECT COUNT(*) AS c FROM honey_key_events WHERE project_id = ?", (repo,)
+        ).fetchone()["c"]
+    elif table == "security_project_status":
+        col = "project_id"
+    else:
+        col = "repo_name"
+    return db.conn.execute(f"SELECT COUNT(*) AS c FROM {table} WHERE {col} = ?", (repo,)).fetchone()["c"]
+
+
+def test_execute_reset_full_cleanup_clears_every_named_table_and_report_dir(
+    seeded_db: ObservatoryDB, observatory_home: Path
+):
+    """Seed every repo-scoped table, then assert reset removes the report dir
+    AND returns 0 rows for each named table (S-013). The seeded_db fixture
+    already covers findings / case_decisions / agent_lab_proposals / scans; here
+    we top it up with the remaining tables so the full surface is exercised."""
+    repo = "test-repo"
+    scan_id = "test-repo-20260101"
+    now = "2026-01-01T00:00:00Z"
+    with seeded_db.conn:
+        seeded_db.conn.execute(
+            """INSERT INTO sbom_components
+               (scan_id, repo_name, source_format, component_fingerprint, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (scan_id, repo, "cyclonedx", "sbom-fp-1", now),
+        )
+        seeded_db.conn.execute(
+            """INSERT INTO dependency_manifest_entries
+               (scan_id, repo_name, manifest_path, ecosystem, name, declaration,
+                normalized_declaration, scope, manifest_fingerprint, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (scan_id, repo, "requirements.txt", "pypi", "lodash", "1.0", "1.0", "runtime", "man-fp-1", now),
+        )
+        seeded_db.conn.execute(
+            """INSERT INTO dependency_trust_enrichments
+               (scan_id, repo_name, source_repo_confidence, source_repo_reason,
+                scorecard_status, criticality_status, freshness, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (scan_id, repo, "low", "no match", "not_checked", "not_checked", "fresh", "ok", now),
+        )
+        seeded_db.conn.execute(
+            """INSERT INTO platform_posture_snapshots
+               (scan_id, repo_name, scanner, source, target, status, summary_json,
+                snapshot_json, snapshot_fingerprint, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (scan_id, repo, "legitify", "github", "org/repo", "ok", "{}", "{}", "snap-fp-1", now),
+        )
+        seeded_db.conn.execute(
+            """INSERT INTO honey_keys
+               (id, project_id, repo_id, name, token_prefix, token_hash, status, created_at, trigger_count)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            ("hk-1", repo, repo, "decoy", "dk_", "hash-1", "active", now, 0),
+        )
+        seeded_db.conn.execute(
+            """INSERT INTO honey_key_events
+               (id, honey_key_id, project_id, repo_id, triggered_at, method, path,
+                headers_json, confidence, source_type, reason, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            ("ev-1", "hk-1", repo, repo, now, "GET", "/x", "{}", 0.9, "api_call", "decoy hit", now),
+        )
+        seeded_db.conn.execute(
+            """INSERT INTO security_project_status (project_id, status, reason, last_event_at)
+               VALUES (?, ?, ?, ?)""",
+            (repo, "green", "clean", now),
+        )
+
+    # Every named table has at least one row for the repo before reset.
+    for table in _RESET_NAMED_TABLES:
+        assert _row_count_for_repo(seeded_db, table, repo) > 0, f"{table} should be seeded"
+    assert (observatory_home / "reports" / repo).exists()
+
+    execute_reset(seeded_db, repo, observatory_home)
+
+    # Report dir gone, every named table at 0 rows for the repo.
+    assert not (observatory_home / "reports" / repo).exists()
+    for table in _RESET_NAMED_TABLES:
+        assert _row_count_for_repo(seeded_db, table, repo) == 0, f"{table} not cleared by reset"
+
+
 def test_scan_results_reset_preserves_repo_files_and_honey_keys(
     seeded_db: ObservatoryDB,
     observatory_home: Path,

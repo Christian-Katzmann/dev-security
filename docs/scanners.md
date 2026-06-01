@@ -38,7 +38,9 @@ Filesystem, dependency, container, IaC, and secret scanning.
 
 Open-source dependency vulnerability detection using OSV advisories.
 
-Dependency raw findings can be enriched after normalization. The helper layer extracts CVE, GHSA, and OSV-style advisory IDs, package names, and fixed-version text from scanner output. Optional online checks, such as CISA KEV and EPSS, are designed to fail closed as "not checked" when unavailable; they should never block a scan or be treated as proof that a vulnerability is not exploited.
+Dependency raw findings can be enriched after normalization. The helper layer extracts CVE, GHSA, and OSV-style advisory IDs, package names, and fixed-version text from scanner output — all from local scanner data, with no network calls.
+
+CISA KEV and EPSS lookups are designed but **not yet wired**. The helper carries opt-in `check_cisa_kev` / `check_epss` parameters (both default `False`), but no scan path or CLI flag enables them today, so the default scan never reaches out for KEV/EPSS data. When they are wired, they will follow the same explicit `--trust`-style opt-in and named egress disclosure as OpenSSF trust enrichment, fail closed as "not checked" when unavailable, and never block a scan or be treated as proof that a vulnerability is not exploited.
 
 ## Optional OpenSSF Trust Enrichment
 

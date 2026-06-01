@@ -524,6 +524,9 @@ def run_managed_version_check(binary_path: str | Path, target: dict[str, Any] | 
 
 
 def download_bytes(url: str, timeout_seconds: int, max_bytes: int) -> bytes:
+    # Single-attempt, fail-closed download: no retry/backoff loop. A failed or
+    # oversized artifact fetch raises immediately rather than retrying, keeping
+    # the local-first install path bounded and predictable.
     request = urllib.request.Request(url, headers={"User-Agent": "security-observatory/0.1"})
     try:
         with urllib.request.urlopen(request, timeout=timeout_seconds) as response:

@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -190,6 +191,31 @@ def _redact_path(value: Any, repo_path: str | None = None) -> str | None:
     return text
 
 
+# Absolute-path tokens that could be embedded *mid-string* in a free-text field
+# (a case prompt, an evidence excerpt). _redact_path only neutralizes a value
+# that IS a path; this catches a path smuggled inside a sentence.
+_ABS_PATH_TOKEN_RE = re.compile(r"(?:/Users|/home|/root)/[^\s\"'()\[\]<>]*")
+
+
+def _redact_text(value: Any, repo_path: str | None = None) -> str | None:
+    """Scrub absolute home/user paths embedded anywhere in a free-text string.
+
+    Each path-like token is run through ``_redact_path`` so the operator's name
+    (and absolute home prefix) never leaks through a free-text MCP field even
+    when the path sits in the middle of a sentence. Text with no absolute path
+    is returned unchanged.
+    """
+    if value is None:
+        return None
+    text = str(value)
+    if not text:
+        return text
+    return _ABS_PATH_TOKEN_RE.sub(
+        lambda match: _redact_path(match.group(0), repo_path) or "~",
+        text,
+    )
+
+
 def _redact_files(values: Any, repo_path: str | None) -> list[str]:
     if not values:
         return []
@@ -213,27 +239,28 @@ def _placement_repo(value: Any, project_id: Any) -> str:
     return text
 
 
-def _evidence_excerpt(row: dict[str, Any]) -> str | None:
+def _evidence_excerpt(row: dict[str, Any], repo_path: str | None = None) -> str | None:
     for key in ("evidence_summary", "remediation", "title"):
         value = row.get(key)
         if value:
             text = str(value).strip()
             if not text:
                 continue
-            return text if len(text) <= 240 else text[:237] + "..."
+            text = text if len(text) <= 240 else text[:237] + "..."
+            return _redact_text(text, repo_path)
     return None
 
 
 def _finding_payload(row: dict[str, Any], repo_path: str | None) -> dict[str, Any]:
     return {
         "id": int(row["id"]) if row.get("id") is not None else None,
-        "title": str(row.get("title") or ""),
+        "title": _redact_text(str(row.get("title") or ""), repo_path),
         "severity": str(row.get("severity") or "medium"),
         "category": str(row.get("category") or "unknown"),
         "scanner": str(row.get("scanner") or ""),
         "path": _redact_path(row.get("file"), repo_path),
         "line": int(row["line"]) if row.get("line") is not None else None,
-        "evidence_excerpt": _evidence_excerpt(row),
+        "evidence_excerpt": _evidence_excerpt(row, repo_path),
     }
 
 
@@ -248,15 +275,15 @@ def _case_status_label(case: dict[str, Any]) -> str:
 def _case_payload(case: dict[str, Any], repo_path: str | None) -> dict[str, Any]:
     return {
         "id": str(case.get("case_id") or case.get("id") or ""),
-        "title": str(case.get("title") or "Security case"),
-        "plain_english_risk": str(case.get("plain_english_risk") or ""),
+        "title": _redact_text(str(case.get("title") or "Security case"), repo_path),
+        "plain_english_risk": _redact_text(str(case.get("plain_english_risk") or ""), repo_path),
         "severity": str(case.get("severity") or "medium"),
         "category": str(case.get("category") or "unknown"),
         "action_level": str(case.get("action_level") or "verify"),
         "confidence": str(case.get("confidence") or "medium"),
         "affected_files": _redact_files(case.get("affected_files"), repo_path),
-        "suggested_steps": [str(step) for step in (case.get("fix_steps") or []) if step],
-        "agent_handoff_prompt": str(case.get("agent_prompt") or ""),
+        "suggested_steps": [_redact_text(str(step), repo_path) for step in (case.get("fix_steps") or []) if step],
+        "agent_handoff_prompt": _redact_text(str(case.get("agent_prompt") or ""), repo_path),
         "status": _case_status_label(case),
     }
 
