@@ -676,6 +676,7 @@ mcp = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "mcp" },
     { name = "pytest" },
 ]
 
@@ -684,7 +685,10 @@ requires-dist = [{ name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0" 
 provides-extras = ["mcp"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=9.0.3" }]
+dev = [
+    { name = "mcp", specifier = ">=1.0" },
+    { name = "pytest", specifier = ">=9.0.3" },
+]
 
 [[package]]
 name = "sse-starlette"

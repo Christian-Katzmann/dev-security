@@ -32,4 +32,10 @@ build-backend = "hatchling.build"
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
+    # The MCP SDK backs the write-guard, injection, clean-room, red-team, and
+    # corrupt-store recovery trust tests. Pinned into the canonical dev group (not
+    # just the optional `mcp` extra) so `uv sync --dev` always installs it and the
+    # `pytest.importorskip("mcp")` guards run instead of silently skipping. A dev
+    # checkout missing it now fails loudly rather than reporting a weaker green.
+    "mcp>=1.0",
 ]
