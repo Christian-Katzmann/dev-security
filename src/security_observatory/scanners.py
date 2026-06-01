@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from functools import partial
 from pathlib import Path
 from typing import Any, Callable
 import json
@@ -19,22 +20,23 @@ from .credentials import env_with_credentials, is_supported as keychain_is_suppo
 from .managed_tools import resolve_managed_scanner_binary
 from .model import DEFAULT_EXCLUDES, Finding, ScannerStatus, read_json_safely, sanitize_json, write_json
 from .verification import PROOF_CHECKSUM_PINNED, PROOF_UNVERIFIED, PROOF_USER_OWNED
-from .normalize import normalize
+from .normalize import (
+    _checkov,
+    _generic_ai,
+    _gitleaks,
+    _grype,
+    _install_hooks,
+    _legitify,
+    _malcontent,
+    _osv,
+    _semgrep,
+    _trivy,
+    _trufflehog,
+    _workflow_audit,
+)
 from .platform_posture import sanitize_legitify_payload
 from .surface_scanners import INSTALL_HOOK_SCANNER, WORKFLOW_SCANNER, scan_install_hooks, scan_workflow_surfaces
 
-
-EXIT_CODES_WITH_FINDINGS = {
-    "gitleaks": {1},
-    "trufflehog": {183},
-    "semgrep": {1},
-    "checkov": {1},
-    "trivy": {1},
-    "grype": {1},
-    "osv-scanner": {1},
-    "medusa": {1},
-    "legitify": {1},
-}
 
 SCANNER_CATALOG: dict[str, dict[str, Any]] = legacy_scanner_catalog_map()
 
@@ -44,6 +46,52 @@ class ScannerResult:
     status: ScannerStatus
     findings: list[Finding]
     sbom_created: bool = False
+
+
+CommandBuilder = Callable[[Path, Path, Path], list[str]]
+Normalizer = Callable[[Any, str], list[Finding]]
+ScannerRun = Callable[[Path, str, Path, Path], ScannerResult]
+
+
+@dataclass(frozen=True)
+class ScannerAdapter:
+    """One co-located description of a scanner.
+
+    Adding or correcting a scanner is a single edit to ``SCANNER_REGISTRY``: the
+    command line, timeout, the exit codes that mean "ran and found something",
+    the normalizer, and (for built-in or otherwise bespoke scanners) the run
+    strategy all live on this one object. Every dispatch site — ``run_scanner``,
+    ``_command``, ``_timeout``, ``EXIT_CODES_WITH_FINDINGS``, and ``normalize``
+    — reads from here, so a scanner can no longer be wired into one facet but
+    silently missing from another.
+
+    ``run`` is ``None`` for the generic external-binary path (subprocess +
+    timeout + exit-code interpretation + normalize). Built-in scanners
+    (``ai-static``, the install-hook and workflow scanners) and scanners with a
+    bespoke lifecycle (``legitify``) carry their own ``run`` callable instead.
+    """
+
+    name: str
+    timeout: int = 300
+    exit_codes_with_findings: frozenset[int] = frozenset()
+    command: CommandBuilder | None = None
+    normalizer: Normalizer | None = None
+    run: ScannerRun | None = None
+
+
+def normalizer_for(scanner: str) -> Normalizer | None:
+    """Return the normalizer for ``scanner`` from the one registry, or ``None``.
+
+    ``normalize.normalize`` defers to this so the normalization dispatch shares
+    the single scanner-adapter source of truth instead of its own table.
+    """
+    adapter = SCANNER_REGISTRY.get(scanner)
+    return adapter.normalizer if adapter else None
+
+
+def _normalize(scanner: str, data: Any, repo_name: str) -> list[Finding]:
+    normalizer = normalizer_for(scanner)
+    return normalizer(data, repo_name) if normalizer else []
 
 
 def scanner_catalog() -> list[dict[str, Any]]:
@@ -124,35 +172,50 @@ def scanner_names_for_profile(args: Any) -> list[str]:
 
 
 def run_scanner(scanner: str, repo: Path, repo_name: str, scan_dir: Path, rules_dir: Path) -> ScannerResult:
-    if scanner == "ai-static":
-        started = datetime.now(timezone.utc).isoformat()
-        t0 = time.monotonic()
-        findings = scan_ai_static(repo, repo_name)
-        raw = scan_dir / "ai-static.json"
-        write_json(raw, [finding.to_dict() for finding in findings])
-        status = ScannerStatus(
-            scanner="ai-static",
-            available=True,
-            command=["built-in"],
-            started_at=started,
-            finished_at=datetime.now(timezone.utc).isoformat(),
-            duration_seconds=round(time.monotonic() - t0, 3),
-            findings=len(findings),
-            raw_report=str(raw),
-            exit_code=0,
-        )
-        return ScannerResult(status, findings)
+    adapter = SCANNER_REGISTRY.get(scanner)
+    if adapter is None:
+        raise ValueError(f"Unknown scanner: {scanner}")
+    if adapter.run is not None:
+        return adapter.run(repo, repo_name, scan_dir, rules_dir)
+    return _run_external_scanner(adapter, repo, repo_name, scan_dir, rules_dir)
 
-    if scanner == INSTALL_HOOK_SCANNER:
-        return _run_builtin_json_scanner(scanner, repo, repo_name, scan_dir, scan_install_hooks)
 
-    if scanner == WORKFLOW_SCANNER:
-        return _run_builtin_json_scanner(scanner, repo, repo_name, scan_dir, scan_workflow_surfaces)
+def _run_ai_static_scanner(repo: Path, repo_name: str, scan_dir: Path, rules_dir: Path) -> ScannerResult:
+    started = datetime.now(timezone.utc).isoformat()
+    t0 = time.monotonic()
+    findings = scan_ai_static(repo, repo_name)
+    raw = scan_dir / "ai-static.json"
+    write_json(raw, [finding.to_dict() for finding in findings])
+    status = ScannerStatus(
+        scanner="ai-static",
+        available=True,
+        command=["built-in"],
+        started_at=started,
+        finished_at=datetime.now(timezone.utc).isoformat(),
+        duration_seconds=round(time.monotonic() - t0, 3),
+        findings=len(findings),
+        raw_report=str(raw),
+        exit_code=0,
+    )
+    return ScannerResult(status, findings)
 
-    if scanner == "legitify":
-        return _run_legitify_scanner(repo, repo_name, scan_dir)
 
-    command = _command(scanner, repo, scan_dir, rules_dir)
+def _run_install_hook_scanner(repo: Path, repo_name: str, scan_dir: Path, rules_dir: Path) -> ScannerResult:
+    return _run_builtin_json_scanner(INSTALL_HOOK_SCANNER, repo, repo_name, scan_dir, scan_install_hooks)
+
+
+def _run_workflow_scanner(repo: Path, repo_name: str, scan_dir: Path, rules_dir: Path) -> ScannerResult:
+    return _run_builtin_json_scanner(WORKFLOW_SCANNER, repo, repo_name, scan_dir, scan_workflow_surfaces)
+
+
+def _run_legitify_adapter(repo: Path, repo_name: str, scan_dir: Path, rules_dir: Path) -> ScannerResult:
+    return _run_legitify_scanner(repo, repo_name, scan_dir)
+
+
+def _run_external_scanner(adapter: ScannerAdapter, repo: Path, repo_name: str, scan_dir: Path, rules_dir: Path) -> ScannerResult:
+    scanner = adapter.name
+    assert adapter.command is not None  # external adapters always build a command
+    command = adapter.command(repo, scan_dir, rules_dir)
     resolution = resolve_managed_scanner_binary(scanner)
     started = datetime.now(timezone.utc).isoformat()
     if resolution.state == "tampered":
@@ -199,10 +262,10 @@ def run_scanner(scanner: str, repo: Path, repo_name: str, scan_dir: Path, rules_
             stderr=subprocess.PIPE,
             start_new_session=True,
         )
-        stdout, stderr = proc.communicate(timeout=_timeout(scanner))
+        stdout, stderr = proc.communicate(timeout=adapter.timeout)
         status.exit_code = proc.returncode
         _write_outputs(scanner, scan_dir, stdout, stderr)
-        if proc.returncode != 0 and proc.returncode not in EXIT_CODES_WITH_FINDINGS.get(scanner, set()):
+        if proc.returncode != 0 and proc.returncode not in adapter.exit_codes_with_findings:
             status.error = (stderr or stdout or f"{scanner} failed").strip()[:4000]
     except subprocess.TimeoutExpired as exc:
         _kill_process_group(proc)
@@ -229,7 +292,7 @@ def run_scanner(scanner: str, repo: Path, repo_name: str, scan_dir: Path, rules_
         status.findings = 0
         return ScannerResult(status, [], sbom_created=True)
 
-    findings = normalize(scanner, read_json_safely(raw_path), repo_name)
+    findings = _normalize(scanner, read_json_safely(raw_path), repo_name)
     status.findings = len(findings)
     return ScannerResult(status, findings, sbom_created=sbom_path.exists())
 
@@ -246,7 +309,7 @@ def _run_builtin_json_scanner(
     raw = scan_dir / f"{scanner}.json"
     payload = scanner_fn(repo, repo_name)
     write_json(raw, payload)
-    findings = normalize(scanner, payload, repo_name)
+    findings = _normalize(scanner, payload, repo_name)
     status = ScannerStatus(
         scanner=scanner,
         available=True,
@@ -298,7 +361,7 @@ def run_behavioral_drift_scanner(
         status.status = "not_checked"
         status.finished_at = datetime.now(timezone.utc).isoformat()
         status.duration_seconds = round(time.monotonic() - t0, 3)
-        return ScannerResult(status, normalize("malcontent", payload, repo_name))
+        return ScannerResult(status, _normalize("malcontent", payload, repo_name))
 
     for target in target_dicts:
         if target.get("status") != "queued":
@@ -349,7 +412,7 @@ def run_behavioral_drift_scanner(
 
     payload = _malcontent_payload(checks)
     write_json(raw_path, payload)
-    findings = normalize("malcontent", payload, repo_name)
+    findings = _normalize("malcontent", payload, repo_name)
     status.raw_report = str(raw_path)
     status.findings = len(findings)
     status.status = "checked" if any(check.get("status") == "checked" for check in checks) else "not_checked"
@@ -360,84 +423,109 @@ def run_behavioral_drift_scanner(
 
 
 def _command(scanner: str, repo: Path, scan_dir: Path, rules_dir: Path) -> list[str]:
+    adapter = SCANNER_REGISTRY.get(scanner)
+    if adapter is None or adapter.command is None:
+        raise ValueError(f"Unknown scanner: {scanner}")
+    return adapter.command(repo, scan_dir, rules_dir)
+
+
+def _semgrep_command(repo: Path, scan_dir: Path, rules_dir: Path) -> list[str]:
     excludes = [item for pair in [(f"--exclude={name}",) for name in DEFAULT_EXCLUDES] for item in pair]
-    if scanner == "semgrep":
-        return [
-            "semgrep",
-            "scan",
-            "--config",
-            str(rules_dir / "semgrep"),
-            "--json",
-            "--metrics=off",
-            "--disable-version-check",
-            *excludes,
-            str(repo),
-        ]
-    if scanner == "gitleaks":
-        return [
-            "gitleaks",
-            "detect",
-            "--source",
-            str(repo),
-            "--report-format",
-            "json",
-            "--report-path",
-            str(scan_dir / "gitleaks.json"),
-            "--redact",
-            "--no-banner",
-            "--max-target-megabytes",
-            "2",
-            "--timeout",
-            str(_timeout(scanner)),
-        ]
-    if scanner == "trufflehog":
-        return [
-            "trufflehog",
-            "filesystem",
-            "--json",
-            "--no-update",
-            "--concurrency=2",
-            "--force-skip-binaries",
-            "--force-skip-archives",
-            "--exclude-paths",
-            str(_exclude_paths_file(scan_dir)),
-            str(repo),
-        ]
-    if scanner == "trivy":
-        skip = [arg for name in DEFAULT_EXCLUDES for arg in ("--skip-dirs", str(repo / name))]
-        return [
-            "trivy",
-            "fs",
-            "--format",
-            "json",
-            "--quiet",
-            "--skip-version-check",
-            "--parallel",
-            "2",
-            "--scanners",
-            "vuln,secret,misconfig",
-            *skip,
-            str(repo),
-        ]
-    if scanner == "osv-scanner":
-        return ["osv-scanner", "--recursive", "--format", "json", "--output", str(scan_dir / "osv-scanner.json"), str(repo)]
-    if scanner == "syft":
-        return ["syft", f"dir:{repo}", "-o", f"cyclonedx-json={scan_dir / 'sbom.cyclonedx.json'}", "-o", f"syft-json={scan_dir / 'syft.json'}", "--quiet"]
-    if scanner == "grype":
-        sbom = scan_dir / "sbom.cyclonedx.json"
-        target = f"sbom:{sbom}" if sbom.exists() else f"dir:{repo}"
-        return ["grype", target, "-o", "json", "--file", str(scan_dir / "grype.json"), "--quiet"]
-    if scanner == "checkov":
-        skip = ",".join(DEFAULT_EXCLUDES)
-        return ["checkov", "-d", str(repo), "-o", "json", "--quiet", "--skip-path", skip]
-    if scanner == "medusa":
-        exclude_args = [arg for name in DEFAULT_EXCLUDES for arg in ("--exclude", name)]
-        return ["medusa", "scan", "--quick", "--format", "json", "--output", str(scan_dir / "medusa-report"), str(repo), *exclude_args]
-    if scanner == "malcontent":
-        return _malcontent_diff_command(_malcontent_binary() or "malcontent", "OLD_ARTIFACT", "NEW_ARTIFACT")
-    if scanner == "legitify":
-        return _legitify_command(repo, scan_dir, target="[repository]")
-    raise ValueError(f"Unknown scanner: {scanner}")
+    return [
+        "semgrep",
+        "scan",
+        "--config",
+        str(rules_dir / "semgrep"),
+        "--json",
+        "--metrics=off",
+        "--disable-version-check",
+        *excludes,
+        str(repo),
+    ]
+
+
+def _gitleaks_command(repo: Path, scan_dir: Path, rules_dir: Path) -> list[str]:
+    return [
+        "gitleaks",
+        "detect",
+        "--source",
+        str(repo),
+        "--report-format",
+        "json",
+        "--report-path",
+        str(scan_dir / "gitleaks.json"),
+        "--redact",
+        "--no-banner",
+        "--max-target-megabytes",
+        "2",
+        "--timeout",
+        str(_timeout("gitleaks")),
+    ]
+
+
+def _trufflehog_command(repo: Path, scan_dir: Path, rules_dir: Path) -> list[str]:
+    return [
+        "trufflehog",
+        "filesystem",
+        "--json",
+        "--no-update",
+        "--concurrency=2",
+        "--force-skip-binaries",
+        "--force-skip-archives",
+        "--exclude-paths",
+        str(_exclude_paths_file(scan_dir)),
+        str(repo),
+    ]
+
+
+def _trivy_command(repo: Path, scan_dir: Path, rules_dir: Path) -> list[str]:
+    skip = [arg for name in DEFAULT_EXCLUDES for arg in ("--skip-dirs", str(repo / name))]
+    return [
+        "trivy",
+        "fs",
+        "--format",
+        "json",
+        "--quiet",
+        "--skip-version-check",
+        "--parallel",
+        "2",
+        "--scanners",
+        "vuln,secret,misconfig",
+        *skip,
+        str(repo),
+    ]
+
+
+def _osv_command(repo: Path, scan_dir: Path, rules_dir: Path) -> list[str]:
+    return ["osv-scanner", "--recursive", "--format", "json", "--output", str(scan_dir / "osv-scanner.json"), str(repo)]
+
+
+def _syft_command(repo: Path, scan_dir: Path, rules_dir: Path) -> list[str]:
+    return ["syft", f"dir:{repo}", "-o", f"cyclonedx-json={scan_dir / 'sbom.cyclonedx.json'}", "-o", f"syft-json={scan_dir / 'syft.json'}", "--quiet"]
+
+
+def _grype_command(repo: Path, scan_dir: Path, rules_dir: Path) -> list[str]:
+    sbom = scan_dir / "sbom.cyclonedx.json"
+    target = f"sbom:{sbom}" if sbom.exists() else f"dir:{repo}"
+    return ["grype", target, "-o", "json", "--file", str(scan_dir / "grype.json"), "--quiet"]
+
+
+def _checkov_command(repo: Path, scan_dir: Path, rules_dir: Path) -> list[str]:
+    skip = ",".join(DEFAULT_EXCLUDES)
+    return ["checkov", "-d", str(repo), "-o", "json", "--quiet", "--skip-path", skip]
+
+
+def _medusa_command(repo: Path, scan_dir: Path, rules_dir: Path) -> list[str]:
+    exclude_args = [arg for name in DEFAULT_EXCLUDES for arg in ("--exclude", name)]
+    return ["medusa", "scan", "--quick", "--format", "json", "--output", str(scan_dir / "medusa-report"), str(repo), *exclude_args]
+
+
+def _malcontent_command(repo: Path, scan_dir: Path, rules_dir: Path) -> list[str]:
+    return _malcontent_diff_command(_malcontent_binary() or "malcontent", "OLD_ARTIFACT", "NEW_ARTIFACT")
+
+
+def _legitify_command_builder(repo: Path, scan_dir: Path, rules_dir: Path) -> list[str]:
+    return _legitify_command(repo, scan_dir, target="[repository]")
 
 
 def _run_legitify_scanner(repo: Path, repo_name: str, scan_dir: Path) -> ScannerResult:
@@ -516,7 +604,7 @@ def _run_legitify_scanner(repo: Path, repo_name: str, scan_dir: Path) -> Scanner
         status.finished_at = datetime.now(timezone.utc).isoformat()
         status.duration_seconds = round(time.monotonic() - t0, 3)
 
-    findings = normalize("legitify", read_json_safely(raw_path), repo_name)
+    findings = _normalize("legitify", read_json_safely(raw_path), repo_name)
     status.raw_report = str(raw_path)
     status.findings = len(findings)
     if status.error:
@@ -725,19 +813,8 @@ def _write_temp(scan_dir: Path, scanner: str, text: str) -> Path:
 
 
 def _timeout(scanner: str) -> int:
-    return {
-        "semgrep": 600,
-        "gitleaks": 300,
-        "trufflehog": 600,
-        "trivy": 900,
-        "osv-scanner": 600,
-        "syft": 300,
-        "grype": 600,
-        "checkov": 600,
-        "medusa": 180,
-        "malcontent": 900,
-        "legitify": 600,
-    }.get(scanner, 300)
+    adapter = SCANNER_REGISTRY.get(scanner)
+    return adapter.timeout if adapter else 300
 
 
 def _malcontent_binary() -> str | None:
@@ -779,3 +856,110 @@ def _malcontent_payload(checks: list[dict[str, Any]]) -> dict[str, Any]:
         },
         "checks": sanitize_json(checks),
     }
+
+
+# The one place a scanner is described. Every per-scanner facet — command,
+# timeout, exit-codes-that-mean-findings, normalizer, run strategy — is a field
+# on its single entry here, so adding a scanner is one co-located edit and a
+# scanner cannot be half-wired into one dispatch site but missing from another.
+# ``run`` is ``None`` for the generic external-binary path; built-in and bespoke
+# scanners carry their own run callable. Built-ins have no external ``command``.
+SCANNER_REGISTRY: dict[str, ScannerAdapter] = {
+    "ai-static": ScannerAdapter(name="ai-static", run=_run_ai_static_scanner),
+    INSTALL_HOOK_SCANNER: ScannerAdapter(
+        name=INSTALL_HOOK_SCANNER,
+        run=_run_install_hook_scanner,
+        normalizer=_install_hooks,
+    ),
+    WORKFLOW_SCANNER: ScannerAdapter(
+        name=WORKFLOW_SCANNER,
+        run=_run_workflow_scanner,
+        normalizer=_workflow_audit,
+    ),
+    "semgrep": ScannerAdapter(
+        name="semgrep",
+        timeout=600,
+        exit_codes_with_findings=frozenset({1}),
+        command=_semgrep_command,
+        normalizer=_semgrep,
+    ),
+    "gitleaks": ScannerAdapter(
+        name="gitleaks",
+        timeout=300,
+        exit_codes_with_findings=frozenset({1}),
+        command=_gitleaks_command,
+        normalizer=_gitleaks,
+    ),
+    "trufflehog": ScannerAdapter(
+        name="trufflehog",
+        timeout=600,
+        exit_codes_with_findings=frozenset({183}),
+        command=_trufflehog_command,
+        normalizer=_trufflehog,
+    ),
+    "trivy": ScannerAdapter(
+        name="trivy",
+        timeout=900,
+        exit_codes_with_findings=frozenset({1}),
+        command=_trivy_command,
+        normalizer=_trivy,
+    ),
+    "osv-scanner": ScannerAdapter(
+        name="osv-scanner",
+        timeout=600,
+        exit_codes_with_findings=frozenset({1}),
+        command=_osv_command,
+        normalizer=_osv,
+    ),
+    "syft": ScannerAdapter(
+        name="syft",
+        timeout=300,
+        command=_syft_command,
+    ),
+    "grype": ScannerAdapter(
+        name="grype",
+        timeout=600,
+        exit_codes_with_findings=frozenset({1}),
+        command=_grype_command,
+        normalizer=_grype,
+    ),
+    "checkov": ScannerAdapter(
+        name="checkov",
+        timeout=600,
+        exit_codes_with_findings=frozenset({1}),
+        command=_checkov_command,
+        normalizer=_checkov,
+    ),
+    "medusa": ScannerAdapter(
+        name="medusa",
+        timeout=180,
+        exit_codes_with_findings=frozenset({1}),
+        command=_medusa_command,
+        normalizer=partial(_generic_ai, "medusa"),
+    ),
+    "malcontent": ScannerAdapter(
+        name="malcontent",
+        timeout=900,
+        command=_malcontent_command,
+        normalizer=_malcontent,
+    ),
+    "legitify": ScannerAdapter(
+        name="legitify",
+        timeout=600,
+        exit_codes_with_findings=frozenset({1}),
+        command=_legitify_command_builder,
+        normalizer=_legitify,
+        run=_run_legitify_adapter,
+    ),
+}
+
+
+# Backwards-compatible view of the exit codes that mean "the scanner ran and
+# found something", derived from the one registry rather than maintained as a
+# parallel dict. Scanners with no special exit code are omitted (any non-zero
+# exit is treated as an error), matching the historical ``.get(scanner, set())``.
+EXIT_CODES_WITH_FINDINGS: dict[str, set[int]] = {
+    name: set(adapter.exit_codes_with_findings)
+    for name, adapter in SCANNER_REGISTRY.items()
+    if adapter.exit_codes_with_findings
+}

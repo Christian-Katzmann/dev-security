@@ -8,8 +8,115 @@ from security_observatory.managed_tools import (
     ownership_marker_path,
 )
 from security_observatory.model import DEFAULT_EXCLUDES
-from security_observatory.scanners import _command, run_scanner, scan_profile_catalog, scanner_catalog, tool_catalog
+from security_observatory.scanners import (
+    EXIT_CODES_WITH_FINDINGS,
+    SCANNER_REGISTRY,
+    _command,
+    _timeout,
+    normalizer_for,
+    run_scanner,
+    scan_profile_catalog,
+    scanner_catalog,
+    tool_catalog,
+)
 from security_observatory.storage import ObservatoryDB
+
+
+def test_scanner_registry_is_single_source_of_truth():
+    """The adapter registry is the one place a scanner is described.
+
+    This is the structural property that made S-018 Yellow: previously a scanner
+    could be wired into ``run_scanner``/``_command`` but silently missing from
+    ``_timeout`` or ``EXIT_CODES_WITH_FINDINGS`` (or normalization). Now every
+    dispatch site derives from ``SCANNER_REGISTRY``, so half-wiring is
+    impossible — a scanner is one co-located entry or it does not exist.
+    """
+    from security_observatory.normalize import normalize
+
+    # Every scanner the old parallel dispatch sites knew, registered exactly once.
+    assert set(SCANNER_REGISTRY) == {
+        "ai-static",
+        "install-hooks",
+        "workflow-audit",
+        "semgrep",
+        "gitleaks",
+        "trufflehog",
+        "trivy",
+        "osv-scanner",
+        "syft",
+        "grype",
+        "checkov",
+        "medusa",
+        "malcontent",
+        "legitify",
+    }
+
+    # Timeouts derive from the registry and match the historical values exactly.
+    assert {name: _timeout(name) for name in SCANNER_REGISTRY} == {
+        "ai-static": 300,
+        "install-hooks": 300,
+        "workflow-audit": 300,
+        "semgrep": 600,
+        "gitleaks": 300,
+        "trufflehog": 600,
+        "trivy": 900,
+        "osv-scanner": 600,
+        "syft": 300,
+        "grype": 600,
+        "checkov": 600,
+        "medusa": 180,
+        "malcontent": 900,
+        "legitify": 600,
+    }
+
+    # Exit-code knowledge is a derived view of the registry, not a parallel dict,
+    # and still carries the exact historical contents.
+    assert EXIT_CODES_WITH_FINDINGS == {
+        name: set(adapter.exit_codes_with_findings)
+        for name, adapter in SCANNER_REGISTRY.items()
+        if adapter.exit_codes_with_findings
+    }
+    assert EXIT_CODES_WITH_FINDINGS == {
+        "semgrep": {1},
+        "gitleaks": {1},
+        "trufflehog": {183},
+        "trivy": {1},
+        "osv-scanner": {1},
+        "grype": {1},
+        "checkov": {1},
+        "medusa": {1},
+        "legitify": {1},
+    }
+
+    # Normalization dispatch resolves through the same registry: every adapter's
+    # normalizer is the one ``normalize()`` would use, and a scanner with no
+    # normalizer (syft emits an SBOM, ai-static normalizes inline) returns [].
+    for name, adapter in SCANNER_REGISTRY.items():
+        assert normalizer_for(name) is adapter.normalizer
+    assert normalizer_for("syft") is None
+    assert normalizer_for("ai-static") is None
+    assert normalize("syft", {}, "repo") == []
+    assert normalize("does-not-exist", {}, "repo") == []
+
+    # Only external-binary adapters build a command; built-ins have none, and
+    # ``_command`` keeps raising for a key it cannot build.
+    for name, adapter in SCANNER_REGISTRY.items():
+        if adapter.command is None:
+            try:
+                _command(name, Path("/repo"), Path("/scan"), Path("/rules"))
+            except ValueError:
+                pass
+            else:  # pragma: no cover - guards against a silent regression
+                raise AssertionError(f"_command({name!r}) should raise for a commandless adapter")
+
+
+def test_run_scanner_raises_for_unknown_scanner(tmp_path: Path):
+    try:
+        run_scanner("not-a-real-scanner", tmp_path, "repo", tmp_path / "scan", tmp_path / "rules")
+    except ValueError as exc:
+        assert "Unknown scanner" in str(exc)
+    else:  # pragma: no cover - the unknown-key error path must be preserved
+        raise AssertionError("run_scanner should raise ValueError for an unregistered scanner")
 
 
 def test_trufflehog_uses_local_friendly_exclusions(tmp_path: Path):

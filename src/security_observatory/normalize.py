@@ -89,31 +89,16 @@ def _package_url_from(*values: Any) -> str | None:
 
 
 def normalize(scanner: str, data: Any, repo_name: str) -> list[Finding]:
-    if scanner == "semgrep":
-        return _semgrep(data, repo_name)
-    if scanner == "gitleaks":
-        return _gitleaks(data, repo_name)
-    if scanner == "trufflehog":
-        return _trufflehog(data, repo_name)
-    if scanner == "trivy":
-        return _trivy(data, repo_name)
-    if scanner == "osv-scanner":
-        return _osv(data, repo_name)
-    if scanner == "grype":
-        return _grype(data, repo_name)
-    if scanner == "checkov":
-        return _checkov(data, repo_name)
-    if scanner == "malcontent":
-        return _malcontent(data, repo_name)
-    if scanner == "legitify":
-        return _legitify(data, repo_name)
-    if scanner == INSTALL_HOOK_SCANNER:
-        return _install_hooks(data, repo_name)
-    if scanner == WORKFLOW_SCANNER:
-        return _workflow_audit(data, repo_name)
-    if scanner == "medusa":
-        return _generic_ai(scanner, data, repo_name)
-    return []
+    # Per-scanner normalization resolves from the single scanner-adapter registry
+    # (security_observatory.scanners.SCANNER_REGISTRY), so this dispatch shares
+    # one source of truth with command/timeout/exit-code handling instead of a
+    # parallel if-chain. The import is deferred to keep this module free of a
+    # top-level dependency on ``scanners``, which imports the normalizer
+    # implementations defined below.
+    from .scanners import normalizer_for
+
+    normalizer = normalizer_for(scanner)
+    return normalizer(data, repo_name) if normalizer else []
 
 
 def _semgrep(data: Any, repo_name: str) -> list[Finding]:

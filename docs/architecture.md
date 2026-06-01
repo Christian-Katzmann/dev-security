@@ -16,15 +16,25 @@ CLI -> scanner adapters -> sanitized raw reports -> normalizer -> SQLite -> dash
 
 ## Scanner Adapter Contract
 
-Each adapter owns:
+Every scanner is one `ScannerAdapter` entry in the `SCANNER_REGISTRY` table in
+`scanners.py` — the single source of truth for per-scanner behavior. Each entry
+co-locates:
 
-- command construction
-- timeout
-- raw output location
-- exit-code interpretation
-- sanitizer handoff
+- command construction (`command`)
+- timeout (`timeout`)
+- exit-code interpretation (`exit_codes_with_findings`)
+- normalizer reference (`normalizer`)
+- run strategy (`run`) — `None` for the generic external-binary path; built-in
+  and bespoke scanners (e.g. `ai-static`, `install-hooks`, `legitify`) carry
+  their own run callable
 
-The normalizer owns schema conversion into raw findings.
+The dispatch sites — `run_scanner`, `_command`, `_timeout`,
+`EXIT_CODES_WITH_FINDINGS`, and `normalize` — all read from this one registry
+rather than parallel per-scanner branches. Adding a scanner is one co-located
+edit, and a scanner cannot be wired into one facet but missing from another.
+
+The normalizer owns schema conversion into raw findings; the registry entry just
+points each scanner at its normalizer so normalization shares the same source.
 
 ## Future Support
 
