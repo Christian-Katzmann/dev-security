@@ -86,6 +86,25 @@ def _decode_cases(cases_json: Any) -> list[Any]:
 SCHEMA_USER_VERSION = 1
 
 
+def _sql_in_check(column: str, values: Any) -> str:
+    """Render a SQLite ``check(col in (...))`` clause from a Python value set.
+
+    The single point where a canonical status set becomes a CHECK constraint, so
+    the SQL and the Python source of truth cannot drift. Values are sorted for a
+    deterministic DDL string (CHECK membership is order-independent, but a stable
+    rendering keeps ``sqlite_master.sql`` reproducible across runs).
+    """
+    rendered = ", ".join(f"'{value}'" for value in sorted(values))
+    return f"check({column} in ({rendered}))"
+
+
+#: ``case_decisions.status`` CHECK clause, derived from the canonical decision
+#: vocabulary so the schema, the migrated-table mirror, and
+#: ``lifecycle.DECISION_STATUSES`` are physically the same set. Substituted into
+#: ``SCHEMA`` (below) and into ``_migrate_case_decision_status_constraint``.
+CASE_DECISION_STATUS_CHECK = _sql_in_check("status", lifecycle.DECISION_STATUSES)
+
+
 SCHEMA = """
 create table if not exists scans (
   id text primary key,
@@ -272,12 +291,12 @@ create index if not exists idx_platform_posture_repo on platform_posture_snapsho
 create table if not exists case_decisions (
   case_id text primary key,
   repo_name text not null,
-  -- Canonical decision vocabulary lives in lifecycle.DECISION_STATUSES; this
-  -- CHECK widens (never narrows) to match it. 'in_progress' (S-035) was added
-  -- as a non-suppressing intermediate state; older DBs are migrated by
-  -- _migrate_case_decision_status_constraint (widen, preserve rows, no rebuild
-  -- of data).
-  status text not null check(status in ('verified', 'false_positive', 'accepted_risk', 'fixed', 'in_progress')),
+  -- Canonical decision vocabulary lives in lifecycle.DECISION_STATUSES; the
+  -- CHECK clause below is GENERATED from it (see CASE_DECISION_STATUS_CHECK), so
+  -- the SQL and the canonical set cannot silently diverge. 'in_progress' (S-035)
+  -- is a non-suppressing intermediate state; older DBs are widened by
+  -- _migrate_case_decision_status_constraint (preserve rows, no rebuild of data).
+  status text not null __CASE_DECISION_STATUS_CHECK__,
   note text,
   vex_status text,
   vex_justification text,
@@ -481,6 +500,11 @@ create unique index if not exists idx_honey_keys_token_hash on honey_keys(token_
 create index if not exists idx_honey_events_project on honey_key_events(project_id, triggered_at desc);
 create index if not exists idx_honey_events_key on honey_key_events(honey_key_id, triggered_at desc);
 """
+
+# Bind the case-decision CHECK to the canonical set at import time. A bare literal
+# here would let the SQL drift from lifecycle.DECISION_STATUSES; the substitution
+# makes them the same source.
+SCHEMA = SCHEMA.replace("__CASE_DECISION_STATUS_CHECK__", CASE_DECISION_STATUS_CHECK)
 
 
 class ObservatoryDB:
@@ -751,11 +775,11 @@ class ObservatoryDB:
         columns = [r["name"] for r in self.conn.execute("pragma table_info(case_decisions)").fetchall()]
         col_list = ", ".join(columns)
         self.conn.execute(
-            """
+            f"""
             create table case_decisions__migrate (
               case_id text primary key,
               repo_name text not null,
-              status text not null check(status in ('verified', 'false_positive', 'accepted_risk', 'fixed', 'in_progress')),
+              status text not null {CASE_DECISION_STATUS_CHECK},
               note text,
               vex_status text,
               vex_justification text,

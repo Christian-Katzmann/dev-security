@@ -8,10 +8,19 @@ runs.
 """
 
 from pathlib import Path
+import re
 import sqlite3
 from unittest.mock import patch
 
-from security_observatory.storage import SCHEMA_USER_VERSION, ObservatoryDB
+import pytest
+
+from security_observatory import lifecycle
+from security_observatory.storage import (
+    CASE_DECISION_STATUS_CHECK,
+    SCHEMA,
+    SCHEMA_USER_VERSION,
+    ObservatoryDB,
+)
 
 
 def _build_legacy_db(db_path: Path) -> None:
@@ -126,5 +135,47 @@ def test_fresh_db_is_stamped_to_current_version(tmp_path):
     db = ObservatoryDB(tmp_path / "fresh.sqlite")
     try:
         assert db.conn.execute("pragma user_version").fetchone()[0] == SCHEMA_USER_VERSION
+    finally:
+        db.close()
+
+
+# ---------------------------------------------------------------------------
+# Drift guard: the case_decisions CHECK must derive from lifecycle, not a
+# hand-maintained literal. These fail the moment the SQL and the canonical set
+# disagree — including the migrated-table mirror, which shares the constant.
+# ---------------------------------------------------------------------------
+
+
+def _statuses_in_check(check_sql: str) -> set[str]:
+    return set(re.findall(r"'([^']+)'", check_sql))
+
+
+def test_check_clause_is_derived_from_decision_statuses():
+    assert _statuses_in_check(CASE_DECISION_STATUS_CHECK) == set(lifecycle.DECISION_STATUSES)
+
+
+def test_schema_embeds_the_derived_check_not_a_literal():
+    # The substitution must have run (no leftover sentinel) and the rendered
+    # clause must be present verbatim in the schema the DB is built from.
+    assert "__CASE_DECISION_STATUS_CHECK__" not in SCHEMA
+    assert CASE_DECISION_STATUS_CHECK in SCHEMA
+
+
+def test_fresh_db_accepts_every_decision_status_and_rejects_unknown(tmp_path):
+    db = ObservatoryDB(tmp_path / "check.sqlite")
+    try:
+        for index, status in enumerate(sorted(lifecycle.DECISION_STATUSES)):
+            db.conn.execute(
+                "insert into case_decisions (case_id, repo_name, status, created_at, updated_at)"
+                " values (?, 'repo', ?, '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00')",
+                (f"case-{index}", status),
+            )
+        db.conn.commit()
+        with pytest.raises(sqlite3.IntegrityError):
+            db.conn.execute(
+                "insert into case_decisions (case_id, repo_name, status, created_at, updated_at)"
+                " values ('case-bogus', 'repo', 'not_a_real_status',"
+                " '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00')"
+            )
     finally:
         db.close()
