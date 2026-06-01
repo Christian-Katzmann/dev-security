@@ -6,6 +6,7 @@ from typing import Any, Iterable
 import shutil
 
 from .managed_tools import ManagedToolEvidence, build_tool_install_preview, managed_tool_evidence_by_tool
+from .tool_config import read_tool_config
 
 
 class ToolKind(StrEnum):
@@ -682,19 +683,9 @@ def _is_setup_satisfied(entry: ToolCatalogEntry) -> bool:
         config_key = spec.get("config_key")
         if not config_key:
             return False
-        # Lazy import: setup_runner imports catalog at module top, so the
-        # reverse import must stay function-scoped.
-        try:
-            from .setup_runner import read_tool_config
-        except ImportError:  # pragma: no cover - defensive
-            return False
         stored = read_tool_config(entry.id).get(config_key, "").strip()
         return bool(stored)
     if kind == SetupKind.CONFIG_BLOCK:
-        try:
-            from .setup_runner import read_tool_config
-        except ImportError:  # pragma: no cover - defensive
-            return False
         return bool(read_tool_config(entry.id))
     return False
 

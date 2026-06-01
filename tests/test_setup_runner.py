@@ -15,6 +15,7 @@ from security_observatory.catalog import SetupKind, SetupProbe, SetupProbeKind
 from security_observatory.setup_runner import (
     ProbeResult,
     SetupRunnerError,
+    ToolConfigError,
     _truncate,
     delete_tool_config,
     read_tool_config,
@@ -47,7 +48,7 @@ def test_write_read_delete_tool_config_roundtrip(isolated_home: Path) -> None:
 
 
 def test_write_tool_config_rejects_invalid_key(isolated_home: Path) -> None:
-    with pytest.raises(SetupRunnerError):
+    with pytest.raises(ToolConfigError):
         write_tool_config("malcontent", {"bad key!": "/tmp/x"})
 
 

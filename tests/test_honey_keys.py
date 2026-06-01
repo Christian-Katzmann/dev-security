@@ -331,12 +331,12 @@ def test_doc_guard_map_citations_resolve():
 
     # (source lines, 1-based cited line, substring that line MUST still contain)
     cited_guards = [
-        (dashboard, 2816, "target_path.relative_to(repo_path)"),
-        (dashboard, 2823, "if target_path.exists():"),
-        (dashboard, 2824, "Placement file already exists."),
-        (dashboard, 2725, "except sqlite3.IntegrityError:"),
-        (dashboard, 2726, "Honey Key already exists."),
-        (dashboard, 2839, "Honey Key belongs to a different repo."),
+        (dashboard, 2772, "target_path.relative_to(repo_path)"),
+        (dashboard, 2779, "if target_path.exists():"),
+        (dashboard, 2780, "Placement file already exists."),
+        (dashboard, 2681, "except sqlite3.IntegrityError:"),
+        (dashboard, 2682, "Honey Key already exists."),
+        (dashboard, 2795, "Honey Key belongs to a different repo."),
         (honey, 41, "token_hash"),
         (honey, 57, "token_hash=hash_honey_key"),
         (honey, 86, "hashlib.sha256"),
@@ -350,7 +350,7 @@ def test_doc_guard_map_citations_resolve():
 
     # The Guard Map must actually cite each dashboard_server.py guard line.
     doc = (repo_root / "docs" / "honey-keys.md").read_text(encoding="utf-8")
-    for lineno in (2816, 2823, 2824, 2725, 2726, 2839):
+    for lineno in (2772, 2779, 2780, 2681, 2682, 2795):
         assert f":{lineno}" in doc, (
             f"docs/honey-keys.md Guard Map no longer cites dashboard_server.py:{lineno}"
         )

@@ -12,6 +12,13 @@ inversion. The per-repo fan-out is replaced by set-based batch reads
 memory), so the query count is O(1) in repo count. The output dict is
 byte-for-byte identical to the pre-split payload.
 
+`enrich_repos_with_rotation(payload)` also lives here: it reads each repo's
+on-disk rotation state (`rotation`) and folds `rotation_state` plus inferred
+`inferred_secret_name` (`rotation_inference`) into the per-repo payload. It was
+lifted out of `dashboard_server` so the route stays a thin seam; the server
+calls it after `assemble_dashboard_payload`. `rotation_inference` stays a pure,
+I/O-free guesser that this loop drives.
+
 Verification:
 
 - Start with `python-import-cli`.

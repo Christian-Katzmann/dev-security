@@ -48,6 +48,7 @@ from .setup_runner import (
     run_setup_probe,
     write_tool_config,
 )
+from .tool_config import ToolConfigError
 from .discovery import discover_repos
 from .docs_render import render_markdown
 from .fix_proposals import decide_landing, invariants_for
@@ -80,7 +81,7 @@ from .rotation import (
     read_rotation_status,
     rotation_consistency_check,
 )
-from .rotation_inference import infer_secret_name, load_catalog_secret_names
+from .dashboard_payload import enrich_repos_with_rotation
 from .scan_orchestrator import scan_repo
 from .scanners import scan_profile_catalog, scanner_names_for_profile, security_pack_catalog, tool_catalog
 from .storage import ObservatoryDB
@@ -1415,56 +1416,11 @@ def assemble_summary_payload(db) -> dict[str, object]:
         }
     payload["environment"] = dashboard_environment_signal()
     payload["recovery_playbooks"] = build_recovery_playbooks(payload.get("active_cases") or [])
-    # Per-repo rotation signal — drives the RotationStatusCard on
-    # every repo view, including the "Set up rotation" CTA for repos
-    # without scaffolding. Read fresh on each request because rotation
-    # state lives outside the DB (in each repo's data/ directory).
-    catalog_names_cache: list[str] | None = None
-    for repo in payload.get("repos") or []:
-        repo_path_raw = repo.get("path")
-        if not repo_path_raw:
-            continue
-        try:
-            repo["rotation_state"] = detect_rotation_state(repo_path_raw)
-        except OSError:
-            repo["rotation_state"] = {
-                "scaffolded": False,
-                "stack": None,
-                "stack_supported": False,
-                "secret_count": 0,
-                "needs_attention_count": 0,
-                "in_grace_count": 0,
-                "last_event_at": None,
-            }
-        # Enrich secrets-category cases with `inferred_secret_name` so
-        # the case card can pre-fill the rotation modal. We only infer
-        # when rotation is scaffolded — otherwise the affordance won't
-        # render anyway. Candidate names come from the repo's tracked
-        # secrets first; fall back to the global catalog so cases for
-        # never-yet-rotated secrets still get a sensible guess.
-        if not repo["rotation_state"].get("scaffolded"):
-            continue
-        try:
-            rotation_rows = read_rotation_status(repo_path_raw)
-        except OSError:
-            rotation_rows = []
-        candidate_names = [
-            str(row.get("secret")) for row in rotation_rows if row.get("secret")
-        ]
-        if not candidate_names:
-            if catalog_names_cache is None:
-                catalog_names_cache = load_catalog_secret_names()
-            candidate_names = list(catalog_names_cache)
-        if not candidate_names:
-            continue
-        for case in repo.get("active_cases") or repo.get("cases") or []:
-            if not isinstance(case, dict):
-                continue
-            if str(case.get("category") or "") != "secrets":
-                continue
-            inferred = infer_secret_name(case, candidate_names)
-            if inferred:
-                case["inferred_secret_name"] = inferred
+    # Per-repo rotation signal — drives the RotationStatusCard on every repo
+    # view, including the "Set up rotation" CTA for repos without scaffolding.
+    # The enrichment loop lives in dashboard_payload (payload assembly), so this
+    # route stays a thin seam over the assembly + cross-cutting decorations.
+    enrich_repos_with_rotation(payload)
     return payload
 
 
@@ -2310,7 +2266,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return
         try:
             values = read_tool_config(tool_id)
-        except SetupRunnerError as exc:
+        except ToolConfigError as exc:
             self.send_json_error(400, str(exc))
             return
         self.send_json({"tool_id": tool_id, "values": values})
@@ -2336,7 +2292,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             cleaned[key] = value
         try:
             stored = write_tool_config(tool_id, cleaned)
-        except SetupRunnerError as exc:
+        except ToolConfigError as exc:
             self.send_json_error(400, str(exc))
             return
         self.send_json({"tool_id": tool_id, "values": stored, "stored": True})
@@ -2347,7 +2303,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return
         try:
             removed = delete_tool_config(tool_id)
-        except SetupRunnerError as exc:
+        except ToolConfigError as exc:
             self.send_json_error(400, str(exc))
             return
         self.send_json({"tool_id": tool_id, "values": {}, "removed": removed})

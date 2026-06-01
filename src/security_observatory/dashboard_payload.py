@@ -20,6 +20,8 @@ from typing import Any
 import json
 
 from .decisions import assemble_suppression, suppression_counts
+from .rotation import detect_rotation_state, read_rotation_status
+from .rotation_inference import infer_secret_name, load_catalog_secret_names
 from .scanners import (
     scan_profile_catalog,
     scanner_catalog,
@@ -253,3 +255,62 @@ def assemble_dashboard_payload(db: Any) -> dict[str, Any]:
         "agent_lab_proposals": db.list_agent_lab_proposals(limit=50),
         "case_resolution_runs": global_resolution_runs,
     }
+
+
+def enrich_repos_with_rotation(payload: dict[str, Any]) -> dict[str, Any]:
+    """Attach per-repo rotation state and inferred secret names, in place.
+
+    Lives here rather than in ``rotation_inference`` because it is payload
+    assembly, not inference: it reads each repo's on-disk rotation state
+    (``rotation``) and folds it into the dashboard payload alongside the rest of
+    the per-repo UI shape. ``rotation_inference`` stays a pure, I/O-free guesser
+    that this loop calls. Read fresh on each request because rotation state
+    lives outside the DB (in each repo's ``data/`` directory).
+    """
+    catalog_names_cache: list[str] | None = None
+    for repo in payload.get("repos") or []:
+        repo_path_raw = repo.get("path")
+        if not repo_path_raw:
+            continue
+        try:
+            repo["rotation_state"] = detect_rotation_state(repo_path_raw)
+        except OSError:
+            repo["rotation_state"] = {
+                "scaffolded": False,
+                "stack": None,
+                "stack_supported": False,
+                "secret_count": 0,
+                "needs_attention_count": 0,
+                "in_grace_count": 0,
+                "last_event_at": None,
+            }
+        # Enrich secrets-category cases with `inferred_secret_name` so
+        # the case card can pre-fill the rotation modal. We only infer
+        # when rotation is scaffolded — otherwise the affordance won't
+        # render anyway. Candidate names come from the repo's tracked
+        # secrets first; fall back to the global catalog so cases for
+        # never-yet-rotated secrets still get a sensible guess.
+        if not repo["rotation_state"].get("scaffolded"):
+            continue
+        try:
+            rotation_rows = read_rotation_status(repo_path_raw)
+        except OSError:
+            rotation_rows = []
+        candidate_names = [
+            str(row.get("secret")) for row in rotation_rows if row.get("secret")
+        ]
+        if not candidate_names:
+            if catalog_names_cache is None:
+                catalog_names_cache = load_catalog_secret_names()
+            candidate_names = list(catalog_names_cache)
+        if not candidate_names:
+            continue
+        for case in repo.get("active_cases") or repo.get("cases") or []:
+            if not isinstance(case, dict):
+                continue
+            if str(case.get("category") or "") != "secrets":
+                continue
+            inferred = infer_secret_name(case, candidate_names)
+            if inferred:
+                case["inferred_secret_name"] = inferred
+    return payload

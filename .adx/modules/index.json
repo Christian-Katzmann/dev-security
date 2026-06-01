@@ -79,7 +79,8 @@
       "common_changes": [
         "Change the /api/summary payload shape",
         "Adjust per-repo batch assembly or catalog embedding",
-        "Add a new data kind to the dashboard summary"
+        "Add a new data kind to the dashboard summary",
+        "Change per-repo rotation enrichment (enrich_repos_with_rotation)"
       ],
       "relevant_commands": [
         "python-import-cli",
