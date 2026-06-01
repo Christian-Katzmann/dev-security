@@ -2105,6 +2105,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self) -> None:
+        # Mirror the do_POST / do_DELETE convention: any unhandled error in a GET
+        # route — notably a corrupt history DB surfacing from ObservatoryDB(...)
+        # — becomes a calm JSON 500 instead of a raw traceback or a broken
+        # socket. ObservatoryDB now self-heals genuine corruption, so this is the
+        # backstop for everything else.
+        try:
+            self._handle_get()
+        except Exception as exc:  # noqa: BLE001 - last-resort guard for any GET route
+            self.send_json_error(500, str(exc))
+
+    def _handle_get(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path.startswith("/docs/") and parsed.path.endswith(".md"):
             self.serve_repo_doc(parsed.path)
@@ -2128,6 +2139,22 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 payload = db.dashboard_payload()
             finally:
                 db.close()
+            # Honest recovery: if the history DB was corrupt, ObservatoryDB
+            # quarantined it and started fresh. Surface that so an emptied
+            # dashboard reads as a preserved-and-recovered event, not silent
+            # data loss. Conditional, so healthy-path responses are unchanged.
+            if db.recovered_from_corruption:
+                payload["history_recovery"] = {
+                    "status": "recovered",
+                    "message": (
+                        "Your scan history could not be read and was quarantined. "
+                        "The previous database is preserved on this machine; a "
+                        "fresh history was started."
+                    ),
+                    "quarantined_path": (
+                        str(db.quarantined_path) if db.quarantined_path else None
+                    ),
+                }
             payload["environment"] = dashboard_environment_signal()
             payload["recovery_playbooks"] = build_recovery_playbooks(payload.get("active_cases") or [])
             # Per-repo rotation signal — drives the RotationStatusCard on

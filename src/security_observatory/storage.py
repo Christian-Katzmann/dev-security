@@ -435,14 +435,74 @@ create index if not exists idx_honey_events_key on honey_key_events(honey_key_id
 
 
 class ObservatoryDB:
+    # SQLite can leave sidecar files (rollback journal, write-ahead log) next to
+    # the database. A stale one beside a corrupt DB would be replayed into the
+    # fresh replacement and re-corrupt it, so we clear them on quarantine.
+    _SIDECAR_SUFFIXES = ("-journal", "-wal", "-shm")
+
     def __init__(self, db_path: Path) -> None:
         self.db_path = db_path
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self.conn = sqlite3.connect(str(db_path))
-        self.conn.row_factory = sqlite3.Row
-        self.conn.executescript(SCHEMA)
-        self._ensure_columns()
-        self.conn.commit()
+        # Corruption-recovery signal. Stays False/None on the happy path; set
+        # when a corrupt history file was quarantined and replaced with a fresh
+        # DB, so callers (dashboard, MCP) can surface a calm "history was
+        # corrupted and quarantined; previous data preserved at <path>" message
+        # instead of a raw traceback. The corrupt file is preserved, never
+        # deleted — see .adx/risks.json (local-security-data).
+        self.recovered_from_corruption = False
+        self.quarantined_path: Path | None = None
+        try:
+            self._connect_and_initialize()
+        except sqlite3.DatabaseError as error:
+            if isinstance(error, sqlite3.OperationalError):
+                # Transient / environmental: database locked by another writer,
+                # unable to open, disk I/O. The bytes are NOT known to be bad —
+                # quarantining here would destroy a healthy DB a concurrent
+                # process is mid-write on. Surface it untouched.
+                raise
+            # Genuine corruption (SQLITE_NOTADB / SQLITE_CORRUPT: "file is not a
+            # database", "disk image is malformed") from a disk-full mid-write,
+            # an interrupted scan, or stray bytes. Preserve the file, then open a
+            # fresh, usable DB so the tool stays trustworthy instead of 500-ing.
+            self._quarantine_corrupt_db()
+            self._connect_and_initialize()
+
+    def _connect_and_initialize(self) -> None:
+        conn = sqlite3.connect(str(self.db_path))
+        conn.row_factory = sqlite3.Row
+        try:
+            conn.executescript(SCHEMA)
+            self.conn = conn
+            self._ensure_columns()
+            conn.commit()
+        except BaseException:
+            # Never leak the half-open handle; the caller decides whether the
+            # failure is recoverable corruption worth quarantining.
+            conn.close()
+            raise
+
+    def _quarantine_corrupt_db(self) -> None:
+        """Preserve a corrupt history DB by moving it aside, never deleting it.
+
+        Renames the database to ``<name>.corrupt-<UTC timestamp>`` and clears any
+        stale SQLite sidecar files so the fresh replacement starts clean. Records
+        ``quarantined_path`` and sets ``recovered_from_corruption`` so callers can
+        explain what happened.
+        """
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        quarantine = self.db_path.with_name(f"{self.db_path.name}.corrupt-{timestamp}")
+        # Two corruptions within the same second must not overwrite each other.
+        collision = 1
+        while quarantine.exists():
+            quarantine = self.db_path.with_name(
+                f"{self.db_path.name}.corrupt-{timestamp}-{collision}"
+            )
+            collision += 1
+        self.db_path.replace(quarantine)
+        for suffix in self._SIDECAR_SUFFIXES:
+            self.db_path.with_name(f"{self.db_path.name}{suffix}").unlink(missing_ok=True)
+        self.recovered_from_corruption = True
+        self.quarantined_path = quarantine
 
     def close(self) -> None:
         self.conn.close()
