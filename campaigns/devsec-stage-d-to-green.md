@@ -51,8 +51,8 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 3 — Craft the missing states & finish the token sweep
 
-- [ ] Step 3.1 — Render the recovery notice + craft the failure/loading states
-- [ ] Step 3.2 — Finish the design-token sweep (S-054)
+- [x] Step 3.1 — Render the recovery notice + craft the failure/loading states
+- [x] Step 3.2 — Finish the design-token sweep (S-054)
 - [ ] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
