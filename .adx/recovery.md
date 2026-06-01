@@ -51,6 +51,34 @@ Recovery:
 - Run `security-scan .` only when the task requires creating local scan data.
 - Remember that scan output is written under `~/.security-observatory/`.
 
+## History DB Corrupted
+
+Evidence: the SQLite history store (`~/.security-observatory/db/observatory.sqlite`)
+can be left corrupt by a disk-full mid-write, an interrupted scan, or stray bytes.
+`ObservatoryDB.__init__` (`src/security_observatory/storage.py`) self-heals this:
+on a genuine `sqlite3.DatabaseError` (not a transient `OperationalError`, which is
+re-raised untouched) it quarantines the corrupt file and rebuilds a fresh schema.
+
+What happens automatically:
+
+- The corrupt file is **renamed, never deleted**, to
+  `~/.security-observatory/db/observatory.sqlite.corrupt-<UTC timestamp>` — it is the
+  user's only path back to the old history, so it is preserved (see `.adx/risks.json`
+  `local-security-data`).
+- Stale SQLite sidecars (`-journal`, `-wal`, `-shm`) are cleared so they cannot be
+  replayed into and re-corrupt the fresh database.
+- A fresh, empty schema is created at the live path.
+- `recovered_from_corruption` / `quarantined_path` are set so callers surface a calm
+  signal: the dashboard `/api/summary` adds a `history_recovery` block, and the MCP
+  read path (`_with_db`) raises `HistoryRecoveredError` instead of returning a
+  silently-empty "no scans yet" result.
+
+Recovery:
+
+- Re-run a scan to repopulate the fresh history.
+- The quarantined `*.corrupt-*` file can be inspected or kept for forensics; do not
+  delete it unless the user explicitly intends to discard the old history.
+
 ## Scanner Is Missing
 
 First check:

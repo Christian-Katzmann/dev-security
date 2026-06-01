@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 import json
+import logging
 import re
 import secrets
 import sqlite3
@@ -40,6 +41,33 @@ from .scanners import scan_profile_catalog, scanner_catalog, security_pack_catal
 from .sbom import SBOMComponent, component_fingerprint
 from .silent_upgrades import annotate_dependency_changes
 from .vex import build_vex_document, parse_vex_document
+
+
+logger = logging.getLogger("security_observatory.storage")
+
+
+def _decode_cases(cases_json: Any) -> list[Any]:
+    """Decode a scan's ``cases_json`` column, degrading on a corrupt row.
+
+    A hand-edited, truncated, or otherwise malformed ``cases_json`` value must
+    never crash the dashboard/MCP read path (S-023). On a JSON decode failure —
+    or a value that decodes to something other than a list — we warn and return
+    an empty list so the rest of the payload still renders. Callers that only
+    want dict cases keep filtering with ``isinstance(item, dict)``; this helper
+    is the single source of truth for "read the cases column safely".
+    """
+    try:
+        cases = json.loads(cases_json)
+    except (TypeError, json.JSONDecodeError) as exc:
+        logger.warning("cases_json could not be decoded, skipping row: %s", exc)
+        return []
+    if not isinstance(cases, list):
+        logger.warning(
+            "cases_json decoded to %s, expected a list; skipping row",
+            type(cases).__name__,
+        )
+        return []
+    return cases
 
 
 SCHEMA = """
@@ -1414,7 +1442,7 @@ class ObservatoryDB:
             dependency_delta["risk_counts"] = _dependency_risk_counts(dependency_movement_by_scan[row["id"]])
             resolved_cases_by_scan[row["id"]] = delta["resolved_cases"]
             current_cases = []
-            for item in json.loads(row["cases_json"]):
+            for item in _decode_cases(row["cases_json"]):
                 if not isinstance(item, dict):
                     continue
                 case = {"scan_id": row["id"], "repo": row["repo_name"], "repo_name": row["repo_name"], **item}
@@ -1584,7 +1612,7 @@ class ObservatoryDB:
             ).fetchall()
         ]
         scan = dict(row)
-        cases = json.loads(scan["cases_json"])
+        cases = _decode_cases(scan["cases_json"])
         case_decisions = self.case_decisions_map()
         for case in cases:
             if isinstance(case, dict):
@@ -2222,11 +2250,7 @@ class ObservatoryDB:
             (repo_name,),
         ).fetchall()
         for row in rows:
-            try:
-                cases = json.loads(row["cases_json"])
-            except (TypeError, json.JSONDecodeError):
-                continue
-            for case in cases:
+            for case in _decode_cases(row["cases_json"]):
                 if isinstance(case, dict) and _case_identity(case) == case_id:
                     return case
         return None
@@ -2838,7 +2862,7 @@ def _case_counts(cases: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
 
 
 def _scan_delta(latest: sqlite3.Row, previous: dict[str, Any] | None) -> dict[str, Any]:
-    latest_cases = [item for item in json.loads(latest["cases_json"]) if isinstance(item, dict)]
+    latest_cases = [item for item in _decode_cases(latest["cases_json"]) if isinstance(item, dict)]
     latest_ids = {_case_identity(item) for item in latest_cases}
     if not previous:
         return {
@@ -2852,7 +2876,7 @@ def _scan_delta(latest: sqlite3.Row, previous: dict[str, Any] | None) -> dict[st
             "resolved_cases": [],
         }
 
-    previous_cases = [item for item in json.loads(previous["cases_json"]) if isinstance(item, dict)]
+    previous_cases = [item for item in _decode_cases(previous["cases_json"]) if isinstance(item, dict)]
     previous_by_id = {_case_identity(item): item for item in previous_cases if _case_identity(item)}
     previous_ids = set(previous_by_id)
     case_changes = {
@@ -2900,8 +2924,8 @@ def _dependency_risk_movements(
     delta: dict[str, Any],
     dependency_delta: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
-    latest_cases = [item for item in json.loads(latest["cases_json"]) if isinstance(item, dict)]
-    previous_cases = [item for item in json.loads(previous["cases_json"]) if isinstance(item, dict)] if previous else []
+    latest_cases = [item for item in _decode_cases(latest["cases_json"]) if isinstance(item, dict)]
+    previous_cases = [item for item in _decode_cases(previous["cases_json"]) if isinstance(item, dict)] if previous else []
     previous_dependency_keys = {
         key
         for key in (_dependency_case_key(case) for case in previous_cases)

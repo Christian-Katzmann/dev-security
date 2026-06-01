@@ -112,6 +112,15 @@ class RepoNotFoundError(ValueError):
     """Raised when a requested repo has no scan history in the local DB."""
 
 
+class HistoryRecoveredError(RuntimeError):
+    """Raised when the local history DB was corrupt and was quarantined+rebuilt.
+
+    The MCP read path surfaces this as a calm, explicit recovery signal (S-003).
+    An empty result would otherwise read as "no scans yet" and hide real data
+    loss. The corrupt file is preserved on disk, never deleted — see
+    .adx/risks.json (local-security-data)."""
+
+
 def observatory_home() -> Path:
     return Path(os.environ.get("SECURITY_OBSERVATORY_HOME", "~/.security-observatory")).expanduser()
 
@@ -758,6 +767,22 @@ def create_server(
     def _with_db(action):
         db = _open_db(resolved)
         try:
+            if db is not None and db.recovered_from_corruption:
+                # Honest recovery: ObservatoryDB found the history file corrupt,
+                # quarantined it, and started fresh. Surface that as a clear
+                # signal rather than running the action against an empty store —
+                # an empty result would read as "no scans yet" and mask data
+                # loss. The corrupt file is preserved at quarantined_path.
+                quarantined = (
+                    _redact_path(str(db.quarantined_path))
+                    if db.quarantined_path
+                    else "an unknown path"
+                )
+                raise HistoryRecoveredError(
+                    "Your scan history could not be read and was quarantined; "
+                    f"the previous database is preserved on this machine at {quarantined}. "
+                    "A fresh history was started — re-run a scan to repopulate it."
+                )
             return action(db)
         finally:
             if db is not None:
