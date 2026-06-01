@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from security_observatory import cli as cli_module
+from security_observatory import scan_orchestrator as scan_module
 from security_observatory.scanners import ScannerResult
 from security_observatory.model import ScannerStatus
 
@@ -47,10 +47,10 @@ def test_scan_repo_includes_rotation_state_unscaffolded(tmp_path: Path, monkeypa
     repo.mkdir()
     home = tmp_path / "home"
 
-    monkeypatch.setattr(cli_module, "scanner_names_for_profile", lambda args: ["semgrep"])
-    monkeypatch.setattr(cli_module, "run_scanner", _fake_scanner)
+    monkeypatch.setattr(scan_module, "scanner_names_for_profile", lambda args: ["semgrep"])
+    monkeypatch.setattr(scan_module, "run_scanner", _fake_scanner)
 
-    report = cli_module.scan_repo(repo, _quick_args(), home)
+    report = scan_module.scan_repo(repo, _quick_args(), home)
     assert "rotation_state" in report
     assert report["rotation_state"]["scaffolded"] is False
     assert report["rotation_state"]["secret_count"] == 0
@@ -73,10 +73,10 @@ def test_scan_repo_includes_rotation_state_scaffolded(tmp_path: Path, monkeypatc
     )
     home = tmp_path / "home"
 
-    monkeypatch.setattr(cli_module, "scanner_names_for_profile", lambda args: ["semgrep"])
-    monkeypatch.setattr(cli_module, "run_scanner", _fake_scanner)
+    monkeypatch.setattr(scan_module, "scanner_names_for_profile", lambda args: ["semgrep"])
+    monkeypatch.setattr(scan_module, "run_scanner", _fake_scanner)
 
-    report = cli_module.scan_repo(repo, _quick_args(), home)
+    report = scan_module.scan_repo(repo, _quick_args(), home)
     assert report["rotation_state"]["scaffolded"] is True
     assert report["rotation_state"]["secret_count"] == 1
     # An unrotated newly-scaffolded secret needs attention.

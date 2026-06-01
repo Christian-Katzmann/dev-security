@@ -26,7 +26,7 @@ from .case_followup import (
     build_case_followup_prompt as _build_case_followup_prompt,
     validate_case_resolutions as _validate_case_resolutions,
 )
-from .cli import build_parser as _build_scan_parser, scan_repo as _scan_repo
+from .scan_orchestrator import build_parser as _build_scan_parser, scan_repo as _scan_repo
 from .fix_proposals import (
     clean_room_review_packet as _clean_room_review_packet,
     decide_landing as _decide_landing,

@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import json
 
-from security_observatory import cli as cli_module
+from security_observatory import scan_orchestrator as scan_module
 from security_observatory.model import ScannerStatus
 from security_observatory.scanners import ScannerResult
 from security_observatory.silent_upgrades import detect_silent_upgrades
@@ -609,10 +609,10 @@ def test_scan_repo_persists_components_when_syft_writes_sbom(tmp_path: Path, mon
         )
         return ScannerResult(status=status, findings=[], sbom_created=True)
 
-    monkeypatch.setattr(cli_module, "scanner_names_for_profile", lambda args: ["syft"])
-    monkeypatch.setattr(cli_module, "run_scanner", fake_run_scanner)
+    monkeypatch.setattr(scan_module, "scanner_names_for_profile", lambda args: ["syft"])
+    monkeypatch.setattr(scan_module, "run_scanner", fake_run_scanner)
 
-    summary = cli_module.scan_repo(repo, _deps_args(), home)
+    summary = scan_module.scan_repo(repo, _deps_args(), home)
     db = ObservatoryDB(home / "db" / "observatory.sqlite")
     try:
         rows = db.list_sbom_components(repo_name="repo")
@@ -642,10 +642,10 @@ def test_scan_repo_handles_missing_syft_without_crashing(tmp_path: Path, monkeyp
         )
         return ScannerResult(status=status, findings=[], sbom_created=False)
 
-    monkeypatch.setattr(cli_module, "scanner_names_for_profile", lambda args: ["syft"])
-    monkeypatch.setattr(cli_module, "run_scanner", fake_missing_syft)
+    monkeypatch.setattr(scan_module, "scanner_names_for_profile", lambda args: ["syft"])
+    monkeypatch.setattr(scan_module, "run_scanner", fake_missing_syft)
 
-    summary = cli_module.scan_repo(repo, _deps_args(), home)
+    summary = scan_module.scan_repo(repo, _deps_args(), home)
     db = ObservatoryDB(home / "db" / "observatory.sqlite")
     try:
         rows = db.list_sbom_components(repo_name="repo")
@@ -678,10 +678,10 @@ def test_scan_repo_persists_partial_sbom_when_syft_reports_error(tmp_path: Path,
         )
         return ScannerResult(status=status, findings=[], sbom_created=True)
 
-    monkeypatch.setattr(cli_module, "scanner_names_for_profile", lambda args: ["syft"])
-    monkeypatch.setattr(cli_module, "run_scanner", fake_failing_syft)
+    monkeypatch.setattr(scan_module, "scanner_names_for_profile", lambda args: ["syft"])
+    monkeypatch.setattr(scan_module, "run_scanner", fake_failing_syft)
 
-    summary = cli_module.scan_repo(repo, _deps_args(), home)
+    summary = scan_module.scan_repo(repo, _deps_args(), home)
     db = ObservatoryDB(home / "db" / "observatory.sqlite")
     try:
         rows = db.list_sbom_components(repo_name="repo")

@@ -10,7 +10,7 @@ Today every scanner DëvSec runs is described in pieces scattered across five st
 Move S-018 from Yellow to Green.
 
 ## Dependencies
-**S-015** (batch `14-scan-orchestrator-extract`) — the matrix lists S-015 as this batch's dependency. S-015 extracts a `scan_orchestrator`/pipeline module out of `cli.py` and breaks the `cli↔dashboard` cycle and the `mcp→cli` reach. Build the registry **after** S-015 has landed: the orchestrator is the natural single caller of `run_scanner`/`normalize`, so the registry should slot cleanly behind it. If S-015 has not yet landed, do not reintroduce or depend on the old `cli`-resident scan entry point — key the registry off the scanner orchestration in `scanners.py`/`normalize.py` only and let the orchestrator import it. No other same-batch ordering applies (S-018 is the only item in this batch).
+**S-015** (batch `14-scan-orchestrator-extract`) — the matrix lists S-015 as this batch's dependency. S-015 has **landed**: the `scan_orchestrator` module now lives at `src/security_observatory/scan_orchestrator.py` and is the single caller of `run_scanner` (imported via `from .scanners import run_behavioral_drift_scanner, run_scanner, scanner_names_for_profile`); the `cli↔dashboard` cycle and the `mcp→cli` reach are gone. Build the registry to slot cleanly behind that orchestrator: key it off the scanner orchestration in `scanners.py`/`normalize.py` only and let `scan_orchestrator` import it — never reintroduce or depend on a `cli`-resident scan entry point. No other same-batch ordering applies (S-018 is the only item in this batch).
 
 ## Non-Goals
 - Do not attempt other batches' super-list items (orchestrator extraction S-015, storage payload lift S-017, query batching S-027, type floor S-021 are separate batches).

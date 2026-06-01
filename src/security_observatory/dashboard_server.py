@@ -83,6 +83,7 @@ from .rotation import (
     rotation_consistency_check,
 )
 from .rotation_inference import infer_secret_name, load_catalog_secret_names
+from .scan_orchestrator import scan_repo
 from .scanners import scan_profile_catalog, scanner_names_for_profile, security_pack_catalog, tool_catalog
 from .storage import ObservatoryDB
 from .reset import (
@@ -1843,8 +1844,6 @@ def run_check_job(
     agent_lab_proposal_id: str | None = None,
     agent_lab_preview: dict[str, Any] | None = None,
 ) -> None:
-    from .cli import scan_repo
-
     scanners = list(dict.fromkeys(scanner_names or scanner_names_for_profile(args)))
     total = max(len(scanners), 1)
     update_job(
