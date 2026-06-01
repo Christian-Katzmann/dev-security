@@ -77,6 +77,7 @@ import {
   FolderCheck,
   FolderGit2,
   FolderSearch,
+  Globe,
   Home,
   KeyRound,
   Layers3,
@@ -3163,6 +3164,29 @@ function SettingsView({summary, target, targetRepos, updatedAt, onTargetChange, 
             <strong>{summary.honey_event_retention_days ?? 90} days</strong>
           </SettingRow>
           <SettingRow label="Generated reports" sub="Reports remain local unless you export or share them." />
+        </div>
+      </PaperCard>
+      <PaperCard>
+        <SectionHeader title="Network egress" icon={<Globe size={16} />} />
+        <Notice
+          tone="info"
+          icon={<Globe size={17} />}
+          title="The default scan makes no third-party network calls."
+          body="A default scan, the SQLite history store, and this dashboard all stay on your machine — even the dashboard's fonts are bundled into the build, so loading the UI contacts no external host. The surfaces below leave the machine only when you explicitly opt in; each names the host it reaches and exactly what is sent."
+        />
+        <div className="settings-list">
+          <SettingRow label="EPSS exploit scores" sub="Opt-in: security-scan --deps --trust. Sends CVE IDs of advisories found in your dependencies. Cache-only by default — never reaches the network.">
+            <strong>api.first.org</strong>
+          </SettingRow>
+          <SettingRow label="OpenSSF Scorecard" sub="Opt-in: security-scan --deps --trust. Sends source-repo identifiers (org/repo slugs) of your dependencies — no source code. Cache-only by default.">
+            <strong>api.scorecard.dev</strong>
+          </SettingRow>
+          <SettingRow label="Platform posture (legitify)" sub="Opt-in: security-scan --platform-posture with an SCM token. Sends the repo slug and platform metadata the platform already knows — no source code.">
+            <strong>GitHub API</strong>
+          </SettingRow>
+          <SettingRow label="Managed-tool downloads" sub="Fires only when you install a managed scanner binary (gitleaks, trivy, syft, grype, …). A plain release download — no repo data; each is checksum/signature-verified before install.">
+            <strong>github.com releases</strong>
+          </SettingRow>
         </div>
       </PaperCard>
       <PaperCard className="danger-zone-card">

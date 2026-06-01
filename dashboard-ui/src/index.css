@@ -1,5 +1,27 @@
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
+
+/*
+ * Geist / Geist Mono — self-hosted so the dashboard's default render path
+ * makes zero third-party network calls (no Google Fonts CDN). Vendored from
+ * the Vercel `geist` package v1.7.1 (SIL Open Font License — see
+ * fonts/Geist-LICENSE.txt). The variable faces cover the full weight range
+ * the UI uses (sans 300–700, mono 400–600).
+ */
+@font-face {
+  font-family: "Geist";
+  src: url("./fonts/Geist-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Geist Mono";
+  src: url("./fonts/GeistMono-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 :root {
   --mist-surface-100: #b6c4bd;
