@@ -10,6 +10,7 @@ import html
 import json
 import os
 import re
+import secrets
 import shutil
 import sqlite3
 import subprocess
@@ -2025,6 +2026,33 @@ _PACKAGE_MANAGER_DISPATCH: dict[str, dict[str, Any]] = {
 }
 
 
+# Loopback hostnames the dashboard accepts as its own origin. The server only
+# ever binds 127.0.0.1, so a request whose Origin host is anything else came
+# from a foreign site (classic CSRF) or a DNS-rebinding page pointing a
+# attacker-controlled name at loopback — neither is the operator's own tab.
+_LOOPBACK_ORIGIN_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+# Per-process confirmation token. It is minted once per server process and only
+# ever handed out on a same-origin read (`GET /api/csrf-token`); the same-origin
+# policy stops a cross-site page from reading that response, so possession of
+# the token positively attests the request came from a real dashboard session.
+# This is what `human_authorized` now means on the dashboard path — a positive,
+# CSRF-surviving intent signal, not "a POST happened to arrive."
+_DASHBOARD_CSRF_TOKEN = secrets.token_urlsafe(32)
+
+# Mutating routes deliberately exempt from the cross-origin guard. A honeytoken
+# embedded in a URL must beacon on a cross-origin GET/POST by design — guarding
+# it would break the decoy. This is the single, intentional hole in the guard.
+_CSRF_EXEMPT_PATHS = frozenset({"/api/honey/trigger"})
+
+
+def _is_json_content_type(content_type: str | None) -> bool:
+    """True for ``application/json`` (ignoring any ``; charset=…`` suffix)."""
+    if not content_type:
+        return False
+    return content_type.split(";", 1)[0].strip().casefold() == "application/json"
+
+
 class DashboardHandler(SimpleHTTPRequestHandler):
     db_path: Path
     assets_dir: Path
@@ -2104,6 +2132,60 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _origin_is_same_site(self) -> bool:
+        """True if a state-mutating request demonstrably came from the operator's
+        own dashboard tab.
+
+        A browser stamps every cross-origin request with an ``Origin`` (and a
+        ``Sec-Fetch-Site``) header it will not let script forge, so a foreign
+        value is a reliable tell of a cross-site or DNS-rebinding attack. A
+        non-browser client (the CLI, tests, curl) sends neither header; those
+        were never the CSRF threat — a browser cannot omit ``Origin`` on a
+        cross-origin request — so a request with no provenance hints is allowed.
+        """
+        sec_fetch_site = self.headers.get("Sec-Fetch-Site")
+        if sec_fetch_site is not None and sec_fetch_site not in {"same-origin", "none"}:
+            return False
+        origin = self.headers.get("Origin")
+        if origin in (None, "", "null"):
+            return True
+        parsed = urlparse(origin)
+        if parsed.scheme != "http" or parsed.hostname not in _LOOPBACK_ORIGIN_HOSTS:
+            return False
+        try:
+            return parsed.port == self.server.server_port
+        except ValueError:
+            return False
+
+    def _guard_mutation(self, parsed) -> bool:
+        """Gate every mutating ``do_POST``/``do_DELETE`` before it dispatches.
+
+        Rejects cross-origin requests with a clean JSON ``403`` and body-bearing
+        requests that are not ``application/json`` with a clean JSON ``415`` —
+        the two defenses the lens report found entirely absent. Returns ``True``
+        when the request may proceed. The honey-key trigger is exempt by design.
+        """
+        if parsed.path in _CSRF_EXEMPT_PATHS:
+            return True
+        if not self._origin_is_same_site():
+            self.send_json_error(403, "Cross-origin request rejected.")
+            return False
+        if self.command == "POST" and not _is_json_content_type(self.headers.get("Content-Type")):
+            self.send_json_error(415, "Mutating requests must use Content-Type: application/json.")
+            return False
+        return True
+
+    def _human_confirmation_present(self) -> bool:
+        """Whether this request carries the valid per-process confirmation token.
+
+        This is the positive intent signal that re-arms the suppression gate:
+        ``human_authorized`` is true only when the request echoes the token that
+        a real dashboard session fetched same-origin — never merely because a
+        POST arrived.
+        """
+        supplied = self.headers.get("X-DevSec-Confirm") or ""
+        return bool(supplied) and secrets.compare_digest(supplied, _DASHBOARD_CSRF_TOKEN)
+
     def do_GET(self) -> None:
         # Mirror the do_POST / do_DELETE convention: any unhandled error in a GET
         # route — notably a corrupt history DB surfacing from ObservatoryDB(...)
@@ -2117,6 +2199,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
     def _handle_get(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path == "/api/csrf-token":
+            # Same-origin read only: the same-origin policy stops a cross-site
+            # page from reading this response, so the token it hands back is a
+            # secret the operator's own tab can prove it holds on mutating calls.
+            self.send_json({"token": _DASHBOARD_CSRF_TOKEN})
+            return
         if parsed.path.startswith("/docs/") and parsed.path.endswith(".md"):
             self.serve_repo_doc(parsed.path)
             return
@@ -2418,6 +2506,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        if not self._guard_mutation(parsed):
+            return
         if parsed.path == "/api/case-decision":
             self.save_case_decision()
             return
@@ -2544,6 +2634,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
     def do_DELETE(self) -> None:
         parsed = urlparse(self.path)
+        if not self._guard_mutation(parsed):
+            return
         credentials_delete_match = _CREDENTIALS_KEY_PATH_RE.match(parsed.path)
         if credentials_delete_match:
             self.delete_tool_credential(
@@ -2938,17 +3030,19 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     package_url=str(payload.get("packageUrl") or payload.get("package_url") or "").strip() or None,
                     component_package_key=str(payload.get("componentPackageKey") or payload.get("component_package_key") or "").strip() or None,
                     fixed_version=str(payload.get("fixedVersion") or payload.get("fixed_version") or "").strip() or None,
-                    # A direct dashboard click on "false positive" / "accept risk"
-                    # is the human confirmation the severity gate asks for.
-                    human_authorized=True,
+                    # Human confirmation is the per-session token the dashboard
+                    # session fetched same-origin and echoed back — not the mere
+                    # fact that a POST arrived. A cross-origin page cannot read
+                    # the token, so it cannot attest a high/critical suppression.
+                    human_authorized=self._human_confirmation_present(),
                 )
             finally:
                 db.close()
             self.send_json({"decision": decision})
         except ValueError as exc:
-            self.send_error(400, str(exc))
+            self.send_json_error(400, str(exc))
         except Exception as exc:
-            self.send_error(500, str(exc))
+            self.send_json_error(500, str(exc))
 
     def serve_ai_followup_prompt(self, parsed) -> None:
         query = parse_qs(parsed.query)
@@ -4114,6 +4208,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_accepted_json({"accepted": True})
 
     def read_json_body(self, *, max_bytes: int = 64_000) -> dict[str, object]:
+        # Defense in depth behind `_guard_mutation`: a JSON body must declare
+        # itself as JSON. A forged form/`text/plain` POST (the CSRF-friendly
+        # content types that dodge a CORS preflight) is refused here too, so the
+        # requirement holds even if a future caller skips the dispatch guard.
+        if not _is_json_content_type(self.headers.get("Content-Type")):
+            raise ValueError("Mutating requests must use Content-Type: application/json.")
         length = int(self.headers.get("Content-Length", "0") or "0")
         body = self.rfile.read(min(length, max_bytes)) if length else b"{}"
         if not body:

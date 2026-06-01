@@ -25,13 +25,23 @@ def _free_port() -> int:
         return s.getsockname()[1]
 
 
-def _http_json(port: int, path: str, *, body: dict[str, object] | None = None, method: str | None = None) -> tuple[int, dict[str, object]]:
+def _http_json(
+    port: int,
+    path: str,
+    *,
+    body: dict[str, object] | None = None,
+    method: str | None = None,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, dict[str, object]]:
     data = json.dumps(body).encode("utf-8") if body is not None else None
+    request_headers = {"Content-Type": "application/json"} if data is not None else {}
+    if headers:
+        request_headers.update(headers)
     request = Request(
         f"http://127.0.0.1:{port}{path}",
         data=data,
         method=method or ("POST" if body is not None else "GET"),
-        headers={"Content-Type": "application/json"} if data is not None else {},
+        headers=request_headers,
     )
     try:
         with urlopen(request, timeout=5) as resp:
@@ -138,12 +148,17 @@ def test_ai_followup_prompt_preview_apply_and_history(harness: dict[str, object]
     finally:
         db.close()
 
-    # A human confirming the same decision with a direct dashboard click IS
-    # authorized, so the suppression now writes through.
+    # A human confirming the same decision in the dashboard echoes the
+    # per-session confirmation token the page fetched same-origin; that positive,
+    # CSRF-surviving intent signal — not the bare arrival of a POST — is what
+    # authorizes the suppression of a critical case, so it now writes through.
+    _status, token_payload = _http_json(port, "/api/csrf-token")
+    confirm_token = str(token_payload["token"])
     status, decision = _http_json(
         port,
         "/api/case-decision",
         body={"caseId": case_id, "repoName": "repo", "status": "false_positive", "note": "Confirmed: documentation example."},
+        headers={"X-DevSec-Confirm": confirm_token},
     )
     assert status == HTTPStatus.OK
     db = ObservatoryDB(Path(harness["db_path"]))

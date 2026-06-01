@@ -894,6 +894,29 @@ function overviewHeroCopy({
   };
 }
 
+// The dashboard's mutating loopback API is CSRF/Origin-hardened, and a
+// high/critical suppression additionally requires this per-session confirmation
+// token. It is fetched same-origin (a cross-site page cannot read the response)
+// and echoed as `X-DevSec-Confirm`, which is what authorizes the suppression
+// gate server-side. Cached for the tab's lifetime; refreshed if the fetch fails.
+let confirmTokenPromise: Promise<string> | null = null;
+
+async function getConfirmToken(): Promise<string> {
+  if (!confirmTokenPromise) {
+    confirmTokenPromise = fetch('/api/csrf-token', {cache: 'no-store'})
+      .then((response) => {
+        if (!response.ok) throw new Error(`CSRF token request returned ${response.status}`);
+        return response.json();
+      })
+      .then((payload: {token?: string}) => payload.token ?? '')
+      .catch((err) => {
+        confirmTokenPromise = null;
+        throw err;
+      });
+  }
+  return confirmTokenPromise;
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [catalogRoute, setCatalogRoute] = useState<CatalogRoute>({kind: 'home'});
@@ -1195,9 +1218,10 @@ export default function App() {
   async function saveCaseDecision(caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) {
     setRunError(null);
     try {
+      const confirmToken = await getConfirmToken();
       const response = await fetch('/api/case-decision', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {'Content-Type': 'application/json', 'X-DevSec-Confirm': confirmToken},
         body: JSON.stringify({caseId, repoName, status, note}),
       });
       if (!response.ok) throw new Error(await response.text());
