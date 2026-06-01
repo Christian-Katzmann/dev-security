@@ -21,7 +21,7 @@
 - [x] Step 1.6 — 11-case-lifecycle
 - [x] Step 1.7 — 12-surface-scan-history-trends
 - [x] Step 1.8 — 13-code-fix-dashboard-surface
-- [ ] Step 1.9 — post-repair behavioral-ux re-audit
+- [x] Step 1.9 — post-repair behavioral-ux re-audit
 - [ ] Final review
 
 ## Step 1.1 — 06-replace-window-prompt
