@@ -41,8 +41,8 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 1 — Land the audited gains & sync the record
 
-- [ ] Step 1.1 — Commit the Stage D working tree (the clean base)
-- [ ] Step 1.2 — Sync the written record to the code (docs S-052 + .adx)
+- [x] Step 1.1 — Commit the Stage D working tree (the clean base)
+- [x] Step 1.2 — Sync the written record to the code (docs S-052 + .adx)
 
 ### Phase 2 — Shrink the architecture & lock the lifecycle seam
 

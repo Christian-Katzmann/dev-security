@@ -26,12 +26,12 @@
     {
       "id": "dashboard-server",
       "path": "src/security_observatory/dashboard_server.py",
-      "purpose": "Local HTTP dashboard server, API endpoints, scan job orchestration, report exports, and Honey Key endpoints.",
+      "purpose": "Local HTTP dashboard server and API routing layer plus Honey Key endpoints and background scan jobs. Three concerns were split out into sibling modules: the /api/summary payload assembly lives in dashboard_payload.py, the server-rendered /report/ and /docs/ pages live in dashboard_pages.py, and the scan pipeline (scan_repo) lives in scan_orchestrator.py. Edit those modules for payload/page/scan behavior; this file routes requests to them.",
       "common_changes": [
-        "Add dashboard API endpoints",
-        "Adjust report export pages",
+        "Add or route dashboard API endpoints",
         "Change Honey Key request handling",
-        "Change background scan job behavior"
+        "Change background scan job behavior",
+        "For payload shape see dashboard-payload; for report/docs HTML see dashboard-pages; for the scan path see scan-orchestrator"
       ],
       "relevant_commands": [
         "python-import-cli",
@@ -42,6 +42,106 @@
         "honey-keys"
       ],
       "intro": ".adx/modules/dashboard-server.md"
+    },
+    {
+      "id": "scan-orchestrator",
+      "path": "src/security_observatory/scan_orchestrator.py",
+      "purpose": "Application-layer scan pipeline. Home of scan_repo, the single append-only scan path the CLI, MCP server, and dashboard all drive, plus the parser/profile resolution it needs to stand alone. Split out of cli.py so non-CLI subsystems no longer import the command-line entry point, breaking the cli <-> dashboard_server import cycle.",
+      "key_files": [
+        "src/security_observatory/scan_orchestrator.py"
+      ],
+      "common_changes": [
+        "Change the scan pipeline or its ordered stages",
+        "Adjust scan profile or parser resolution",
+        "Add an enrichment or correlation step to a scan"
+      ],
+      "relevant_commands": [
+        "python-import-cli",
+        "python-pytest"
+      ],
+      "tests": [
+        "tests/test_sbom.py",
+        "tests/test_scan_rotation_detection.py"
+      ],
+      "risks": [
+        "local-security-data",
+        "scanner-installer"
+      ],
+      "intro": ".adx/modules/scan-orchestrator.md"
+    },
+    {
+      "id": "dashboard-payload",
+      "path": "src/security_observatory/dashboard_payload.py",
+      "purpose": "Dashboard UI-payload assembly (the /api/summary body). Turns raw storage rows into the per-repo UI payload via set-based batch reads and embeds the live scanner/tool/pack catalogs. Lifted out of ObservatoryDB so persistence no longer imports scanner orchestration; output is byte-for-byte identical to the pre-split payload.",
+      "key_files": [
+        "src/security_observatory/dashboard_payload.py"
+      ],
+      "common_changes": [
+        "Change the /api/summary payload shape",
+        "Adjust per-repo batch assembly or catalog embedding",
+        "Add a new data kind to the dashboard summary"
+      ],
+      "relevant_commands": [
+        "python-import-cli",
+        "python-pytest"
+      ],
+      "tests": [
+        "tests/test_dashboard_payload_assembly.py"
+      ],
+      "risks": [
+        "local-security-data"
+      ],
+      "intro": ".adx/modules/dashboard-payload.md"
+    },
+    {
+      "id": "dashboard-pages",
+      "path": "src/security_observatory/dashboard_pages.py",
+      "purpose": "Server-rendered report and docs HTML pages: the /report/ export (AI-handoff prompt + full raw report) and the /docs/ shell. Pure functions that take a scan/doc payload and return a string, keeping dashboard_server a routing layer rather than a second templating engine.",
+      "key_files": [
+        "src/security_observatory/dashboard_pages.py"
+      ],
+      "common_changes": [
+        "Edit the /report/ export page",
+        "Edit the /docs/ shell rendering",
+        "Change category labels or report HTML"
+      ],
+      "relevant_commands": [
+        "python-import-cli",
+        "python-pytest"
+      ],
+      "tests": [
+        "tests/test_dashboard_report_exports.py",
+        "tests/test_cases.py"
+      ],
+      "risks": [
+        "local-security-data"
+      ],
+      "intro": ".adx/modules/dashboard-pages.md"
+    },
+    {
+      "id": "case-lifecycle",
+      "path": "src/security_observatory/lifecycle.py",
+      "purpose": "Canonical case-lifecycle state machine: the single source of truth for case states (open, verified, in_progress, accepted_risk, resolved), the stored decision statuses, and the MCP presentation mapping. decisions.py, cases.py, storage.py (the CHECK constraint), and mcp_server.py all derive their state vocabulary from here instead of carrying divergent enums.",
+      "key_files": [
+        "src/security_observatory/lifecycle.py"
+      ],
+      "common_changes": [
+        "Add or rename a lifecycle or decision state",
+        "Change the stored-decision to presentation-state mapping",
+        "Adjust the storage CHECK-constraint state vocabulary"
+      ],
+      "relevant_commands": [
+        "python-import-cli",
+        "python-pytest"
+      ],
+      "tests": [
+        "tests/test_cases.py",
+        "tests/test_storage_migrations.py"
+      ],
+      "risks": [
+        "local-security-data"
+      ],
+      "intro": ".adx/modules/case-lifecycle.md"
     },
     {
       "id": "dashboard-ui",

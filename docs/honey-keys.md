@@ -36,12 +36,16 @@ Honey Keys are fake, powerless decoy secrets. They alert you when touched. They 
 
 Each safety claim above is enforced by a concrete guard in code. This table
 binds the claim to its guard so the documentation can be audited against the
-implementation (line numbers pinned to the current tree):
+implementation. Each guard is cited by the **exact source line it must contain**
+(line numbers pinned to the current tree). The line numbers are kept honest by
+`tests/test_honey_keys.py::test_doc_guard_map_citations_resolve`, which reads
+this table and fails if any cited line stops containing its named guard string —
+so the citations cannot silently drift the way they once did:
 
 | Claim | Guard | Location |
 | --- | --- | --- |
-| Refuses to overwrite existing files | `if target_path.exists():` → HTTP 409 "Placement file already exists." | `src/security_observatory/dashboard_server.py:2772-2773` |
-| Refuses to write outside the selected repo | `target_path.relative_to(repo_path)` (400 if it escapes the repo); a key whose `repo_id` differs is rejected with "Honey Key belongs to a different repo." | `src/security_observatory/dashboard_server.py:2765` and `:2788` |
-| No duplicate Honey Key created | `sqlite3.IntegrityError` → HTTP 409 "Honey Key already exists." | `src/security_observatory/dashboard_server.py:2675` |
-| Stores only a secure hash of the raw key | `hash_honey_key` = `hashlib.sha256("honeykey:v1:" + token)`; the raw token is never persisted, only `token_hash` | `src/security_observatory/honey_keys.py:85-86` (stored as `token_hash`, `:41`/`:57`) |
+| Refuses to overwrite existing files | `if target_path.exists():` → HTTP 409 "Placement file already exists." | `src/security_observatory/dashboard_server.py:2823` (the 409 message at `:2824`) |
+| Refuses to write outside the selected repo | `target_path.relative_to(repo_path)` (400 "Placement path must stay inside the repo." if it escapes); a key whose `repo_id` differs is rejected with "Honey Key belongs to a different repo." | `src/security_observatory/dashboard_server.py:2816` and `:2839` |
+| No duplicate Honey Key created | `except sqlite3.IntegrityError:` → HTTP 409 "Honey Key already exists." | `src/security_observatory/dashboard_server.py:2725` (the 409 message at `:2726`) |
+| Stores only a secure hash of the raw key | `hash_honey_key` = `hashlib.sha256("honeykey:v1:" + token)`; the raw token is never persisted, only `token_hash` | `src/security_observatory/honey_keys.py:86` (declared `token_hash` at `:41`, stored at `:57`) |
 

@@ -560,6 +560,7 @@ scripts/                        Dashboard and desktop launcher scripts
 - [Architecture](docs/architecture.md)
 - [Trust boundary diagram](design/diagrams/trust-boundary.md) — what stays local and the absent paths that make the local-first stance enforceable
 - [Threat model](docs/threat-model.md) — assets, boundaries, main risks, mitigations, known gaps
+- [Security-sensitive CLI surface](docs/cli-security-surface.md) — the write/delete/suppress verbs hidden from `--help`, each with its code-level guard
 - [Failure modes](docs/failure-modes.md) — false positives, false negatives, scanner crashes, rule regressions, stale data
 - [Glossary](docs/glossary.md) — finding, case, action level, confidence, honey key, evidence gap
 - [Architectural decisions](docs/decisions/) — accepted ADRs and a `REJECTED/` folder for paths considered and turned down

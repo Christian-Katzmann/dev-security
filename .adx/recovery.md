@@ -23,7 +23,7 @@ Recovery:
 
 The test suite runs. The authoritative command is `uv run pytest` (uv owns the
 `.venv`; `pytest>=9.0.3` ships in `pyproject.toml` `[dependency-groups]`).
-Observed this checkout: `uv run pytest -q` = **524 passed** (0 skipped) across
+Observed this checkout: `uv run pytest -q` = **536 passed** (0 skipped) across
 the `tests/test_*.py` suite.
 
 If pytest fails to start (rather than a real test failure):

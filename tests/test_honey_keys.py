@@ -317,3 +317,40 @@ def _post_json_expect_error(url: str, payload: dict[str, object]) -> int:
 def _get_json(url: str) -> dict[str, object]:
     with request.urlopen(url, timeout=5) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def test_doc_guard_map_citations_resolve():
+    """docs/honey-keys.md binds each Honey Key safety claim to an exact source
+    line. The doc exists to be auditable, so it must not carry the line drift it
+    was built to eliminate: this test fails if any cited line stops containing
+    its named guard, or if the doc stops citing those lines. Drift in either the
+    code or the doc breaks the build, forcing them back into agreement."""
+    repo_root = Path(__file__).resolve().parents[1]
+    dashboard = (repo_root / "src/security_observatory/dashboard_server.py").read_text(encoding="utf-8").splitlines()
+    honey = (repo_root / "src/security_observatory/honey_keys.py").read_text(encoding="utf-8").splitlines()
+
+    # (source lines, 1-based cited line, substring that line MUST still contain)
+    cited_guards = [
+        (dashboard, 2816, "target_path.relative_to(repo_path)"),
+        (dashboard, 2823, "if target_path.exists():"),
+        (dashboard, 2824, "Placement file already exists."),
+        (dashboard, 2725, "except sqlite3.IntegrityError:"),
+        (dashboard, 2726, "Honey Key already exists."),
+        (dashboard, 2839, "Honey Key belongs to a different repo."),
+        (honey, 41, "token_hash"),
+        (honey, 57, "token_hash=hash_honey_key"),
+        (honey, 86, "hashlib.sha256"),
+        (honey, 86, "honeykey:v1:"),
+    ]
+    for lines, lineno, needle in cited_guards:
+        assert needle in lines[lineno - 1], (
+            f"line {lineno} no longer contains {needle!r}; update the Guard Map "
+            f"in docs/honey-keys.md and this test together"
+        )
+
+    # The Guard Map must actually cite each dashboard_server.py guard line.
+    doc = (repo_root / "docs" / "honey-keys.md").read_text(encoding="utf-8")
+    for lineno in (2816, 2823, 2824, 2725, 2726, 2839):
+        assert f":{lineno}" in doc, (
+            f"docs/honey-keys.md Guard Map no longer cites dashboard_server.py:{lineno}"
+        )
