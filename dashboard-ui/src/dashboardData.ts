@@ -1643,7 +1643,10 @@ export function honeyKeyById(summary: DashboardSummary, keyId: string): HoneyKey
 }
 
 function normalizeBucket(value: string | undefined, severity?: Severity): AttentionBucket {
-  const normalized = value?.toLowerCase().replace(/[_\s]+/g, '-');
+  // The backend (Python) encodes the action level as `fix_now`; the dashboard
+  // uses `fix-now`. That single snake_case→kebab boundary is the only alias we
+  // translate — no blanket rewrite that could silently reshape other values.
+  const normalized = value === 'fix_now' ? 'fix-now' : value;
   if (normalized === 'fix-now' || normalized === 'verify' || normalized === 'watch' || normalized === 'info') return normalized;
   if (severity === 'critical' || severity === 'high') return 'fix-now';
   if (severity === 'medium') return 'verify';

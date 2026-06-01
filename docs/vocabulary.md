@@ -15,6 +15,10 @@ Do not use critical, elevated, warning, or low for install state, scanner state,
 
 The red/orange severity palette follows the same rule. Setup gaps, not-installed tools, and unavailable optional checks should not look like active security severity.
 
+### One map, one translation point
+
+The internal severity values — `critical`, `high`, `medium`, `low`, `info` — are the canonical contract. They are what the data carries, what the MCP/CLI agent persona speaks (the DëvSec helper leads cases with `Severity: <critical|high|medium|low|info>`), and what every API and handoff returns. **The dashboard's `severityDisplay` map (`dashboard-ui/src/App.tsx`) is the only place those internal values are translated into the user-facing words above** (`high → Elevated`, `medium → Warning`, …). No other surface re-implements that mapping, and the agent never emits the display words. A user reading one case in the dashboard and again via the agent handoff is therefore never asked to translate the same severity twice: the dashboard shows *Elevated*, the agent says *high*, and this document is the single key that binds them.
+
 ## Cases and Raw Findings
 
 Use **Cases** for the user-visible work items. A case groups related scanner evidence into one action with risk, severity, confidence, fix steps, and an agent-ready prompt.

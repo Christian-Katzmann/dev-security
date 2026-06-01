@@ -170,7 +170,7 @@ import {
   targetValue,
 } from './dashboardData';
 
-type TabId = 'overview' | 'findings' | 'honey-keys' | 'scanners' | 'agent-lab' | 'playbooks' | 'verification' | 'activity' | 'reports' | 'settings';
+type TabId = 'overview' | 'cases' | 'honey-keys' | 'scanners' | 'agent-lab' | 'playbooks' | 'verification' | 'activity' | 'reports' | 'settings';
 type ViewModeAvailability = 'normal' | 'repo-required' | 'global';
 type ViewModeRegistryEntry = {
   supportedModes: DashboardMode[];
@@ -274,7 +274,9 @@ type ActivityItem = {
 };
 
 type RecoveryPlaybookView = RecoveryPlaybook & {tone: Tone};
-type PostureTier = 'excellent' | 'steady' | 'watch' | 'attention';
+// 'monitor' (not 'watch') so the posture band never collides with the
+// action-level `watch` bucket that cases use on the same dashboard.
+type PostureTier = 'excellent' | 'steady' | 'monitor' | 'attention';
 type OverviewRepoHealth = {
   total: number;
   healthy: number;
@@ -307,7 +309,7 @@ const navGroups: {title?: string; items: NavItem[]}[] = [
   {
     title: 'Operate',
     items: [
-      {id: 'findings', label: 'Cases', icon: FileSearch},
+      {id: 'cases', label: 'Cases', icon: FileSearch},
       {id: 'honey-keys', label: 'Honey keys', icon: KeyRound},
       {id: 'scanners', label: 'Tool catalog', icon: PackageSearch},
       {id: 'agent-lab', label: 'Agent lab', icon: Workflow},
@@ -325,7 +327,7 @@ const navGroups: {title?: string; items: NavItem[]}[] = [
 
 const tabTitles: Record<TabId, string> = {
   overview: 'Overview',
-  findings: 'Cases',
+  cases: 'Cases',
   'honey-keys': 'Honey keys',
   scanners: 'Tool catalog',
   'agent-lab': 'Agent lab',
@@ -338,7 +340,7 @@ const tabTitles: Record<TabId, string> = {
 
 const viewsByMode: Record<TabId, ViewModeRegistryEntry> = {
   overview: {supportedModes: ['all-repos', 'repo'], availability: 'normal'},
-  findings: {supportedModes: ['all-repos', 'repo'], availability: 'normal'},
+  cases: {supportedModes: ['all-repos', 'repo'], availability: 'normal'},
   activity: {supportedModes: ['all-repos', 'repo'], availability: 'normal'},
   reports: {supportedModes: ['all-repos', 'repo'], availability: 'normal'},
   'honey-keys': {
@@ -381,13 +383,25 @@ const auditOptions: {id: AuditId; label: string; estimate: string; description: 
   {id: 'full', label: 'Full repo audit', estimate: '5-20 min', description: 'Runs the deepest available scan across all categories.'},
 ];
 
+// Single source of truth for the severity → user-facing display word.
+// See docs/vocabulary.md (high→Elevated, medium→Warning, …). Every surface that
+// shows a severity word reads it from here; no other place re-implements it.
+const severityDisplay: Record<Tone, string> = {
+  crit: 'Critical',
+  high: 'Elevated',
+  warn: 'Warning',
+  low: 'Low',
+  info: 'Info',
+  neutral: 'Ready',
+};
+
 const severityMeta: Record<Tone, {label: string; dot: string; bg: string; fg: string}> = {
-  low: {label: 'LOW', dot: 'var(--sev-low)', bg: 'rgba(138,163,154,0.20)', fg: '#3c4b48'},
-  warn: {label: 'WARNING', dot: 'var(--sev-warn)', bg: '#f1dcbe', fg: '#7d4d10'},
-  high: {label: 'ELEVATED', dot: 'var(--sev-high)', bg: '#ecc9b7', fg: '#6e3a1c'},
-  crit: {label: 'CRITICAL', dot: '#842626', bg: '#dcaaa5', fg: '#551515'},
-  info: {label: 'INFO', dot: 'var(--sev-info)', bg: '#cfdbe9', fg: '#36506e'},
-  neutral: {label: 'READY', dot: '#8d938f', bg: 'rgba(28,36,34,0.06)', fg: '#3c4b48'},
+  low: {label: severityDisplay.low.toUpperCase(), dot: 'var(--sev-low)', bg: 'rgba(138,163,154,0.20)', fg: '#3c4b48'},
+  warn: {label: severityDisplay.warn.toUpperCase(), dot: 'var(--sev-warn)', bg: '#f1dcbe', fg: '#7d4d10'},
+  high: {label: severityDisplay.high.toUpperCase(), dot: 'var(--sev-high)', bg: '#ecc9b7', fg: '#6e3a1c'},
+  crit: {label: severityDisplay.crit.toUpperCase(), dot: '#842626', bg: '#dcaaa5', fg: '#551515'},
+  info: {label: severityDisplay.info.toUpperCase(), dot: 'var(--sev-info)', bg: '#cfdbe9', fg: '#36506e'},
+  neutral: {label: severityDisplay.neutral.toUpperCase(), dot: '#8d938f', bg: 'rgba(28,36,34,0.06)', fg: '#3c4b48'},
 };
 
 const placementTemplates = ['.env.backup', 'legacy-prod-config.json', 'internal-admin-notes.md'];
@@ -515,7 +529,7 @@ function postureWeek(summary: DashboardSummary): {label: string; value: number}[
 function postureTier(score: number): {label: string; tone: Tone; tier: PostureTier} {
   if (score >= 9) return {label: 'Excellent', tone: 'low', tier: 'excellent'};
   if (score >= 7.5) return {label: 'Steady', tone: 'low', tier: 'steady'};
-  if (score >= 5.5) return {label: 'Watch', tone: 'warn', tier: 'watch'};
+  if (score >= 5.5) return {label: 'Monitor', tone: 'warn', tier: 'monitor'};
   return {label: 'Needs attention', tone: 'high', tier: 'attention'};
 }
 
@@ -1273,7 +1287,7 @@ export default function App() {
   }
 
   const navCounts: Partial<Record<TabId, number>> = {
-    findings: activeCases.length,
+    cases: activeCases.length,
     'honey-keys': (scopedSummary.honey_keys ?? []).filter((key) => key.status === 'triggered').length,
     'agent-lab': (scopedSummary.agent_lab_proposals ?? []).filter((proposal) => proposal.approval_state === 'pending').length,
     verification: topScannerItems(scopedSummary).filter((item) => item.status === 'missing' || item.status === 'error').length,
@@ -1331,7 +1345,7 @@ export default function App() {
               onNewCheck={() => setActiveJob(null)}
               onViewResults={() => {
                 setIsCheckOpen(false);
-                setActiveTab('findings');
+                setActiveTab('cases');
               }}
             />
           )}
@@ -1591,7 +1605,7 @@ function ActiveView({
       />
     );
   }
-  if (tab === 'findings') return <FindingsView summary={summary} search={search} target={target} onCaseDecision={onCaseDecision} onRefresh={onRefresh} />;
+  if (tab === 'cases') return <CasesView summary={summary} search={search} target={target} onCaseDecision={onCaseDecision} onRefresh={onRefresh} />;
   if (tab === 'honey-keys') return <HoneyKeysView summary={summary} target={target} onRefresh={onRefresh} />;
   if (tab === 'scanners') return <CatalogRouter route={catalogRoute} summary={summary} onRouteChange={onCatalogRouteChange} onRefresh={onRefresh} onChooseChecks={onChooseChecks} />;
   if (tab === 'agent-lab') return <AgentLabView summary={summary} target={target} targetRepos={targetRepos} onRefresh={onRefresh} onTargetChange={onTargetChange} />;
@@ -2101,7 +2115,7 @@ function OverviewView({
           detail={`${formatCount(activeSeverityCounts.critical)} critical · ${formatCount(activeSeverityCounts.high)} high`}
           detailTone={openCaseTone}
           icon={<FileSearch size={18} />}
-          onClick={() => onOpenTab('findings')}
+          onClick={() => onOpenTab('cases')}
         />
         <KpiCard
           title="Repositories with issues"
@@ -2109,7 +2123,7 @@ function OverviewView({
           detail={repoHealth.reposWithIssues ? `${formatCount(repoHealth.reposWithIssues)} need attention` : 'No repositories need attention'}
           detailTone={reposWithIssuesTone}
           icon={<FolderSearch size={18} />}
-          onClick={() => onOpenTab('findings')}
+          onClick={() => onOpenTab('cases')}
         />
         <KpiCard
           title="Tool coverage"
@@ -2561,7 +2575,7 @@ function RepositoryComparisonStrip({summary, cases}: {summary: DashboardSummary;
   );
 }
 
-function FindingsView({summary, search, target, onCaseDecision, onRefresh}: {summary: DashboardSummary; search: string; target: TargetSelection; onCaseDecision: (caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) => Promise<void>; onRefresh: () => Promise<void>}) {
+function CasesView({summary, search, target, onCaseDecision, onRefresh}: {summary: DashboardSummary; search: string; target: TargetSelection; onCaseDecision: (caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) => Promise<void>; onRefresh: () => Promise<void>}) {
   const [severityFilter, setSeverityFilter] = useState<Tone | 'all'>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [repoFilter, setRepoFilter] = useState<string>('all');
@@ -2641,9 +2655,9 @@ function FindingsView({summary, search, target, onCaseDecision, onRefresh}: {sum
     <div className="view-stack">
       <section className="summary-strip">
         <MetricBlock label="Cases" value={String(cases.length)} detail={`${scopeLabel} · open grouped cases`} />
-        <MetricBlock label="Critical" value={String(counts.critical)} detail={scopeLabel} tone="crit" />
-        <MetricBlock label="Elevated" value={String(counts.elevated)} detail={scopeLabel} tone="high" />
-        <MetricBlock label="Warning" value={String(counts.warning)} detail={scopeLabel} tone="warn" />
+        <MetricBlock label={severityDisplay.crit} value={String(counts.critical)} detail={scopeLabel} tone="crit" />
+        <MetricBlock label={severityDisplay.high} value={String(counts.elevated)} detail={scopeLabel} tone="high" />
+        <MetricBlock label={severityDisplay.warn} value={String(counts.warning)} detail={scopeLabel} tone="warn" />
         <MetricBlock label="Low / info" value={String(counts.low)} detail={scopeLabel} tone="low" />
       </section>
       {latest?.scan_id && (
@@ -3838,10 +3852,10 @@ function FindingLine({item, index, onClick, muted = false}: {item: DisplayCase; 
 
 function RiskLandscape({items, onPick}: {items: DisplayCase[]; onPick: (id: string) => void}) {
   const lanes: {tone: Tone; label: string; y: number}[] = [
-    {tone: 'crit', label: 'Critical', y: 20},
-    {tone: 'high', label: 'Elevated', y: 42},
-    {tone: 'warn', label: 'Warning', y: 64},
-    {tone: 'low', label: 'Low', y: 84},
+    {tone: 'crit', label: severityDisplay.crit, y: 20},
+    {tone: 'high', label: severityDisplay.high, y: 42},
+    {tone: 'warn', label: severityDisplay.warn, y: 64},
+    {tone: 'low', label: severityDisplay.low, y: 84},
   ];
   return (
     <div className="risk-landscape">

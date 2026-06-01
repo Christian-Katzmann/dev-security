@@ -25,7 +25,7 @@ import ReportDownloads from './ReportDownloads';
 import ScanCompletenessPanel from './ScanCompletenessPanel';
 import SinceLastScanPanel from './SinceLastScanPanel';
 
-type FindingsViewProps = {
+type CasesViewProps = {
   summary: DashboardSummary;
   targetLabel: string;
   onChooseChecks?: () => void;
@@ -36,7 +36,7 @@ type BucketFilter = 'all' | AttentionBucket;
 type DecisionFilter = 'all' | 'open' | CaseDecisionStatus;
 type ChangeFilter = 'all' | CaseChangeStatus;
 
-export default function FindingsView({summary, targetLabel, onChooseChecks, onCaseDecision}: FindingsViewProps) {
+export default function CasesView({summary, targetLabel, onChooseChecks, onCaseDecision}: CasesViewProps) {
   const [bucketFilter, setBucketFilter] = useState<BucketFilter>('all');
   const [decisionFilter, setDecisionFilter] = useState<DecisionFilter>('all');
   const [changeFilter, setChangeFilter] = useState<ChangeFilter>('all');

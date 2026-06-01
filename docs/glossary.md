@@ -53,7 +53,12 @@ A scanner that should have run but didn't — missing binary, timed out, crashed
 
 ## Tool Catalog
 
-The read-only contract describing every scanner DëvSec knows about. Each catalog entry names the scanner, its category, its install state (built-in / detected-locally / managed-install / coming-soon / display-only), and its safety policy (network access, credentials required, file writes, destructive actions, Agent Lab availability). The catalog is the authoritative source for *"what can run here"* — Security Packs and individual scan profiles compose entries from the catalog rather than overriding their policies.
+The read-only contract describing every scanner DëvSec knows about. Each catalog entry names the scanner, its category, two independent state axes, and its safety policy (network access, credentials required, file writes, destructive actions, Agent Lab availability). The two axes are defined in [tool-catalog.md](tool-catalog.md):
+
+- **`lifecycle`** — product availability: `available`, `beta`, `advanced`, `coming-soon`, `deprecated`, `hidden`.
+- **`install_state`** — local truth about whether the tool can run here now: `built-in`, `managed`, `detected`, `missing`, `unavailable`, `not-configured`, `coming-soon`.
+
+The catalog is the authoritative source for *"what can run here"* — Security Packs and individual scan profiles compose entries from the catalog rather than overriding their policies.
 
 ## Security Pack
 
