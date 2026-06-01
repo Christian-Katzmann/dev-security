@@ -3,14 +3,14 @@
 ## Acceptance Criteria
 
 ### S-039 — Surface scan-history + arbitrary scan-diff in the UI
-- [ ] A history/trends panel exists in the dashboard that renders the **full local per-scan history series** (not just the 7-bar `postureWeek` proxy at `App.tsx:506-508`). The panel reads from the real history data already shipped to the client (`summary.history` from `/api/summary`, or a confirmed dedicated history endpoint) and is reachable from a primary surface (Overview and/or Activity). A user can read posture across more than the latest scan pair.
+- [ ] A history/trends panel exists in the dashboard that renders the **full local per-scan history series** (not just the 7-bar `postureWeek` proxy at `App.tsx:538-544`). The panel reads from the real history data already shipped to the client (`summary.history` from `/api/summary`, or a confirmed dedicated history endpoint) and is reachable from a primary surface (Overview and/or Activity). A user can read posture across more than the latest scan pair.
 - [ ] The user can compare **two arbitrary scans**, not only "since last scan." A base/head scan picker drives a scan-to-scan diff, and the diff request/computation carries **both** the chosen base and head (not just `repo`/last-pair). If the comparison needs a server route the current tree lacks, the route is added with a Python test exercising it; if it can be computed from data already in the payload, a component test asserts the selected base/head both flow into the rendered diff.
 - [ ] No dead-end or fake affordance: the picker and panel are wired (real fetch/computation + render), not clickable-looking controls that no-op. `grep -rn "scan-history\|scan-diff\|trendValues" dashboard-ui/src/` shows the history/diff surface is actually consumed, not just defined.
 - [ ] `cd dashboard-ui && npm run build` and `cd dashboard-ui && npm run lint` are clean after the panel + picker land.
 
 ### S-042 — Render posture-over-time trend (or remove the dead helper)
 - [ ] `trendValues` no longer dead: either (a) `trendValues(summary)` (`dashboardData.ts:2079`) is rendered as a posture sparkline on Overview and/or Activity — `grep -rn "trendValues" dashboard-ui/src/` returns at least one **call site** in addition to the definition, and the sparkline renders from the real `summary.history` series — **or** (b) the helper is deleted and the misleading "trend" scaffolding removed, with `grep -rn "trendValues" dashboard-ui/src/` returning nothing. No half-built trend feature remains presented as if whole.
-- [ ] The shipped posture-trend (if rendered) reads honestly: it shows the actual per-scan health series, and the single `health_delta` "trend" number at `App.tsx:2317` is either superseded by or made consistent with the sparkline (the UI does not present a one-number delta as a "trend" while a richer series sits unused).
+- [ ] The shipped posture-trend (if rendered) reads honestly: it shows the actual per-scan health series, and the single `health_delta` "trend" number at `App.tsx:2704` is either superseded by or made consistent with the sparkline (the UI does not present a one-number delta as a "trend" while a richer series sits unused).
 - [ ] `cd dashboard-ui && npm run build` is clean (matrix validation path for this row: trend sparkline renders; `npm run build`).
 
 ## Required Checks

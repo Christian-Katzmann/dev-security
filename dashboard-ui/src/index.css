@@ -37,6 +37,7 @@
   --hero-surface-mid: #315c52;
   --hero-surface-bottom: #19483f;
   --hero-action-ink: #214e43;
+  --brand-green: #2f6656;
   --posture-ring-low: #bfe49c;
   --posture-ring-warn: #e7cfaa;
   --posture-ring-attention: #e7c3b1;
@@ -213,7 +214,7 @@ kbd {
   display: grid;
   place-items: center;
   color: var(--on-surface-strong);
-  background: linear-gradient(180deg, #4f8a72 0%, #2f6656 100%);
+  background: linear-gradient(180deg, #4f8a72 0%, var(--brand-green) 100%);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.30), 0 4px 12px rgba(47,102,86,0.18);
   flex: 0 0 auto;
   font-size: 16px;
@@ -354,7 +355,7 @@ kbd {
 }
 
 .nav-row.active svg {
-  color: #2f6656;
+  color: var(--brand-green);
   background: rgba(79,138,114,0.20);
   box-shadow: inset 0 0 0 1px rgba(79,138,114,0.12);
 }
@@ -497,7 +498,7 @@ kbd {
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
   box-shadow: var(--shadow-1);
   color: var(--ink);
@@ -597,12 +598,12 @@ kbd {
 
 .button.primary {
   background: var(--ink-strong);
-  color: #fff;
+  color: var(--on-surface-strong);
   border-color: var(--ink-strong);
 }
 
 .button.secondary {
-  background: #fff;
+  background: var(--surface-card);
 }
 
 .button.ghost {
@@ -612,7 +613,7 @@ kbd {
 
 .button.glass {
   background: rgba(255,255,255,0.16);
-  color: #fff;
+  color: var(--on-surface-strong);
   border-color: rgba(255,255,255,0.24);
   box-shadow: none;
 }
@@ -678,7 +679,7 @@ kbd {
   border-radius: var(--r-xl);
   padding: 30px 36px;
   background: linear-gradient(180deg, var(--mist-surface-300), var(--mist-surface-500));
-  color: #fff;
+  color: var(--on-surface-strong);
   box-shadow: var(--shadow-3);
 }
 
@@ -982,7 +983,7 @@ kbd {
 }
 
 .bar-chart.on-surface span:last-child i {
-  background: linear-gradient(180deg, #ffffff, #f8faf8);
+  background: linear-gradient(180deg, var(--surface-card), #f8faf8);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.78);
 }
 
@@ -1027,7 +1028,7 @@ kbd {
 .metric-block,
 .playbook-tile,
 .scanner-card {
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-1);
@@ -1081,7 +1082,7 @@ kbd {
   display: grid;
   place-items: center;
   border-radius: 999px;
-  color: #2f6656;
+  color: var(--brand-green);
   background: linear-gradient(180deg, rgba(223,231,227,0.98), rgba(203,220,212,0.86));
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.78), 0 6px 16px rgba(47,102,86,0.12);
 }
@@ -1353,7 +1354,7 @@ kbd {
   padding: 20px;
   overflow: auto;
   border-radius: var(--r-lg);
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid rgba(28,36,34,0.10);
   box-shadow: var(--shadow-3);
 }
@@ -1773,7 +1774,7 @@ kbd {
   display: grid;
   place-items: center;
   border-radius: 999px;
-  color: #2f6656;
+  color: var(--brand-green);
   background: rgba(138,163,154,0.14);
 }
 
@@ -1856,7 +1857,7 @@ kbd {
 }
 
 .repo-health-item.tone-low > span {
-  color: #2f6656;
+  color: var(--brand-green);
   background: rgba(138,163,154,0.15);
 }
 
@@ -1966,7 +1967,7 @@ kbd {
   align-items: center;
   border-radius: 999px;
   padding: 0 12px;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
   color: var(--ink);
   font-size: 13px;
@@ -1977,7 +1978,7 @@ kbd {
 .chip.active {
   background: var(--ink-strong);
   border-color: var(--ink-strong);
-  color: #fff;
+  color: var(--on-surface-strong);
 }
 
 .findings-table {
@@ -1993,7 +1994,7 @@ kbd {
 .findings-master {
   min-width: 0;
   overflow: hidden;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-1);
@@ -2217,7 +2218,7 @@ kbd {
   align-items: center;
   gap: 6px;
   padding: 0 10px;
-  background: #fff;
+  background: var(--surface-card);
   color: var(--ink-muted);
   font-size: 11px;
   font-weight: 700;
@@ -2227,7 +2228,7 @@ kbd {
 
 .decision-grid button.active {
   background: var(--ink-strong);
-  color: #fff;
+  color: var(--on-surface-strong);
 }
 
 .decision-grid button:disabled {
@@ -2257,7 +2258,7 @@ kbd {
 .button.primary,
 a.button.primary {
   background: var(--ink-strong);
-  color: #fff;
+  color: var(--on-surface-strong);
   border-color: var(--ink-strong);
 }
 
@@ -2271,7 +2272,7 @@ a.button,
   border-radius: var(--r-md);
   padding: 0 14px;
   border: 1px solid var(--border-hair);
-  background: #fff;
+  background: var(--surface-card);
   font-size: 13px;
   font-weight: 700;
 }
@@ -2503,7 +2504,7 @@ a.button,
   min-width: 82px;
   padding: 9px 10px;
   border-radius: var(--r-md);
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
 }
 
@@ -2575,7 +2576,7 @@ a.button,
   flex: 0 0 auto;
   padding: 5px 7px;
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid var(--border-hair);
   color: var(--ink-muted);
   font: 600 10px/1 var(--font-mono);
@@ -2887,7 +2888,7 @@ a.button,
   padding: 16px;
   border: 1px solid var(--border-hair);
   border-radius: var(--r-lg);
-  background: #fff;
+  background: var(--surface-card);
   box-shadow: var(--shadow-1);
 }
 
@@ -2964,7 +2965,7 @@ a.button,
   width: 100%;
   border: 1px solid var(--border-hair);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-card);
   outline: 0;
   padding: 10px 12px;
   color: var(--ink);
@@ -3271,7 +3272,7 @@ a.button,
   place-items: center;
   border-radius: var(--r-md);
   border: 1px solid var(--border-hair);
-  background: #fff;
+  background: var(--surface-card);
   color: var(--ink-muted);
   cursor: pointer;
 }
@@ -3433,7 +3434,7 @@ a.button,
   padding: 12px;
   border: 1px solid var(--border-hair);
   border-radius: var(--r-lg);
-  background: #fff;
+  background: var(--surface-card);
 }
 
 .agent-lab-action {
@@ -3446,7 +3447,7 @@ a.button,
   border-radius: var(--r-md);
   border: 1px solid var(--border-hair);
   color: var(--ink);
-  background: #fff;
+  background: var(--surface-card);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -3454,13 +3455,13 @@ a.button,
 }
 
 .agent-lab-action.primary {
-  color: #fff;
+  color: var(--on-surface-strong);
   background: var(--ink-strong);
   border-color: var(--ink-strong);
 }
 
 .agent-lab-action.secondary {
-  background: #fff;
+  background: var(--surface-card);
 }
 
 .agent-lab-action.ghost {
@@ -3842,7 +3843,7 @@ a.button,
   resize: vertical;
   border: 1px solid var(--border-hair);
   border-radius: var(--r-md);
-  background: #fff;
+  background: var(--surface-card);
   outline: 0;
   padding: 10px;
   color: var(--ink);
@@ -4172,7 +4173,7 @@ a.button,
 
 .report-hero .button.glass {
   background: rgba(255,255,255,0.16);
-  color: #fff;
+  color: var(--on-surface-strong);
   border-color: rgba(255,255,255,0.24);
 }
 
@@ -4231,7 +4232,7 @@ a.button,
   padding: 5px 8px;
   border-radius: 999px;
   border: 1px solid var(--border-hair);
-  background: #fff;
+  background: var(--surface-card);
   color: var(--ink);
   font-weight: 700;
 }
@@ -4393,7 +4394,7 @@ a.button,
   width: 100%;
   border: 1px solid var(--border-hair);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-card);
   outline: 0;
   padding: 10px 12px;
   color: var(--ink);
@@ -4469,7 +4470,7 @@ a.button,
   padding: 10px 12px;
   border: 1px solid var(--border-hair);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-card);
   color: var(--ink-strong);
   overflow-wrap: anywhere;
 }
@@ -4561,7 +4562,7 @@ a.button,
 }
 
 .audit-tile.selected {
-  background: #fff;
+  background: var(--surface-card);
   border-color: rgba(28,36,34,0.26);
   box-shadow: inset 3px 0 0 var(--sev-warn);
 }
@@ -4677,7 +4678,7 @@ a.button,
 }
 
 .job-steps span.active {
-  background: #fff;
+  background: var(--surface-card);
   color: var(--ink-strong);
 }
 
@@ -4771,7 +4772,7 @@ a.button,
   align-items: flex-start;
   border-radius: var(--r-md);
   border: 1px solid var(--border-hair);
-  background: #fff;
+  background: var(--surface-card);
   padding: 14px;
 }
 
@@ -4805,7 +4806,7 @@ a.button,
   padding: 6px 28px 6px 10px;
   border-radius: var(--r-sm);
   border: 1px solid var(--border-hair);
-  background: #fff;
+  background: var(--surface-card);
   color: var(--ink-strong);
   font: 500 12px/1 var(--font-mono);
   cursor: pointer;
@@ -4883,7 +4884,7 @@ a.button,
   padding: 32px;
   border-radius: var(--r-lg, 16px);
   border: 1px solid var(--border-hair);
-  background: #fff;
+  background: var(--surface-card);
   box-shadow: 0 24px 60px rgba(28, 36, 34, 0.08);
 }
 
@@ -7558,7 +7559,7 @@ a.button,
   padding: 9px 12px;
   border-radius: 10px;
   border: 1px solid var(--border-hair);
-  background: #fff;
+  background: var(--surface-card);
   color: var(--ink-muted);
   font: 500 12px/1 var(--font-sans);
   cursor: pointer;
@@ -7578,7 +7579,7 @@ a.button,
   padding: 6px 10px;
   border-radius: var(--r-sm);
   border: 1px solid var(--border-hair);
-  background: #fff;
+  background: var(--surface-card);
   color: var(--ink-muted);
   font: 500 12px/1 var(--font-sans);
   cursor: pointer;
@@ -7610,7 +7611,7 @@ a.button,
   padding: 22px;
   overflow: auto;
   border-radius: var(--r-lg);
-  background: #fff;
+  background: var(--surface-card);
   border: 1px solid rgba(28,36,34,0.10);
   box-shadow: var(--shadow-3);
   animation: add-repo-rise var(--dur-base) var(--ease-emphasis);
@@ -7652,7 +7653,7 @@ a.button,
   width: 100%;
   border: 1px solid var(--border-hair);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-card);
   outline: 0;
   padding: 11px 12px;
   color: var(--ink);
@@ -7713,7 +7714,7 @@ a.button,
 
 .add-repo-suggestion:hover {
   border-color: var(--border-strong);
-  background: #fff;
+  background: var(--surface-card);
 }
 
 .add-repo-suggestion svg {
@@ -7780,7 +7781,7 @@ a.button,
   min-height: 44px;
   border: 1px solid var(--border-hair);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-card);
   outline: 0;
   padding: 9px 11px;
   color: var(--ink);
@@ -7821,7 +7822,7 @@ a.button,
   min-height: 44px;
   border: 1px solid var(--border-hair);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface-card);
   outline: 0;
   padding: 9px 11px;
   color: var(--ink);

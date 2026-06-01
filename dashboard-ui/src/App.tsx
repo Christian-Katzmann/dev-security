@@ -1071,14 +1071,24 @@ export default function App() {
     void loadProjects();
   }, []);
 
-  const targetRepos = mergeProjectRepos(projectRepos, customRepos, summary.repos);
-  const scopedSummary = filterSummaryByTarget(summary, target);
-  const activeCases = activeCaseList(scopedSummary);
-  const posture = {
-    score: postureScore(scopedSummary),
-    delta: postureDelta(scopedSummary),
-    week: postureWeek(scopedSummary),
-  };
+  // Derived state is memoized so search-box typing (`search` is local state that
+  // re-renders this 4,500-line root on every keystroke) no longer re-runs the
+  // expensive passes — `filterSummaryByTarget`, `activeCaseList`, the posture
+  // math. They depend only on `summary`/`target`/repo inputs, never on `search`.
+  const targetRepos = useMemo(
+    () => mergeProjectRepos(projectRepos, customRepos, summary.repos),
+    [projectRepos, customRepos, summary.repos],
+  );
+  const scopedSummary = useMemo(() => filterSummaryByTarget(summary, target), [summary, target]);
+  const activeCases = useMemo(() => activeCaseList(scopedSummary), [scopedSummary]);
+  const posture = useMemo(
+    () => ({
+      score: postureScore(scopedSummary),
+      delta: postureDelta(scopedSummary),
+      week: postureWeek(scopedSummary),
+    }),
+    [scopedSummary],
+  );
 
   useEffect(() => {
     setActiveJob(null);
@@ -2185,7 +2195,10 @@ function OverviewView({
   onRetry: () => void;
 }) {
   const scopeLabel = targetLabel(target);
-  const cases = activeCaseList(summary);
+  // `activeCaseList` and `buildActivity` are the heavy derived passes. The
+  // toolbar search re-renders the whole shell on every keystroke, so memoize
+  // them on their real inputs (summary/target) — neither depends on `search`.
+  const cases = useMemo(() => activeCaseList(summary), [summary]);
   const activeSeverityCounts = activeCaseSeverityCounts(cases);
   const repoHealth = overviewRepoHealth(summary, target, targetRepos, cases);
   const preCaseRepos = preCaseScanRepos(summary);
@@ -2194,7 +2207,7 @@ function OverviewView({
   const scanners = topScannerItems(globalSummary);
   const scannerHealthy = scanners.filter((item) => item.status === 'ran').length;
   const scannerTotal = scanners.length;
-  const activities = buildActivity(summary, target.mode === 'all-repos');
+  const activities = useMemo(() => buildActivity(summary, target.mode === 'all-repos'), [summary, target.mode]);
   const recentActivities = activities.slice(0, 6);
   const lastScan = latestScanTime(summary);
   const tier = postureTier(posture.score);
@@ -2723,12 +2736,22 @@ function CasesView({summary, search, target, onCaseDecision, onRefresh}: {summar
   const [rotateError, setRotateError] = useState<string | null>(null);
   const scopeLabel = targetLabel(target);
   const showRepoColumn = target.mode === 'all-repos';
-  const cases = displayCases(summary);
-  const suppressed = suppressedDisplayCases(summary);
-  const reasons = suppressionReasons(summary);
-  const counts = caseSeverityCounts(cases);
-  const categories = [...new Set(cases.map((item) => item.category).filter(Boolean) as string[])];
-  const repoNames = [...new Set(cases.map((item) => item.repoName))].sort((a, b) => a.localeCompare(b, undefined, {sensitivity: 'base'}));
+  // Triage is the headline search path: typing in the toolbar re-renders this
+  // view on every keystroke. Memoize the summary-derived case set (and the
+  // facets built from it) on `summary` so only the cheap `filtered` pass below
+  // — which legitimately reads `search` — re-runs while typing.
+  const cases = useMemo(() => displayCases(summary), [summary]);
+  const suppressed = useMemo(() => suppressedDisplayCases(summary), [summary]);
+  const reasons = useMemo(() => suppressionReasons(summary), [summary]);
+  const counts = useMemo(() => caseSeverityCounts(cases), [cases]);
+  const categories = useMemo(
+    () => [...new Set(cases.map((item) => item.category).filter(Boolean) as string[])],
+    [cases],
+  );
+  const repoNames = useMemo(
+    () => [...new Set(cases.map((item) => item.repoName))].sort((a, b) => a.localeCompare(b, undefined, {sensitivity: 'base'})),
+    [cases],
+  );
   const displayRepoName = (repoName: string) => repoDisplayName(summary, repoName);
   useEffect(() => {
     if (target.mode === 'repo') setRepoFilter('all');
@@ -3237,7 +3260,10 @@ const activityChips: {id: ActivityFilter; label: string}[] = [
 function ActivityView({summary, search, target}: {summary: DashboardSummary; search: string; target: TargetSelection}) {
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
   const scopeLabel = targetLabel(target);
-  const activities = buildActivity(summary, target.mode === 'all-repos').filter((item) => {
+  // Build the activity feed once per summary/target; the search + chip filter is
+  // a cheap pass that re-runs on each keystroke without re-deriving the feed.
+  const baseActivities = useMemo(() => buildActivity(summary, target.mode === 'all-repos'), [summary, target.mode]);
+  const activities = baseActivities.filter((item) => {
     if (activityFilter !== 'all' && item.category !== activityFilter) return false;
     if (!search.trim()) return true;
     return `${item.label} ${item.sub}`.toLowerCase().includes(search.toLowerCase());
