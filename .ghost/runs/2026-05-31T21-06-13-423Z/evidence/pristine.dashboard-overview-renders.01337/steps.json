@@ -1,0 +1,15 @@
+[
+  {
+    "index": 0,
+    "primitive": "goto",
+    "phase": "journey",
+    "ok": true
+  },
+  {
+    "index": 1,
+    "primitive": "unknown",
+    "phase": "journey",
+    "ok": false,
+    "message": "locator.waitFor: Error: strict mode violation: getByText('Overview') resolved to 3 elements:\n    1) <span>Overview</span> aka getByRole('button', { name: 'Overview' })\n    2) <strong>Overview</strong> aka getByRole('strong').filter({ hasText: 'Overview' })\n    3) <h3>Repository health overview</h3> aka getByRole('heading', { name: 'Repository health overview' })\n\nCall log:\n\u001b[2m  - waiting for getByText('Overview') to be visible\u001b[22m\n"
+  }
+]

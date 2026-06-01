@@ -1,0 +1,12 @@
+{
+  "schemaVersion": "1.0",
+  "strategy": "none",
+  "isolation": "unknown",
+  "resetCommand": null,
+  "seedCommand": null,
+  "runsBefore": [],
+  "runsAfter": [],
+  "destructiveAllowed": false,
+  "userOwnedBoundary": false,
+  "updatedAt": "2026-05-31T21:02:00.963Z"
+}

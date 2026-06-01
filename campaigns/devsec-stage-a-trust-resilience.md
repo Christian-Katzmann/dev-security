@@ -13,11 +13,11 @@
 ## Progress checklist
 
 ### Phase 1 — Trust & Resilience
-- [ ] Step 1.1 — 01-egress-honesty
-- [ ] Step 1.2 — 02-dashboard-csrf-suppression-gate
-- [ ] Step 1.3 — 03-backend-read-path-resilience
-- [ ] Step 1.4 — 04-dashboard-error-surfacing
-- [ ] Step 1.5 — 05-trust-integrity-tests
+- [x] Step 1.1 — 01-egress-honesty
+- [x] Step 1.2 — 02-dashboard-csrf-suppression-gate
+- [x] Step 1.3 — 03-backend-read-path-resilience
+- [x] Step 1.4 — 04-dashboard-error-surfacing
+- [x] Step 1.5 — 05-trust-integrity-tests
 - [ ] Final review
 
 ## Step 1.1 — 01-egress-honesty

@@ -1,0 +1,186 @@
+{
+  "runId": "2026-05-31T21-06-13-423Z",
+  "runRoot": "/Users/christiankatzmann/Dev/Projects/dëv-security/.ghost/runs/2026-05-31T21-06-13-423Z",
+  "target": "http://127.0.0.1:8876",
+  "scale": {
+    "browserSessions": 3,
+    "browserConcurrency": 2,
+    "browserWaves": 2,
+    "apiRequests": 2,
+    "apiEndpointsHit": 2
+  },
+  "apiTier": {
+    "enabled": false,
+    "engine": "fetch",
+    "requests": 0,
+    "endpointsHit": 0,
+    "targets": [],
+    "failures": 0,
+    "skippedReason": "disabled"
+  },
+  "reproductionBudget": {},
+  "cost": {
+    "modelVersion": "2026-05-31",
+    "currency": "USD",
+    "budgetUsd": 0,
+    "estimatedUsd": 0,
+    "actualUsd": 0,
+    "variancePct": 0,
+    "withinBudget": true,
+    "degraded": true,
+    "degradations": [
+      "llm-phases-skipped:replay-committed-plan"
+    ],
+    "phases": [
+      {
+        "name": "plan",
+        "unit": "phase",
+        "plannedUnits": 0,
+        "actualUnits": 0,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": true,
+        "note": "Committed plan replay; no model call during run."
+      },
+      {
+        "name": "scout",
+        "unit": "phase",
+        "plannedUnits": 0,
+        "actualUnits": 0,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": true,
+        "note": "Scout work is precompiled into the committed plan."
+      },
+      {
+        "name": "classify",
+        "unit": "token",
+        "plannedUnits": 0,
+        "actualUnits": 0,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": true,
+        "note": "Deterministic classifier fallback; no LLM call required."
+      },
+      {
+        "name": "browser",
+        "unit": "session",
+        "plannedUnits": 3,
+        "actualUnits": 3,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": false,
+        "note": "Local Playwright browser sessions are measured but not externally billed."
+      },
+      {
+        "name": "api",
+        "unit": "request",
+        "plannedUnits": 0,
+        "actualUnits": 2,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": false,
+        "note": "Local API tier requests are measured but not externally billed."
+      },
+      {
+        "name": "reproduction",
+        "unit": "attempt",
+        "plannedUnits": 0,
+        "actualUnits": 0,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": true,
+        "note": "Per-fingerprint reruns are deterministic local browser work."
+      },
+      {
+        "name": "report",
+        "unit": "render",
+        "plannedUnits": 1,
+        "actualUnits": 1,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": false,
+        "note": "Report rendering is deterministic local file generation."
+      }
+    ],
+    "assumptions": {
+      "version": "2026-05-31",
+      "currency": "USD",
+      "llmInputUsdPer1kTokens": 0.005,
+      "llmOutputUsdPer1kTokens": 0.015,
+      "localBrowserSessionUsd": 0,
+      "localApiRequestUsd": 0,
+      "localReproductionAttemptUsd": 0,
+      "localReportRenderUsd": 0
+    }
+  },
+  "watchdog": {
+    "maxRssMb": 6144,
+    "initialConcurrency": 2,
+    "currentConcurrency": 2,
+    "minConcurrency": 2,
+    "shedEvents": [],
+    "lastRssMb": 284
+  },
+  "status": "completed",
+  "totals": {
+    "succeeded": 2,
+    "failed": 1,
+    "tracedFailures": 1,
+    "traceSkippedByCap": 0,
+    "status5xx": 0,
+    "status429": 0,
+    "orphanedChromiumProcesses": 0
+  },
+  "evidence": {
+    "events": "/Users/christiankatzmann/Dev/Projects/dëv-security/.ghost/runs/2026-05-31T21-06-13-423Z/events.jsonl",
+    "traceReservations": {
+      "dashboard-overview-renders.unknown.877b47c66167": 1
+    }
+  },
+  "pristine": {
+    "total": 1,
+    "passed": 0,
+    "failed": 1
+  },
+  "memory": {
+    "sourcePath": "/Users/christiankatzmann/Dev/Projects/dëv-security/AGENTS.md",
+    "factsRead": 0,
+    "keys": [],
+    "safeBaseUrlFromMemory": null,
+    "usedSafeBaseUrlFromMemory": false,
+    "updatedPath": "/Users/christiankatzmann/Dev/Projects/dëv-security/AGENTS.md",
+    "claudeImportsAgents": true
+  },
+  "failures": [
+    {
+      "droneId": "local-dashboard-observer.dashboard-overview-renders.01337",
+      "journeyId": "dashboard-overview-renders",
+      "personaId": "local-dashboard-observer",
+      "seed": 1337,
+      "message": "locator.waitFor: Error: strict mode violation: getByText('Overview') resolved to 3 elements:\n    1) <span>Overview</span> aka getByRole('button', { name: 'Overview' })\n    2) <strong>Overview</strong> aka getByRole('strong').filter({ hasText: 'Overview' })\n    3) <h3>Repository health overview</h3> aka getByRole('heading', { name: 'Repository health overview' })\n\nCall log:\n\u001b[2m  - waiting for getByText('Overview') to be visible\u001b[22m\n",
+      "traced": true,
+      "fingerprint": "dashboard-overview-renders.unknown.877b47c66167"
+    }
+  ],
+  "classification": {
+    "reportJson": "/Users/christiankatzmann/Dev/Projects/dëv-security/.ghost/runs/2026-05-31T21-06-13-423Z/report.json",
+    "classifierSummary": "/Users/christiankatzmann/Dev/Projects/dëv-security/.ghost/runs/2026-05-31T21-06-13-423Z/classifier-summary.json",
+    "reportMarkdown": "/Users/christiankatzmann/Dev/Projects/dëv-security/.ghost/runs/2026-05-31T21-06-13-423Z/report.md",
+    "summaryHtml": "/Users/christiankatzmann/Dev/Projects/dëv-security/.ghost/runs/2026-05-31T21-06-13-423Z/summary.html"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "1.0",
+  "adapter": "manual",
+  "auth": "generic",
+  "baseUrl": "http://127.0.0.1:8876",
+  "defaultMode": "quick",
+  "defaultPack": "launch-readiness",
+  "authRole": "member",
+  "createdAt": "2026-05-31T21:02:00.959Z",
+  "updatedAt": "2026-05-31T21:02:00.959Z"
+}

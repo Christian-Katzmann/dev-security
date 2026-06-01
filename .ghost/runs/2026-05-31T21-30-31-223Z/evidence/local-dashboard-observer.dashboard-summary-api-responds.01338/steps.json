@@ -1,0 +1,14 @@
+[
+  {
+    "index": 0,
+    "primitive": "apiCall",
+    "phase": "journey",
+    "ok": true
+  },
+  {
+    "index": 1,
+    "primitive": "wait",
+    "phase": "success",
+    "ok": true
+  }
+]

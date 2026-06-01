@@ -1,0 +1,182 @@
+{
+  "runId": "2026-05-31T21-30-31-223Z",
+  "runRoot": "/Users/christiankatzmann/Dev/Projects/dëv-security/.ghost/runs/2026-05-31T21-30-31-223Z",
+  "target": "http://127.0.0.1:8876",
+  "scale": {
+    "browserSessions": 3,
+    "browserConcurrency": 2,
+    "browserWaves": 2,
+    "apiRequests": 2,
+    "apiEndpointsHit": 2
+  },
+  "apiTier": {
+    "enabled": false,
+    "engine": "fetch",
+    "requests": 0,
+    "endpointsHit": 0,
+    "targets": [],
+    "failures": 0,
+    "skippedReason": "disabled"
+  },
+  "reproductionBudget": {},
+  "cost": {
+    "modelVersion": "2026-05-31",
+    "currency": "USD",
+    "budgetUsd": 0,
+    "estimatedUsd": 0,
+    "actualUsd": 0,
+    "variancePct": 0,
+    "withinBudget": true,
+    "degraded": true,
+    "degradations": [
+      "llm-phases-skipped:replay-committed-plan"
+    ],
+    "phases": [
+      {
+        "name": "plan",
+        "unit": "phase",
+        "plannedUnits": 0,
+        "actualUnits": 0,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": true,
+        "note": "Committed plan replay; no model call during run."
+      },
+      {
+        "name": "scout",
+        "unit": "phase",
+        "plannedUnits": 0,
+        "actualUnits": 0,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": true,
+        "note": "Scout work is precompiled into the committed plan."
+      },
+      {
+        "name": "classify",
+        "unit": "token",
+        "plannedUnits": 0,
+        "actualUnits": 0,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": true,
+        "note": "Deterministic classifier fallback; no LLM call required."
+      },
+      {
+        "name": "browser",
+        "unit": "session",
+        "plannedUnits": 3,
+        "actualUnits": 3,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": false,
+        "note": "Local Playwright browser sessions are measured but not externally billed."
+      },
+      {
+        "name": "api",
+        "unit": "request",
+        "plannedUnits": 0,
+        "actualUnits": 2,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": false,
+        "note": "Local API tier requests are measured but not externally billed."
+      },
+      {
+        "name": "reproduction",
+        "unit": "attempt",
+        "plannedUnits": 0,
+        "actualUnits": 0,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": true,
+        "note": "Per-fingerprint reruns are deterministic local browser work."
+      },
+      {
+        "name": "report",
+        "unit": "render",
+        "plannedUnits": 1,
+        "actualUnits": 1,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": false,
+        "note": "Report rendering is deterministic local file generation."
+      }
+    ],
+    "assumptions": {
+      "version": "2026-05-31",
+      "currency": "USD",
+      "llmInputUsdPer1kTokens": 0.005,
+      "llmOutputUsdPer1kTokens": 0.015,
+      "localBrowserSessionUsd": 0,
+      "localApiRequestUsd": 0,
+      "localReproductionAttemptUsd": 0,
+      "localReportRenderUsd": 0
+    }
+  },
+  "watchdog": {
+    "maxRssMb": 6144,
+    "initialConcurrency": 2,
+    "currentConcurrency": 2,
+    "minConcurrency": 2,
+    "shedEvents": [],
+    "lastRssMb": null
+  },
+  "status": "completed",
+  "totals": {
+    "succeeded": 3,
+    "failed": 0,
+    "tracedFailures": 0,
+    "traceSkippedByCap": 0,
+    "status5xx": 0,
+    "status429": 0,
+    "orphanedChromiumProcesses": 0
+  },
+  "evidence": {
+    "events": "/Users/christiankatzmann/Dev/Projects/dëv-security/.ghost/runs/2026-05-31T21-30-31-223Z/events.jsonl",
+    "traceReservations": {}
+  },
+  "pristine": {
+    "total": 1,
+    "passed": 1,
+    "failed": 0
+  },
+  "memory": {
+    "sourcePath": "/Users/christiankatzmann/Dev/Projects/dëv-security/AGENTS.md",
+    "factsRead": 7,
+    "keys": [
+      "auth_roles",
+      "default_pack",
+      "latest_trusted_report",
+      "reset_strategy",
+      "safe_base_url",
+      "stable_routes",
+      "success_criteria"
+    ],
+    "safeBaseUrlFromMemory": "http://127.0.0.1:8876",
+    "usedSafeBaseUrlFromMemory": false,
+    "updatedPath": "/Users/christiankatzmann/Dev/Projects/dëv-security/AGENTS.md",
+    "claudeImportsAgents": true
+  },
+  "failures": [],
+  "classification": {
+    "reportJson": "/Users/christiankatzmann/Dev/Projects/dëv-security/.ghost/runs/2026-05-31T21-30-31-223Z/report.json",
+    "classifierSummary": "/Users/christiankatzmann/Dev/Projects/dëv-security/.ghost/runs/2026-05-31T21-30-31-223Z/classifier-summary.json",
+    "reportMarkdown": "/Users/christiankatzmann/Dev/Projects/dëv-security/.ghost/runs/2026-05-31T21-30-31-223Z/report.md",
+    "summaryHtml": "/Users/christiankatzmann/Dev/Projects/dëv-security/.ghost/runs/2026-05-31T21-30-31-223Z/summary.html"
+  }
+}

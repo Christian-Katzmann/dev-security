@@ -1,0 +1,32 @@
+[
+  {
+    "index": 0,
+    "primitive": "goto",
+    "phase": "journey",
+    "ok": true
+  },
+  {
+    "index": 1,
+    "primitive": "clickRole",
+    "phase": "journey",
+    "ok": true
+  },
+  {
+    "index": 2,
+    "primitive": "expectText",
+    "phase": "journey",
+    "ok": true
+  },
+  {
+    "index": 3,
+    "primitive": "screenshot",
+    "phase": "journey",
+    "ok": true
+  },
+  {
+    "index": 4,
+    "primitive": "expectVisible",
+    "phase": "success",
+    "ok": true
+  }
+]

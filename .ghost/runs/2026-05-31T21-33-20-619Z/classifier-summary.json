@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "1.0",
+  "phase": "one-pass-bounded-classifier",
+  "tokenBudget": 8000,
+  "mode": "deterministic-fallback",
+  "note": "Clusters are pre-aggregated deterministically; no model labels were needed for this bounded pass.",
+  "pristineSentinels": [
+    {
+      "journeyId": "dashboard-overview-renders",
+      "ok": true
+    }
+  ],
+  "clusters": []
+}

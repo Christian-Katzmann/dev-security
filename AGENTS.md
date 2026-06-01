@@ -51,3 +51,16 @@
 - This directory is a local git checkout. It may not have a remote; check before assuming push/PR workflows exist.
 - The local `.venv` is managed by `uv`; use `uv sync --dev` if test dependencies are stale, then `uv run pytest`.
 - There is no repo-local ADX command runner installed; use the JSON contracts directly or the shared ADX kit when available.
+
+## Ghost Invasion Memory
+
+Durable, non-secret facts the next Ghost Invasion run can reuse.
+<!-- ghost-invasion-memory:start -->
+- safe_base_url: http://127.0.0.1:8876
+- reset_strategy: none / unknown
+- auth_roles: anonymous:none
+- default_pack: launch-readiness
+- stable_routes: /, /api/summary, /api/tool-catalog
+- success_criteria: dashboard-overview-renders: expectVisible; dashboard-summary-api-responds: wait; dashboard-tool-catalog-api-responds: wait; dashboard-activity-renders: expectVisible; dashboard-cases-renders: expectVisible; dashboard-catalog-renders: expectVisible; dashboard-reports-renders: expectVisible; dashboard-settings-renders: expectVisible
+- latest_trusted_report: .ghost/runs/2026-05-31T21-33-20-619Z/report.json
+<!-- ghost-invasion-memory:end -->

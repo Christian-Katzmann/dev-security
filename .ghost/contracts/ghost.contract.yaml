@@ -1,0 +1,58 @@
+schemaVersion: "1.0"
+invariants:
+  - $schema: ghost-invasion/invariant@1
+    id: auth.no-cross-tenant-read
+    class: hard
+    severity: critical
+    statement: A user must never read another tenant's private objects.
+    evidenceRequired:
+      - network_response_body
+      - db_owner_check
+      - trace
+    autoAttachWhen: auth detected AND owned resources detected
+  - $schema: ghost-invasion/invariant@1
+    id: mutation.idempotent-create
+    class: hard
+    severity: high
+    statement: Repeating the same create must not create duplicate records.
+    evidenceRequired:
+      - db_diff
+      - replay
+    autoAttachWhen: create form/mutation detected
+  - $schema: ghost-invasion/invariant@1
+    id: ux.no-dead-end-after-error
+    class: soft
+    severity: medium
+    statement: After a failed action, the user must have a visible recovery path.
+    evidenceRequired:
+      - screenshot
+      - trace
+    autoAttachWhen: always
+  - $schema: ghost-invasion/invariant@1
+    id: ux.mobile-first-run-completes
+    class: soft
+    severity: medium
+    statement: A mobile first-run user must be able to complete the critical path without layout or recovery traps.
+    evidenceRequired:
+      - screenshot
+      - trace
+    autoAttachWhen: mobile persona OR first-run/onboarding route detected
+  - $schema: ghost-invasion/invariant@1
+    id: mutation.multi-tab-consistency
+    class: hard
+    severity: high
+    statement: Concurrent tabs must not overwrite, duplicate, or stale-write shared state without explicit conflict handling.
+    evidenceRequired:
+      - db_diff
+      - replay
+    autoAttachWhen: stateful mutation detected
+  - $schema: ghost-invasion/invariant@1
+    id: data.shape-preserved
+    class: hard
+    severity: high
+    statement: Required and user-entered fields must survive create/edit/readback without silent coercion or loss.
+    evidenceRequired:
+      - db_diff
+      - network_response_body
+      - replay
+    autoAttachWhen: form/api input shape detected

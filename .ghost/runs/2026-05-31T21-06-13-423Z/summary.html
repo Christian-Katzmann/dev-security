@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ghost Invasion Summary - 2026-05-31T21-06-13-423Z</title>
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f6f7f8; color: #171a1f; }
+    body { margin: 0; }
+    main { max-width: 1120px; margin: 0 auto; padding: 32px 20px 48px; }
+    header { border-bottom: 1px solid #d9dee5; padding-bottom: 18px; margin-bottom: 24px; }
+    h1 { font-size: 32px; line-height: 1.1; margin: 0 0 12px; letter-spacing: 0; }
+    h2 { font-size: 22px; margin: 0 0 12px; letter-spacing: 0; }
+    h3 { font-size: 16px; margin: 18px 0 6px; letter-spacing: 0; }
+    p { line-height: 1.55; }
+    .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 18px 0 0; }
+    .meta div, article { background: #fff; border: 1px solid #dde3ea; border-radius: 8px; }
+    .meta div { padding: 12px; }
+    article { margin: 16px 0; padding: 18px; box-shadow: 0 1px 2px rgba(10, 20, 30, 0.04); }
+    .finding-head { display: flex; gap: 12px; justify-content: space-between; align-items: start; flex-wrap: wrap; }
+    .pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 9px; font-size: 12px; font-weight: 700; background: #eef2f6; color: #2d3642; }
+    .critical { background: #ffe8e3; color: #9b1c0f; }
+    .high { background: #fff2d6; color: #7a4a00; }
+    .medium { background: #e8f0ff; color: #1e4d9a; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+    a { color: #075985; }
+    code { background: #edf1f5; border-radius: 4px; padding: 2px 5px; }
+    video, img { width: 100%; max-height: 380px; object-fit: contain; background: #111827; border-radius: 8px; }
+    ul { padding-left: 18px; }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="pill">START HERE</p>
+      <h1>Ghost Invasion Summary</h1>
+      <p>0 confirmed bugs, 1 needs your eyes.</p>
+      <div class="meta">
+        <div><strong>Scale</strong><br />3 browser users in 2 waves + 2 API hits across 2 endpoints</div>
+        <div><strong>Cost</strong><br />estimated $0.0000<br />actual $0.0000<br />budget $0.0000</div>
+        <div><strong>Target</strong><br />http://127.0.0.1:8876<br />manual</div>
+        <div><strong>Safety</strong><br />no live keys - egress trap not proven (attach-only) - reset: none - stripe:blocked-stub mocked</div>
+        <div><strong>Files</strong><br /><a href="report.md">report.md</a> | <a href="report.json">report.json</a></div>
+      </div>
+    </header>
+    <article>
+      <div class="finding-head">
+        <div>
+          <span class="pill medium">MEDIUM</span>
+          <h2>F-001 - locator.waitFor: Error: strict mode violation: getByText('Overview') resolved to 3 elem...</h2>
+        </div>
+        <span class="pill">needs human review 0.60</span>
+      </div>
+      <p><strong>Contract:</strong> ux.no-dead-end-after-error<br /><strong>Breadth:</strong> 1 persona(s), 1 seed(s), 1/1 attempts. Pristine path failed.</p>
+      <div class="grid">
+        <section><h3>What a real user did</h3><p>Used / under the recorded persona conditions and waited for the UI to recover.</p></section>
+        <section><h3>What should happen</h3><p>The journey invariant remains true.</p></section>
+        <section><h3>What actually happens</h3><p>locator.waitFor: Error: strict mode violation: getByText('Overview') resolved to 3 elements:
+    1) &lt;span&gt;Overview&lt;/span&gt; aka getByRole('button', { name: 'Overview' })
+    2) &lt;strong&gt;Overview&lt;/strong&gt; aka getByRole('strong').filter({ hasText: 'Overview' })
+    3) &lt;h3&gt;Repository health overview&lt;/h3&gt; aka getByRole('heading', { name: 'Repository health overview' })
+
+Call log:
+[2m  - waiting for getByText('Overview') to be visible[22m
+</p></section>
+        <section><h3>Suggested fix</h3><p>Inspect the failing journey evidence and make the invariant deterministic before promoting this finding.</p></section>
+      </div>
+      <h3>Replay</h3>
+      <video controls src="evidence/local-dashboard-observer.dashboard-overview-renders.01337.trace/video.webm"></video>
+      <h3>Proof</h3>
+      <ul><li><a href="evidence/local-dashboard-observer.dashboard-overview-renders.01337.trace/fail.png">evidence/local-dashboard-observer.dashboard-overview-renders.01337.trace/fail.png</a></li><li><a href="evidence/local-dashboard-observer.dashboard-overview-renders.01337.trace/network.har">evidence/local-dashboard-observer.dashboard-overview-renders.01337.trace/network.har</a></li><li><a href="evidence/local-dashboard-observer.dashboard-overview-renders.01337.trace/trace.zip">evidence/local-dashboard-observer.dashboard-overview-renders.01337.trace/trace.zip</a></li><li><a href="evidence/local-dashboard-observer.dashboard-overview-renders.01337.trace/video.webm">evidence/local-dashboard-observer.dashboard-overview-renders.01337.trace/video.webm</a></li><li><a href="evidence/local-dashboard-observer.dashboard-overview-renders.01337/fail-cheap.png">evidence/local-dashboard-observer.dashboard-overview-renders.01337/fail-cheap.png</a></li><li><a href="reproduction-steps/F-001.md">reproduction-steps/F-001.md</a></li><li><a href="generated-tests/F-001.spec.ts">generated-tests/F-001.spec.ts</a></li></ul>
+    </article>
+    <p>Folded away: 0 near-identical failure(s). 1 flaky or non-confirmed blip(s) counted.</p>
+  </main>
+</body>
+</html>

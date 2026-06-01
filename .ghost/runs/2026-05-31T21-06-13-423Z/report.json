@@ -1,0 +1,193 @@
+{
+  "$schema": "ghost-invasion/report@1",
+  "schemaVersion": "1.0",
+  "runId": "2026-05-31T21-06-13-423Z",
+  "target": {
+    "url": "http://127.0.0.1:8876",
+    "stack": "manual",
+    "allowProductionTarget": false
+  },
+  "invasion": {
+    "personas": 1,
+    "journeys": 3,
+    "pack": "launch-readiness",
+    "browserSessions": 3,
+    "apiRequests": 2,
+    "apiEndpointsHit": 2,
+    "mode": "quick"
+  },
+  "scale": {
+    "headline": "3 browser users in 2 waves + 2 API hits across 2 endpoints"
+  },
+  "totals": {
+    "findings": 1,
+    "critical": 0,
+    "confirmedBugs": 0,
+    "needsHumanReview": 1,
+    "falsePositivesSuppressed": 1
+  },
+  "cost": {
+    "modelVersion": "2026-05-31",
+    "currency": "USD",
+    "budgetUsd": 0,
+    "estimatedUsd": 0,
+    "actualUsd": 0,
+    "variancePct": 0,
+    "withinBudget": true,
+    "degraded": true,
+    "degradations": [
+      "llm-phases-skipped:replay-committed-plan"
+    ],
+    "phases": [
+      {
+        "name": "plan",
+        "unit": "phase",
+        "plannedUnits": 0,
+        "actualUnits": 0,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": true,
+        "note": "Committed plan replay; no model call during run."
+      },
+      {
+        "name": "scout",
+        "unit": "phase",
+        "plannedUnits": 0,
+        "actualUnits": 0,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": true,
+        "note": "Scout work is precompiled into the committed plan."
+      },
+      {
+        "name": "classify",
+        "unit": "token",
+        "plannedUnits": 0,
+        "actualUnits": 0,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": true,
+        "note": "Deterministic classifier fallback; no LLM call required."
+      },
+      {
+        "name": "browser",
+        "unit": "session",
+        "plannedUnits": 3,
+        "actualUnits": 3,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": false,
+        "note": "Local Playwright browser sessions are measured but not externally billed."
+      },
+      {
+        "name": "api",
+        "unit": "request",
+        "plannedUnits": 0,
+        "actualUnits": 2,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": false,
+        "note": "Local API tier requests are measured but not externally billed."
+      },
+      {
+        "name": "reproduction",
+        "unit": "attempt",
+        "plannedUnits": 0,
+        "actualUnits": 0,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": true,
+        "note": "Per-fingerprint reruns are deterministic local browser work."
+      },
+      {
+        "name": "report",
+        "unit": "render",
+        "plannedUnits": 1,
+        "actualUnits": 1,
+        "unitUsd": 0,
+        "estimatedUsd": 0,
+        "actualUsd": 0,
+        "metered": false,
+        "skipped": false,
+        "note": "Report rendering is deterministic local file generation."
+      }
+    ],
+    "assumptions": {
+      "version": "2026-05-31",
+      "currency": "USD",
+      "llmInputUsdPer1kTokens": 0.005,
+      "llmOutputUsdPer1kTokens": 0.015,
+      "localBrowserSessionUsd": 0,
+      "localApiRequestUsd": 0,
+      "localReproductionAttemptUsd": 0,
+      "localReportRenderUsd": 0
+    }
+  },
+  "findings": [
+    {
+      "$schema": "ghost-invasion/finding@1",
+      "id": "F-001",
+      "title": "locator.waitFor: Error: strict mode violation: getByText('Overview') resolved to 3 elem...",
+      "category": "needs-human-review",
+      "severity": "medium",
+      "confidence": 0.6,
+      "invariant": "ux.no-dead-end-after-error",
+      "affected": {
+        "surfaceId": "/",
+        "route": "/"
+      },
+      "reproducedAcross": {
+        "personas": 1,
+        "inputProfiles": 1,
+        "seeds": 1
+      },
+      "occurrences": 1,
+      "pristinePassed": false,
+      "reproductionRate": "1/1 attempts",
+      "mockDependent": false,
+      "signals": [
+        "assertion_failed",
+        "trace_available",
+        "replay_available",
+        "ceiling:pristine-failed",
+        "ceiling:soft-invariant"
+      ],
+      "expected": "The journey invariant remains true.",
+      "actual": "locator.waitFor: Error: strict mode violation: getByText('Overview') resolved to 3 elements:\n    1) <span>Overview</span> aka getByRole('button', { name: 'Overview' })\n    2) <strong>Overview</strong> aka getByRole('strong').filter({ hasText: 'Overview' })\n    3) <h3>Repository health overview</h3> aka getByRole('heading', { name: 'Repository health overview' })\n\nCall log:\n\u001b[2m  - waiting for getByText('Overview') to be visible\u001b[22m\n",
+      "evidence": [
+        "evidence/local-dashboard-observer.dashboard-overview-renders.01337.trace/fail.png",
+        "evidence/local-dashboard-observer.dashboard-overview-renders.01337.trace/network.har",
+        "evidence/local-dashboard-observer.dashboard-overview-renders.01337.trace/trace.zip",
+        "evidence/local-dashboard-observer.dashboard-overview-renders.01337.trace/video.webm",
+        "evidence/local-dashboard-observer.dashboard-overview-renders.01337/fail-cheap.png"
+      ],
+      "reproSteps": "reproduction-steps/F-001.md",
+      "minimalRepro": null,
+      "suggestedFix": "Inspect the failing journey evidence and make the invariant deterministic before promoting this finding.",
+      "generatedTest": "generated-tests/F-001.spec.ts"
+    }
+  ],
+  "safety": {
+    "mockedServices": [
+      "stripe:blocked-stub"
+    ],
+    "dataResetStrategy": "none",
+    "egress": {
+      "mode": "attach-only",
+      "proven": false
+    },
+    "dangerousEnvKeysDetected": []
+  }
+}

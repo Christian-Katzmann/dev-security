@@ -1,0 +1,21 @@
+{
+  "mode": "container-firewall",
+  "proven": false,
+  "canaryMatrix": {
+    "docker": "not-run:daemon-unavailable"
+  },
+  "allowlist": [
+    "localhost",
+    "127.0.0.1",
+    "mailpit:1025",
+    "mailpit:8025",
+    "supabase-mailpit:54324",
+    "s3-stub",
+    "webhook-sink",
+    "localstripe"
+  ],
+  "dockerAvailable": false,
+  "errors": [
+    "docker daemon did not respond"
+  ]
+}

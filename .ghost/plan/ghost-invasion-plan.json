@@ -1,0 +1,491 @@
+{
+  "$schema": "ghost-invasion/plan@1",
+  "createdAt": "2026-05-31T21:02:14.330Z",
+  "target": {
+    "baseUrl": "http://127.0.0.1:8876",
+    "stack": "manual",
+    "auth": "generic"
+  },
+  "mode": "quick",
+  "pack": "launch-readiness",
+  "seed": 1337,
+  "safety": {
+    "targetRisk": "local",
+    "hardStop": false,
+    "egress": {
+      "mode": "attach-only",
+      "proven": false,
+      "allowlist": [
+        "localhost",
+        "127.0.0.1"
+      ]
+    },
+    "liveSecrets": [],
+    "mocksApplied": [
+      "stripe:blocked-stub"
+    ],
+    "dataReset": {
+      "strategy": "none",
+      "isolation": "unknown",
+      "destructiveAllowed": false
+    }
+  },
+  "swarm": {
+    "browserConcurrency": 2,
+    "browserWaves": 4,
+    "totalBrowserSessions": 8,
+    "apiTier": {
+      "enabled": false,
+      "engine": "fetch",
+      "rps": 0,
+      "targets": []
+    },
+    "rateLimits": {
+      "rampMsPerContext": 750,
+      "circuitBreaker": "3%5xx|429"
+    }
+  },
+  "personas": [
+    {
+      "$schema": "ghost-invasion/persona@1",
+      "id": "local-dashboard-observer",
+      "archetype": "ordinary_user",
+      "role": {
+        "name": "anonymous",
+        "authStrategy": "none",
+        "stateRef": null
+      },
+      "device": {
+        "preset": "Desktop Chrome",
+        "viewport": {
+          "width": 1280,
+          "height": 800
+        },
+        "touch": false,
+        "scaleFactor": 1
+      },
+      "network": {
+        "profile": "fast",
+        "downKbps": 10000,
+        "upKbps": 5000,
+        "latencyMs": 20
+      },
+      "patience": {
+        "actionTimeoutMs": 5000,
+        "maxWaitBeforeRageMs": 5000,
+        "giveUpAfterSteps": 4
+      },
+      "timing": {
+        "thinkTimeMs": [
+          0,
+          0
+        ],
+        "typeDelayMs": [
+          0,
+          0
+        ]
+      },
+      "mistakePattern": {
+        "missThreshold": 0,
+        "doubleSubmit": false,
+        "refreshMidFlow": false,
+        "backDuringSave": false,
+        "typoRate": 0
+      },
+      "dataState": {
+        "inputProfile": "read-only-dashboard",
+        "recordCountBefore": 0,
+        "fixtureRef": "existing-local-observatory-data"
+      }
+    }
+  ],
+  "journeys": [
+    {
+      "$schema": "ghost-invasion/journey@1",
+      "id": "dashboard-overview-renders",
+      "name": "Dashboard overview renders",
+      "goal": "A first-time observer can open the dashboard and see the main overview instead of a blank shell.",
+      "appliesToPersonas": [
+        "local-dashboard-observer"
+      ],
+      "invariantsTested": [
+        "ux.no-dead-end-after-error"
+      ],
+      "pristineRequired": true,
+      "anchors": {
+        "routes": [
+          "/"
+        ],
+        "mutations": [],
+        "surfaceHash": "sha256:devsec-dashboard-readonly"
+      },
+      "idealPath": [
+        "goto:/",
+        "expectVisible:main",
+        "expectVisible:.posture-gauge"
+      ],
+      "steps": [
+        {
+          "type": "goto",
+          "url": "/"
+        },
+        {
+          "type": "expectVisible",
+          "selector": "main"
+        },
+        {
+          "type": "expectVisible",
+          "selector": ".posture-gauge"
+        },
+        {
+          "type": "screenshot",
+          "path": "dashboard-overview.png"
+        }
+      ],
+      "success": [
+        {
+          "type": "expectVisible",
+          "selector": "body"
+        }
+      ],
+      "abandon": []
+    },
+    {
+      "$schema": "ghost-invasion/journey@1",
+      "id": "dashboard-summary-api-responds",
+      "name": "Dashboard summary API responds",
+      "goal": "The overview data endpoint responds successfully for the dashboard shell.",
+      "appliesToPersonas": [
+        "local-dashboard-observer"
+      ],
+      "invariantsTested": [
+        "ux.no-dead-end-after-error"
+      ],
+      "pristineRequired": false,
+      "anchors": {
+        "routes": [
+          "/api/summary"
+        ],
+        "mutations": [
+          "GET /api/summary"
+        ],
+        "surfaceHash": "sha256:devsec-dashboard-readonly"
+      },
+      "idealPath": [
+        "apiCall:GET:/api/summary:expect200"
+      ],
+      "steps": [
+        {
+          "type": "apiCall",
+          "method": "GET",
+          "url": "/api/summary",
+          "expectStatus": 200
+        }
+      ],
+      "success": [
+        {
+          "type": "wait",
+          "ms": 0
+        }
+      ],
+      "abandon": []
+    },
+    {
+      "$schema": "ghost-invasion/journey@1",
+      "id": "dashboard-tool-catalog-api-responds",
+      "name": "Dashboard tool catalog API responds",
+      "goal": "The tool catalog endpoint responds successfully for catalog browsing.",
+      "appliesToPersonas": [
+        "local-dashboard-observer"
+      ],
+      "invariantsTested": [
+        "ux.no-dead-end-after-error"
+      ],
+      "pristineRequired": false,
+      "anchors": {
+        "routes": [
+          "/api/tool-catalog"
+        ],
+        "mutations": [
+          "GET /api/tool-catalog"
+        ],
+        "surfaceHash": "sha256:devsec-dashboard-readonly"
+      },
+      "idealPath": [
+        "apiCall:GET:/api/tool-catalog:expect200"
+      ],
+      "steps": [
+        {
+          "type": "apiCall",
+          "method": "GET",
+          "url": "/api/tool-catalog",
+          "expectStatus": 200
+        }
+      ],
+      "success": [
+        {
+          "type": "wait",
+          "ms": 0
+        }
+      ],
+      "abandon": []
+    },
+    {
+      "$schema": "ghost-invasion/journey@1",
+      "id": "dashboard-activity-renders",
+      "name": "Dashboard activity view renders",
+      "goal": "A user can open Activity and see scan/activity charts instead of a dead view.",
+      "appliesToPersonas": [
+        "local-dashboard-observer"
+      ],
+      "invariantsTested": [
+        "ux.no-dead-end-after-error"
+      ],
+      "pristineRequired": false,
+      "anchors": {
+        "routes": [
+          "/"
+        ],
+        "mutations": [],
+        "surfaceHash": "sha256:devsec-dashboard-readonly"
+      },
+      "idealPath": [
+        "goto:/",
+        "clickRole:button:/^Activity$/",
+        "expectText:/Event mix/"
+      ],
+      "steps": [
+        {
+          "type": "goto",
+          "url": "/"
+        },
+        {
+          "type": "clickRole",
+          "role": "button",
+          "name": "/^Activity$/"
+        },
+        {
+          "type": "expectText",
+          "text": "/Event mix/"
+        },
+        {
+          "type": "screenshot",
+          "path": "dashboard-activity.png"
+        }
+      ],
+      "success": [
+        {
+          "type": "expectVisible",
+          "selector": "main"
+        }
+      ],
+      "abandon": []
+    },
+    {
+      "$schema": "ghost-invasion/journey@1",
+      "id": "dashboard-cases-renders",
+      "name": "Dashboard cases view renders",
+      "goal": "A user can open Cases and see the risk landscape instead of a dead view.",
+      "appliesToPersonas": [
+        "local-dashboard-observer"
+      ],
+      "invariantsTested": [
+        "ux.no-dead-end-after-error"
+      ],
+      "pristineRequired": false,
+      "anchors": {
+        "routes": [
+          "/"
+        ],
+        "mutations": [],
+        "surfaceHash": "sha256:devsec-dashboard-readonly"
+      },
+      "idealPath": [
+        "goto:/",
+        "clickRole:button:/^Cases\\\\s+\\\\d+$/",
+        "expectText:/Risk landscape/"
+      ],
+      "steps": [
+        {
+          "type": "goto",
+          "url": "/"
+        },
+        {
+          "type": "clickRole",
+          "role": "button",
+          "name": "/^Cases\\s+\\d+$/"
+        },
+        {
+          "type": "expectText",
+          "text": "/Risk landscape/"
+        },
+        {
+          "type": "screenshot",
+          "path": "dashboard-cases.png"
+        }
+      ],
+      "success": [
+        {
+          "type": "expectVisible",
+          "selector": "main"
+        }
+      ],
+      "abandon": []
+    },
+    {
+      "$schema": "ghost-invasion/journey@1",
+      "id": "dashboard-catalog-renders",
+      "name": "Dashboard tool catalog renders",
+      "goal": "A user can open Tool catalog and see catalog content instead of a dead view.",
+      "appliesToPersonas": [
+        "local-dashboard-observer"
+      ],
+      "invariantsTested": [
+        "ux.no-dead-end-after-error"
+      ],
+      "pristineRequired": false,
+      "anchors": {
+        "routes": [
+          "/"
+        ],
+        "mutations": [],
+        "surfaceHash": "sha256:devsec-dashboard-readonly"
+      },
+      "idealPath": [
+        "goto:/",
+        "clickRole:button:/^Tool catalog$/",
+        "expectText:Featured security packs"
+      ],
+      "steps": [
+        {
+          "type": "goto",
+          "url": "/"
+        },
+        {
+          "type": "clickRole",
+          "role": "button",
+          "name": "/^Tool catalog$/"
+        },
+        {
+          "type": "expectText",
+          "text": "Featured security packs"
+        },
+        {
+          "type": "screenshot",
+          "path": "dashboard-catalog.png"
+        }
+      ],
+      "success": [
+        {
+          "type": "expectVisible",
+          "selector": "main"
+        }
+      ],
+      "abandon": []
+    },
+    {
+      "$schema": "ghost-invasion/journey@1",
+      "id": "dashboard-reports-renders",
+      "name": "Dashboard reports view renders",
+      "goal": "A user can open Reports and see saved report inventory instead of a dead view.",
+      "appliesToPersonas": [
+        "local-dashboard-observer"
+      ],
+      "invariantsTested": [
+        "ux.no-dead-end-after-error"
+      ],
+      "pristineRequired": false,
+      "anchors": {
+        "routes": [
+          "/"
+        ],
+        "mutations": [],
+        "surfaceHash": "sha256:devsec-dashboard-readonly"
+      },
+      "idealPath": [
+        "goto:/",
+        "clickRole:button:/^Reports$/",
+        "expectText:Latest reports by repo"
+      ],
+      "steps": [
+        {
+          "type": "goto",
+          "url": "/"
+        },
+        {
+          "type": "clickRole",
+          "role": "button",
+          "name": "/^Reports$/"
+        },
+        {
+          "type": "expectText",
+          "text": "Latest reports by repo"
+        },
+        {
+          "type": "screenshot",
+          "path": "dashboard-reports.png"
+        }
+      ],
+      "success": [
+        {
+          "type": "expectVisible",
+          "selector": "main"
+        }
+      ],
+      "abandon": []
+    },
+    {
+      "$schema": "ghost-invasion/journey@1",
+      "id": "dashboard-settings-renders",
+      "name": "Dashboard settings view renders",
+      "goal": "A user can open Settings and see privacy/storage controls instead of a dead view.",
+      "appliesToPersonas": [
+        "local-dashboard-observer"
+      ],
+      "invariantsTested": [
+        "ux.no-dead-end-after-error"
+      ],
+      "pristineRequired": false,
+      "anchors": {
+        "routes": [
+          "/"
+        ],
+        "mutations": [],
+        "surfaceHash": "sha256:devsec-dashboard-readonly"
+      },
+      "idealPath": [
+        "goto:/",
+        "clickRole:button:/^Settings$/",
+        "expectText:Privacy and storage"
+      ],
+      "steps": [
+        {
+          "type": "goto",
+          "url": "/"
+        },
+        {
+          "type": "clickRole",
+          "role": "button",
+          "name": "/^Settings$/"
+        },
+        {
+          "type": "expectText",
+          "text": "Privacy and storage"
+        },
+        {
+          "type": "screenshot",
+          "path": "dashboard-settings.png"
+        }
+      ],
+      "success": [
+        {
+          "type": "expectVisible",
+          "selector": "main"
+        }
+      ],
+      "abandon": []
+    }
+  ],
+  "surfaceHash": "sha256:devsec-dashboard-readonly",
+  "approvedPlanHash": null
+}
