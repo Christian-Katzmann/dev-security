@@ -13,14 +13,14 @@
 ## Progress checklist
 
 ### Phase 1 — Experience & Power
-- [ ] Step 1.1 — 06-replace-window-prompt
-- [ ] Step 1.2 — 07-accessibility-foundation
-- [ ] Step 1.3 — 08-severity-vocabulary
-- [ ] Step 1.4 — 09-finish-dead-ui-surfaces
-- [ ] Step 1.5 — 10-dashboard-frontend-perf
-- [ ] Step 1.6 — 11-case-lifecycle
-- [ ] Step 1.7 — 12-surface-scan-history-trends
-- [ ] Step 1.8 — 13-code-fix-dashboard-surface
+- [x] Step 1.1 — 06-replace-window-prompt
+- [x] Step 1.2 — 07-accessibility-foundation
+- [x] Step 1.3 — 08-severity-vocabulary
+- [x] Step 1.4 — 09-finish-dead-ui-surfaces
+- [x] Step 1.5 — 10-dashboard-frontend-perf
+- [x] Step 1.6 — 11-case-lifecycle
+- [x] Step 1.7 — 12-surface-scan-history-trends
+- [x] Step 1.8 — 13-code-fix-dashboard-surface
 - [ ] Step 1.9 — post-repair behavioral-ux re-audit
 - [ ] Final review
 

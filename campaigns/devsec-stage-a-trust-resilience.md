@@ -18,7 +18,7 @@
 - [x] Step 1.3 — 03-backend-read-path-resilience
 - [x] Step 1.4 — 04-dashboard-error-surfacing
 - [x] Step 1.5 — 05-trust-integrity-tests
-- [ ] Final review
+- [x] Final review
 
 ## Step 1.1 — 01-egress-honesty
 
