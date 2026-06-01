@@ -4,7 +4,7 @@ A practical security sweep for repos you actually work in. DëvSec runs establis
 
 *(Installed as the `security-observatory` Python package. The CLI is `security-scan`. The dashboard is branded DëvSec — same project, three names you'll meet in different places.)*
 
-**Status:** 0.1.x — early. Local scanning works well; the dashboard is honest about what's still partial. The [What's real vs. what's not yet](#whats-real-vs-whats-not-yet) table below enumerates the gaps.
+**Status:** 0.2.x — early. Local scanning works well; the dashboard is honest about what's still partial. The [What's real vs. what's not yet](#whats-real-vs-whats-not-yet) table below enumerates the gaps.
 
 https://github.com/user-attachments/assets/9df30c29-a9fc-40f2-83c4-3530b08c4818
 
@@ -29,6 +29,8 @@ DëvSec's status line says *"the dashboard is honest about what's still partial.
 | Built-in detection rules | `install-hooks`, `workflow-audit`, and `ai-static` ship and detect | — |
 | Recovery playbooks | Dependency upgrade, secrets rotation, AI-config tightening | Long-tail finding categories show *"coming soon"* cards |
 | Connected platform-posture checks | `legitify` and OpenSSF Scorecard work when you supply a token | Off by default — opt-in only, never silent |
+| Scan history & trends | Every scan is stored locally; the dashboard renders a posture-over-time sparkline and a base/head picker that diffs any two saved scans (`/api/scan-diff`), with closure proofs for resolved cases | — |
+| Guarded AI fix flow | The MCP write mode (`devsec-mcp-rw`) proposes a fix on a branch and runs a clean-room review that sees only the diff and invariants (never the finding text); the dashboard's "Code fixes" view lists proposals and lands an already-reviewed one. Only narrow low-risk classes (action SHA pins, single patch/minor dependency bumps, lockfile updates) are auto-merge-eligible | Broad or higher-risk fixes — and suppressing any high/critical case — are held for explicit human confirmation, never auto-applied. `land_fix` authorizes; it never performs the merge |
 | Honey Keys | Create, insert under `.devsec/honeykeys/`, store only a hash, callback fires on touch | You provide the webhook endpoint — DëvSec operates no Honey Key infrastructure |
 | Managed install | `gitleaks v8.30.1` is the first managed-install proof | Other scanners use detected / Homebrew / uv installs; broader managed installs are deferred |
 | External Surface scanning | — | Coming Soon placeholder — no probing, no target input, no recon in the MVP |
