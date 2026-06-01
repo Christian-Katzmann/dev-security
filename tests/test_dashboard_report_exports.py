@@ -1,7 +1,7 @@
 import sqlite3
 
 from security_observatory.cases import build_security_cases
-from security_observatory.dashboard_server import build_ai_prompt, prompt_report_page, raw_report_fallback, raw_report_page
+from security_observatory.dashboard_pages import build_ai_prompt, prompt_report_page, raw_report_fallback, raw_report_page
 from security_observatory.model import Finding
 from security_observatory.storage import ObservatoryDB
 

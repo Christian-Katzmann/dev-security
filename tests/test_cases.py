@@ -4,7 +4,7 @@ import pytest
 
 from security_observatory import lifecycle
 from security_observatory.cases import build_recovery_playbooks, build_security_cases
-from security_observatory.dashboard_server import build_ai_prompt, raw_report_fallback
+from security_observatory.dashboard_pages import build_ai_prompt, raw_report_fallback
 from security_observatory.enrichment import correlate_dependency_findings
 from security_observatory.model import Finding
 from security_observatory.sbom import SBOMComponent

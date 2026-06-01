@@ -28,7 +28,7 @@
 - `uv run pytest tests/test_reset.py` (and `tests/test_dashboard_reset_endpoints.py`) passes.
 
 **S-014 — terminal `_JOBS` entries pruned after a TTL**
-- Terminal (completed/failed) entries in the in-memory `_JOBS` dict (`dashboard_server.py:98-99`) are pruned after a TTL, so an indefinitely-running single-user server does not accumulate jobs unboundedly. The pruning is lock-safe and does not affect in-flight jobs or the `check-status` missing-job → 404 contract.
+- Terminal (completed/failed) entries in the in-memory `CHECK_JOBS` dict (`dashboard_server.py:104-105`) are pruned after a TTL, so an indefinitely-running single-user server does not accumulate jobs unboundedly. The pruning is lock-safe and does not affect in-flight jobs or the `check-status` missing-job → 404 contract.
 - A test seeds a terminal job with a stale timestamp and asserts it is pruned after the TTL, while a fresh/in-flight job is retained. Existing rotation/check-status failure-branch tests still pass.
 
 **Suite integrity (all S-IDs)**
