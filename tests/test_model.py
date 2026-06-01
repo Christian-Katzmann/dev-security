@@ -1,6 +1,6 @@
 import pytest
 
-from security_observatory.model import Finding, redact_text, score_findings
+from security_observatory.model import Finding, SecurityCase, redact_text, score_findings
 
 
 # Each case is (locator, secret_value): the human-readable key/label that must
@@ -52,3 +52,40 @@ def test_fingerprints_deduplicate_score():
     duplicate = Finding(repo="r", scanner="semgrep", severity="high", category="code-security", title="x", file="a.py", line=1)
     assert finding.fingerprint == duplicate.fingerprint
     assert score_findings([finding, duplicate], sbom_created=True) == 90
+
+
+def _case(confidence: str) -> SecurityCase:
+    return SecurityCase(
+        case_id="c1",
+        title="Example case",
+        plain_english_risk="A risk.",
+        action_level="verify",
+        confidence=confidence,
+        category="code-security",
+        severity="medium",
+        affected_files=["a.py"],
+        evidence=[],
+        scanners=["semgrep"],
+        fix_steps=["look"],
+        agent_prompt="fix it",
+        source_fingerprints=["abc"],
+    )
+
+
+def test_unknown_confidence_is_not_coerced_to_medium():
+    # The confident-falsehood guard (S-032): an "unknown" confidence must read as
+    # "unknown", never silently upgraded to "medium" — a case must not look more
+    # certain than its evidence.
+    assert _case("unknown").confidence == "unknown"
+
+
+@pytest.mark.parametrize("value", ["high", "medium", "low"])
+def test_known_confidence_levels_are_preserved(value):
+    assert _case(value).confidence == value
+
+
+@pytest.mark.parametrize("value", ["", "bogus", "very-high"])
+def test_unclassifiable_confidence_falls_back_to_unknown_not_medium(value):
+    # An unclassifiable confidence is honest about its uncertainty ("unknown"),
+    # not optimistic ("medium"). This is the load-bearing honesty property.
+    assert _case(value).confidence == "unknown"

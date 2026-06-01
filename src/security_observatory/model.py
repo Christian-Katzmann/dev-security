@@ -161,7 +161,9 @@ class SecurityCase:
         self.title = redact_text(self.title or "Security case")
         self.plain_english_risk = redact_text(self.plain_english_risk or "")
         self.action_level = self.action_level if self.action_level in {"fix_now", "verify", "watch", "info"} else "verify"
-        self.confidence = self.confidence if self.confidence in {"high", "medium", "low"} else "medium"
+        # Preserve "unknown" so a case never reads more certain than its evidence.
+        # Anything unclassifiable falls back to "unknown" (honest), not "medium".
+        self.confidence = self.confidence if self.confidence in {"high", "medium", "low", "unknown"} else "unknown"
         self.category = self.category or "unknown"
         self.severity = normalize_severity(self.severity)
         self.affected_files = [redact_text(item) for item in self.affected_files if item]
