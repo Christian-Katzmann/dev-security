@@ -420,6 +420,23 @@ Print local scheduling guidance:
 security-scan schedule
 ```
 
+### Security-sensitive commands
+
+A few verbs write, delete, or suppress, and are kept off the default `--help`
+surface. They are documented in full — with the code-level guard for each — in
+[docs/cli-security-surface.md](docs/cli-security-surface.md):
+
+- `security-scan reset <repo>` — factory reset that permanently deletes local
+  data for a repo (typed confirmation phrase unless `--yes`; `--backup-to <path>`
+  writes a backup first; `--dry-run` previews the plan).
+- `security-scan cases import-resolutions --repo <r> --input <f> --apply` —
+  writes AI case decisions; `--preview` validates without applying, and
+  `--confirm-suppression` is required to suppress high/critical cases.
+- `security-scan vex-import` / `vex-export` — import/export local VEX decisions.
+
+The propose → clean-room-review → land code-fix flow is not a CLI verb; it lives
+on the guarded `devsec-mcp-rw` MCP adapter — see [mcp/README.md](mcp/README.md).
+
 ## Local Data
 
 All scan data is stored locally by default:

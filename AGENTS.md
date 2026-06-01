@@ -2,13 +2,14 @@
 
 ## Start Here
 
-- This repo is Security Observatory: a local-first security scanner, SQLite history store, local dashboard, and macOS desktop launcher.
+- This repo is Security Observatory: a local-first security scanner, SQLite history store, local dashboard, and macOS desktop launcher. **Security Observatory** is the package/repo name (`src/security_observatory/`, the `security-scan` CLI); **DëvSec** is the product brand. They are the same project — code uses `security_observatory`, user-facing surfaces say DëvSec.
 - Canonical ADX manifest: `.adx/adx.json`
 - Command registry: `.adx/commands.json`
 - Verification matrix: `.adx/verification.json`
 - Risk register: `.adx/risks.json`
 - Recovery notes: `.adx/recovery.md`
 - Module map: `.adx/modules/index.json`
+- Canonical contract = the `.adx/*` files above plus this `AGENTS.md`, `README.md`, `mcp/README.md`, and `docs/`. Treat `campaigns/`, `reports/campaign-automation/`, and the root scratch docs (`next-step.md`, `overview-redesign-*.md`) as historical working notes — a record of how the repo got here, not current contract. They may be stale or superseded; do not trust them over the canonical files or the code itself.
 
 ## Repo Shape
 
@@ -38,7 +39,7 @@
 - Do not run `./install-security-observatory.sh`, `security-scan`, dashboard servers, or desktop launcher commands unless the task requires them.
 - Do not wire blocking hooks or CI gates without explicit user approval.
 - Generated/noisy folders include `.venv/`, `.pytest_cache/`, `.playwright-mcp/`, `dashboard-ui/node_modules/`, `src/security_observatory/dashboard/assets/`, `desktop/`, `assets/icons/build/`, and Python `__pycache__/` folders.
-- The MCP adapter (`devsec-mcp`) exposes read-only access to scan results. It is stdio-only and does not open a network port. See [mcp/README.md](mcp/README.md).
+- Two MCP adapters ship (`pyproject.toml` `[project.scripts]`): `devsec-mcp` is the read-only default (stdio-only, no network port, no write tools — 11 read tools over scan history), and `devsec-mcp-rw` is a guarded write adapter (also stdio-only, no network port) that adds eight write-mode tools on top: the `devsec.case_resolutions.v1` follow-up/preview/apply trio, a rate-limited local-offline rescan (`trigger_scan`), and the propose → clean-room-review → land fix flow (`propose_fix`, `clean_room_review_packet`, `record_clean_room_review`, `land_fix`). Suppressing a high/critical case never auto-applies — it is held for explicit human confirmation — and the clean-room reviewer sees only the diff and invariants, never the finding text. See [mcp/README.md](mcp/README.md) for the full write surface.
 
 ## Verification
 

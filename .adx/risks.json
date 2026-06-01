@@ -46,8 +46,28 @@
       "required_behavior": "Preserve safeguards that keep placement inside the selected repo, prevent overwrites, and require explicit confirmation for file insertion.",
       "approval": "human_recommended",
       "evidence": [
-        "docs/honey-keys.md:7",
-        "src/security_observatory/dashboard_server.py:995"
+        "docs/honey-keys.md:17",
+        "src/security_observatory/dashboard_server.py:2772",
+        "src/security_observatory/honey_keys.py:85"
+      ]
+    },
+    {
+      "id": "mcp-write-surface",
+      "area": "guarded MCP write adapter",
+      "paths": [
+        "src/security_observatory/mcp_server.py",
+        "src/security_observatory/fix_proposals.py",
+        "src/security_observatory/case_followup.py",
+        "src/security_observatory/decisions.py",
+        "mcp/README.md"
+      ],
+      "risk": "The devsec-mcp-rw adapter lets a local agent apply case decisions, trigger a local rescan, and record/land code-fix proposals. This is a real write path in a security tool: case suppression, a scan trigger, and a branch/merge authorization all flow through it.",
+      "required_behavior": "Only launch devsec-mcp-rw for a client explicitly trusted to write. Preserve the guards: high/critical suppression is held for human confirmation, the clean-room reviewer sees only the diff (never finding text), land_fix authorizes but never performs a merge, and trigger_scan stays rate-limited, network-free, and fixed-profile. Do not widen the auto-merge-eligible fix classes or remove the audit trail without explicit approval. See mcp/README.md 'Guarded write mode' for the boundary.",
+      "approval": "human_recommended",
+      "evidence": [
+        "mcp/README.md:139",
+        "src/security_observatory/mcp_server.py:941",
+        "src/security_observatory/fix_proposals.py:1"
       ]
     },
     {
@@ -94,8 +114,13 @@
     "security-scan --all-repos",
     "security-scan --full",
     "security-scan --secrets",
+    "security-scan reset",
+    "security-scan cases import-resolutions --apply",
     "make desktop-install",
     "make desktop-quit",
+    "devsec-mcp-rw",
+    "land_fix",
+    "propose_fix",
     "rm -rf",
     "killall",
     "curl -sSfL",

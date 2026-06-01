@@ -19,15 +19,28 @@ Recovery:
 - Run the import smoke command from the repo root.
 - If CLI entrypoint installation is needed, use `python3 -m pip install -e .` in a Python environment with pip.
 
-## Pytest Is Missing
+## Pytest Won't Run
 
-Current observed state: `python3 -m pytest --version` and `.venv/bin/python -m pytest --version` both fail because pytest is not installed; `.venv` also lacks pip.
+The test suite runs. The authoritative command is `uv run pytest` (uv owns the
+`.venv`; `pytest>=9.0.3` ships in `pyproject.toml` `[dependency-groups]`).
+Observed this checkout: `uv run pytest -q` = **524 passed** (0 skipped) across
+the `tests/test_*.py` suite.
 
-Recovery:
+If pytest fails to start (rather than a real test failure):
 
-- Do not claim tests passed until a working test environment exists.
-- Use the import smoke check as a minimum signal for Python-only edits.
-- Recreate or repair the development environment before relying on `python3 -m pytest`.
+```bash
+uv sync --dev
+uv run pytest -q
+```
+
+Notes:
+
+- `python3 -m pytest` or `.venv/bin/python -m pytest` may fail on their own —
+  that is expected; use `uv run pytest`, not a bare interpreter.
+- `uv sync --dev` repairs a stale or partial `.venv`; run it first, then re-run
+  the suite.
+- The fast import check (`python3 -c "... import security_observatory.cli ..."`)
+  is a minimum signal for Python-only edits, not a substitute for the suite.
 
 ## Dashboard Dependencies Are Missing
 

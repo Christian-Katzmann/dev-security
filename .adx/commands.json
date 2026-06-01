@@ -29,7 +29,7 @@
       "timeout_seconds": 120,
       "when_to_run": "After Python logic changes.",
       "success_signal": "Pytest exits 0.",
-      "recovery_hint": "If pytest is missing or the virtualenv is stale, run uv sync --dev from the repo root."
+      "recovery_hint": "If pytest fails to start or the virtualenv is stale, run uv sync --dev from the repo root, then re-run uv run pytest."
     },
     {
       "id": "python-dev-sync",

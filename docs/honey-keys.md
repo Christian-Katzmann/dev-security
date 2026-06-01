@@ -31,3 +31,17 @@ DëvSec stores only a secure hash of the raw Honey Key after creation. Trigger e
 5. Archive or reset the Honey Key after investigation.
 
 Honey Keys are fake, powerless decoy secrets. They alert you when touched. They do not prevent breaches by themselves.
+
+## Guard Fidelity
+
+Each safety claim above is enforced by a concrete guard in code. This table
+binds the claim to its guard so the documentation can be audited against the
+implementation (line numbers pinned to the current tree):
+
+| Claim | Guard | Location |
+| --- | --- | --- |
+| Refuses to overwrite existing files | `if target_path.exists():` → HTTP 409 "Placement file already exists." | `src/security_observatory/dashboard_server.py:2772-2773` |
+| Refuses to write outside the selected repo | `target_path.relative_to(repo_path)` (400 if it escapes the repo); a key whose `repo_id` differs is rejected with "Honey Key belongs to a different repo." | `src/security_observatory/dashboard_server.py:2765` and `:2788` |
+| No duplicate Honey Key created | `sqlite3.IntegrityError` → HTTP 409 "Honey Key already exists." | `src/security_observatory/dashboard_server.py:2675` |
+| Stores only a secure hash of the raw key | `hash_honey_key` = `hashlib.sha256("honeykey:v1:" + token)`; the raw token is never persisted, only `token_hash` | `src/security_observatory/honey_keys.py:85-86` (stored as `token_hash`, `:41`/`:57`) |
+

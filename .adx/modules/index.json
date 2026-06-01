@@ -94,6 +94,42 @@
       "relevant_commands": [],
       "risks": [],
       "intro": ".adx/modules/docs-and-templates.md"
+    },
+    {
+      "id": "mcp-write-surface",
+      "path": "src/security_observatory/mcp_server.py",
+      "purpose": "Guarded MCP write adapter: read-only devsec-mcp plus devsec-mcp-rw, which adds case-resolution apply, a rate-limited local rescan, and the propose -> clean-room-review -> land code-fix flow.",
+      "key_files": [
+        "src/security_observatory/mcp_server.py",
+        "src/security_observatory/fix_proposals.py",
+        "src/security_observatory/case_followup.py",
+        "src/security_observatory/decisions.py",
+        "mcp/README.md"
+      ],
+      "common_changes": [
+        "Add or adjust a guarded write-mode MCP tool",
+        "Change the case-resolution validation or decision mapping",
+        "Adjust the fix-proposal / clean-room-review / land lifecycle",
+        "Tune the trigger_scan rate limit or profile allowlist"
+      ],
+      "relevant_commands": [
+        "python-import-cli",
+        "python-pytest"
+      ],
+      "tests": [
+        "tests/test_mcp_server.py",
+        "tests/test_fix_proposals.py",
+        "tests/test_mcp_fix_proposals.py",
+        "tests/test_case_followup.py",
+        "tests/test_mcp_trigger_scan.py",
+        "tests/test_red_team_e2e.py"
+      ],
+      "risks": [
+        "mcp-write-surface",
+        "local-security-data"
+      ],
+      "boundary": "mcp/README.md",
+      "intro": ".adx/modules/mcp-write-surface.md"
     }
   ]
 }

@@ -6,9 +6,11 @@ focused questions about the scan history sitting in your local
 `~/.security-observatory/` database. `devsec-mcp` is stdio-only, read-only, has
 no network listener, no write tools, and no telemetry.
 
-When you explicitly want AI case-resolution write-back, use the separate
-`devsec-mcp-rw` command. It keeps the same stdio-only transport and adds only
-the guarded AI follow-up prompt, preview, and apply tools.
+When you explicitly want guarded write-back, use the separate `devsec-mcp-rw`
+command. It keeps the same stdio-only transport and adds eight guarded
+write-mode tools: the AI case follow-up prompt, preview, and apply trio, a
+rate-limited local rescan, and the propose → clean-room-review → land code-fix
+flow. See [Guarded write mode](#guarded-write-mode) below for the boundary.
 
 ## What it exposes — and what it doesn't
 
@@ -18,11 +20,15 @@ state files written by the [secrets-rotation](../../.claude/skills/secrets-rotat
 skill (for repos where it's been scaffolded). The default adapter does not
 mutate state, does not trigger rotations, and does not open a network port.
 
-The write-enabled adapter adds three case-resolution tools only:
-`case_followup_prompt`, `preview_case_resolutions`, and
-`apply_case_resolutions`. They use the same `devsec.case_resolutions.v1`
+The write-enabled adapter adds eight guarded write-mode tools. Three are the
+case-resolution trio — `case_followup_prompt`, `preview_case_resolutions`, and
+`apply_case_resolutions` — which use the same `devsec.case_resolutions.v1`
 validation and audited case-decision path as the dashboard and CLI import
-workflow.
+workflow. The other five are `trigger_scan` (a rate-limited, network-free local
+rescan of an already-scanned repo) and the propose → clean-room-review → land
+code-fix flow (`propose_fix`, `clean_room_review_packet`,
+`record_clean_room_review`, `land_fix`). See
+[Guarded write mode](#guarded-write-mode) for what each can and cannot do.
 
 See [../docs/threat-model.md](../docs/threat-model.md) for the project's
 overall attack-surface posture; the adapter inherits it.
@@ -55,9 +61,11 @@ To verify the explicit write mode, change the last line to:
   | uv run devsec-mcp-rw
 ```
 
-That `tools/list` response should list the same eleven read-only tools plus
-`case_followup_prompt`, `preview_case_resolutions`, and
-`apply_case_resolutions`.
+That `tools/list` response should list the same eleven read-only tools plus the
+eight write-mode tools: `trigger_scan`, `case_followup_prompt`,
+`preview_case_resolutions`, `apply_case_resolutions`, `propose_fix`,
+`clean_room_review_packet`, `record_clean_room_review`, and `land_fix`
+(nineteen total).
 
 The JSON-RPC `initialize` response also advertises DëvSec's compact agent
 voice doctrine in the MCP `instructions` field. The full doctrine lives in
@@ -123,10 +131,17 @@ the local machine via this surface.
 - **Read-only by default.** `devsec-mcp` has no `mark_resolved`, `add_note`,
   `delete_*`, or other state-mutating tools. The store is your source of truth;
   the default adapter does not touch it.
-- **Write mode is case-only.** `devsec-mcp-rw` can build AI follow-up prompts,
-  preview `devsec.case_resolutions.v1` JSON, and apply validated case decisions.
-  It cannot delete raw findings, delete scans, execute SQL, rotate credentials,
-  install tools, run scanners, or write repository files.
+- **Write mode is narrow and audited.** `devsec-mcp-rw` can apply validated
+  `devsec.case_resolutions.v1` decisions, trigger a rate-limited network-free
+  rescan of an already-scanned repo (`trigger_scan`, fixed profile only), and
+  record a code-fix proposal that runs through a clean-room reviewer before a
+  landing decision (`propose_fix` → `clean_room_review_packet` →
+  `record_clean_room_review` → `land_fix`). It cannot delete raw findings,
+  delete scans, execute SQL, rotate credentials, install tools, scan an
+  arbitrary path, reach the network, commit to a protected branch, or perform
+  the actual git merge — authorizing a landing is not the same as merging, which
+  stays with the orchestrating command. Suppressing a high/critical case is
+  never auto-applied; it is held for explicit human confirmation.
 - **Local-only.** Stdio transport only. No `--http`, no `--sse`, no port
   listening. The consumer is a parent process (your MCP client), not the
   network.
@@ -157,4 +172,24 @@ call.
 Supported decisions are limited to the AI follow-up mapping: confirmed real
 becomes `verified`, false positives and documentation examples become
 `false_positive`, accepted risks become `accepted_risk`, and verified fixes
-become `fixed`. `needs_review` stays open.
+become `fixed`. `needs_review` stays open. Suppressing a high or critical case
+(`false_positive` / `accepted_risk`) is never auto-applied — it is held for
+explicit human confirmation.
+
+Two further write tools sit behind the same opt-in:
+
+- `trigger_scan(repo, profile?)` runs a guarded local-offline rescan of a repo
+  that already has scan history. `repo` is a NAME (never a path), `profile` is
+  `quick` or `default` only, and the call is rate-limited (10-minute per-repo
+  cooldown) and network-free. It runs the existing append-only scan path and
+  cannot alter or delete prior scans.
+- The code-fix flow is `propose_fix -> clean_room_review_packet ->
+  record_clean_room_review -> land_fix`. `propose_fix` records a unified diff as
+  a proposal on a new non-protected branch; the fix class is derived from the
+  diff bytes, and only narrow low-risk classes (action SHA pins, single
+  patch/minor dependency bumps, lockfile patches) are auto-merge-eligible. The
+  clean-room reviewer is handed only the diff and the invariant checklist —
+  never the finding or case text. `land_fix` returns `auto_merge` only when a
+  clean-room approval is recorded against the exact diff on file; it authorizes
+  the merge but never performs it (the `gh`/git merge stays with the
+  orchestrating command).
