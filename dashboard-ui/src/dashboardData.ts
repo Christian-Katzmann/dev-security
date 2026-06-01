@@ -2105,10 +2105,58 @@ export function weakestRepo(summary: DashboardSummary): RepositorySummary | null
   return [...summary.repos].sort((a, b) => a.health - b.health)[0] ?? null;
 }
 
+function scanHistoryOrder(scan: ScanHistoryItem): number {
+  const time = new Date(scan.finished_at ?? scan.started_at ?? 0).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+/**
+ * Posture-over-time series for the trend sparkline: each completed scan's
+ * health score (0–100), ordered oldest → newest and capped to the most recent
+ * `points`. Returns `[]` when there is no history so callers render an honest
+ * empty state instead of a fabricated line.
+ */
 export function trendValues(summary: DashboardSummary, points = 22): number[] {
-  const history = [...summary.history].reverse().slice(-points);
-  if (!history.length) return [5, 12, 8, 24, 16, 9, 32, 64, 100, 48, 80, 24, 16, 12, 18, 14, 22, 10, 32, 18, 12, 8];
-  return history.map((scan) => Math.max(4, 100 - scan.health_score));
+  return [...summary.history]
+    .sort((a, b) => scanHistoryOrder(a) - scanHistoryOrder(b))
+    .slice(-points)
+    .map((scan) => Math.max(0, Math.min(100, scan.health_score)));
+}
+
+export type ScanDiffEndpoint = {
+  scan_id: string;
+  repo_name: string;
+  profile: string;
+  started_at: string;
+  finished_at: string | null;
+  health_score: number;
+  status: string;
+};
+
+export type ScanDiffResult = {
+  base: ScanDiffEndpoint;
+  head: ScanDiffEndpoint;
+  health_delta: number | null;
+  same_repo: boolean;
+  counts: {new: number; recurring: number; resolved: number};
+  new_cases: SecurityCase[];
+  recurring_cases: SecurityCase[];
+  resolved_cases: SecurityCase[];
+};
+
+/**
+ * Compare two arbitrary saved scans. The base/head ids both flow to the server
+ * route, which reuses the per-repo delta engine to return the health delta plus
+ * the new / recurring / resolved case sets (resolved cases carry their
+ * closure-proof binding). Local-only request — no new egress.
+ */
+export async function fetchScanDiff(base: string, head: string): Promise<ScanDiffResult> {
+  const params = new URLSearchParams({base, head});
+  const response = await fetch(`/api/scan-diff?${params.toString()}`, {cache: 'no-store'});
+  if (!response.ok) {
+    throw new Error(`Scan comparison failed (${response.status})`);
+  }
+  return (await response.json()) as ScanDiffResult;
 }
 
 export function formatDate(value: string | null | undefined): string {

@@ -1704,6 +1704,53 @@ class ObservatoryDB:
             "platform_posture": self.latest_platform_posture_snapshot(repo_name=scan["repo_name"], scan_id=scan_id),
         }
 
+    def scan_diff(self, base_id: str, head_id: str) -> dict[str, Any] | None:
+        """Diff two *arbitrary* scans (base -> head).
+
+        Reuses the same `_scan_delta` engine that powers the per-repo
+        "since last scan" deltas, but lets the caller pick any base and head
+        rather than only a scan and its immediate predecessor. Returns the
+        health delta plus the new / recurring / resolved case sets; resolved
+        cases carry the closure-proof binding (`resolved_by_scan_id`,
+        `lifecycle_state: resolved`) that `_scan_delta` attaches. Returns None
+        if either scan id is unknown.
+        """
+        base_row = self.conn.execute("select * from scans where id = ?", (base_id,)).fetchone()
+        head_row = self.conn.execute("select * from scans where id = ?", (head_id,)).fetchone()
+        if not base_row or not head_row:
+            return None
+        delta = _scan_delta(head_row, dict(base_row))
+        case_changes = delta["case_changes"]
+        head_cases = []
+        for item in _decode_cases(head_row["cases_json"]):
+            if not isinstance(item, dict):
+                continue
+            case = {
+                "scan_id": head_row["id"],
+                "repo": head_row["repo_name"],
+                "repo_name": head_row["repo_name"],
+                **item,
+            }
+            case_id = str(case.get("case_id") or case.get("id") or "")
+            case["change_status"] = case_changes.get(case_id, "new")
+            head_cases.append(case)
+        new_cases = [case for case in head_cases if case.get("change_status") == "new"]
+        recurring_cases = [case for case in head_cases if case.get("change_status") == "recurring"]
+        return {
+            "base": _scan_endpoint_meta(base_row),
+            "head": _scan_endpoint_meta(head_row),
+            "health_delta": delta["health_delta"],
+            "same_repo": base_row["repo_name"] == head_row["repo_name"],
+            "counts": {
+                "new": len(new_cases),
+                "recurring": len(recurring_cases),
+                "resolved": delta["resolved_count"],
+            },
+            "new_cases": new_cases,
+            "recurring_cases": recurring_cases,
+            "resolved_cases": delta["resolved_cases"],
+        }
+
     def _previous_scan(self, repo_name: str, started_at: str) -> dict[str, Any] | None:
         row = self.conn.execute(
             """
@@ -2915,6 +2962,19 @@ def _case_counts(cases: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
             value = str(case.get(key) or "unknown")
             counts[key][value] = counts[key].get(value, 0) + 1
     return counts
+
+
+def _scan_endpoint_meta(row: sqlite3.Row) -> dict[str, Any]:
+    """Public metadata for one endpoint of a scan diff (base or head)."""
+    return {
+        "scan_id": row["id"],
+        "repo_name": row["repo_name"],
+        "profile": row["profile"],
+        "started_at": row["started_at"],
+        "finished_at": row["finished_at"],
+        "health_score": row["health_score"],
+        "status": row["status"],
+    }
 
 
 def _scan_delta(latest: sqlite3.Row, previous: dict[str, Any] | None) -> dict[str, Any]:

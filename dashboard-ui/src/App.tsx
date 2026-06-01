@@ -5,6 +5,7 @@ import CatalogToolPage from './components/catalog/CatalogToolPage';
 import CatalogPackPage from './components/catalog/CatalogPackPage';
 import AgentLabView from './components/agent-lab/AgentLabView';
 import AiFollowUpPanel from './components/AiFollowUpPanel';
+import ScanHistoryTrendsPanel from './components/ScanHistoryTrendsPanel';
 import NeedsRepoTarget from './components/NeedsRepoTarget';
 import SkipToContent from './components/SkipToContent';
 import RotationStatusCard from './components/RotationStatusCard';
@@ -2327,6 +2328,8 @@ function OverviewView({
         />
       </section>
 
+      <ScanHistoryTrendsPanel summary={summary} />
+
       {!!preCaseRepos.length && <PreCaseScanNote repos={preCaseRepos} rawFindingTotal={preCaseRawTotal} />}
 
       {error && (
@@ -2704,7 +2707,7 @@ function RepositoryComparisonStrip({summary, cases}: {summary: DashboardSummary;
         <div className="repo-comparison-grid">
           {repos.map((repo, index) => {
             const openCases = cases.filter((item) => item.repoName === repo.repo || repoKeyFromPath(item.repoName) === repo.repo).length;
-            const trend = typeof repo.health_delta === 'number' ? `${repo.health_delta >= 0 ? '+' : ''}${repo.health_delta}` : 'flat';
+            const sinceLast = typeof repo.health_delta === 'number' ? `${repo.health_delta >= 0 ? '+' : ''}${repo.health_delta}` : 'flat';
             const preCase = repoHasPreCaseScan(repo);
             const displayName = repositoryDisplayName(repo);
             return (
@@ -2716,7 +2719,7 @@ function RepositoryComparisonStrip({summary, cases}: {summary: DashboardSummary;
                 <div className="repo-comparison-metrics">
                   <span><b>{repo.health}</b><em>health</em></span>
                   <span><b>{openCases}</b><em>open cases</em></span>
-                  <span><b>{trend}</b><em>trend</em></span>
+                  <span><b>{sinceLast}</b><em>vs last</em></span>
                 </div>
                 <p>{formatDate(repo.last_scan)} · {preCase ? 'pre-cases scan, rescan for cases' : repo.profile || 'scan'}</p>
               </div>

@@ -2500,6 +2500,27 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             prompt = build_ai_prompt(scan).encode("utf-8")
             self.send_download(prompt, content_type="text/markdown; charset=utf-8", filename=f"{scan_id}-ai-next-steps-prompt.md")
             return
+        if parsed.path == "/api/scan-diff":
+            # Arbitrary scan-to-scan diff: the dashboard's base/head picker
+            # passes any two saved scan ids, not just a scan and its immediate
+            # predecessor. The history series itself ships inside /api/summary
+            # (`summary.history`); this route adds the on-demand comparison.
+            query = parse_qs(parsed.query)
+            base_id = query.get("base", [""])[0]
+            head_id = query.get("head", [""])[0]
+            if not base_id or not head_id:
+                self.send_json_error(400, "scan-diff requires base and head scan ids.")
+                return
+            db = ObservatoryDB(self.db_path)
+            try:
+                diff = db.scan_diff(base_id, head_id)
+            finally:
+                db.close()
+            if diff is None:
+                self.send_json_error(404, "One or both scans were not found.")
+                return
+            self.send_json(diff)
+            return
         if parsed.path == "/":
             self.path = "/index.html"
         return super().do_GET()
