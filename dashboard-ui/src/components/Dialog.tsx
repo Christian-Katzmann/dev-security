@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useRef, type KeyboardEvent, type ReactNode} from 'react';
+import {useCallback, useEffect, useRef, type KeyboardEvent, type ReactNode, type RefObject} from 'react';
 
 // Selector for everything a keyboard can land on inside the dialog. Disabled
 // controls and tabindex="-1" elements are intentionally excluded from the trap
@@ -25,6 +25,13 @@ export type DialogProps = {
   className?: string;
   /** Clicking the backdrop closes the dialog. Defaults to true. */
   closeOnBackdropClick?: boolean;
+  /**
+   * Control to focus on open instead of the first focusable element — e.g. a
+   * primary text input. Lets a caller keep a crafted initial focus without an
+   * `autoFocus` attribute, which would steal focus before this primitive can
+   * record the opener for focus-restore.
+   */
+  initialFocusRef?: RefObject<HTMLElement | null>;
 };
 
 /**
@@ -46,6 +53,7 @@ export default function Dialog({
   backdropClassName,
   className,
   closeOnBackdropClick = true,
+  initialFocusRef,
 }: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -54,8 +62,8 @@ export default function Dialog({
     const opener = document.activeElement as HTMLElement | null;
     const panel = panelRef.current;
     if (panel) {
-      const first = panel.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
-      (first ?? panel).focus();
+      const target = initialFocusRef?.current ?? panel.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      (target ?? panel).focus();
     }
     return () => {
       // Guard: the opener may have been removed from the DOM while the modal

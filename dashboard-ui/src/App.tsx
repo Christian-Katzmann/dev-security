@@ -1,13 +1,8 @@
-import {CSSProperties, ReactNode, RefObject, useCallback, useEffect, useMemo, useRef, useState} from 'react';
-import CatalogHome from './components/catalog/CatalogHome';
-import CatalogBrowse from './components/catalog/CatalogBrowse';
-import CatalogToolPage from './components/catalog/CatalogToolPage';
-import CatalogPackPage from './components/catalog/CatalogPackPage';
-import AgentLabView from './components/agent-lab/AgentLabView';
-import FixProposalsView from './components/FixProposalsView';
+import {CSSProperties, ReactNode, RefObject, Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import AiFollowUpPanel from './components/AiFollowUpPanel';
 import ScanHistoryTrendsPanel from './components/ScanHistoryTrendsPanel';
 import NeedsRepoTarget from './components/NeedsRepoTarget';
+import Dialog from './components/Dialog';
 import SkipToContent from './components/SkipToContent';
 import RotationStatusCard from './components/RotationStatusCard';
 import RotationTriggerFlow from './components/RotationTriggerFlow';
@@ -176,6 +171,17 @@ import {
   targetLabel,
   targetValue,
 } from './dashboardData';
+
+// Heavy, non-default tab surfaces are code-split so they stay out of the initial
+// JS chunk (S-029). Each only renders when its tab/route is active, behind the
+// single <Suspense> boundary around <ActiveView>. The default Overview surface
+// (and its eager ScanHistoryTrendsPanel) is unaffected.
+const CatalogHome = lazy(() => import('./components/catalog/CatalogHome'));
+const CatalogBrowse = lazy(() => import('./components/catalog/CatalogBrowse'));
+const CatalogToolPage = lazy(() => import('./components/catalog/CatalogToolPage'));
+const CatalogPackPage = lazy(() => import('./components/catalog/CatalogPackPage'));
+const AgentLabView = lazy(() => import('./components/agent-lab/AgentLabView'));
+const FixProposalsView = lazy(() => import('./components/FixProposalsView'));
 
 type TabId = 'overview' | 'cases' | 'honey-keys' | 'scanners' | 'agent-lab' | 'fix-proposals' | 'playbooks' | 'verification' | 'activity' | 'reports' | 'settings';
 type ViewModeAvailability = 'normal' | 'repo-required' | 'global';
@@ -1455,6 +1461,7 @@ export default function App() {
             />
           )}
           <div className="mist-content scroll-area">
+            <Suspense fallback={<div className="view-loading" role="status" aria-live="polite">Loading…</div>}>
             <ActiveView
               tab={activeTab}
               summary={scopedSummary}
@@ -1488,6 +1495,7 @@ export default function App() {
               onTargetChange={selectTarget}
               onRetry={retryLastRun}
             />
+            </Suspense>
           </div>
         </main>
       </div>
@@ -1508,7 +1516,7 @@ export default function App() {
 // inline validation (no silent empty/bad submit), and quick-pick suggestions
 // sourced from /api/projects. Every add-repo entry point routes here through
 // `selectTarget('add-repo')`.
-function AddRepoDialog({
+export function AddRepoDialog({
   knownRepos,
   existingRepos,
   onSubmit,
@@ -1521,14 +1529,7 @@ function AddRepoDialog({
 }) {
   const [path, setPath] = useState('');
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Known repos from /api/projects that are not already selectable — the
   // common case is none (discovered repos already populate the workspace
@@ -1552,14 +1553,13 @@ function AddRepoDialog({
   }
 
   return (
-    <div className="add-repo-backdrop" role="presentation" onClick={onClose}>
-      <section
-        className="add-repo-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Add a repository"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <Dialog
+      ariaLabel="Add a repository"
+      onClose={onClose}
+      backdropClassName="add-repo-backdrop"
+      className="add-repo-modal"
+      initialFocusRef={inputRef}
+    >
         <div className="add-repo-head">
           <div>
             <Eyebrow>Workspace</Eyebrow>
@@ -1582,9 +1582,9 @@ function AddRepoDialog({
           <label className="add-repo-field">
             <span className="sr-only">Full path to the repo folder</span>
             <input
+              ref={inputRef}
               type="text"
               value={path}
-              autoFocus
               spellCheck={false}
               placeholder="/Users/you/code/your-project"
               onChange={(event) => {
@@ -1628,8 +1628,7 @@ function AddRepoDialog({
             </button>
           </div>
         </form>
-      </section>
-    </div>
+    </Dialog>
   );
 }
 

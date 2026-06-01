@@ -61,7 +61,9 @@ Durable, non-secret facts the next Ghost Invasion run can reuse.
 - reset_strategy: none / unknown
 - auth_roles: anonymous:none
 - default_pack: launch-readiness
-- stable_routes: /, /api/summary, /api/tool-catalog
+- stable_routes: /, /api/summary, /api/tool-catalog, /api/scan-diff, /api/fix-proposals, /api/fix-proposals/<id>, /api/fix-proposals/<id>/land
+- dashboard_tabs: overview, cases, honey-keys, scanners, agent-lab, fix-proposals, playbooks, verification, activity, reports, settings
+- case_lifecycle_states: open, verified, in_progress, accepted_risk, resolved (canonical LIFECYCLE_STATES; closure proof bound to resolved_by_scan_id)
 - success_criteria: dashboard-overview-renders: expectVisible; dashboard-summary-api-responds: wait; dashboard-tool-catalog-api-responds: wait; dashboard-activity-renders: expectVisible; dashboard-cases-renders: expectVisible; dashboard-catalog-renders: expectVisible; dashboard-reports-renders: expectVisible; dashboard-settings-renders: expectVisible
 - latest_trusted_report: .ghost/runs/2026-05-31T21-33-20-619Z/report.json
 <!-- ghost-invasion-memory:end -->
