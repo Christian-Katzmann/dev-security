@@ -52,6 +52,7 @@ from .setup_runner import (
 from .decisions import assemble_suppression
 from .discovery import discover_repos
 from .docs_render import render_markdown
+from .fix_proposals import decide_landing, invariants_for
 from .honey_keys import (
     DEFAULT_PLACEMENT_PATHS,
     build_decoy_snippets,
@@ -2001,6 +2002,69 @@ _SETUP_CONFIG_PATH_RE = re.compile(
     r"^/api/tools/(?P<tool_id>[A-Za-z0-9][A-Za-z0-9._-]{0,63})/setup/config/?$"
 )
 
+# Code-fix proposal surface (S-043). The id is the slug minted when a proposal
+# is recorded (`fix_<repo>_<ts>_<hash12>`): word chars only, so the routing
+# layer rejects a malformed URL before any DB lookup runs. The land route shares
+# the same id class plus a trailing `/land`.
+_FIX_PROPOSAL_ID_RE = re.compile(r"^/api/fix-proposals/(?P<proposal_id>[A-Za-z0-9._-]{1,200})/?$")
+_FIX_PROPOSAL_LAND_RE = re.compile(
+    r"^/api/fix-proposals/(?P<proposal_id>[A-Za-z0-9._-]{1,200})/land/?$"
+)
+
+
+def _fix_proposal_summary(record: dict[str, Any]) -> dict[str, Any]:
+    """List-row projection of a fix proposal — no diff body, no finding text."""
+    diff = str(record.get("diff") or "")
+    added = sum(1 for line in diff.splitlines() if line.startswith("+") and not line.startswith("+++"))
+    removed = sum(1 for line in diff.splitlines() if line.startswith("-") and not line.startswith("---"))
+    classification = record.get("classification") or {}
+    return {
+        "id": record.get("id"),
+        "repo_name": record.get("repo_name"),
+        "title": record.get("title"),
+        "case_id": record.get("case_id"),
+        "base_branch": record.get("base_branch"),
+        "head_branch": record.get("head_branch"),
+        "fix_class": record.get("fix_class"),
+        "auto_merge_eligible": bool(record.get("auto_merge_eligible")),
+        "status": record.get("status"),
+        "clean_room_status": record.get("clean_room_status"),
+        "landing_outcome": record.get("landing_outcome"),
+        "changed_files": classification.get("changed_files") or [],
+        "diff_stat": {"added": added, "removed": removed},
+        "created_at": record.get("created_at"),
+        "updated_at": record.get("updated_at"),
+    }
+
+
+def _fix_proposal_detail(record: dict[str, Any]) -> dict[str, Any]:
+    """Detail projection: diff + clean-room verdict + the diff-class invariants.
+
+    The ``invariants`` are the fixed checklist a clean-room reviewer verifies for
+    this fix class — every one a statement about the diff, never the finding that
+    motivated it. Nothing here carries finding text; the proposal store holds
+    none, and this surface reads it as-is.
+    """
+    fix_class = str(record.get("fix_class") or "unknown")
+    return {
+        "proposal": _fix_proposal_summary(record),
+        "diff": str(record.get("diff") or ""),
+        "diff_sha256": record.get("diff_sha256"),
+        "clean_room": {
+            "status": record.get("clean_room_status"),
+            "reviewer": record.get("clean_room_reviewer"),
+            "reviewed_at": record.get("clean_room_reviewed_at"),
+            "notes": record.get("clean_room_notes"),
+            "checked_invariants": record.get("clean_room_checked_invariants") or [],
+            "invariants": invariants_for(fix_class),
+        },
+        "landing": {
+            "outcome": record.get("landing_outcome"),
+            "reasons": record.get("landing_reasons") or [],
+            "decided_at": record.get("landing_decided_at"),
+        },
+    }
+
 _PACKAGE_MANAGER_DISPATCH: dict[str, dict[str, Any]] = {
     "homebrew": {
         "program": "brew",
@@ -2521,6 +2585,27 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 return
             self.send_json(diff)
             return
+        if parsed.path.rstrip("/") == "/api/fix-proposals":
+            # The hands-off code-fix flow (propose → clean-room review → land)
+            # was previously reachable only through the MCP rw adapter. This
+            # read surface lists the persisted proposals so a dashboard-only
+            # operator can see them. It exposes no finding text — the proposal
+            # store never holds any — and adds no land path of its own (see the
+            # POST route below, which delegates to the proven `decide_landing`).
+            query = parse_qs(parsed.query)
+            repo_name = query.get("repoName", query.get("repo_name", [""]))[0] or None
+            status_filter = query.get("status", [""])[0] or None
+            db = ObservatoryDB(self.db_path)
+            try:
+                proposals = db.list_fix_proposals(repo_name=repo_name, status=status_filter, limit=100)
+            finally:
+                db.close()
+            self.send_json({"items": [_fix_proposal_summary(item) for item in proposals]})
+            return
+        fix_proposal_match = _FIX_PROPOSAL_ID_RE.match(parsed.path)
+        if fix_proposal_match:
+            self.serve_fix_proposal_detail(fix_proposal_match.group("proposal_id"))
+            return
         if parsed.path == "/":
             self.path = "/index.html"
         return super().do_GET()
@@ -2602,6 +2687,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path.startswith("/api/rotation/paste/"):
             job_id = parsed.path.removeprefix("/api/rotation/paste/").strip("/")
             self.serve_rotation_paste(job_id)
+            return
+        fix_land_match = _FIX_PROPOSAL_LAND_RE.match(parsed.path)
+        if fix_land_match:
+            self.decide_fix_landing(fix_land_match.group("proposal_id"))
             return
         credentials_post_match = _CREDENTIALS_TOOL_PATH_RE.match(parsed.path)
         if credentials_post_match:
@@ -3608,6 +3697,44 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 "events": events,
             }
         )
+
+    def serve_fix_proposal_detail(self, proposal_id: str) -> None:
+        """Serve ``GET /api/fix-proposals/<id>`` — diff + clean-room verdict.
+
+        Surfaces the stored diff, the recorded clean-room status/invariants, and
+        the diff-class invariant checklist. It never exposes finding text: the
+        proposal store holds none, and the invariants describe the diff, not the
+        motivating finding.
+        """
+        db = ObservatoryDB(self.db_path)
+        try:
+            record = db.get_fix_proposal(proposal_id)
+        finally:
+            db.close()
+        if not record:
+            self.send_json_error(404, "Fix proposal not found.")
+            return
+        self.send_json(_fix_proposal_detail(record))
+
+    def decide_fix_landing(self, proposal_id: str) -> None:
+        """Serve ``POST /api/fix-proposals/<id>/land``.
+
+        Delegates to ``fix_proposals.decide_landing`` so a dashboard land
+        decision is authorized only where the proven boundary already allows it
+        — clean-room ``approved``, matching ``diff_sha256``, allowlisted fix
+        class; protected branches and non-eligible classes are refused. The
+        dashboard adds no new path to land code the MCP rw tool could not.
+        """
+        db = ObservatoryDB(self.db_path)
+        try:
+            try:
+                outcome = decide_landing(db, proposal_id=proposal_id)
+            except ValueError as exc:
+                self.send_json_error(404, str(exc))
+                return
+        finally:
+            db.close()
+        self.send_json(outcome)
 
     def serve_rotation_receipt(self, tail: str) -> None:
         """Serve ``/api/rotation/receipts/<repo>/<filename>`` as markdown.

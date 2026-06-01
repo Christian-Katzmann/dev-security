@@ -76,13 +76,26 @@ def test_fix_tools_registered_only_in_write_mode(tmp_path):
     assert FIX_TOOLS.issubset(write_mode)
 
 
-def test_dashboard_http_surface_does_not_expose_fix_tools():
+def test_dashboard_surfaces_fix_flow_read_and_gated_land_only():
+    """The dashboard surfaces the code-fix flow read-mostly (S-043).
+
+    It may list proposals, show a diff + clean-room verdict, and route a land
+    decision through the proven ``decide_landing`` gate — but it never gains the
+    authoring half of the flow. Proposing a fix (the agent that read the
+    attacker-influenceable finding text) and recording a clean-room review (the
+    separate reviewer) stay on the ``devsec-mcp-rw`` adapter by design; the
+    dashboard adds no HTTP path to either, and it reuses ``fix_proposals``
+    directly rather than reaching through the MCP server.
+    """
     import security_observatory.dashboard_server as dashboard
 
     source = Path(dashboard.__file__).read_text(encoding="utf-8")
-    for name in FIX_TOOLS:
+    # The write/authoring half of the flow stays off the dashboard entirely.
+    for name in ("propose_fix", "clean_room_review_packet", "record_clean_room_review"):
         assert name not in source
-    assert "fix_proposals" not in source
+    # Landing is delegated to the audited gate, never reimplemented here.
+    assert "decide_landing" in source
+    # The dashboard never imports the MCP server to reach the flow.
     assert "mcp_server" not in source
 
 

@@ -4,6 +4,7 @@ import CatalogBrowse from './components/catalog/CatalogBrowse';
 import CatalogToolPage from './components/catalog/CatalogToolPage';
 import CatalogPackPage from './components/catalog/CatalogPackPage';
 import AgentLabView from './components/agent-lab/AgentLabView';
+import FixProposalsView from './components/FixProposalsView';
 import AiFollowUpPanel from './components/AiFollowUpPanel';
 import ScanHistoryTrendsPanel from './components/ScanHistoryTrendsPanel';
 import NeedsRepoTarget from './components/NeedsRepoTarget';
@@ -103,6 +104,7 @@ import {
   Stethoscope,
   SquareTerminal,
   Trash2,
+  GitPullRequest,
   Workflow,
   X,
 } from 'lucide-react';
@@ -175,7 +177,7 @@ import {
   targetValue,
 } from './dashboardData';
 
-type TabId = 'overview' | 'cases' | 'honey-keys' | 'scanners' | 'agent-lab' | 'playbooks' | 'verification' | 'activity' | 'reports' | 'settings';
+type TabId = 'overview' | 'cases' | 'honey-keys' | 'scanners' | 'agent-lab' | 'fix-proposals' | 'playbooks' | 'verification' | 'activity' | 'reports' | 'settings';
 type ViewModeAvailability = 'normal' | 'repo-required' | 'global';
 type ViewModeRegistryEntry = {
   supportedModes: DashboardMode[];
@@ -335,6 +337,7 @@ const navGroups: {title?: string; items: NavItem[]}[] = [
       {id: 'honey-keys', label: 'Honey keys', icon: KeyRound},
       {id: 'scanners', label: 'Tool catalog', icon: PackageSearch},
       {id: 'agent-lab', label: 'Agent lab', icon: Workflow},
+      {id: 'fix-proposals', label: 'Code fixes', icon: GitPullRequest},
       {id: 'playbooks', label: 'Recovery playbooks', icon: BookOpen},
       {id: 'verification', label: 'Verification', icon: ClipboardCheck},
     ],
@@ -353,6 +356,7 @@ const tabTitles: Record<TabId, string> = {
   'honey-keys': 'Honey keys',
   scanners: 'Tool catalog',
   'agent-lab': 'Agent lab',
+  'fix-proposals': 'Code fixes',
   playbooks: 'Recovery playbooks',
   verification: 'Verification',
   activity: 'Activity',
@@ -387,6 +391,9 @@ const viewsByMode: Record<TabId, ViewModeRegistryEntry> = {
     availability: 'repo-required',
     unavailableReason: 'Pick a repo to open Agent Lab.',
   },
+  // Code-fix proposals are repo-anchored but the surface aggregates across
+  // repos, so it reads in both modes — no repo selection required.
+  'fix-proposals': {supportedModes: ['all-repos', 'repo'], availability: 'normal'},
   scanners: {supportedModes: ['all-repos'], availability: 'global'},
   settings: {supportedModes: ['all-repos'], availability: 'global'},
 };
@@ -1711,6 +1718,7 @@ function ActiveView({
   if (tab === 'honey-keys') return <HoneyKeysView summary={summary} target={target} onRefresh={onRefresh} />;
   if (tab === 'scanners') return <CatalogRouter route={catalogRoute} summary={summary} onRouteChange={onCatalogRouteChange} onRefresh={onRefresh} onChooseChecks={onChooseChecks} />;
   if (tab === 'agent-lab') return <AgentLabView summary={summary} target={target} targetRepos={targetRepos} onRefresh={onRefresh} onTargetChange={onTargetChange} />;
+  if (tab === 'fix-proposals') return <FixProposalsView />;
   if (tab === 'playbooks') return <PlaybooksView summary={summary} target={target} targetRepos={targetRepos} onChooseChecks={onChooseChecks} onTargetChange={onTargetChange} />;
   if (tab === 'verification') return <VerificationView summary={summary} target={target} targetRepos={targetRepos} onChooseChecks={onChooseChecks} onTargetChange={onTargetChange} />;
   if (tab === 'activity') return <ActivityView summary={summary} search={search} target={target} />;
