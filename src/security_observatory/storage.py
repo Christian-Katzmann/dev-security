@@ -21,7 +21,6 @@ from .decisions import (
     dependency_fields_from_case,
     normalize_case_decision,
     normalize_vex_status,
-    suppression_counts,
 )
 
 
@@ -38,7 +37,6 @@ class HumanConfirmationRequired(ValueError):
 from .honey_keys import HONEY_KEY_PREFIX, utc_now
 from .platform_posture import platform_posture_snapshot_fingerprint
 from .managed_tools import new_ownership_id, upsert_manifest_record, utc_now as managed_utc_now
-from .scanners import scan_profile_catalog, scanner_catalog, security_pack_catalog, tool_catalog
 from .sbom import SBOMComponent, component_fingerprint
 from .silent_upgrades import annotate_dependency_changes
 from .vex import build_vex_document, parse_vex_document
@@ -1464,12 +1462,19 @@ class ObservatoryDB:
         ).fetchone()
         return _public_platform_posture_snapshot(row) if row else None
 
-    def dashboard_payload(self) -> dict[str, Any]:
-        retention_days = self.honey_event_retention_days()
-        self.prune_honey_key_events(retention_days=retention_days)
-        case_decisions = self.case_decisions_map()
-        managed_tool_records = self.list_managed_tools()
-        latest = self.conn.execute(
+    # --- Set-based read helpers for the dashboard payload (S-027) ------------
+    # These batch the per-repo fan-out that the dashboard payload used to run.
+    # Persistence owns the schema and the queries; the UI-payload assembly that
+    # consumes them lives in `dashboard_payload.assemble_dashboard_payload`
+    # (S-017), keeping this module free of any scanner-orchestration import.
+
+    def latest_scans(self) -> list[sqlite3.Row]:
+        """The most recent scan per repo, ordered worst-health-first.
+
+        Same selection the dashboard payload has always used; lifted into a
+        named query so the assembly layer reads rows instead of embedding SQL.
+        """
+        return self.conn.execute(
             """
             select s.*
             from scans s
@@ -1481,180 +1486,212 @@ class ObservatoryDB:
             order by s.health_score asc, s.repo_name asc
             """
         ).fetchall()
-        repos = []
-        repo_indexes: dict[str, int] = {}
-        latest_scan_ids = []
-        case_change_by_scan: dict[str, dict[str, str]] = {}
-        dependency_movement_by_scan: dict[str, dict[str, dict[str, Any]]] = {}
-        resolved_cases_by_scan: dict[str, list[dict[str, Any]]] = {}
-        scan_payloads: dict[str, dict[str, Any]] = {}
-        for row in latest:
-            latest_scan_ids.append(row["id"])
-            previous = self._previous_scan(row["repo_name"], row["started_at"])
-            delta = _scan_delta(row, previous)
-            dependency_delta = self._dependency_delta(row, previous)
-            case_change_by_scan[row["id"]] = delta["case_changes"]
-            dependency_movement_by_scan[row["id"]] = _dependency_risk_movements(row, previous, delta, dependency_delta)
-            dependency_delta["risk_counts"] = _dependency_risk_counts(dependency_movement_by_scan[row["id"]])
-            resolved_cases_by_scan[row["id"]] = delta["resolved_cases"]
-            current_cases = []
-            for item in _decode_cases(row["cases_json"]):
-                if not isinstance(item, dict):
-                    continue
-                case = {"scan_id": row["id"], "repo": row["repo_name"], "repo_name": row["repo_name"], **item}
-                case_id = str(case.get("case_id") or case.get("id") or "")
-                case["change_status"] = case_change_by_scan.get(row["id"], {}).get(case_id, "new")
-                _attach_dependency_risk_movement(case, dependency_movement_by_scan.get(row["id"], {}).get(case_id))
-                _attach_case_decision(case, case_decisions)
-                current_cases.append(case)
-            current_findings = [
-                dict(item)
-                for item in self.conn.execute(
-                    "select * from findings where scan_id = ? order by severity desc, id asc",
-                    (row["id"],),
-                ).fetchall()
-            ]
-            assembled = assemble_suppression(current_cases, current_findings, case_decisions)
-            scan_payloads[row["id"]] = assembled
-            active_cases = assembled["active_cases"]
-            active_findings = assembled["active_findings"]
-            repo_indexes[row["repo_name"]] = len(repos)
-            repos.append(
-                {
-                    "scan_id": row["id"],
-                    "repo": row["repo_name"],
-                    "path": row["repo_path"],
-                    "health": row["health_score"],
-                    "last_scan": row["finished_at"],
-                    "status": row["status"],
-                    "profile": row["profile"],
-                    "report_path": row["report_path"],
-                    "counts": _counts_by(active_findings, "severity"),
-                    "categories": _counts_by(active_findings, "category"),
-                    "raw_counts": _counts_by(assembled["findings"], "severity"),
-                    "raw_categories": _counts_by(assembled["findings"], "category"),
-                    "scanners": json.loads(row["scanner_status_json"]),
-                    "cases": active_cases,
-                    "active_cases": active_cases,
-                    "suppressed_cases": assembled["suppressed_cases"],
-                    "case_counts": _case_counts(active_cases),
-                    "suppressed_counts": assembled["suppressed_counts"],
-                    "suppression_reasons": assembled["suppressed_counts"]["reasons"],
-                    "previous_scan_id": delta["previous_scan_id"],
-                    "previous_health": delta["previous_health"],
-                    "health_delta": delta["health_delta"],
-                    "case_delta": {
-                        "new": sum(1 for case in active_cases if case.get("change_status") == "new"),
-                        "recurring": sum(1 for case in active_cases if case.get("change_status") == "recurring"),
-                        "resolved": delta["resolved_count"],
-                    },
-                    "dependency_delta": dependency_delta,
-                    "dependency_trust": self.list_dependency_trust_enrichments(scan_id=row["id"], repo_name=row["repo_name"]),
-                    "platform_posture": self.latest_platform_posture_snapshot(repo_name=row["repo_name"], scan_id=row["id"]),
-                    "case_resolution_runs": self.list_case_resolution_runs(repo_name=row["repo_name"], limit=5),
-                }
-            )
-        findings = []
-        active_findings = []
-        suppressed_findings = []
-        cases = []
-        active_cases = []
-        suppressed_cases = []
-        honey_keys = self.list_honey_keys()
-        honey_events = self.list_honey_key_events(limit=100)
-        project_statuses = self.project_statuses()
-        active_honey_events = [event for event in honey_events if not (event.get("incident") or {}).get("closed_at")]
-        latest_events_by_project = _latest_honey_events_by_project(active_honey_events)
-        keys_by_project: dict[str, list[dict[str, Any]]] = {}
-        for key in honey_keys:
-            keys_by_project.setdefault(str(key["project_id"]), []).append(key)
-        for project_id, status in project_statuses.items():
-            if status.get("status") == "red":
-                event = latest_events_by_project.get(project_id)
-                if not event:
-                    continue
-                if project_id in repo_indexes:
-                    repo = repos[repo_indexes[project_id]]
-                    repo["health"] = 0
-                    repo["status"] = "critical"
-                    repo["counts"]["critical"] = int(repo["counts"].get("critical", 0)) + 1
-                    repo["categories"]["honeytokens"] = int(repo["categories"].get("honeytokens", 0)) + 1
-                else:
-                    first_key = (keys_by_project.get(project_id) or [{}])[0]
-                    repos.append(
-                        {
-                            "scan_id": None,
-                            "repo": project_id,
-                            "path": first_key.get("repo_id") or project_id,
-                            "health": 0,
-                            "last_scan": status.get("last_event_at"),
-                            "status": "critical",
-                            "profile": "honey-keys",
-                            "report_path": None,
-                            "counts": {"critical": 1},
-                            "categories": {"honeytokens": 1},
-                            "scanners": [],
-                            "cases": [],
-                            "active_cases": [],
-                            "suppressed_cases": [],
-                            "case_counts": {"action_level": {"fix_now": 1}, "severity": {"critical": 1}, "category": {"honeytokens": 1}},
-                            "suppressed_counts": {"cases": 0, "findings": 0, "reasons": []},
-                            "suppression_reasons": [],
-                        }
-                    )
-                    repo_indexes[project_id] = len(repos) - 1
-                case = _honey_event_case(event)
-                _attach_case_decision(case, case_decisions)
-                cases.append(case)
-                active_cases.append(case)
-        history = [
+
+    def recent_scan_history(self, *, limit: int = 200) -> list[dict[str, Any]]:
+        return [
             dict(row)
             for row in self.conn.execute(
-                "select id, repo_name, started_at, finished_at, health_score, status, profile from scans order by started_at desc limit 200"
+                """
+                select id, repo_name, started_at, finished_at, health_score, status, profile
+                from scans
+                order by started_at desc
+                limit ?
+                """,
+                (limit,),
             ).fetchall()
         ]
-        if latest_scan_ids:
-            for row in latest:
-                assembled = scan_payloads.get(row["id"], {})
-                findings.extend(assembled.get("findings", []))
-                active_findings.extend(assembled.get("active_findings", []))
-                suppressed_findings.extend(assembled.get("suppressed_findings", []))
-                cases.extend(assembled.get("cases", []))
-                active_cases.extend(assembled.get("active_cases", []))
-                suppressed_cases.extend(assembled.get("suppressed_cases", []))
-                for resolved_case in resolved_cases_by_scan.get(row["id"], []):
-                    resolved_case_id = str(resolved_case.get("case_id") or resolved_case.get("id") or "")
-                    _attach_dependency_risk_movement(resolved_case, dependency_movement_by_scan.get(row["id"], {}).get(resolved_case_id))
-                    _attach_case_decision(resolved_case, case_decisions)
-                    cases.append(resolved_case)
-            findings = findings[:500]
-            active_findings = active_findings[:500]
-            suppressed_findings = suppressed_findings[:500]
-        aggregate_suppressed_counts = suppression_counts(suppressed_cases, suppressed_findings)
-        return {
-            "repos": repos,
-            "history": history,
-            "findings": findings,
-            "active_findings": active_findings,
-            "suppressed_findings": suppressed_findings,
-            "cases": cases,
-            "active_cases": active_cases,
-            "suppressed_cases": suppressed_cases,
-            "suppressed_counts": aggregate_suppressed_counts,
-            "suppression_reasons": aggregate_suppressed_counts["reasons"],
-            "case_decisions": list(case_decisions.values()),
-            "honey_keys": honey_keys,
-            "honey_key_events": honey_events,
-            "project_statuses": list(project_statuses.values()),
-            "honey_event_retention_days": retention_days,
-            "scanner_catalog": scanner_catalog(),
-            "tool_catalog": tool_catalog(detect_install_state=True, managed_tool_records=managed_tool_records),
-            "security_packs": security_pack_catalog(detect_install_state=True, managed_tool_records=managed_tool_records),
-            "scan_profiles": scan_profile_catalog(detect_install_state=True, managed_tool_records=managed_tool_records),
-            "managed_tools": managed_tool_records,
-            "agent_lab_proposals": self.list_agent_lab_proposals(limit=50),
-            "case_resolution_runs": self.list_case_resolution_runs(limit=50),
-        }
+
+    def previous_scans_for_latest(
+        self, latest_rows: list[sqlite3.Row]
+    ) -> dict[str, dict[str, Any] | None]:
+        """Batch the per-repo previous-scan lookup, keyed by latest scan id.
+
+        For each latest scan (repo R, started_at T) the "previous" scan is the
+        most recent scan of R strictly before T — exactly what ``_previous_scan``
+        returns one repo at a time. We pull the two most recent scans per repo in
+        a single window query and resolve the previous in memory, so the lookup
+        no longer runs one query per repo. (A repo whose two newest scans share
+        an identical ``started_at`` is the same tie ``_previous_scan`` already
+        resolved arbitrarily; real scans use distinct timestamps.)
+        """
+        repo_names = sorted({str(row["repo_name"]) for row in latest_rows})
+        by_repo: dict[str, list[dict[str, Any]]] = {}
+        if repo_names:
+            placeholders = ",".join("?" for _ in repo_names)
+            rows = self.conn.execute(
+                f"""
+                select * from (
+                  select s.*, row_number() over (
+                    partition by repo_name order by started_at desc, id desc
+                  ) as _rownum
+                  from scans s
+                  where repo_name in ({placeholders})
+                )
+                where _rownum <= 2
+                """,
+                repo_names,
+            ).fetchall()
+            for row in rows:
+                data = dict(row)
+                data.pop("_rownum", None)
+                by_repo.setdefault(str(data["repo_name"]), []).append(data)
+        previous: dict[str, dict[str, Any] | None] = {}
+        for row in latest_rows:
+            cutoff = str(row["started_at"])
+            candidates = [
+                scan
+                for scan in by_repo.get(str(row["repo_name"]), [])
+                if str(scan["started_at"]) < cutoff
+            ]
+            candidates.sort(key=lambda scan: str(scan["started_at"]), reverse=True)
+            previous[str(row["id"])] = candidates[0] if candidates else None
+        return previous
+
+    def _rows_by_scan(
+        self, scan_ids: list[str], query_template: str
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Run one ``where scan_id in (...)`` query and bucket rows per scan.
+
+        ``query_template`` must contain a single ``{ph}`` placeholder slot for
+        the id list and select a ``scan_id`` column. Every requested scan id is
+        present in the result (empty list when it has no rows), matching the
+        per-scan ``list_*`` helpers this batches.
+        """
+        result: dict[str, list[dict[str, Any]]] = {str(scan_id): [] for scan_id in scan_ids}
+        unique_ids = list(dict.fromkeys(str(scan_id) for scan_id in scan_ids))
+        if not unique_ids:
+            return result
+        placeholders = ",".join("?" for _ in unique_ids)
+        rows = self.conn.execute(query_template.format(ph=placeholders), unique_ids).fetchall()
+        for row in rows:
+            result.setdefault(str(row["scan_id"]), []).append(dict(row))
+        return result
+
+    def findings_for_scans(self, scan_ids: list[str]) -> dict[str, list[dict[str, Any]]]:
+        return self._rows_by_scan(
+            scan_ids,
+            "select * from findings where scan_id in ({ph}) order by severity desc, id asc",
+        )
+
+    def sbom_components_for_scans(self, scan_ids: list[str]) -> dict[str, list[dict[str, Any]]]:
+        return self._rows_by_scan(
+            scan_ids,
+            "select * from sbom_components where scan_id in ({ph}) order by name asc, version asc, id asc",
+        )
+
+    def dependency_manifest_entries_for_scans(self, scan_ids: list[str]) -> dict[str, list[dict[str, Any]]]:
+        return self._rows_by_scan(
+            scan_ids,
+            "select * from dependency_manifest_entries where scan_id in ({ph}) "
+            "order by manifest_path asc, ecosystem asc, name asc, id asc",
+        )
+
+    def dependency_trust_for_scans(self, scan_ids: list[str]) -> dict[str, list[dict[str, Any]]]:
+        return self._rows_by_scan(
+            scan_ids,
+            "select * from dependency_trust_enrichments where scan_id in ({ph}) "
+            "order by package_name asc, package_version asc, id asc",
+        )
+
+    def platform_posture_for_scans(self, scan_ids: list[str]) -> dict[str, dict[str, Any] | None]:
+        """Latest posture snapshot per scan (mirrors ``latest_platform_posture_snapshot``)."""
+        result: dict[str, dict[str, Any] | None] = {str(scan_id): None for scan_id in scan_ids}
+        unique_ids = list(dict.fromkeys(str(scan_id) for scan_id in scan_ids))
+        if not unique_ids:
+            return result
+        placeholders = ",".join("?" for _ in unique_ids)
+        rows = self.conn.execute(
+            f"""
+            select *
+            from platform_posture_snapshots
+            where scan_id in ({placeholders})
+            order by created_at desc, id desc
+            """,
+            unique_ids,
+        ).fetchall()
+        for row in rows:
+            scan_id = str(row["scan_id"])
+            if result.get(scan_id) is None:
+                result[scan_id] = _public_platform_posture_snapshot(row)
+        return result
+
+    def case_resolution_runs_for_dashboard(
+        self,
+        repo_names: list[str],
+        *,
+        global_limit: int = 50,
+        per_repo_limit: int = 5,
+    ) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
+        """Batched resolution-run fetch for the dashboard payload.
+
+        Returns ``(global_runs, runs_by_repo)`` where ``global_runs`` mirrors
+        ``list_case_resolution_runs(limit=global_limit)`` and ``runs_by_repo[R]``
+        mirrors ``list_case_resolution_runs(repo_name=R, limit=per_repo_limit)``.
+        Every run's items are pulled in a single ``where run_id in (...)`` query
+        — collapsing the per-run ``case_resolution_items`` N+1 the per-repo loop
+        used to trigger once per run, once per repo.
+        """
+        clean_global = max(1, min(int(global_limit or 50), 200))
+        clean_per_repo = max(1, min(int(per_repo_limit or 5), 200))
+        global_rows = self.conn.execute(
+            "select * from case_resolution_runs order by imported_at desc limit ?",
+            (clean_global,),
+        ).fetchall()
+        repo_rows: list[sqlite3.Row] = []
+        clean_repos = sorted({str(name).strip() for name in repo_names if str(name).strip()})
+        if clean_repos:
+            placeholders = ",".join("?" for _ in clean_repos)
+            repo_rows = self.conn.execute(
+                f"""
+                select * from (
+                  select r.*, row_number() over (
+                    partition by repo_name order by imported_at desc
+                  ) as _rownum
+                  from case_resolution_runs r
+                  where repo_name in ({placeholders})
+                )
+                where _rownum <= ?
+                order by imported_at desc
+                """,
+                (*clean_repos, clean_per_repo),
+            ).fetchall()
+        run_ids = list(dict.fromkeys(row["id"] for row in (*global_rows, *repo_rows)))
+        items_by_run: dict[str, list[sqlite3.Row]] = {}
+        if run_ids:
+            placeholders = ",".join("?" for _ in run_ids)
+            item_rows = self.conn.execute(
+                f"""
+                select *
+                from case_resolution_items
+                where run_id in ({placeholders})
+                order by created_at asc, id asc
+                """,
+                run_ids,
+            ).fetchall()
+            for item in item_rows:
+                items_by_run.setdefault(str(item["run_id"]), []).append(item)
+        global_runs = [
+            _public_case_resolution_run(row, items_by_run.get(str(row["id"]), []))
+            for row in global_rows
+        ]
+        runs_by_repo: dict[str, list[dict[str, Any]]] = {}
+        for row in repo_rows:
+            runs_by_repo.setdefault(str(row["repo_name"]), []).append(
+                _public_case_resolution_run(row, items_by_run.get(str(row["id"]), []))
+            )
+        return global_runs, runs_by_repo
+
+    def dashboard_payload(self) -> dict[str, Any]:
+        """Assemble the ``/api/summary`` payload.
+
+        The assembly itself — catalog embedding plus per-repo enrichment — lives
+        in ``dashboard_payload.assemble_dashboard_payload`` (S-017) so this module
+        owns schema and queries only and carries no scanner-orchestration import.
+        Imported lazily to keep the persistence module free of an import cycle.
+        """
+        from .dashboard_payload import assemble_dashboard_payload
+
+        return assemble_dashboard_payload(self)
 
     def scan_export(self, scan_id: str) -> dict[str, Any] | None:
         row = self.conn.execute("select * from scans where id = ?", (scan_id,)).fetchone()
