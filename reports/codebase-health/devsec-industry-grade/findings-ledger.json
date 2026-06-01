@@ -1,0 +1,2508 @@
+{
+  "campaign_dir": "/Users/christiankatzmann/Dev/Projects/dëv-security/reports/codebase-health/devsec-industry-grade",
+  "extracted_at": "2026-05-31T23:36:14Z",
+  "reports": [
+    "01-feature-health.initial.md",
+    "02-architecture-health.initial.md",
+    "03-domain-language-health.initial.md",
+    "04-permission-boundary-health.initial.md",
+    "05-privacy-boundary-health.initial.md",
+    "06-data-contract-type-health.initial.md",
+    "07-integration-health.initial.md",
+    "08-error-edge-state-health.initial.md",
+    "09-test-confidence-health.initial.md",
+    "10-product-workflow-health.initial.md",
+    "11-behavioral-ux-health.initial.md",
+    "12-design-system-accessibility-health.initial.md",
+    "13-performance-health.initial.md",
+    "14-ai-product-health.initial.md",
+    "15-documentation-health.initial.md",
+    "16-ai-maintainability-health.initial.md",
+    "17-release-readiness-health.initial.md"
+  ],
+  "finding_count": 272,
+  "findings": [
+    {
+      "id": "F-feature.RH.1",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "Hands-off code-fix flow (`propose_fix` → `clean_room_review_packet` → `record_clean_room_review` → `land_fix`) reachable only via MCP; **no dashboard surface**",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-feature.RH.2",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "Case lifecycle: flat triage-decision + rescan diff; **no in-progress / verifying intermediate state**",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-feature.RH.3",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "Posture-over-time trend superpower only half-built; `trendValues` is **dead code**",
+      "health": "Yellow/Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-feature.RH.4",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "Activity event-feed filter chips are dead controls",
+      "health": "Green/Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-feature.RH.5",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "Honey Keys (create / insert / hash-only / incident workflow / archive)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-feature.RH.6",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "Secret rotation flow (Tier 5R: status / trigger / batch, canary-verify + soak state machine)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-feature.RH.7",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "Core loop scan trigger from dashboard (background worker + status polling)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-feature.RH.8",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Ranked Health Table",
+      "rank": 8,
+      "area": "Scan-to-scan diffing surfaced in UI (New / Still open / Resolved / Health change)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-feature.RH.9",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Ranked Health Table",
+      "rank": 9,
+      "area": "Reports surface (raw + AI-prompt export, dependency deltas, CVE/IOC/trust panels, history)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-feature.RH.10",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Ranked Health Table",
+      "rank": 10,
+      "area": "Tool Catalog + Security Packs + install-state contract",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-feature.RH.11",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Ranked Health Table",
+      "rank": 11,
+      "area": "AI case-resolution follow-up (prompt → preview → audited apply, high/critical suppression gated)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-feature.RH.12",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Ranked Health Table",
+      "rank": 12,
+      "area": "Read-only MCP adapter (11 read tools, stdio-only)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-feature.RH.13",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Ranked Health Table",
+      "rank": 13,
+      "area": "Reset / data-clearing surface (preview + confirm-phrase gated)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-feature.RH.14",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Ranked Health Table",
+      "rank": 14,
+      "area": "External Surface + runnable packs (display-only)",
+      "health": "Grey",
+      "confidence": "High"
+    },
+    {
+      "id": "F-feature.US.1",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "Hands-off code-fix flow (propose → clean-room review → land)"
+    },
+    {
+      "id": "F-feature.US.2",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "`trendValues(summary, points=22)` posture-trend helper"
+    },
+    {
+      "id": "F-feature.US.3",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "Activity event-feed filter chips"
+    },
+    {
+      "id": "F-feature.US.4",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 4,
+      "surface": "Hidden CLI subcommands via positional `target`/`ioc_target`"
+    },
+    {
+      "id": "F-feature.US.5",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 5,
+      "surface": "`vex-export` / `vex-import` (VEX decision interchange)"
+    },
+    {
+      "id": "F-feature.TR.1",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Top Repair Targets",
+      "number": 1,
+      "summary": "**Give the code-fix flow a dashboard surface (or document it as MCP-only).** `propose_fix → clean-room-review → land_fix` is the strongest realization of the Brief's safe-AI-write ideal but is invisible to dashboard users (Rank 1). The cheapest honest fix is a \"real vs not yet\" / Agent-lab note; the excellent fix is a "
+    },
+    {
+      "id": "F-feature.TR.2",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Top Repair Targets",
+      "number": 2,
+      "summary": "**Promote cases to a visible lifecycle with proof-bound closure.** Add at least an `in_progress`/`awaiting_rescan` state and bind a resolved case to the scan + diff that closed it, surfaced on the CaseCard (Rank 2). The rotation state machine (Rank 6) is the in-repo reference pattern. This is the single change that mos"
+    },
+    {
+      "id": "F-feature.TR.3",
+      "report": "01-feature-health.initial.md",
+      "lens": "feature-health",
+      "section": "Top Repair Targets",
+      "number": 3,
+      "summary": "**Finish or remove the posture-trend superpower, and wire the dead Activity chips.** Render `trendValues` as a sparkline (Overview/Activity) or delete it (Rank 3); wire the event-feed filter chips or downgrade them to static labels (Rank 4). Small, high-polish wins that move shipped surfaces from \"works\" to \"finished.\""
+    },
+    {
+      "id": "F-architecture.RH.1",
+      "report": "02-architecture-health.initial.md",
+      "lens": "architecture-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "`dashboard_server.py` as a 4,236-line god module mixing routing, business orchestration, and inline HTML/CSS templates",
+      "health": "Yellow/Red",
+      "confidence": "High"
+    },
+    {
+      "id": "F-architecture.RH.2",
+      "report": "02-architecture-health.initial.md",
+      "lens": "architecture-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "`storage.py` (3,515 lines) — persistence layer reaches up into scanner-catalog construction and application-level UI assembly",
+      "health": "Yellow/Red",
+      "confidence": "High"
+    },
+    {
+      "id": "F-architecture.RH.3",
+      "report": "02-architecture-health.initial.md",
+      "lens": "architecture-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "Scanner knowledge scattered across ~5 string-keyed dispatch sites — no central scanner registry/protocol",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-architecture.RH.4",
+      "report": "02-architecture-health.initial.md",
+      "lens": "architecture-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "`scan_repo` pipeline orchestrator lives inside `cli.py` (the entry-point/presentation module) yet is the canonical scan path for CLI, MCP, and dashboard",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-architecture.RH.5",
+      "report": "02-architecture-health.initial.md",
+      "lens": "architecture-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "Two circular dependencies, both masked by deferred function-local imports",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-architecture.RH.6",
+      "report": "02-architecture-health.initial.md",
+      "lens": "architecture-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "Case lifecycle has no central state-machine / transition module",
+      "health": "Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-architecture.RH.7",
+      "report": "02-architecture-health.initial.md",
+      "lens": "architecture-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "React `App.tsx` is a 4,027-line root component",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-architecture.RH.8",
+      "report": "02-architecture-health.initial.md",
+      "lens": "architecture-health",
+      "section": "Ranked Health Table",
+      "rank": 8,
+      "area": "Domain core: `model.py` and `catalog.py` are clean, typed, well-bounded base layers",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-architecture.RH.9",
+      "report": "02-architecture-health.initial.md",
+      "lens": "architecture-health",
+      "section": "Ranked Health Table",
+      "rank": 9,
+      "area": "Pipeline isolation + entry-point ownership are sound and documented",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-architecture.US.1",
+      "report": "02-architecture-health.initial.md",
+      "lens": "architecture-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "Two server-rendered HTML pages inside the Python server, parallel to the React UI"
+    },
+    {
+      "id": "F-architecture.US.2",
+      "report": "02-architecture-health.initial.md",
+      "lens": "architecture-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "`dashboard_payload()` is the real cross-layer hub"
+    },
+    {
+      "id": "F-architecture.US.3",
+      "report": "02-architecture-health.initial.md",
+      "lens": "architecture-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "`scan_repo` is a shared service hiding in the CLI"
+    },
+    {
+      "id": "F-architecture.US.4",
+      "report": "02-architecture-health.initial.md",
+      "lens": "architecture-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 4,
+      "surface": "`catalog ↔ setup_runner` cycle with a load-bearing lazy import"
+    },
+    {
+      "id": "F-architecture.TR.1",
+      "report": "02-architecture-health.initial.md",
+      "lens": "architecture-health",
+      "section": "Top Repair Targets",
+      "number": 1,
+      "summary": "**Extract a `scan_orchestrator` / pipeline module from `cli.py`.** Move `scan_repo` (and the parser/profile resolution it requires) into a dedicated application-layer module that `cli`, `mcp_server`, and `dashboard_server` all import. This single move breaks the `cli ↔ dashboard_server` cycle, removes the `mcp → cli` r"
+    },
+    {
+      "id": "F-architecture.TR.2",
+      "report": "02-architecture-health.initial.md",
+      "lens": "architecture-health",
+      "section": "Top Repair Targets",
+      "number": 2,
+      "summary": "**Split `dashboard_server.py` and lift the catalog/payload assembly out of `storage.py`.** Introduce a route table for `do_GET`/`do_POST`, move the two inline HTML pages into their own template modules (or render from the React build), and pull the per-repo enrichment and catalog-embedding into a payload-assembly/servi"
+    },
+    {
+      "id": "F-architecture.TR.3",
+      "report": "02-architecture-health.initial.md",
+      "lens": "architecture-health",
+      "section": "Top Repair Targets",
+      "number": 3,
+      "summary": "**Collapse scanner knowledge into a single adapter registry.** Replace the parallel string-keyed branches (`run_scanner`, `_command`, `_timeout`, `EXIT_CODES_WITH_FINDINGS`, `normalize` dispatch) with one registry entry per scanner (command, timeout, exit-codes, normalizer), so adding a scanner is one co-located edit. "
+    },
+    {
+      "id": "F-domain-language.RH.1",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "**Severity vocabulary splits per surface** (`Elevated`/`Warning` in UI vs `high`/`medium` in data/CLI/MCP)",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-domain-language.RH.2",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "**Case lifecycle named by two divergent four-value enums**",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-domain-language.RH.3",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "**`glossary.md` Tool Catalog vocabulary contradicts canonical `tool-catalog.md` and code**",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-domain-language.RH.4",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "**`action_level` aka `attention bucket`, encoded `fix_now` and `fix-now`**",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-domain-language.RH.5",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "**Cases surface still routed/filed/componentized as `findings`**",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-domain-language.RH.6",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "**`watch` overloaded across three unrelated meanings**",
+      "health": "Green/Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-domain-language.RH.7",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "**`SecurityCase` API shape implicit; UI reads ~10 alias fields the backend never emits**",
+      "health": "Green/Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-domain-language.RH.8",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Ranked Health Table",
+      "rank": 8,
+      "area": "**`unknown` confidence silently coerced to `medium` at case boundary**",
+      "health": "Green/Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-domain-language.RH.9",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Ranked Health Table",
+      "rank": 9,
+      "area": "**\"clear within scan scope\" vs \"secure\" discipline**",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-domain-language.RH.10",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Ranked Health Table",
+      "rank": 10,
+      "area": "**`raw finding` vs `case` core distinction (incl. MCP alias contract)**",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-domain-language.US.1",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "\"Attention bucket\" as the UI's name for action level"
+    },
+    {
+      "id": "F-domain-language.US.2",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "MCP `SUPPORTED_CASE_STATUSES` presentation enum"
+    },
+    {
+      "id": "F-domain-language.US.3",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "Glossary install-state list that the code does not implement"
+    },
+    {
+      "id": "F-domain-language.US.4",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 4,
+      "surface": "Dead case-field aliases on the API boundary"
+    },
+    {
+      "id": "F-domain-language.TR.1",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Top Repair Targets",
+      "number": 1,
+      "summary": "**Unify the severity vocabulary across surfaces (Rank 1).** Create one shared severity→display map (`high→Elevated`, `medium→Warning`, …) consumed by the dashboard, and decide explicitly whether the MCP/CLI agent persona speaks the display words or the internal severities — then make all three call sites (`App.tsx:382-"
+    },
+    {
+      "id": "F-domain-language.TR.2",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Top Repair Targets",
+      "number": 2,
+      "summary": "**Reconcile the case-state vocabulary (Rank 2).** Name one canonical case-state set, document the presentation collapse (`fixed`/`false_positive` → `resolved`) as an explicit mapping in `glossary.md` / `mcp/README.md`, and stop reusing the bare word `resolved` for the unrelated scan-diff axis."
+    },
+    {
+      "id": "F-domain-language.TR.3",
+      "report": "03-domain-language-health.initial.md",
+      "lens": "domain-language-health",
+      "section": "Top Repair Targets",
+      "number": 3,
+      "summary": "**Make the glossary's catalog section match `tool-catalog.md` and the code (Rank 3),** restoring the two distinct axes (`lifecycle` vs `install_state`) with their real value names and deleting the invented `detected-locally` / `managed-install` / `display-only` install states. (Runner-up, lower cost: collapse `action_l"
+    },
+    {
+      "id": "F-permission-boundary.RH.1",
+      "report": "04-permission-boundary-health.initial.md",
+      "lens": "permission-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "Dashboard HTTP server has no CSRF / Origin / DNS-rebinding defense on state-mutating endpoints",
+      "health": "Yellow/Red",
+      "confidence": "High"
+    },
+    {
+      "id": "F-permission-boundary.RH.2",
+      "report": "04-permission-boundary-health.initial.md",
+      "lens": "permission-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "Suppression gate's \"human confirmation\" is defeatable via the dashboard CSRF gap",
+      "health": "Yellow/Red",
+      "confidence": "High"
+    },
+    {
+      "id": "F-permission-boundary.RH.3",
+      "report": "04-permission-boundary-health.initial.md",
+      "lens": "permission-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "MCP write boundary: high/critical suppression gate, stdio-only, audited path",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-permission-boundary.RH.4",
+      "report": "04-permission-boundary-health.initial.md",
+      "lens": "permission-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "Auto-merge fix path: clean-room review, diff-SHA binding, protected-branch refusal",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-permission-boundary.RH.5",
+      "report": "04-permission-boundary-health.initial.md",
+      "lens": "permission-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "MCP read surface: path redaction, repo-name-only scan targets, no destructive tools",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-permission-boundary.RH.6",
+      "report": "04-permission-boundary-health.initial.md",
+      "lens": "permission-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "Dashboard subprocess-spawning endpoints (package install, rotation) are command-injection-safe",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-permission-boundary.RH.7",
+      "report": "04-permission-boundary-health.initial.md",
+      "lens": "permission-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "Credential storage boundary: Keychain authoritative, on-disk index holds keys only",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-permission-boundary.RH.8",
+      "report": "04-permission-boundary-health.initial.md",
+      "lens": "permission-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 8,
+      "area": "No multi-user / RBAC / read-only role on dashboard",
+      "health": "Green",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-permission-boundary.US.1",
+      "report": "04-permission-boundary-health.initial.md",
+      "lens": "permission-boundary-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "`devsec-mcp-rw` exposes 8 extra tools, not the \"three case-resolution tools\" the README states"
+    },
+    {
+      "id": "F-permission-boundary.US.2",
+      "report": "04-permission-boundary-health.initial.md",
+      "lens": "permission-boundary-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "Browser-reachable mutating loopback API is an undocumented attack surface"
+    },
+    {
+      "id": "F-permission-boundary.US.3",
+      "report": "04-permission-boundary-health.initial.md",
+      "lens": "permission-boundary-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "`/api/honey/trigger` reachable via both GET (line 2302) and POST (line 2428)"
+    },
+    {
+      "id": "F-permission-boundary.TR.1",
+      "report": "04-permission-boundary-health.initial.md",
+      "lens": "permission-boundary-health",
+      "section": "Top Repair Targets",
+      "number": 1,
+      "summary": "**Add a cross-origin / CSRF defense to the dashboard's mutating HTTP surface (Rank 1 + Rank 2).** Reject mutating `do_POST`/`do_DELETE` requests whose `Origin`/`Sec-Fetch-Site` is not same-origin (allow `null`/missing for the operator's own browser-app context as appropriate), and require `Content-Type: application/jso"
+    },
+    {
+      "id": "F-permission-boundary.TR.2",
+      "report": "04-permission-boundary-health.initial.md",
+      "lens": "permission-boundary-health",
+      "section": "Top Repair Targets",
+      "number": 2,
+      "summary": "**Decouple the suppression gate's \"human confirmation\" from \"a POST arrived\" (Rank 2).** Even with CSRF hardening, consider requiring an explicit per-action confirmation signal (e.g. a short-lived token rendered into the dashboard for high/critical suppressions) so the gate's authorization is positively demonstrated, n"
+    },
+    {
+      "id": "F-permission-boundary.TR.3",
+      "report": "04-permission-boundary-health.initial.md",
+      "lens": "permission-boundary-health",
+      "section": "Top Repair Targets",
+      "number": 3,
+      "summary": "**Correct the MCP write-surface documentation (Undocumented Surfaces #1).** Update `mcp/README.md` so the write adapter is described as the full audited tool set (case-resolution + scan-trigger + fix-proposal/clean-room/land), with the same hard-limit framing already present in `_WRITE_MODE_BOUNDARY`. Keep the boundary"
+    },
+    {
+      "id": "F-privacy-boundary.RH.1",
+      "report": "05-privacy-boundary-health.initial.md",
+      "lens": "privacy-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "Dashboard loads Google Fonts from third-party CDN on default render path",
+      "health": "Yellow/Red",
+      "confidence": "High"
+    },
+    {
+      "id": "F-privacy-boundary.RH.2",
+      "report": "05-privacy-boundary-health.initial.md",
+      "lens": "privacy-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "Default scan path is fully offline; all enrichment egress gated behind explicit opt-in",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-privacy-boundary.RH.3",
+      "report": "05-privacy-boundary-health.initial.md",
+      "lens": "privacy-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "Detected secrets redacted at model layer before persistence",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-privacy-boundary.RH.4",
+      "report": "05-privacy-boundary-health.initial.md",
+      "lens": "privacy-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "MCP adapter is stdio-only with enforced path anonymization",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-privacy-boundary.RH.5",
+      "report": "05-privacy-boundary-health.initial.md",
+      "lens": "privacy-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "Credentials stored in macOS Keychain, never plaintext; local index holds names only",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-privacy-boundary.RH.6",
+      "report": "05-privacy-boundary-health.initial.md",
+      "lens": "privacy-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "Honey Key trigger metadata redacted; callback stays on local machine",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-privacy-boundary.RH.7",
+      "report": "05-privacy-boundary-health.initial.md",
+      "lens": "privacy-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "Local data deletion (`reset`) is comprehensive and guarded; honey events auto-prune",
+      "health": "Green",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-privacy-boundary.RH.8",
+      "report": "05-privacy-boundary-health.initial.md",
+      "lens": "privacy-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 8,
+      "area": "Dependency-trust / EPSS opt-in sends repo identifiers and CVE IDs to third parties",
+      "health": "Green/Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-privacy-boundary.RH.9",
+      "report": "05-privacy-boundary-health.initial.md",
+      "lens": "privacy-boundary-health",
+      "section": "Ranked Health Table",
+      "rank": 9,
+      "area": "No telemetry/analytics; dashboard binds localhost-only and suppresses access logs",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-privacy-boundary.US.1",
+      "report": "05-privacy-boundary-health.initial.md",
+      "lens": "privacy-boundary-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "Google Fonts CDN fetch on every dashboard load"
+    },
+    {
+      "id": "F-privacy-boundary.US.2",
+      "report": "05-privacy-boundary-health.initial.md",
+      "lens": "privacy-boundary-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "Managed-tool binary downloads from GitHub releases"
+    },
+    {
+      "id": "F-privacy-boundary.US.3",
+      "report": "05-privacy-boundary-health.initial.md",
+      "lens": "privacy-boundary-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "EPSS query reveals researched CVEs to api.first.org"
+    },
+    {
+      "id": "F-privacy-boundary.US.4",
+      "report": "05-privacy-boundary-health.initial.md",
+      "lens": "privacy-boundary-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 4,
+      "surface": "`setup_runner.py` HTTP probe to a catalog-configured URL"
+    },
+    {
+      "id": "F-privacy-boundary.TR.1",
+      "report": "05-privacy-boundary-health.initial.md",
+      "lens": "privacy-boundary-health",
+      "section": "Top Repair Targets",
+      "number": 1,
+      "summary": "**Eliminate the Google Fonts default-path egress (Rank 1, Yellow/Red).** Self-host Geist / Geist Mono as bundled `@font-face` assets in the dashboard build, remove the `@import url('https://fonts.googleapis.com/...')` from `dashboard-ui/src/index.css`, and rebuild so `src/security_observatory/dashboard/assets/*.css` co"
+    },
+    {
+      "id": "F-privacy-boundary.TR.2",
+      "report": "05-privacy-boundary-health.initial.md",
+      "lens": "privacy-boundary-health",
+      "section": "Top Repair Targets",
+      "number": 2,
+      "summary": "**Harden the MCP path-leak invariant + extend redaction coverage (Rank 4).** Change the `test_mcp_server.py:969-1044` assertion from `startswith` to substring scanning so an absolute path embedded mid-string (e.g. inside an agent prompt) is caught, and confirm `_redact_path` is applied to every free-text MCP field that"
+    },
+    {
+      "id": "F-privacy-boundary.TR.3",
+      "report": "05-privacy-boundary-health.initial.md",
+      "lens": "privacy-boundary-health",
+      "section": "Top Repair Targets",
+      "number": 3,
+      "summary": "**Make the `--trust` opt-in egress disclosure exhaustive and visible (Ranks 8 + the managed-download surface).** Surface, in the dashboard's trust opt-in copy and the trust-boundary diagram, exactly what crosses: CVE IDs → EPSS, source-repo IDs → Scorecard, and managed-tool binary downloads → GitHub. Closes the gap bet"
+    },
+    {
+      "id": "F-data-contract-type.RH.1",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "Frontend TypeScript not in strict mode",
+      "health": "Yellow/Red",
+      "confidence": "High"
+    },
+    {
+      "id": "F-data-contract-type.RH.2",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "`cases_json` read with no JSON-decode guard in primary payload",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-data-contract-type.RH.3",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "Frontend `SecurityCase` type drifts from backend wire shape",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-data-contract-type.RH.4",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "`save_scan` accepts raw-dict cases, bypassing `SecurityCase` validation",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-data-contract-type.RH.5",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "No `PRAGMA user_version` schema versioning; migrations are inference-based",
+      "health": "Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-data-contract-type.RH.6",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "`case_resolutions.v1` contract — typed, validated, gated, versioned",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-data-contract-type.RH.7",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "`set_case_decision` severity gate — the write chokepoint",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-data-contract-type.RH.8",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Ranked Health Table",
+      "rank": 8,
+      "area": "Scanner-output normalization boundary (untrusted -> `Finding`)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-data-contract-type.RH.9",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Ranked Health Table",
+      "rank": 9,
+      "area": "Findings DB columns vs `Finding` dataclass — one source of truth",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-data-contract-type.RH.10",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Ranked Health Table",
+      "rank": 10,
+      "area": "`decisions.py` VEX/dependency-identity normalization",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-data-contract-type.US.1",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "`cases_json` is a denormalized JSON blob, not a typed table"
+    },
+    {
+      "id": "F-data-contract-type.US.2",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "Frontend trusts `await response.json()` with no runtime validation"
+    },
+    {
+      "id": "F-data-contract-type.US.3",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "`save_scan` raw-dict case branch"
+    },
+    {
+      "id": "F-data-contract-type.US.4",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 4,
+      "surface": "String-sentinel migration detection"
+    },
+    {
+      "id": "F-data-contract-type.TR.1",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Top Repair Targets",
+      "number": 1,
+      "summary": "**Enable TypeScript `strict` (at minimum `strictNullChecks` + `noImplicitAny`) in `dashboard-ui/tsconfig.json`, fix the surfaced errors, keep `tsc --noEmit` green** (Rank 1). This is the highest-leverage single change: it converts the existing, already-good `?`/`| null` annotations and zero-`any` discipline from decora"
+    },
+    {
+      "id": "F-data-contract-type.TR.2",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Top Repair Targets",
+      "number": 2,
+      "summary": "**Guard the `cases_json` JSON reads** so one corrupt/hand-edited row degrades to a warning instead of crashing the dashboard payload and the shared MCP read — reuse the `except (TypeError, json.JSONDecodeError)` pattern already present at `storage.py:2166` (Rank 2). Directly hardens the brief's named \"corrupt SQLite\" e"
+    },
+    {
+      "id": "F-data-contract-type.TR.3",
+      "report": "06-data-contract-type-health.initial.md",
+      "lens": "data-contract-type-health",
+      "section": "Top Repair Targets",
+      "number": 3,
+      "summary": "**Tighten the two case-write contracts**: trim the frontend `SecurityCase` type to the real wire shape and delete dead aliases (Rank 3), and narrow `save_scan`'s `cases` parameter to `list[SecurityCase]` (or route dicts through `SecurityCase(**case)`) so the redaction/whitelist can never be bypassed (Rank 4). Both remo"
+    },
+    {
+      "id": "F-integration.RH.1",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "CISA KEV / EPSS enrichment: implemented + documented but unreachable (no caller wires `check_cisa_kev`/`check_epss`)",
+      "health": "Green/Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-integration.RH.2",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "Outbound calls have timeouts but no retry/backoff/circuit-breaker",
+      "health": "Green/Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-integration.RH.3",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "Network enrichment egress gating (KEV/EPSS/Scorecard/Criticality)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-integration.RH.4",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "Scanner-missing / scanner-error honest degradation + UI surfacing",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-integration.RH.5",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "Managed-tool download → verify → install pipeline (origin-proof, not safety)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-integration.RH.6",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "Guarded MCP `trigger_scan` (write-mode scan trigger)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-integration.RH.7",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "SQLite write idempotency (retries/reruns do not duplicate)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-integration.RH.8",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Ranked Health Table",
+      "rank": 8,
+      "area": "legitify GitHub-PAT auth-provider isolation",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-integration.RH.9",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Ranked Health Table",
+      "rank": 9,
+      "area": "Setup-card probes (shell / binary-version / http / directory)",
+      "health": "Green",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-integration.RH.10",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Ranked Health Table",
+      "rank": 10,
+      "area": "Inbound Honey Key listener + decoy callbacks",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-integration.US.1",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "CISA KEV / EPSS enrichment flags exist but are wired to no caller"
+    },
+    {
+      "id": "F-integration.US.2",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "Six outbound endpoints, each a single network dependency"
+    },
+    {
+      "id": "F-integration.US.3",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "`start_new_session=True` process-group kill on scanner timeout/exception"
+    },
+    {
+      "id": "F-integration.US.4",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 4,
+      "surface": "legitify target auto-derived from `git remote.origin.url`"
+    },
+    {
+      "id": "F-integration.TR.1",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Top Repair Targets",
+      "number": 1,
+      "summary": "**Resolve the CISA KEV / EPSS wiring gap (Rank 1).** Decide: either wire `check_cisa_kev`/`check_epss` to an explicit opt-in (mirroring `--trust`) and surface the KEV/EPSS result in cases/UI, or update `docs/scanners.md:41` to state these online checks are designed-but-not-yet-wired. Pick one so promise and code agree."
+    },
+    {
+      "id": "F-integration.TR.2",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Top Repair Targets",
+      "number": 2,
+      "summary": "**Record the \"single attempt, fail-closed, no retry\" decision for outbound calls (Rank 2).** Add a one-line rationale near the enrichment/download fetchers (or in `docs/scanners.md` / the trust-boundary doc) so the absence of retry/backoff reads as a deliberate local-first choice, not an omission. If managed-tool insta"
+    },
+    {
+      "id": "F-integration.TR.3",
+      "report": "07-integration-health.initial.md",
+      "lens": "integration-health",
+      "section": "Top Repair Targets",
+      "number": 3,
+      "summary": "**Lock the setup-probe `shell=True` invariant (Rank 9).** Add a focused test (or a guard) asserting that no catalog-authored probe command string contains user-supplied config values, so the \"command cannot be steered by a paste\" property cannot silently regress as the tool catalog grows."
+    },
+    {
+      "id": "F-error-edge-state.RH.1",
+      "report": "08-error-edge-state-health.initial.md",
+      "lens": "error-edge-state-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "Corrupt / unreadable SQLite history store has no recovery path",
+      "health": "Yellow/Red",
+      "confidence": "High"
+    },
+    {
+      "id": "F-error-edge-state.RH.2",
+      "report": "08-error-edge-state-health.initial.md",
+      "lens": "error-edge-state-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "Case-decision failure is invisible on the Findings tab (core \"act\" write path)",
+      "health": "Yellow/Red",
+      "confidence": "High"
+    },
+    {
+      "id": "F-error-edge-state.RH.3",
+      "report": "08-error-edge-state-health.initial.md",
+      "lens": "error-edge-state-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "No React error boundary; `/api/summary` payload trusted with no shape guard",
+      "health": "Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-error-edge-state.RH.4",
+      "report": "08-error-edge-state-health.initial.md",
+      "lens": "error-edge-state-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "Dashboard fetch-error state has no retry affordance",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-error-edge-state.RH.5",
+      "report": "08-error-edge-state-health.initial.md",
+      "lens": "error-edge-state-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "`do_GET` API routes lack the top-level error wrapping that POST/DELETE have",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-error-edge-state.RH.6",
+      "report": "08-error-edge-state-health.initial.md",
+      "lens": "error-edge-state-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "First-run / empty / zero-findings / partial-scan states (backend + overview)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-error-edge-state.RH.7",
+      "report": "08-error-edge-state-health.initial.md",
+      "lens": "error-edge-state-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "MCP read-path missing-record / empty / malformed states",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-error-edge-state.RH.8",
+      "report": "08-error-edge-state-health.initial.md",
+      "lens": "error-edge-state-health",
+      "section": "Ranked Health Table",
+      "rank": 8,
+      "area": "Long-running async edge handling (scan job, rotation subprocess, polling, static, localStorage)",
+      "health": "Green/Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-error-edge-state.US.1",
+      "report": "08-error-edge-state-health.initial.md",
+      "lens": "error-edge-state-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "Corrupt-DB failure mode is reachable from every read path but documented nowhere"
+    },
+    {
+      "id": "F-error-edge-state.US.2",
+      "report": "08-error-edge-state-health.initial.md",
+      "lens": "error-edge-state-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "`runError` is a shared channel rendered in only two of the surfaces that write to it"
+    },
+    {
+      "id": "F-error-edge-state.US.3",
+      "report": "08-error-edge-state-health.initial.md",
+      "lens": "error-edge-state-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "`do_GET` vs `do_POST`/`do_DELETE` error-handling asymmetry"
+    },
+    {
+      "id": "F-error-edge-state.TR.1",
+      "report": "08-error-edge-state-health.initial.md",
+      "lens": "error-edge-state-health",
+      "section": "Top Repair Targets",
+      "number": 1,
+      "summary": "**Make the SQLite history store self-healing (Rank 1 + 5 + 7).** Guard `ObservatoryDB.__init__` with an integrity check / `DatabaseError` catch that quarantines the corrupt file (`observatory.db.corrupt-<ts>`), rebuilds a fresh schema, and surfaces a crafted recovery state to both the dashboard and MCP. Add `tests/test"
+    },
+    {
+      "id": "F-error-edge-state.TR.2",
+      "report": "08-error-edge-state-health.initial.md",
+      "lens": "error-edge-state-health",
+      "section": "Top Repair Targets",
+      "number": 2,
+      "summary": "**Stop swallowing case-decision failures on the Findings tab (Rank 2).** Give `CaseCard` a per-card pending+disabled state during the awaited mutation and surface the rejection inline on the card. Idempotent server write (`on conflict do update`) means the only real defect is invisibility — fix the surfacing and the do"
+    },
+    {
+      "id": "F-error-edge-state.TR.3",
+      "report": "08-error-edge-state-health.initial.md",
+      "lens": "error-edge-state-health",
+      "section": "Top Repair Targets",
+      "number": 3,
+      "summary": "**Add a React error boundary and a fetch-retry affordance (Rank 3 + 4).** Wrap the app in a top-level `ErrorBoundary` rendering a crafted fallback (so no payload surprise white-screens the dashboard), and add a \"Retry\" button to the offline/error overview state so the error path is a recovery, not a soft dead end."
+    },
+    {
+      "id": "F-test-confidence.RH.1",
+      "report": "09-test-confidence-health.initial.md",
+      "lens": "test-confidence-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "**Normalization fidelity / dropped-findings invariant**",
+      "health": "**Yellow**",
+      "confidence": "High"
+    },
+    {
+      "id": "F-test-confidence.RH.2",
+      "report": "09-test-confidence-health.initial.md",
+      "lens": "test-confidence-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "**No repo-wide no-egress sentinel** (per-function only)",
+      "health": "**Yellow**",
+      "confidence": "High"
+    },
+    {
+      "id": "F-test-confidence.RH.3",
+      "report": "09-test-confidence-health.initial.md",
+      "lens": "test-confidence-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "**`test_model.py` is a 13-line stub**",
+      "health": "**Yellow**",
+      "confidence": "High"
+    },
+    {
+      "id": "F-test-confidence.RH.4",
+      "report": "09-test-confidence-health.initial.md",
+      "lens": "test-confidence-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "**Frontend (`dashboard-ui/`) unit/component tests**",
+      "health": "**Yellow**",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-test-confidence.RH.5",
+      "report": "09-test-confidence-health.initial.md",
+      "lens": "test-confidence-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "**Honey Key hashing & placement guards**",
+      "health": "**Green**",
+      "confidence": "High"
+    },
+    {
+      "id": "F-test-confidence.RH.6",
+      "report": "09-test-confidence-health.initial.md",
+      "lens": "test-confidence-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "**MCP high/critical suppression gate + prompt-injection**",
+      "health": "**Green**",
+      "confidence": "High"
+    },
+    {
+      "id": "F-test-confidence.RH.7",
+      "report": "09-test-confidence-health.initial.md",
+      "lens": "test-confidence-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "**AI fix-proposal clean-room fence**",
+      "health": "**Green**",
+      "confidence": "High"
+    },
+    {
+      "id": "F-test-confidence.RH.8",
+      "report": "09-test-confidence-health.initial.md",
+      "lens": "test-confidence-health",
+      "section": "Ranked Health Table",
+      "rank": 8,
+      "area": "**Destructive-rotation confirmation + lifecycle**",
+      "health": "**Green**",
+      "confidence": "High"
+    },
+    {
+      "id": "F-test-confidence.RH.9",
+      "report": "09-test-confidence-health.initial.md",
+      "lens": "test-confidence-health",
+      "section": "Ranked Health Table",
+      "rank": 9,
+      "area": "**No-egress unit coverage (per-function)**",
+      "health": "**Green/Yellow**",
+      "confidence": "High"
+    },
+    {
+      "id": "F-test-confidence.RH.10",
+      "report": "09-test-confidence-health.initial.md",
+      "lens": "test-confidence-health",
+      "section": "Ranked Health Table",
+      "rank": 10,
+      "area": "**No hidden-failure debt**",
+      "health": "**Green**",
+      "confidence": "High"
+    },
+    {
+      "id": "F-test-confidence.US.1",
+      "report": "09-test-confidence-health.initial.md",
+      "lens": "test-confidence-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "MCP tests are conditionally skippable"
+    },
+    {
+      "id": "F-test-confidence.US.2",
+      "report": "09-test-confidence-health.initial.md",
+      "lens": "test-confidence-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "Normalization tested on single-finding inputs only"
+    },
+    {
+      "id": "F-test-confidence.US.3",
+      "report": "09-test-confidence-health.initial.md",
+      "lens": "test-confidence-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "`redact_text` privacy function thinly tested"
+    },
+    {
+      "id": "F-test-confidence.TR.1",
+      "report": "09-test-confidence-health.initial.md",
+      "lens": "test-confidence-health",
+      "section": "Top Repair Targets",
+      "number": 1,
+      "summary": "**Add the normalization count-conservation + repo-wide no-egress sentinel (two cheap, high-leverage tests).** (a) A multi-finding/multi-scanner fixture asserting every raw finding is accounted for through normalize→case (closes \"dropped findings\"); (b) one test that process-wide blocks `socket`/`urlopen`, runs a full d"
+    },
+    {
+      "id": "F-test-confidence.TR.2",
+      "report": "09-test-confidence-health.initial.md",
+      "lens": "test-confidence-health",
+      "section": "Top Repair Targets",
+      "number": 2,
+      "summary": "**Make the MCP-guarded trust tests non-skippable in the canonical dev environment.** Pin the `mcp` extra into the `dev` dependency group (or add a CI assertion that it's importable) so the write-guard, prompt-injection, clean-room-fence, and red-team E2E tests can never silently skip and let a weakened build look green"
+    },
+    {
+      "id": "F-test-confidence.TR.3",
+      "report": "09-test-confidence-health.initial.md",
+      "lens": "test-confidence-health",
+      "section": "Top Repair Targets",
+      "number": 3,
+      "summary": "**Harden `redact_text` and `model.py` coverage.** Expand the 13-line `test_model.py` to assert `redact_text` removes secret values while preserving locators, against several real secret shapes — the privacy guarantee that currently rests on a near-empty test file."
+    },
+    {
+      "id": "F-product-workflow.RH.1",
+      "report": "10-product-workflow-health.initial.md",
+      "lens": "product-workflow-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "**Rescan-to-closure does not actively show the proof**",
+      "health": "Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-product-workflow.RH.2",
+      "report": "10-product-workflow-health.initial.md",
+      "lens": "product-workflow-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "**`scan-history` superpower wired server-side, absent from UI**",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-product-workflow.RH.3",
+      "report": "10-product-workflow-health.initial.md",
+      "lens": "product-workflow-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "**`/api/scan-diff` accepts base/head but UI only sends `repo`**",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-product-workflow.RH.4",
+      "report": "10-product-workflow-health.initial.md",
+      "lens": "product-workflow-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "**An entire orphaned parallel case UI (`components/{OverviewView,FindingsView,CaseCard}.tsx`) shadows the live act path**",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-product-workflow.RH.5",
+      "report": "10-product-workflow-health.initial.md",
+      "lens": "product-workflow-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "**AI follow-up act path (strong, but repo-scoped + JSON-paste)**",
+      "health": "Green/Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-product-workflow.RH.6",
+      "report": "10-product-workflow-health.initial.md",
+      "lens": "product-workflow-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "**Triage entry / grouping / per-case decision controls**",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-product-workflow.RH.7",
+      "report": "10-product-workflow-health.initial.md",
+      "lens": "product-workflow-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "**Scan entry + rescan loop**",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-product-workflow.US.1",
+      "report": "10-product-workflow-health.initial.md",
+      "lens": "product-workflow-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "`GET /api/scan-history` with no UI consumer"
+    },
+    {
+      "id": "F-product-workflow.US.2",
+      "report": "10-product-workflow-health.initial.md",
+      "lens": "product-workflow-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "`/api/scan-diff` `base`/`head` params unreachable from UI"
+    },
+    {
+      "id": "F-product-workflow.US.3",
+      "report": "10-product-workflow-health.initial.md",
+      "lens": "product-workflow-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "`GET /api/cases` with no UI consumer"
+    },
+    {
+      "id": "F-product-workflow.US.4",
+      "report": "10-product-workflow-health.initial.md",
+      "lens": "product-workflow-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 4,
+      "surface": "Orphaned parallel case UI: `components/{OverviewView,FindingsView,CaseCard}.tsx`"
+    },
+    {
+      "id": "F-product-workflow.US.5",
+      "report": "10-product-workflow-health.initial.md",
+      "lens": "product-workflow-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 5,
+      "surface": "CLI act path parallel to dashboard"
+    },
+    {
+      "id": "F-product-workflow.TR.1",
+      "report": "10-product-workflow-health.initial.md",
+      "lens": "product-workflow-health",
+      "section": "Top Repair Targets",
+      "number": 1,
+      "summary": "**Close the loop with visible proof** (rank 1). After a rescan, bind the case the user acted on to the scan that resolved it (`/api/scan-diff` already returns `resolved[]`), and keep a just-closed case visible as \"Verified ✓ in scan X\" for one cycle instead of silently dropping it from `caseNeedsAttention`. This is the"
+    },
+    {
+      "id": "F-product-workflow.TR.2",
+      "report": "10-product-workflow-health.initial.md",
+      "lens": "product-workflow-health",
+      "section": "Top Repair Targets",
+      "number": 2,
+      "summary": "**Surface the history/trends superpower and arbitrary diff** (ranks 2+3). Consume `/api/scan-history` in a trends panel and add a base/head picker that drives the existing `/api/scan-diff` base/head support — turning two tested-but-dark backends into visible local-first advantages."
+    },
+    {
+      "id": "F-product-workflow.TR.3",
+      "report": "10-product-workflow-health.initial.md",
+      "lens": "product-workflow-health",
+      "section": "Top Repair Targets",
+      "number": 3,
+      "summary": "**Delete or adopt the orphaned `components/{OverviewView,FindingsView,CaseCard}.tsx` trio** (rank 4). One source of truth for the case UI so the act path stops *looking* ambiguous/unfinished to reviewers and agents, and to shed dead bundle weight."
+    },
+    {
+      "id": "F-behavioral-ux.RH.1",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "First-run \"add a repo\" via raw `window.prompt`",
+      "health": "Yellow/Red",
+      "confidence": "High"
+    },
+    {
+      "id": "F-behavioral-ux.RH.2",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "`window.prompt` recurs across the core loop (decision notes, incident close)",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-behavioral-ux.RH.3",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "Duplicate `FindingsView` + off-Mistglass `CaseCard` (dead twin)",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-behavioral-ux.RH.4",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "`⌘K` shortcut hint with no handler (false affordance)",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-behavioral-ux.RH.5",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "Scan-failure feedback collapses to one undifferentiated error",
+      "health": "Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-behavioral-ux.RH.6",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "Loading & first-fetch-failure states (DESIGN §7.6 / §7.5)",
+      "health": "Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-behavioral-ux.RH.7",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "Severity tuning / alarm-fatigue vs false-calm",
+      "health": "Green/Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-behavioral-ux.RH.8",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Ranked Health Table",
+      "rank": 8,
+      "area": "Keyboard navigation, focus order, modal Esc/trap",
+      "health": "Green/Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-behavioral-ux.US.1",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "Dead `components/FindingsView.tsx` + `CaseCard.tsx`"
+    },
+    {
+      "id": "F-behavioral-ux.US.2",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "`⌘R/Ctrl-R` hard-refresh global shortcut"
+    },
+    {
+      "id": "F-behavioral-ux.US.3",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "Hidden `?setupCardDemo=1` storybook route"
+    },
+    {
+      "id": "F-behavioral-ux.US.4",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 4,
+      "surface": "Tab set wider than AGENTS.md route memory"
+    },
+    {
+      "id": "F-behavioral-ux.US.5",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 5,
+      "surface": "`add-repo` dropdown option fires a native prompt"
+    },
+    {
+      "id": "F-behavioral-ux.US.6",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 6,
+      "surface": "Custom repos persisted to `localStorage`"
+    },
+    {
+      "id": "F-behavioral-ux.US.7",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 7,
+      "surface": "Coming-Soon walls reachable from navigable surfaces"
+    },
+    {
+      "id": "F-behavioral-ux.TR.1",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Top Repair Targets",
+      "number": 1,
+      "summary": "**Replace the raw `window.prompt` add-repo flow** (`App.tsx:994-1004`) with a crafted in-app Mistglass form: existence validation against `/api/projects`, known/recent suggestions, an example, inline error. Highest leverage — first-run gateway and least-finished surface. Retire the dropdown-option-as-action smell."
+    },
+    {
+      "id": "F-behavioral-ux.TR.2",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Top Repair Targets",
+      "number": 2,
+      "summary": "**Get `window.prompt` out of the core loop**: replace the decision-note prompts (`CaseCard.tsx:81`, inline `CaseDetailCard` `App.tsx:3346`) and the incident-close note (`App.tsx:2598`) with inline Mistglass note fields, so resolving a case or closing an incident never drops to a native dialog."
+    },
+    {
+      "id": "F-behavioral-ux.TR.3",
+      "report": "11-behavioral-ux-health.initial.md",
+      "lens": "behavioral-ux-health",
+      "section": "Top Repair Targets",
+      "number": 3,
+      "summary": "**Resolve the Cases duplication and the false ⌘K**: pick one canonical Cases implementation and delete the dead off-Mistglass `FindingsView.tsx`/`CaseCard.tsx` twin (or re-skin to Mistglass + `SeverityPill` before any reuse), and either implement the `⌘K` shortcut or remove the `<kbd>` hint (`App.tsx:1612`)."
+    },
+    {
+      "id": "F-design-system-accessibility.RH.1",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "**Modals declare `role=\"dialog\"` but lack focus trap, Escape, and focus restore**",
+      "health": "Yellow/Red",
+      "confidence": "High"
+    },
+    {
+      "id": "F-design-system-accessibility.RH.2",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "**No global visible focus indicator; the two `:focus-visible` rules remove the outline**",
+      "health": "Yellow/Red",
+      "confidence": "High"
+    },
+    {
+      "id": "F-design-system-accessibility.RH.3",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "**No a11y test / no test framework in `dashboard-ui`**",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-design-system-accessibility.RH.4",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "**No skip-to-content link past the 240px sidebar nav**",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-design-system-accessibility.RH.5",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "**Severity partly signaled by color-only elements**",
+      "health": "Green/Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-design-system-accessibility.RH.6",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "**DESIGN.md §11 promises vs built behavior: partial drift on focus ring, dialogs, live regions**",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-design-system-accessibility.RH.7",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "**Token-inlining drift on some surfaces**",
+      "health": "Green/Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-design-system-accessibility.RH.8",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Ranked Health Table",
+      "rank": 8,
+      "area": "**No dark-mode / high-contrast path**",
+      "health": "Green/Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-design-system-accessibility.RH.9",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Ranked Health Table",
+      "rank": 9,
+      "area": "**Design-system consistency, crafted states, semantic structure**",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-design-system-accessibility.US.1",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "`App.tsx` is a 4027-line monolith holding most dashboard markup"
+    },
+    {
+      "id": "F-design-system-accessibility.US.2",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "Four parallel modal/overlay implementations"
+    },
+    {
+      "id": "F-design-system-accessibility.US.3",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "No test framework at all in `dashboard-ui`"
+    },
+    {
+      "id": "F-design-system-accessibility.US.4",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 4,
+      "surface": "`styled` import in `RotationTriggerFlow.tsx`"
+    },
+    {
+      "id": "F-design-system-accessibility.US.5",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 5,
+      "surface": "Mixed styling idioms: BEM-ish CSS classes (`mist-*`) AND Tailwind utility strings"
+    },
+    {
+      "id": "F-design-system-accessibility.TR.1",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Top Repair Targets",
+      "number": 1,
+      "summary": "**Build one shared `Dialog` primitive and migrate all 4 modals (Rank 1, Yellow/Red).** Add focus trap, `Escape`-to-close, and focus restore on close to a single component, then replace the four ad-hoc overlays. Fixes a duplicated keyboard gap once and de-risks the rotation/AI-write flows where the gap matters most."
+    },
+    {
+      "id": "F-design-system-accessibility.TR.2",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Top Repair Targets",
+      "number": 2,
+      "summary": "**Add a global visible focus indicator (Rank 2).** Define one `:focus-visible` rule on buttons/links/inputs/selects/textareas/clickable cards using a Mistglass token-based outline or box-shadow ring, and replace the two `outline: none` `:focus-visible` rules (`.setup-card-input`, `.setup-card-textarea`) with that visib"
+    },
+    {
+      "id": "F-design-system-accessibility.TR.3",
+      "report": "12-design-system-accessibility-health.initial.md",
+      "lens": "design-system-accessibility-health",
+      "section": "Top Repair Targets",
+      "number": 3,
+      "summary": "**Add a minimal a11y test harness + a skip link, then reconcile DESIGN.md §11 (Ranks 3, 4, 6).** Wire vitest + jest-axe smoke over button names / dialog semantics / focus-visible so the floor can't silently regress; add an `.sr-only` \"Skip to content\" link to the existing `<main>`; and update §11 to either claim or def"
+    },
+    {
+      "id": "F-performance.RH.1",
+      "report": "13-performance-health.initial.md",
+      "lens": "performance-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "`dashboard_payload()` per-repo query fan-out behind `/api/summary`",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-performance.RH.2",
+      "report": "13-performance-health.initial.md",
+      "lens": "performance-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "`App.tsx` derived-state recompute on every render (no top-level memo)",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-performance.RH.3",
+      "report": "13-performance-health.initial.md",
+      "lens": "performance-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "Client bundle: single chunk, no code-splitting",
+      "health": "Green/Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-performance.RH.4",
+      "report": "13-performance-health.initial.md",
+      "lens": "performance-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "Oversized static images served by the dashboard",
+      "health": "Green/Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-performance.RH.5",
+      "report": "13-performance-health.initial.md",
+      "lens": "performance-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "Server concurrency / scan-job execution model",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-performance.RH.6",
+      "report": "13-performance-health.initial.md",
+      "lens": "performance-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "Case-building / scoring complexity on big finding sets",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-performance.RH.7",
+      "report": "13-performance-health.initial.md",
+      "lens": "performance-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "SQLite index coverage for trends/diff/finding loads",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-performance.US.1",
+      "report": "13-performance-health.initial.md",
+      "lens": "performance-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "Per-run nested query inside `list_case_resolution_runs`"
+    },
+    {
+      "id": "F-performance.US.2",
+      "report": "13-performance-health.initial.md",
+      "lens": "performance-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "Honey-event pruning on every dashboard load"
+    },
+    {
+      "id": "F-performance.US.3",
+      "report": "13-performance-health.initial.md",
+      "lens": "performance-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "`motion` (framer-motion successor) as a runtime dependency"
+    },
+    {
+      "id": "F-performance.US.4",
+      "report": "13-performance-health.initial.md",
+      "lens": "performance-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 4,
+      "surface": "Large report-generation modules"
+    },
+    {
+      "id": "F-performance.TR.1",
+      "report": "13-performance-health.initial.md",
+      "lens": "performance-health",
+      "section": "Top Repair Targets",
+      "number": 1,
+      "summary": "**Batch `dashboard_payload()` into set-based queries (rank 1 + the nested `case_resolution_items` N+1).** Replace the per-repo loop's individual lookups with `... WHERE scan_id IN (...)` / `run_id IN (...)` pulls assembled in memory. Highest-leverage: it directly hardens the dashboard's primary endpoint against the Bri"
+    },
+    {
+      "id": "F-performance.TR.2",
+      "report": "13-performance-health.initial.md",
+      "lens": "performance-health",
+      "section": "Top Repair Targets",
+      "number": 2,
+      "summary": "**Memoize derived state in `App.tsx` (rank 2).** Wrap `scopedSummary`, `activeCases`, `posture`, and `buildActivity` in `useMemo` keyed on `[summary, target]` so search-box typing stops re-running them — protects the headline keyboard-first triage path."
+    },
+    {
+      "id": "F-performance.TR.3",
+      "report": "13-performance-health.initial.md",
+      "lens": "performance-health",
+      "section": "Top Repair Targets",
+      "number": 3,
+      "summary": "**Trim oversized static assets and decide on code-splitting (ranks 3-4).** Downscale the 2 MB favicon/touch-icon to KB-scale; optionally lazy-load the rarely-first views (Agent Lab, Catalog, Rotation). Low user impact on localhost, but the \"finished, not just present\" bar wants it addressed."
+    },
+    {
+      "id": "F-ai-product.RH.1",
+      "report": "14-ai-product-health.initial.md",
+      "lens": "ai-product-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "Prompt-injection resistance of finding text rendered into the handoff prompt",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-ai-product.RH.2",
+      "report": "14-ai-product-health.initial.md",
+      "lens": "ai-product-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "Verification of the trust-critical AI test suite",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-ai-product.RH.3",
+      "report": "14-ai-product-health.initial.md",
+      "lens": "ai-product-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "Clean-room fix loop: reviewer never sees finding text + diff-only classification + hash-bound land gate (`fix_proposals.py`)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-ai-product.RH.4",
+      "report": "14-ai-product-health.initial.md",
+      "lens": "ai-product-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "AI case-resolution write path & high/critical suppression gate (`case_followup.py`+`decisions.py`)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-ai-product.RH.5",
+      "report": "14-ai-product-health.initial.md",
+      "lens": "ai-product-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "MCP no-egress / local-only boundary (`mcp_server.py`)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-ai-product.RH.6",
+      "report": "14-ai-product-health.initial.md",
+      "lens": "ai-product-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "AI scan-trigger abuse guards (`mcp_server.py`)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-ai-product.RH.7",
+      "report": "14-ai-product-health.initial.md",
+      "lens": "ai-product-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "Agent handoff prompt accuracy, evidence-binding, anti-overconfidence (`case_followup.py`)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-ai-product.RH.8",
+      "report": "14-ai-product-health.initial.md",
+      "lens": "ai-product-health",
+      "section": "Ranked Health Table",
+      "rank": 8,
+      "area": "Output parsing / schema validation / refusal handling (`case_followup.py`)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-ai-product.RH.9",
+      "report": "14-ai-product-health.initial.md",
+      "lens": "ai-product-health",
+      "section": "Ranked Health Table",
+      "rank": 9,
+      "area": "Agent voice/safety doctrine surfaced to the model (MCP `instructions`)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-ai-product.RH.10",
+      "report": "14-ai-product-health.initial.md",
+      "lens": "ai-product-health",
+      "section": "Ranked Health Table",
+      "rank": 10,
+      "area": "`agent_lab.py` / `ai_static.py` (AI-config static analysis + agent sandbox)",
+      "health": "Grey",
+      "confidence": "Low"
+    },
+    {
+      "id": "F-ai-product.US.1",
+      "report": "14-ai-product-health.initial.md",
+      "lens": "ai-product-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "Write-mode MCP fix-proposal tools (`propose_fix`, `clean_room_review_packet`, `record_clean_room_review`, `land_fix`)"
+    },
+    {
+      "id": "F-ai-product.US.2",
+      "report": "14-ai-product-health.initial.md",
+      "lens": "ai-product-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "AI-triggered local scan via MCP (`trigger_scan`)"
+    },
+    {
+      "id": "F-ai-product.US.3",
+      "report": "14-ai-product-health.initial.md",
+      "lens": "ai-product-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "Finding text rendered verbatim into the agent prompt"
+    },
+    {
+      "id": "F-ai-product.US.4",
+      "report": "14-ai-product-health.initial.md",
+      "lens": "ai-product-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 4,
+      "surface": "`safe_to_apply: false` field shown in the example JSON but ignored by the validator"
+    },
+    {
+      "id": "F-documentation.RH.1",
+      "report": "15-documentation-health.initial.md",
+      "lens": "documentation-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "AGENTS.md understates the MCP adapter as read-only, contradicting README and mcp/README",
+      "health": "Green/Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-documentation.RH.2",
+      "report": "15-documentation-health.initial.md",
+      "lens": "documentation-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "Stale verification caveat: `.adx/verification.json` says pytest is \"blocked\" but deps are declared",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-documentation.RH.3",
+      "report": "15-documentation-health.initial.md",
+      "lens": "documentation-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "Doc over-supply: no canonical-vs-working-notes boundary for the fresh-agent reader",
+      "health": "Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-documentation.RH.4",
+      "report": "15-documentation-health.initial.md",
+      "lens": "documentation-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "Honey Keys safety claims (README + `docs/honey-keys.md`) vs code guards",
+      "health": "Green/Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-documentation.RH.5",
+      "report": "15-documentation-health.initial.md",
+      "lens": "documentation-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "Trust-boundary / no-egress promise documented vs demonstrable",
+      "health": "Green/Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-documentation.RH.6",
+      "report": "15-documentation-health.initial.md",
+      "lens": "documentation-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "README ⇄ CLI command/flag accuracy",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-documentation.RH.7",
+      "report": "15-documentation-health.initial.md",
+      "lens": "documentation-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "Agent-contract layer (`.adx/` manifests, recovery, module map)",
+      "health": "Green/Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-documentation.RH.8",
+      "report": "15-documentation-health.initial.md",
+      "lens": "documentation-health",
+      "section": "Ranked Health Table",
+      "rank": 8,
+      "area": "Core human docs (setup, troubleshooting, architecture, ADRs, glossary/vocabulary)",
+      "health": "Green",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-documentation.US.1",
+      "report": "15-documentation-health.initial.md",
+      "lens": "documentation-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "MCP **write** mode (`devsec-mcp-rw`) in AGENTS.md"
+    },
+    {
+      "id": "F-documentation.US.2",
+      "report": "15-documentation-health.initial.md",
+      "lens": "documentation-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "Aliased / undocumented CLI verbs"
+    },
+    {
+      "id": "F-documentation.US.3",
+      "report": "15-documentation-health.initial.md",
+      "lens": "documentation-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "Hidden argparse flags via `argparse.SUPPRESS`"
+    },
+    {
+      "id": "F-documentation.US.4",
+      "report": "15-documentation-health.initial.md",
+      "lens": "documentation-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 4,
+      "surface": "`.adx/verification.json` pytest-blocked caveat"
+    },
+    {
+      "id": "F-documentation.US.5",
+      "report": "15-documentation-health.initial.md",
+      "lens": "documentation-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 5,
+      "surface": "Root-level scratch docs + large `campaigns/`/`reports/campaign-automation/` corpus"
+    },
+    {
+      "id": "F-documentation.TR.1",
+      "report": "15-documentation-health.initial.md",
+      "lens": "documentation-health",
+      "section": "Top Repair Targets",
+      "number": 1,
+      "summary": "**Fix the one-line AGENTS.md MCP understatement.** AGENTS.md:41 should name both `devsec-mcp` (read-only default) and `devsec-mcp-rw` (guarded write: `case_resolutions.v1`, high/critical suppression held for explicit human confirmation, clean-room diff-only reviewer), or explicitly defer to `mcp/README.md` for the writ"
+    },
+    {
+      "id": "F-documentation.TR.2",
+      "report": "15-documentation-health.initial.md",
+      "lens": "documentation-health",
+      "section": "Top Repair Targets",
+      "number": 2,
+      "summary": "**Refresh the stale `.adx/verification.json` pytest caveat.** The note says pytest is \"currently blocked until pytest exists in the selected Python environment,\" but `pyproject.toml` declares `pytest>=9.0.3` and the repo has 46 test files. Confirm `uv sync --dev && uv run pytest` runs from a clean checkout, then delete"
+    },
+    {
+      "id": "F-documentation.TR.3",
+      "report": "15-documentation-health.initial.md",
+      "lens": "documentation-health",
+      "section": "Top Repair Targets",
+      "number": 3,
+      "summary": "**Establish a canonical-vs-working-notes boundary, and finish the destructive-surface doc-to-guard checks.** Extend AGENTS.md \"Start Here\" to demote `campaigns/`, `reports/campaign-automation/`, and root `next-step.md`/`overview-redesign-*.md` as historical; document (or deliberately note as code-only) the aliased CLI "
+    },
+    {
+      "id": "F-ai-maintainability.RH.1",
+      "report": "16-ai-maintainability-health.initial.md",
+      "lens": "ai-maintainability-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "Module map (`.adx/modules/index.json`) omits the MCP / fix-proposal write subsystem",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-ai-maintainability.RH.2",
+      "report": "16-ai-maintainability-health.initial.md",
+      "lens": "ai-maintainability-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "Risk register has no entry for the AI write surface",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-ai-maintainability.RH.3",
+      "report": "16-ai-maintainability-health.initial.md",
+      "lens": "ai-maintainability-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "`recovery.md` + `verification.json` falsely say pytest cannot run",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-ai-maintainability.RH.4",
+      "report": "16-ai-maintainability-health.initial.md",
+      "lens": "ai-maintainability-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "`adx.json` advertises a verified state older than the current code",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-ai-maintainability.RH.5",
+      "report": "16-ai-maintainability-health.initial.md",
+      "lens": "ai-maintainability-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "`dashboard_server.py` is a 4,236-line single-handler file",
+      "health": "Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-ai-maintainability.RH.6",
+      "report": "16-ai-maintainability-health.initial.md",
+      "lens": "ai-maintainability-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "Dual identity \"Security Observatory\" vs \"DëvSec\" not mapped in the agent guide",
+      "health": "Green/Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-ai-maintainability.RH.7",
+      "report": "16-ai-maintainability-health.initial.md",
+      "lens": "ai-maintainability-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "Generated dashboard assets are correctly separated from source",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-ai-maintainability.RH.8",
+      "report": "16-ai-maintainability-health.initial.md",
+      "lens": "ai-maintainability-health",
+      "section": "Ranked Health Table",
+      "rank": 8,
+      "area": "Live Python source modules are clean, well-named, low-debt",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-ai-maintainability.US.1",
+      "report": "16-ai-maintainability-health.initial.md",
+      "lens": "ai-maintainability-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "MCP write-mode adapter + fix-proposal subsystem absent from the `.adx` map/register"
+    },
+    {
+      "id": "F-ai-maintainability.US.2",
+      "report": "16-ai-maintainability-health.initial.md",
+      "lens": "ai-maintainability-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "`decisions.py` (added 2026-05-21) and `case_followup.py` (2026-05-31)"
+    },
+    {
+      "id": "F-ai-maintainability.US.3",
+      "report": "16-ai-maintainability-health.initial.md",
+      "lens": "ai-maintainability-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "`docs/conftest.py` location"
+    },
+    {
+      "id": "F-ai-maintainability.US.4",
+      "report": "16-ai-maintainability-health.initial.md",
+      "lens": "ai-maintainability-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 4,
+      "surface": "Stale-stamped `adx.json` over newer code"
+    },
+    {
+      "id": "F-ai-maintainability.TR.1",
+      "report": "16-ai-maintainability-health.initial.md",
+      "lens": "ai-maintainability-health",
+      "section": "Top Repair Targets",
+      "number": 1,
+      "summary": "**Refresh the module map to include the MCP / fix-proposal / case-followup / decisions subsystem**, with `key_files`, the existing matching tests, the new risk id, and a one-line summary pointing at `mcp/README.md` for the write boundary — so the canonical landmark AGENTS.md points to actually covers the current archit"
+    },
+    {
+      "id": "F-ai-maintainability.TR.2",
+      "report": "16-ai-maintainability-health.initial.md",
+      "lens": "ai-maintainability-health",
+      "section": "Top Repair Targets",
+      "number": 2,
+      "summary": "**Add a `mcp-write-surface` risk-register entry and command-danger entries.** Summarize the guarded write boundary (case-only, clean-room-reviewed, audited, never writes repo files), point to `mcp/README.md` and the clean-room/audit invariants, and add `devsec-mcp-rw` / `land_fix` / `propose_fix` to `dangerous_command_"
+    },
+    {
+      "id": "F-ai-maintainability.TR.3",
+      "report": "16-ai-maintainability-health.initial.md",
+      "lens": "ai-maintainability-health",
+      "section": "Top Repair Targets",
+      "number": 3,
+      "summary": "**Make the recovery/verification notes and `adx.json` tell the truth about current state:** correct `recovery.md`'s \"pytest is missing\" section and `verification.json`'s \"currently blocked\" notes (pytest runs: 317 pass), and bump `last_verified` (regenerating or de-referencing the audit pointer as needed) after the abo"
+    },
+    {
+      "id": "F-release-readiness.RH.1",
+      "report": "17-release-readiness-health.initial.md",
+      "lens": "release-readiness-health",
+      "section": "Ranked Health Table",
+      "rank": 1,
+      "area": "CHANGELOG ↔ tree drift (no record of post-tag work)",
+      "health": "Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-release-readiness.RH.2",
+      "report": "17-release-readiness-health.initial.md",
+      "lens": "release-readiness-health",
+      "section": "Ranked Health Table",
+      "rank": 2,
+      "area": "Test/lint/build pass result not observed",
+      "health": "Yellow/Grey",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-release-readiness.RH.3",
+      "report": "17-release-readiness-health.initial.md",
+      "lens": "release-readiness-health",
+      "section": "Ranked Health Table",
+      "rank": 3,
+      "area": "Release-branch gating on `main`",
+      "health": "Green/Yellow",
+      "confidence": "Medium"
+    },
+    {
+      "id": "F-release-readiness.RH.4",
+      "report": "17-release-readiness-health.initial.md",
+      "lens": "release-readiness-health",
+      "section": "Ranked Health Table",
+      "rank": 4,
+      "area": "Local SQLite history-store upgrade/migration safety",
+      "health": "Green/Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-release-readiness.RH.5",
+      "report": "17-release-readiness-health.initial.md",
+      "lens": "release-readiness-health",
+      "section": "Ranked Health Table",
+      "rank": 5,
+      "area": "CI ↔ local parity",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-release-readiness.RH.6",
+      "report": "17-release-readiness-health.initial.md",
+      "lens": "release-readiness-health",
+      "section": "Ranked Health Table",
+      "rank": 6,
+      "area": "Install-path honesty (managed vs Homebrew vs uv)",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-release-readiness.RH.7",
+      "report": "17-release-readiness-health.initial.md",
+      "lens": "release-readiness-health",
+      "section": "Ranked Health Table",
+      "rank": 7,
+      "area": "Version-honesty surface (\"real vs not yet\" + SECURITY policy)",
+      "health": "Green/Yellow",
+      "confidence": "High"
+    },
+    {
+      "id": "F-release-readiness.RH.8",
+      "report": "17-release-readiness-health.initial.md",
+      "lens": "release-readiness-health",
+      "section": "Ranked Health Table",
+      "rank": 8,
+      "area": "Released-version internal consistency + release/smoke test breadth",
+      "health": "Green",
+      "confidence": "High"
+    },
+    {
+      "id": "F-release-readiness.US.1",
+      "report": "17-release-readiness-health.initial.md",
+      "lens": "release-readiness-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 1,
+      "surface": "Guarded MCP write-back entry point (`devsec-mcp-rw`) shipped post-tag, absent from changelog"
+    },
+    {
+      "id": "F-release-readiness.US.2",
+      "report": "17-release-readiness-health.initial.md",
+      "lens": "release-readiness-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 2,
+      "surface": "`security.yml` scanner bootstrap (network/machine installs)"
+    },
+    {
+      "id": "F-release-readiness.US.3",
+      "report": "17-release-readiness-health.initial.md",
+      "lens": "release-readiness-health",
+      "section": "Undocumented Or Hidden Surfaces",
+      "row": 3,
+      "surface": "Local SQLite history-store schema (19 tables)"
+    },
+    {
+      "id": "F-release-readiness.TR.1",
+      "report": "17-release-readiness-health.initial.md",
+      "lens": "release-readiness-health",
+      "section": "Top Repair Targets",
+      "number": 1,
+      "summary": "**Fix changelog/version discipline before the next release.** Add and maintain an `[Unreleased]` section; reconcile the 104 post-tag commits (guarded MCP write-back, scan-trigger, clean-room reviewer, red-team e2e); decide on a `0.2.0` bump; cut tag + `pyproject.toml` version + changelog entry together. (Confirmed Yell"
+    },
+    {
+      "id": "F-release-readiness.TR.2",
+      "report": "17-release-readiness-health.initial.md",
+      "lens": "release-readiness-health",
+      "section": "Top Repair Targets",
+      "number": 2,
+      "summary": "**Observe the three CI-gated checks locally.** Re-run without the `timeout` wrapper: `uv sync --dev`, `uv run pytest`, `(cd dashboard-ui && npm run lint && npm run build)`; record exit status. The import check already passes; this closes the only unobserved gate. (Yellow/Grey, rank 2.)"
+    },
+    {
+      "id": "F-release-readiness.TR.3",
+      "report": "17-release-readiness-health.initial.md",
+      "lens": "release-readiness-health",
+      "section": "Top Repair Targets",
+      "number": 3,
+      "summary": "**Confirm `main` branch protection enforces the `verify` checks.** The checks run on PR/push; verify they are *required* to merge so a red build blocks release. Low effort, online read-only. (Green/Yellow, rank 3.)"
+    }
+  ]
+}

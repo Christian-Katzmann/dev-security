@@ -1,0 +1,28 @@
+# Batch: 14-scan-orchestrator-extract
+
+## Purpose
+The single most load-bearing pipeline function — `scan_repo`, the canonical scan path that the CLI, the MCP server, and the dashboard all run — lives inside `cli.py`, the command-line entry-point/presentation module. Because two non-CLI subsystems must import the CLI to scan, this is the root of the `cli ↔ dashboard_server` import cycle and the `mcp → cli` reach. This batch owns **S-015** and fixes it with one move: extract `scan_repo` (plus the parser/profile resolution it needs) into a dedicated application-layer `scan_orchestrator` module that `cli`, `mcp_server`, and `dashboard_server` all import — giving the scan pipeline a true home distinct from any entry point, breaking the cycle, and removing the `mcp → cli` reach in a single change.
+
+## Source Evidence
+- **S-015** — Extract a `scan_orchestrator`/pipeline module from `cli.py`: move `scan_repo` (+ the `build_parser`/profile resolution it requires) into an application-layer module that `cli`, `mcp_server`, and `dashboard_server` all import, breaking the `cli ↔ dashboard_server` cycle and the `mcp → cli` reach in one move · evidence: `scan_repo` defined at `cli.py:178` (~199 lines, the single append-only scan path); `build_parser` at `cli.py:54`, `profile_name` at `cli.py:159`; `cli.py:22` top-level `from .dashboard_server import build_ai_prompt, serve_dashboard`; `dashboard_server.py:1844` lazy `from .cli import scan_repo` (the other half of the cycle); `mcp_server.py:29` `from .cli import build_parser as _build_scan_parser, scan_repo as _scan_repo` (the `mcp → cli` reach); custom cycle scan in the lens report found exactly `cli → dashboard_server → cli` (and one unrelated `catalog ↔ setup_runner`, NOT in this batch's scope) · synthesis row S-015, lens report `02-architecture-health.initial.md` (Ranked Health Table Ranks 4-5, Top Repair Target 1, Undocumented Surfaces "scan_repo is a shared service hiding in the CLI")
+
+## Target
+Move S-015 from Yellow to Green.
+
+## Dependencies
+None — the matrix Dependencies column shows `—` for S-015. S-015 is the only super-list item in this batch, so there is no same-batch ordering. Note that S-016 (batch 15, split `dashboard_server.py`) and S-018 (batch 17, scanner adapter registry) list S-015 as a dependency or share its surface, so leaving the extracted module clean and well-named matters for later batches — but those are not this batch's work.
+
+## Non-Goals
+- Do not attempt other batches' super-list items (this batch is S-015 only).
+- Do not broaden this into a general cleanup of `cli.py`, `dashboard_server.py`, or `storage.py` — the `dashboard_server.py` god-module split is S-016 (batch 15) and the `storage.py` payload-assembly lift is S-017 (batch 16).
+- Do not break the second circular dependency `catalog ↔ setup_runner` here; it is a separate seam called out in the same lens report and is not owned by this batch.
+- Do not change `scan_repo`'s behavior, signature semantics, or the scan results it produces — this is a pure relocation/seam extraction, not a rewrite. The MCP `trigger_scan` path and the dashboard scan path must produce identical scans before and after.
+- Do not make production, destructive, deploy, secret, or irreversible data changes without explicit approval.
+
+## Suggested Starting Steps
+1. Re-read this context and acceptance.md.
+2. Re-verify each S-ID's evidence against the exact files cited: confirm `scan_repo` still lives at `cli.py:178`, that `cli.py:22` still imports from `dashboard_server` at module top, and that the other half of the cycle is still the lazy `from .cli import scan_repo` at `dashboard_server.py:1844`, plus the `mcp_server.py:29` reach.
+3. Create a new application-layer module (e.g. `src/security_observatory/scan_orchestrator.py`) and move `scan_repo` into it together with the resolution helpers it actually needs to stand alone — `build_parser` (`cli.py:54`) and `profile_name` (`cli.py:159`). Keep `scanner_names_for_profile` where it already lives (`scanners.py:86`); only move what `scan_repo` owns. Place the module so it imports `model`/`scanners`/`storage` and nothing that imports an entry point — it must not import `cli`, `mcp_server`, or `dashboard_server`.
+4. Re-point all three consumers at the new module: `cli` re-exports or imports `scan_repo`/`build_parser` from the orchestrator (keeping `python -m security_observatory.cli` and any `from security_observatory.cli import ...` test imports working — preserve the public names so existing tests like `tests/test_mcp_trigger_scan.py` and `tests/test_cli_case_followup.py` keep importing successfully); `mcp_server.py:29` imports `build_parser`/`scan_repo` from the orchestrator instead of `cli`; `dashboard_server.py:1844` imports `scan_repo` from the orchestrator instead of `cli` (the lazy import can become a clean top-level import once the cycle is gone, if desired). Remove the now-unnecessary `cli → dashboard_server` top-level coupling only insofar as the cycle requires; do not gratuitously rip out `serve_dashboard`/`build_ai_prompt` wiring that `cli` legitimately needs.
+5. Re-run the dependency/cycle scan (the lens report's AST/regex approach, or an equivalent) to confirm `cli → dashboard_server → cli` is gone and the cycle count for the `cli`/`dashboard`/`mcp` triangle is zero.
+6. Implement the smallest root-cause fix that satisfies every acceptance criterion; lean on the existing `tests/test_mcp_trigger_scan.py` and the full suite rather than adding new behavioral tests, since this is a relocation — add a test only if you introduce a re-export shim worth pinning.

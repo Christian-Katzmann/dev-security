@@ -1,0 +1,32 @@
+# Batch: 10-dashboard-frontend-perf
+
+## Purpose
+The dashboard's strong Mistglass UI carries three quiet quality drags that all live in the same `dashboard-ui/` frontend layer. Every keystroke in the search box re-runs the full derived-state pass on a 4,028-line root component (S-028), the dashboard ships two ~2 MB icons plus a 607 KB logo with no code-splitting decision (S-029), and ~270 hardcoded hex/rgba values sit outside the token system despite a mature `:root` palette (S-054). None of these breaks trust, but together they keep the headline keyboard-first triage path from feeling snappy and make a future dark mode or brand change a slog. This batch finishes that frontend-perf-and-polish ring without touching backend or security behavior.
+
+## Source Evidence
+- **S-028** — Memoize the derived state in `App.tsx` (`scopedSummary`, `activeCases`, `posture`, `buildActivity`) with `useMemo` keyed on `[summary, target]` so search-box typing stops re-running every derived pass · evidence: `App.tsx:947-953` computes `targetRepos`, `scopedSummary` (`filterSummaryByTarget`), `activeCases` (`activeCaseList`), and `posture` (`postureScore`/`postureDelta`/`postureWeek`) inline on every render; `search` is React state at `App.tsx:912`, so typing re-renders the 4,028-line root and re-runs all derived passes plus `buildActivity` (`App.tsx:601-659`); `useMemo` is already imported (`App.tsx:1`) and used elsewhere (`App.tsx:2366`) but wraps none of these passes · synthesis row S-028, lens report 13-performance-health.initial.md (Ranked Health Table rank 2)
+- **S-029** — Downscale the oversized static assets and make an explicit code-splitting decision · evidence: `src/security_observatory/dashboard/favicon.png` and `apple-touch-icon.png` are 2,104,121 B each, `logo.png` is 606,592 B; `dashboard-ui/vite.config.ts` is a plain `react()`+`tailwindcss()` build with no `build.rollupOptions.manualChunks`, and `App.tsx:1-104` imports every page/view statically with no `React.lazy`/`import()` in `src` · synthesis row S-029, lens report 13-performance-health.initial.md (Ranked Health Table ranks 3-4)
+- **S-054** — Sweep hardcoded hex/rgba on shared primitives to tokens and settle on one styling idiom · evidence: 60 hardcoded hex + 212 rgba outside `:root` despite 69 tokens / 839 `var()` uses in `dashboard-ui/src/index.css` (top offenders `#fff`×32, brand-green `#2f6656`×5); `components/OverviewView.tsx` uses raw Tailwind `black/white` opacities (`border-black/10`, `bg-white/70`, `text-black/40` at `OverviewView.tsx:45,49,65`) while `App.tsx`/`index.css` use named Mistglass classes · synthesis row S-054, lens report 12-design-system-accessibility-health.initial.md (Ranked Health Table rank 7, plus the "mixed styling idioms" structural note)
+
+## Target
+Move S-028, S-029, S-054 from Green/Yellow (S-028 is the worst of the three at Yellow; S-029 and S-054 are Green/Yellow) to Green.
+
+## Dependencies
+None — the matrix shows no dependency for any of these three rows, and none depends on another batch. There is no required same-batch ordering; the three fixes touch different files (`App.tsx` for S-028, the static assets + `vite.config.ts` for S-029, `index.css`/`OverviewView.tsx` for S-054) and can be done in any order. Do them as three independent commits.
+
+## Non-Goals
+- Do not attempt other batches' super-list items.
+- Do not broaden this into a general cleanup.
+- Do not make production, destructive, deploy, secret, or irreversible data changes without explicit approval.
+- Do not split or decompose the `App.tsx` monolith in this batch — the synthesis suggests memoization "co-lands with" a future decomposition, but the structural split is S-016/architecture work in Stage C; here, wrap the existing derived passes in `useMemo` without restructuring the component tree.
+- Do not change the `:focus-visible`/dialog/accessibility work (S-040/S-041/S-045/S-047) — that is batch 07; touch tokens only for palette/styling-idiom drift, not focus or contrast behavior.
+- Do not re-theme or introduce dark mode; sweep inline values to existing tokens only, and do not invent new tokens beyond what the sweep genuinely needs.
+- Do not regress any rendered surface: the asset downscale and token sweep must be visually identical to the user (same colors, same logo), only lighter/cleaner under the hood.
+
+## Suggested Starting Steps
+1. Re-read this context and acceptance.md.
+2. Re-verify each S-ID's evidence against the exact files cited (`App.tsx:912`/`:947-953`/`:601-659`/`:1`; the three asset files under `src/security_observatory/dashboard/`; `dashboard-ui/vite.config.ts`; `index.css` token census and `OverviewView.tsx:45,49,65`). Note the lens-reported stray `styled` import in `RotationTriggerFlow.tsx` is actually a doc comment (`:897`), not a real import — there is no parallel styling path to remove there, so do not chase it.
+3. **S-028:** Wrap `scopedSummary`, `activeCases`, `posture`, and `buildActivity` (and `targetRepos` if cheap) in `useMemo` keyed on `[summary, target]` (and on `search` only where search is actually consumed), so typing in the search box no longer re-runs `filterSummaryByTarget`/`activeCaseList`/`buildActivity`. Keep the component tree intact.
+4. **S-029:** Re-export `favicon.png`, `apple-touch-icon.png`, and `logo.png` at appropriate raster sizes (KB-scale, visually identical) and confirm the new `ls -la` sizes; make an explicit, recorded code-splitting decision — either add `React.lazy`/`import()` boundaries for rarely-first views (Agent Lab, Catalog, Rotation) or document in the receipt that the single-bundle is deliberately accepted given local-only delivery; spot-check the static handler's cache headers (`dashboard_server.py`).
+5. **S-054:** Sweep the high-frequency inline values on shared primitives (`#fff`, brand-green `#2f6656`) to their existing `:root` tokens, and resolve the mixed-idiom drift in `OverviewView.tsx` (raw Tailwind `black/white` opacities) toward Mistglass tokens; reserve inline rgba only for genuine one-off effects.
+6. Implement the smallest root-cause fix that satisfies every acceptance criterion; verify with `cd dashboard-ui && npm run lint` and `cd dashboard-ui && npm run build`, plus a React Profiler check for S-028 where risk justifies.
