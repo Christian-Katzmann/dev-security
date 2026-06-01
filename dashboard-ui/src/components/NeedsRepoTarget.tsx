@@ -1,4 +1,4 @@
-import {ChevronDown} from 'lucide-react';
+import {ChevronDown, Plus} from 'lucide-react';
 import {ProjectRepo} from '../dashboardData';
 
 export type NeedsRepoTargetProps = {
@@ -37,10 +37,18 @@ export default function NeedsRepoTarget({
                 {repo.name}
               </option>
             ))}
-            <option value="add-repo">+ Add repo…</option>
           </select>
           <ChevronDown size={14} aria-hidden="true" />
         </label>
+      )}
+      {showPicker && (
+        <button
+          type="button"
+          className="needs-repo-target-add"
+          onClick={() => onTargetChange('add-repo')}
+        >
+          <Plus size={14} /> Add repo
+        </button>
       )}
     </div>
   );

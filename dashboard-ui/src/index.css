@@ -7432,3 +7432,341 @@ a.button,
     gap: 8px;
   }
 }
+
+/* --- Add-repository affordances + dialog (S-033) --------------------------
+ * The "+ Add repository" buttons replace the old hidden <option> that secretly
+ * fired an action from each workspace <select>. Every one of them funnels
+ * through onTargetChange('add-repo'), which opens AddRepoDialog. */
+.sidebar-add-repo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 12px 6px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-muted);
+  font: 500 12px/1 var(--font-sans);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+
+.sidebar-add-repo:hover {
+  background: rgba(255,255,255,0.5);
+  color: var(--ink-strong);
+}
+
+.toolbar-add-repo {
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(28,36,34,0.08);
+  background: rgba(255,255,255,0.82);
+  color: var(--ink-muted);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.78), 0 2px 8px rgba(28,36,34,0.04);
+  font: 500 13px/1 var(--font-sans);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-standard);
+}
+
+.toolbar-add-repo:hover {
+  color: var(--ink-strong);
+}
+
+.setting-row-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setting-row-add-repo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-hair);
+  background: #fff;
+  color: var(--ink-muted);
+  font: 500 12px/1 var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+
+.setting-row-add-repo:hover {
+  border-color: var(--border-strong);
+  color: var(--ink-strong);
+}
+
+.needs-repo-target-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-hair);
+  background: #fff;
+  color: var(--ink-muted);
+  font: 500 12px/1 var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+}
+
+.needs-repo-target-add:hover {
+  border-color: var(--border-strong);
+  color: var(--ink-strong);
+}
+
+.add-repo-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(28,36,34,0.36);
+  backdrop-filter: blur(8px);
+}
+
+.add-repo-modal {
+  width: min(520px, 100%);
+  max-height: min(640px, calc(100vh - 48px));
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+  overflow: auto;
+  border-radius: var(--r-lg);
+  background: #fff;
+  border: 1px solid rgba(28,36,34,0.10);
+  box-shadow: var(--shadow-3);
+  animation: add-repo-rise var(--dur-base) var(--ease-emphasis);
+}
+
+@keyframes add-repo-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.add-repo-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.add-repo-head strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--ink-strong);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.add-repo-lede {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.add-repo-form {
+  display: grid;
+  gap: 14px;
+}
+
+.add-repo-field input {
+  width: 100%;
+  border: 1px solid var(--border-hair);
+  border-radius: 10px;
+  background: #fff;
+  outline: 0;
+  padding: 11px 12px;
+  color: var(--ink);
+  font: 500 13px/1.3 var(--font-mono);
+}
+
+.add-repo-field input:focus {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.add-repo-field input[aria-invalid='true'] {
+  border-color: rgba(156,59,59,0.45);
+}
+
+.add-repo-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(156,59,59,0.28);
+  background: rgba(232,198,192,0.25);
+  color: #6c1f1f;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.add-repo-error svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.add-repo-suggestions {
+  display: grid;
+  gap: 8px;
+}
+
+.add-repo-suggestion-list {
+  display: grid;
+  gap: 6px;
+}
+
+.add-repo-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 11px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-hair);
+  background: var(--paper-soft);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease-standard), background var(--dur-fast) var(--ease-standard);
+}
+
+.add-repo-suggestion:hover {
+  border-color: var(--border-strong);
+  background: #fff;
+}
+
+.add-repo-suggestion svg {
+  flex: 0 0 auto;
+  color: var(--ink-muted);
+}
+
+.add-repo-suggestion span {
+  min-width: 0;
+  display: grid;
+}
+
+.add-repo-suggestion strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.add-repo-suggestion em {
+  font: 500 11px/1.3 var(--font-mono);
+  color: var(--ink-faint);
+  font-style: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.add-repo-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* --- Inline decision note (S-034) ----------------------------------------
+ * Replaces the native note prompt. The field is optional; clicking any
+ * decision saves with whatever is here, so a one-click decision still works. */
+.decision-note {
+  display: grid;
+  gap: 6px;
+  padding-top: 14px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border-hair);
+}
+
+.decision-note label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.decision-note-hint {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.decision-note textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 44px;
+  border: 1px solid var(--border-hair);
+  border-radius: 10px;
+  background: #fff;
+  outline: 0;
+  padding: 9px 11px;
+  color: var(--ink);
+  font: 400 13px/1.45 var(--font-sans);
+}
+
+.decision-note textarea:focus {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.decision-note textarea:disabled {
+  opacity: 0.6;
+}
+
+/* --- Inline incident-close note (S-034) ----------------------------------- */
+.incident-close-note {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.incident-close-note label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.incident-close-note-hint {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+.incident-close-note textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 44px;
+  border: 1px solid var(--border-hair);
+  border-radius: 10px;
+  background: #fff;
+  outline: 0;
+  padding: 9px 11px;
+  color: var(--ink);
+  font: 400 13px/1.45 var(--font-sans);
+}
+
+.incident-close-note textarea:focus {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
+
+.incident-close-note-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}

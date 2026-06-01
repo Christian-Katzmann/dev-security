@@ -151,19 +151,14 @@ export default function HoneyKeysView({summary, target, onRefresh}: HoneyKeysVie
     }
   }
 
-  async function closeIncident(event: HoneyKeyEvent) {
-    const needsNote = !event.incident?.archived_reset;
-    const note = needsNote
-      ? window.prompt('Add an accepted-risk note before closing this incident.')
-      : '';
-    if (note === null) return;
+  async function closeIncident(event: HoneyKeyEvent, acceptedRiskNote: string) {
     setSavingIncident(`${event.id}:close`);
     setError(null);
     try {
       const response = await fetch('/api/honey/incident-close', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({eventId: event.id, acceptedRiskNote: note ?? ''}),
+        body: JSON.stringify({eventId: event.id, acceptedRiskNote}),
       });
       if (!response.ok) throw new Error(await response.text());
       await onRefresh();
@@ -412,10 +407,14 @@ function IncidentChecklist({
   incident?: HoneyIncident | null;
   savingIncident: string | null;
   onToggle: (eventId: string, step: IncidentStep, complete: boolean) => Promise<void>;
-  onClose: (event: HoneyKeyEvent) => Promise<void>;
+  onClose: (event: HoneyKeyEvent, acceptedRiskNote: string) => Promise<void>;
 }) {
   const done = incidentSteps.filter((step) => incident?.[step.id]).length;
   const canClose = Boolean(incident?.archived_reset || incident?.accepted_risk_note);
+  const needsNote = !incident?.archived_reset;
+  const closing = savingIncident === `${event.id}:close`;
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [note, setNote] = useState('');
 
   return (
     <div className="mt-6 border-t border-black/10 pt-5">
@@ -456,20 +455,58 @@ function IncidentChecklist({
         })}
       </div>
 
-      <div className="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 border border-black/10 bg-white/60 p-4">
-        <p className="text-xs leading-relaxed text-black/55">
-          {canClose
-            ? 'This incident can be closed. It will leave the history in place and remove the active critical case.'
-            : 'To close without archiving/resetting, add an accepted-risk note when prompted.'}
-        </p>
-        <button
-          type="button"
-          onClick={() => void onClose(event)}
-          disabled={savingIncident === `${event.id}:close`}
-          className="inline-flex min-h-9 items-center justify-center gap-2 border border-black bg-black px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-white transition-colors hover:bg-[#222] disabled:opacity-50"
-        >
-          {savingIncident === `${event.id}:close` ? 'Closing' : 'Close incident'}
-        </button>
+      <div className="mt-4 border border-black/10 bg-white/60 p-4">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <p className="text-xs leading-relaxed text-black/55">
+            {canClose
+              ? 'This incident can be closed. It will leave the history in place and remove the active critical case.'
+              : 'To close without archiving/resetting, add an accepted-risk note below.'}
+          </p>
+          {!(needsNote && noteOpen) && (
+            <button
+              type="button"
+              onClick={() => (needsNote ? setNoteOpen(true) : void onClose(event, ''))}
+              disabled={closing}
+              className="inline-flex min-h-9 items-center justify-center gap-2 border border-black bg-black px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-white transition-colors hover:bg-[#222] disabled:opacity-50"
+            >
+              {closing ? 'Closing' : 'Close incident'}
+            </button>
+          )}
+        </div>
+        {needsNote && noteOpen && (
+          <div className="mt-3 flex flex-col gap-3">
+            <label className="flex flex-col gap-2">
+              <span className="font-mono text-[10px] uppercase tracking-widest text-black/40">Accepted-risk note (optional)</span>
+              <textarea
+                value={note}
+                onChange={(change) => setNote(change.target.value)}
+                rows={2}
+                autoFocus
+                placeholder="Why this incident is safe to close…"
+                disabled={closing}
+                className="resize-none border border-black/10 bg-white px-3 py-2 text-sm outline-none focus:border-black/40"
+              />
+            </label>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setNoteOpen(false)}
+                disabled={closing}
+                className="inline-flex min-h-9 items-center justify-center gap-2 border border-black/10 bg-white px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-black transition-colors hover:border-black/40 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void onClose(event, note.trim())}
+                disabled={closing}
+                className="inline-flex min-h-9 items-center justify-center gap-2 border border-black bg-black px-3 py-2 text-[10px] font-mono uppercase tracking-widest text-white transition-colors hover:bg-[#222] disabled:opacity-50"
+              >
+                {closing ? 'Closing' : 'Close incident'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

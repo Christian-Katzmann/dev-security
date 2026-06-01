@@ -964,6 +964,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [search, setSearch] = useState('');
+  const [addRepoOpen, setAddRepoOpen] = useState(false);
 
   const loadSummary = useCallback(async () => {
     setIsLoading(true);
@@ -1045,16 +1046,13 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [activeJob, isRunningCheck, loadSummary]);
 
+  // `add-repo` is the single sentinel every entry point (sidebar, toolbar,
+  // settings, QuickActions tile, NeedsRepoTarget) funnels through. It no longer
+  // drops to a native OS prompt — it opens the crafted in-app form. The actual
+  // registration runs through `addCustomRepo` once the form validates.
   function selectTarget(value: string) {
     if (value === 'add-repo') {
-      const path = window.prompt('Paste the full path to the repo folder.');
-      if (!path?.trim()) return;
-      const cleanPath = path.trim().replace(/\/+$/, '');
-      const repo = {name: basename(cleanPath), path: cleanPath};
-      const nextCustom = mergeProjectRepos([], [...customRepos, repo], []);
-      setCustomRepos(nextCustom);
-      window.localStorage.setItem(customReposStorageKey, JSON.stringify(nextCustom));
-      setTarget({mode: 'repo', repo});
+      setAddRepoOpen(true);
       return;
     }
     if (value === 'all-repos' || value === 'dashboard') {
@@ -1064,6 +1062,16 @@ export default function App() {
     const path = value.replace(/^repo:/, '');
     const repo = targetRepos.find((item) => item.path === path);
     if (repo) setTarget({mode: 'repo', repo});
+  }
+
+  function addCustomRepo(rawPath: string) {
+    const cleanPath = rawPath.trim().replace(/\/+$/, '');
+    const repo = {name: basename(cleanPath), path: cleanPath};
+    const nextCustom = mergeProjectRepos([], [...customRepos, repo], []);
+    setCustomRepos(nextCustom);
+    window.localStorage.setItem(customReposStorageKey, JSON.stringify(nextCustom));
+    setTarget({mode: 'repo', repo});
+    setAddRepoOpen(false);
   }
 
   function toggleAudit(auditId: AuditId) {
@@ -1361,6 +1369,144 @@ export default function App() {
           </div>
         </main>
       </div>
+      {addRepoOpen && (
+        <AddRepoDialog
+          knownRepos={projectRepos}
+          existingRepos={targetRepos}
+          onSubmit={addCustomRepo}
+          onClose={() => setAddRepoOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// AddRepoDialog — the crafted in-app replacement for the old native OS prompt
+// add-repo gateway (S-033). A Mistglass paper dialog with one path field,
+// inline validation (no silent empty/bad submit), and quick-pick suggestions
+// sourced from /api/projects. Every add-repo entry point routes here through
+// `selectTarget('add-repo')`.
+function AddRepoDialog({
+  knownRepos,
+  existingRepos,
+  onSubmit,
+  onClose,
+}: {
+  knownRepos: ProjectRepo[];
+  existingRepos: ProjectRepo[];
+  onSubmit: (path: string) => void;
+  onClose: () => void;
+}) {
+  const [path, setPath] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  // Known repos from /api/projects that are not already selectable — the
+  // common case is none (discovered repos already populate the workspace
+  // picker), so we fall back to surfacing the first few known repos as
+  // quick-picks either way.
+  const existingPaths = new Set(existingRepos.map((repo) => repo.path));
+  const freshKnown = knownRepos.filter((repo) => !existingPaths.has(repo.path));
+  const suggestions = (freshKnown.length ? freshKnown : knownRepos).slice(0, 6);
+
+  function commit(rawPath: string) {
+    const cleanPath = rawPath.trim().replace(/\/+$/, '');
+    if (!cleanPath) {
+      setError('Enter the full path to the repo folder.');
+      return;
+    }
+    if (!cleanPath.startsWith('/')) {
+      setError('Paste a full folder path, starting with “/” — for example /Users/you/code/your-project.');
+      return;
+    }
+    onSubmit(cleanPath);
+  }
+
+  return (
+    <div className="add-repo-backdrop" role="presentation" onClick={onClose}>
+      <section
+        className="add-repo-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add a repository"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="add-repo-head">
+          <div>
+            <Eyebrow>Workspace</Eyebrow>
+            <strong>Add a repository</strong>
+          </div>
+          <button type="button" className="icon-button" onClick={onClose} aria-label="Close add repository">
+            <X size={16} />
+          </button>
+        </div>
+        <p className="add-repo-lede">
+          Point DëvSec at a folder on this machine. Scans and history stay local to that path.
+        </p>
+        <form
+          className="add-repo-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            commit(path);
+          }}
+        >
+          <label className="add-repo-field">
+            <span className="sr-only">Full path to the repo folder</span>
+            <input
+              type="text"
+              value={path}
+              autoFocus
+              spellCheck={false}
+              placeholder="/Users/you/code/your-project"
+              onChange={(event) => {
+                setPath(event.target.value);
+                if (error) setError(null);
+              }}
+              aria-invalid={error ? true : undefined}
+            />
+          </label>
+          {error && (
+            <div className="add-repo-error" role="alert">
+              <AlertTriangle size={14} />
+              <span>{error}</span>
+            </div>
+          )}
+          {!!suggestions.length && (
+            <div className="add-repo-suggestions">
+              <Eyebrow>Known repositories</Eyebrow>
+              <div className="add-repo-suggestion-list">
+                {suggestions.map((repo) => (
+                  <button
+                    key={repo.path}
+                    type="button"
+                    className="add-repo-suggestion"
+                    onClick={() => onSubmit(repo.path)}
+                  >
+                    <FolderGit2 size={15} />
+                    <span>
+                      <strong>{repo.name}</strong>
+                      <em>{repo.path}</em>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="add-repo-actions">
+            <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+            <button type="submit" className="button primary sm">
+              <Plus size={14} /> Add repository
+            </button>
+          </div>
+        </form>
+      </section>
     </div>
   );
 }
@@ -1554,11 +1700,13 @@ function Sidebar({
             {targetRepos.map((repo) => (
               <option key={repo.path} value={`repo:${repo.path}`}>Specific repository · {repo.name}</option>
             ))}
-            <option value="add-repo">+ Add repository...</option>
           </select>
         </div>
         <ChevronDown size={15} className="muted-icon" />
       </div>
+      <button type="button" className="sidebar-add-repo" onClick={() => onTargetChange('add-repo')}>
+        <Plus size={14} /> Add repository
+      </button>
       <nav className="sidebar-nav">
         {navGroups.map((group) => (
           <div key={group.title ?? 'primary'} className="sidebar-group">
@@ -1645,10 +1793,12 @@ function Toolbar({
             {targetRepos.map((repo) => (
               <option key={repo.path} value={`repo:${repo.path}`}>{repo.name}</option>
             ))}
-            <option value="add-repo">Add repository...</option>
           </select>
           <ChevronDown size={13} aria-hidden="true" />
         </label>
+        <button type="button" className="toolbar-add-repo" onClick={() => onTargetChange('add-repo')} title="Add a repository">
+          <Plus size={14} /> <span>Add repo</span>
+        </button>
       </div>
       <div className="toolbar-spacer" />
       <div className="posture-pill">
@@ -2662,10 +2812,11 @@ function HoneyKeysView({summary, target, onRefresh}: {summary: DashboardSummary;
     }
   }
 
-  async function closeIncident(event: HoneyKeyEvent) {
-    const needsNote = !event.incident?.archived_reset;
-    const acceptedRiskNote = needsNote ? window.prompt('Add an accepted-risk note before closing this incident.') : '';
-    if (acceptedRiskNote === null) return;
+  // The accepted-risk note is now captured inline by IncidentChecklist (S-034)
+  // and passed in, rather than via a native OS prompt. The write path is
+  // unchanged; an empty note remains valid (matches the prior dialog, where
+  // only an explicit cancel aborted).
+  async function closeIncident(event: HoneyKeyEvent, acceptedRiskNote: string) {
     setSavingIncident(`${event.id}:close`);
     setError(null);
     try {
@@ -3206,16 +3357,20 @@ function SettingsView({summary, target, targetRepos, updatedAt, onTargetChange, 
         <SectionHeader title="Workspace" />
         <div className="settings-list">
           <SettingRow label="Target" sub="Controls which repo the dashboard scopes to.">
-            <select
-              name="settings-workspace-target"
-              aria-label="Workspace target"
-              value={targetValue(target)}
-              onChange={(event) => onTargetChange(event.target.value)}
-            >
-              <option value="all-repos">All repos</option>
-              {targetRepos.map((repo) => <option key={repo.path} value={`repo:${repo.path}`}>{repo.name}</option>)}
-              <option value="add-repo">+ Add repo...</option>
-            </select>
+            <div className="setting-row-target">
+              <select
+                name="settings-workspace-target"
+                aria-label="Workspace target"
+                value={targetValue(target)}
+                onChange={(event) => onTargetChange(event.target.value)}
+              >
+                <option value="all-repos">All repos</option>
+                {targetRepos.map((repo) => <option key={repo.path} value={`repo:${repo.path}`}>{repo.name}</option>)}
+              </select>
+              <button type="button" className="setting-row-add-repo" onClick={() => onTargetChange('add-repo')}>
+                <Plus size={14} /> Add repo
+              </button>
+            </div>
           </SettingRow>
           <SettingRow label="Last refresh" sub="Read from the local dashboard API.">
             <strong>{updatedAt ? updatedAt.toLocaleTimeString() : 'Never'}</strong>
@@ -3434,16 +3589,21 @@ function CaseDetailCard({
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [pendingDecision, setPendingDecision] = useState<CaseDecisionStatus | 'open' | null>(null);
   const [decisionError, setDecisionError] = useState<string | null>(null);
+  // Optional decision note, captured inline (S-034) instead of a native OS
+  // prompt. The field carries forward whatever note is already on the case; a
+  // decision saves with whatever is in the field — empty stays a valid "no
+  // note" decision, so one-click deciding is preserved. Reopen clears it.
+  const [noteDraft, setNoteDraft] = useState(item.decision?.note ?? '');
   useEffect(() => {
     setCopyState('idle');
     setPendingDecision(null);
     setDecisionError(null);
-  }, [item.id]);
+    setNoteDraft(item.decision?.note ?? '');
+  }, [item.id, item.decision?.note]);
 
   async function save(status: CaseDecisionStatus | 'open') {
     if (pendingDecision) return;
-    const note = status === 'open' ? '' : window.prompt('Optional note for this decision', item.decision?.note ?? '');
-    if (note === null) return;
+    const note = status === 'open' ? '' : noteDraft.trim();
     setDecisionError(null);
     setPendingDecision(status);
     try {
@@ -3538,6 +3698,21 @@ function CaseDetailCard({
           {rotateError}
         </div>
       )}
+      <div className="decision-note">
+        <label htmlFor={`decision-note-${item.id}`}>
+          <Eyebrow>Decision note</Eyebrow>
+          <span className="decision-note-hint">Optional · saved with your decision</span>
+        </label>
+        <textarea
+          id={`decision-note-${item.id}`}
+          value={noteDraft}
+          rows={2}
+          spellCheck={false}
+          placeholder="Add context for this decision (optional)…"
+          disabled={pendingDecision !== null}
+          onChange={(event) => setNoteDraft(event.target.value)}
+        />
+      </div>
       <div className="decision-grid">
         {([
           ['verified', 'Verify', CheckCircle2],
@@ -3813,9 +3988,16 @@ function IncidentChecklist({
   incident?: HoneyIncident | null;
   savingIncident: string | null;
   onToggle: (eventId: string, step: IncidentStep, complete: boolean) => Promise<void>;
-  onClose: (event: HoneyKeyEvent) => Promise<void>;
+  onClose: (event: HoneyKeyEvent, acceptedRiskNote: string) => Promise<void>;
 }) {
   const done = incidentSteps.filter((step) => incident?.[step.id]).length;
+  // If the key was archived/reset, no accepted-risk note is needed — close in
+  // one click. Otherwise reveal an inline note field (S-034) instead of a
+  // native OS prompt; the note may be left empty, and Cancel is explicit.
+  const needsNote = !incident?.archived_reset;
+  const closing = savingIncident === `${event.id}:close`;
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [note, setNote] = useState('');
   return (
     <PaperCard>
       <SectionHeader title="Incident response" right={<span>{done}/{incidentSteps.length} complete</span>} />
@@ -3831,7 +4013,37 @@ function IncidentChecklist({
           );
         })}
       </div>
-      <Button variant="secondary" onClick={() => void onClose(event)} disabled={savingIncident === `${event.id}:close`}>Close incident</Button>
+      {needsNote && noteOpen ? (
+        <div className="incident-close-note">
+          <label htmlFor={`incident-note-${event.id}`}>
+            <Eyebrow>Accepted-risk note</Eyebrow>
+            <span className="incident-close-note-hint">Optional · recorded with the closure</span>
+          </label>
+          <textarea
+            id={`incident-note-${event.id}`}
+            value={note}
+            rows={2}
+            autoFocus
+            placeholder="Why this incident is safe to close…"
+            disabled={closing}
+            onChange={(change) => setNote(change.target.value)}
+          />
+          <div className="incident-close-note-actions">
+            <Button variant="ghost" size="sm" onClick={() => setNoteOpen(false)} disabled={closing}>Cancel</Button>
+            <Button variant="secondary" size="sm" onClick={() => void onClose(event, note.trim())} disabled={closing}>
+              {closing ? 'Closing…' : 'Close incident'}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button
+          variant="secondary"
+          onClick={() => (needsNote ? setNoteOpen(true) : void onClose(event, ''))}
+          disabled={closing}
+        >
+          {closing ? 'Closing…' : 'Close incident'}
+        </Button>
+      )}
     </PaperCard>
   );
 }
