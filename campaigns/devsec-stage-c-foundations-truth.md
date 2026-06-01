@@ -23,7 +23,7 @@
 - [x] Step 1.7 — 20-release-honesty
 - [x] Step 1.8 — 21-integration-and-mcp-hygiene
 - [x] Step 1.9 — feature-health-final audit
-- [ ] Final review
+- [x] Final review
 
 ## Step 1.1 — 14-scan-orchestrator-extract
 
