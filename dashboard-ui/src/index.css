@@ -4699,6 +4699,72 @@ a.button,
   background: rgba(232,198,192,0.25);
 }
 
+/* Crafted scan-failure card. The crit register is the default; missing-tool
+   and validation drop to the gentler warn/amber register because they are
+   setup steps, not breakage. */
+.run-error-notice {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin-top: 18px;
+  padding: 13px 15px;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(156,59,59,0.28);
+  background: rgba(232,198,192,0.25);
+  color: var(--sev-crit-ink);
+}
+
+.run-error-notice.compact {
+  margin-top: 0;
+}
+
+.run-error-notice.kind-missing-tool,
+.run-error-notice.kind-validation {
+  border-color: rgba(201,138,63,0.32);
+  background: rgba(241,220,190,0.34);
+  color: var(--sev-warn-ink);
+}
+
+.run-error-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-top: 2px;
+  opacity: 0.85;
+}
+
+.run-error-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.run-error-body .eyebrow {
+  margin-bottom: 2px;
+  color: inherit;
+  opacity: 0.72;
+}
+
+.run-error-body strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.run-error-body p {
+  margin: 5px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: inherit;
+  opacity: 0.82;
+}
+
+.run-error-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+}
+
 .notice {
   display: flex;
   gap: 12px;

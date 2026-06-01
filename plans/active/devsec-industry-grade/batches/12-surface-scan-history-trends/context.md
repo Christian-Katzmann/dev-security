@@ -20,6 +20,7 @@ None. The matrix Dependencies column is `—` for both S-039 and S-042. No same-
 - Do **not** build External Surface scanning or any active recon — out of scope per the Brief; this batch only renders already-collected local scan history.
 - Do **not** add any new outbound network call: all history/trend/diff data is already local (SQLite history store → `/api/summary`); surfacing it must stay on the default no-egress path.
 - Do not launch the dashboard or scanner unless a check requires it (per AGENTS.md operating rules / risk register); verify UI behavior from `npm run build`/`npm run lint`, component tests, and source.
+- **Note (added by batch 09):** S-039's evidence describes a "since last scan" panel "used at `OverviewView.tsx:87` / `CasesView.tsx:173`". Those two use sites lived in the orphaned `components/OverviewView.tsx`/`CasesView.tsx`, which batch 09 (S-036) **deleted** — so `components/SinceLastScanPanel.tsx` is now mounted by nothing (itself an orphan). This does not change the S-039 gap (the rich `summary.history` series + arbitrary scan-to-scan compare are still unreachable from the *live* UI, which renders only the 7-bar `postureWeek` proxy at `App.tsx:506-508`). When wiring history/diff, build on the live inline Overview/Cases in `App.tsx`; treat `SinceLastScanPanel.tsx` as dead reference scaffolding, not a live surface to extend. Target S-ID unchanged.
 
 ## Suggested Starting Steps
 1. Re-read this context and acceptance.md.

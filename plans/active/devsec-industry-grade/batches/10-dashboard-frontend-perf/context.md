@@ -22,6 +22,7 @@ None — the matrix shows no dependency for any of these three rows, and none de
 - Do not change the `:focus-visible`/dialog/accessibility work (S-040/S-041/S-045/S-047) — that is batch 07; touch tokens only for palette/styling-idiom drift, not focus or contrast behavior.
 - Do not re-theme or introduce dark mode; sweep inline values to existing tokens only, and do not invent new tokens beyond what the sweep genuinely needs.
 - Do not regress any rendered surface: the asset downscale and token sweep must be visually identical to the user (same colors, same logo), only lighter/cleaner under the hood.
+- **Note (added by batch 09):** S-054's evidence cites `components/OverviewView.tsx:45,49,65` for raw Tailwind `black/white` opacities. That file was an orphan (imported by nothing) and was **deleted** by batch 09 (S-036). The live overview is the inline `OverviewView` in `App.tsx`, which already uses named Mistglass classes — so the "mixed-idiom drift in OverviewView" half of S-054 is already resolved by deletion. Scope S-054 to the live `index.css` inline-value sweep only; the `OverviewView.tsx` line refs and the acceptance grep path were updated to match. Target S-ID unchanged.
 
 ## Suggested Starting Steps
 1. Re-read this context and acceptance.md.

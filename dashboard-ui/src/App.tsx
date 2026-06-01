@@ -1,4 +1,4 @@
-import {CSSProperties, ReactNode, useCallback, useEffect, useMemo, useState} from 'react';
+import {CSSProperties, ReactNode, RefObject, useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import CatalogHome from './components/catalog/CatalogHome';
 import CatalogBrowse from './components/catalog/CatalogBrowse';
 import CatalogToolPage from './components/catalog/CatalogToolPage';
@@ -80,6 +80,7 @@ import {
   FolderSearch,
   Globe,
   Home,
+  Info,
   KeyRound,
   Layers3,
   ListChecks,
@@ -271,6 +272,23 @@ type ActivityItem = {
   label: string;
   sub: string;
   tone: Tone;
+  category: ActivityCategory;
+};
+
+// 'all' is the unfiltered chip; the rest map one-to-one to the Activity feed's
+// source buckets so the filter chips actually narrow the feed.
+type ActivityCategory = 'scan' | 'case' | 'honey' | 'project';
+type ActivityFilter = 'all' | ActivityCategory;
+
+// A scan failure is never just "it broke". We carry enough structure to give
+// the user the right next step: a missing scanner routes to Verification, a
+// transient/network error offers a retry, a scan that ran-but-failed shows
+// details, and a plain precondition (no repo selected) is a quiet validation.
+type RunErrorKind = 'missing-tool' | 'errored' | 'failed' | 'validation';
+type RunError = {
+  kind: RunErrorKind;
+  message: string;
+  detail?: string;
 };
 
 type RecoveryPlaybookView = RecoveryPlaybook & {tone: Tone};
@@ -628,6 +646,7 @@ function buildActivity(summary: DashboardSummary, includeRepo = false): Activity
       label: `Honey-key touched${key?.name ? ` · ${key.name}` : ''}`,
       sub: `${includeRepo ? `${repoLabel} · ` : ''}${event.ip_address ?? 'unknown IP'} · ${event.reason}`,
       tone: event.incident?.closed_at ? 'warn' : 'crit',
+      category: 'honey',
     });
   }
   for (const item of activeCaseList(summary).slice(0, 20)) {
@@ -641,6 +660,7 @@ function buildActivity(summary: DashboardSummary, includeRepo = false): Activity
       label: `${caseScanner(item)} · ${item.title}`,
       sub: `${includeRepo ? `${repoLabel} · ` : ''}${item.location}`,
       tone: toneForCase(item),
+      category: 'case',
     });
   }
   for (const scan of recentScanHistory(summary, 16)) {
@@ -655,6 +675,7 @@ function buildActivity(summary: DashboardSummary, includeRepo = false): Activity
       label: scanActivityTitle(scan.profile),
       sub: `${includeRepo ? `${repoLabel} · ` : ''}${scan.health_score}/100 health · ${scanRunStatusLabel(scan.status)}`,
       tone: scan.health_score < 70 ? 'warn' : 'low',
+      category: 'scan',
     });
   }
   for (const status of summary.project_statuses ?? []) {
@@ -667,6 +688,7 @@ function buildActivity(summary: DashboardSummary, includeRepo = false): Activity
       label: `${status.project_id} · ${status.status}`,
       sub: status.reason,
       tone: status.status === 'red' ? 'crit' : status.status === 'yellow' ? 'warn' : 'low',
+      category: 'project',
     });
   }
   return items
@@ -679,6 +701,21 @@ function timeLabel(value: string): string {
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
 }
+
+// Build an `errored` RunError from a caught value. The headline is a plain-
+// language sentence; the raw error text becomes the detail line only when it
+// adds something the headline doesn't already say.
+function erroredRunError(err: unknown, message: string): RunError {
+  const raw = err instanceof Error ? err.message.trim() : '';
+  return {kind: 'errored', message, detail: raw && raw !== message ? raw : undefined};
+}
+
+const runErrorEyebrow: Record<RunErrorKind, string> = {
+  'missing-tool': 'Setup needed',
+  errored: 'Run interrupted',
+  failed: 'Check failed',
+  validation: 'Before you run',
+};
 
 function iconForCategory(category?: string): ReactNode {
   if (category === 'dependencies' || category === 'behavioral-drift' || category === 'silent-upgrade') return <PackageSearch size={18} />;
@@ -974,12 +1011,32 @@ export default function App() {
   const [isRunningCheck, setIsRunningCheck] = useState(false);
   const [activeJob, setActiveJob] = useState<CheckJob | null>(null);
   const [allRepoRun, setAllRepoRun] = useState<AllRepoRun | null>(null);
-  const [runError, setRunError] = useState<string | null>(null);
+  const [runError, setRunError] = useState<RunError | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [search, setSearch] = useState('');
   const [addRepoOpen, setAddRepoOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // ⌘K / Ctrl-K focuses the toolbar search — the <kbd>⌘K</kbd> hint is real,
+  // not decorative. Mirrors installHardRefreshShortcut's capture-phase listener
+  // in main.tsx (which owns ⌘R) and never collides with it.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const usesCommand = event.metaKey && !event.ctrlKey;
+      const usesControl = event.ctrlKey && !event.metaKey;
+      if (event.key.toLowerCase() !== 'k' || event.altKey || (!usesCommand && !usesControl)) return;
+      event.preventDefault();
+      const input = searchInputRef.current;
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }
+    window.addEventListener('keydown', onKeyDown, {capture: true});
+    return () => window.removeEventListener('keydown', onKeyDown, {capture: true});
+  }, []);
 
   const loadSummary = useCallback(async () => {
     setIsLoading(true);
@@ -1050,11 +1107,15 @@ export default function App() {
           setIsCheckOpen(false);
         }
         if (payload.job.status === 'failed') {
-          setRunError(payload.job.error ?? 'Security check failed');
+          setRunError({
+            kind: 'failed',
+            message: 'The security check ran but did not finish cleanly.',
+            detail: payload.job.error ?? undefined,
+          });
           setIsRunningCheck(false);
         }
       } catch (err) {
-        setRunError(err instanceof Error ? err.message : 'Unable to read check progress');
+        setRunError(erroredRunError(err, 'Lost contact with the running check.'));
         setIsRunningCheck(false);
       }
     }, 1200);
@@ -1147,7 +1208,10 @@ export default function App() {
   async function runAllRepoChecks(auditsOverride: AuditId[]) {
     const repos = uniqueRepos(targetRepos);
     if (!repos.length) {
-      setRunError('Add or select at least one repo before running all-repo checks.');
+      setRunError({
+        kind: 'validation',
+        message: 'Add or select at least one repo before running all-repo checks.',
+      });
       setIsCheckOpen(true);
       return;
     }
@@ -1210,13 +1274,20 @@ export default function App() {
     } : current);
     setIsRunningCheck(false);
     if (failures.length) {
-      setRunError(`${failures.length} repo check${failures.length === 1 ? '' : 's'} failed. Open Verification for the setup details.`);
+      setRunError({
+        kind: 'missing-tool',
+        message: `${failures.length} repo check${failures.length === 1 ? '' : 's'} failed during setup.`,
+        detail: 'A scanner is likely missing or not configured. Verification lists what to install for each repo.',
+      });
     }
   }
 
   async function runCheck(auditsOverride = selectedAudits) {
     if (target.mode !== 'repo') {
-      setRunError('Select a repo target before running checks.');
+      setRunError({
+        kind: 'validation',
+        message: 'Select a repo target before running checks.',
+      });
       setIsCheckOpen(true);
       return;
     }
@@ -1236,8 +1307,20 @@ export default function App() {
       const payload: {job: CheckJob} = await response.json();
       setActiveJob(payload.job);
     } catch (err) {
-      setRunError(err instanceof Error ? err.message : 'Unable to run security check');
+      setRunError(erroredRunError(err, 'Could not start the security check.'));
       setIsRunningCheck(false);
+    }
+  }
+
+  // Retry re-runs the last attempted check against the current target with the
+  // same selected audits — the action behind an `errored` RunError notice.
+  function retryLastRun() {
+    setRunError(null);
+    if (target.mode === 'all-repos') {
+      void runAllRepoChecks(selectedAudits);
+    } else {
+      setIsCheckOpen(true);
+      void runCheck(selectedAudits);
     }
   }
 
@@ -1314,6 +1397,7 @@ export default function App() {
             posture={posture}
             search={search}
             setSearch={setSearch}
+            searchInputRef={searchInputRef}
             isLoading={isLoading}
             error={error}
             onRunAll={runFullCheck}
@@ -1381,6 +1465,7 @@ export default function App() {
               onCaseDecision={saveCaseDecision}
               onRefresh={loadSummary}
               onTargetChange={selectTarget}
+              onRetry={retryLastRun}
             />
           </div>
         </main>
@@ -1552,6 +1637,7 @@ function ActiveView({
   onCaseDecision,
   onRefresh,
   onTargetChange,
+  onRetry,
 }: {
   tab: TabId;
   summary: DashboardSummary;
@@ -1573,10 +1659,11 @@ function ActiveView({
   activeJob: CheckJob | null;
   allRepoRun: AllRepoRun | null;
   isRunningCheck: boolean;
-  runError: string | null;
+  runError: RunError | null;
   onCaseDecision: (caseId: string, repoName: string, status: CaseDecisionStatus | 'open', note: string) => Promise<void>;
   onRefresh: () => Promise<void>;
   onTargetChange: (value: string) => void;
+  onRetry: () => void;
 }) {
   if (target.mode === 'repo' && summary.repos.length === 0 && tab !== 'honey-keys' && tab !== 'agent-lab' && tab !== 'settings') {
     return <EmptyRepoView repoName={target.repo.name} onRunQuick={onRunQuick} onChooseChecks={onChooseChecks} />;
@@ -1602,6 +1689,7 @@ function ActiveView({
         onChooseChecks={onChooseChecks}
         onTargetChange={onTargetChange}
         onRefresh={onRefresh}
+        onRetry={onRetry}
       />
     );
   }
@@ -1770,6 +1858,7 @@ function Toolbar({
   posture,
   search,
   setSearch,
+  searchInputRef,
   isLoading,
   error,
   onRunAll,
@@ -1786,6 +1875,7 @@ function Toolbar({
   posture: {score: number; delta: number};
   search: string;
   setSearch: (value: string) => void;
+  searchInputRef: RefObject<HTMLInputElement>;
   isLoading: boolean;
   error: string | null;
   onRunAll: () => void;
@@ -1825,6 +1915,7 @@ function Toolbar({
       <label className="toolbar-search">
         <Search size={16} />
         <input
+          ref={searchInputRef}
           type="search"
           name="dashboard-search"
           aria-label="Search the dashboard"
@@ -1872,6 +1963,49 @@ function Toolbar({
   );
 }
 
+// Crafted Mistglass error card for a scan failure. The kind decides the next
+// step the user is offered: a missing scanner routes to Verification, an
+// interrupted run offers a retry, a failed run shows its details, and a plain
+// validation just states the precondition. The action only renders when the
+// surface actually provides the matching callback, so the same notice reads
+// correctly inside the run sheet and on the overview.
+function RunErrorNotice({
+  error,
+  onRetry,
+  onOpenVerification,
+  compact = false,
+}: {
+  error: RunError;
+  onRetry?: () => void;
+  onOpenVerification?: () => void;
+  compact?: boolean;
+}) {
+  const showVerification = error.kind === 'missing-tool' && !!onOpenVerification;
+  const showRetry = error.kind === 'errored' && !!onRetry;
+  return (
+    <div className={`run-error-notice kind-${error.kind}${compact ? ' compact' : ''}`} role="alert">
+      <span className="run-error-icon" aria-hidden="true">
+        {error.kind === 'validation' ? <Info size={16} /> : <AlertTriangle size={16} />}
+      </span>
+      <div className="run-error-body">
+        <Eyebrow>{runErrorEyebrow[error.kind]}</Eyebrow>
+        <strong>{error.message}</strong>
+        {error.detail && <p>{error.detail}</p>}
+      </div>
+      {(showVerification || showRetry) && (
+        <div className="run-error-actions">
+          {showVerification && (
+            <Button size="sm" variant="secondary" icon={<ShieldCheck size={14} />} onClick={onOpenVerification}>Open Verification</Button>
+          )}
+          {showRetry && (
+            <Button size="sm" variant="secondary" icon={<RefreshCw size={14} />} onClick={onRetry}>Try again</Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RunCheckSheet({
   target,
   targetRepos,
@@ -1892,7 +2026,7 @@ function RunCheckSheet({
   selectedAudits: AuditId[];
   activeJob: CheckJob | null;
   isRunningCheck: boolean;
-  runError: string | null;
+  runError: RunError | null;
   scmTokenPresent: boolean;
   onToggleAudit: (audit: AuditId) => void;
   onRun: () => void;
@@ -2004,7 +2138,7 @@ function RunCheckSheet({
           )}
         </div>
       )}
-      {runError && <div className="inline-error">{runError}</div>}
+      {runError && <RunErrorNotice error={runError} onRetry={onRun} />}
     </section>
   );
 }
@@ -2028,6 +2162,7 @@ function OverviewView({
   onChooseChecks,
   onTargetChange,
   onRefresh,
+  onRetry,
 }: {
   summary: DashboardSummary;
   globalSummary: DashboardSummary;
@@ -2038,7 +2173,7 @@ function OverviewView({
   activeJob: CheckJob | null;
   allRepoRun: AllRepoRun | null;
   isRunningCheck: boolean;
-  runError: string | null;
+  runError: RunError | null;
   onOpenTab: (tab: TabId) => void;
   onOpenCatalogHome: () => void;
   onOpenCatalogBrowse: () => void;
@@ -2047,6 +2182,7 @@ function OverviewView({
   onChooseChecks: (profile?: string) => void;
   onTargetChange: (value: string) => void;
   onRefresh: () => Promise<void>;
+  onRetry: () => void;
 }) {
   const scopeLabel = targetLabel(target);
   const cases = activeCaseList(summary);
@@ -2148,6 +2284,7 @@ function OverviewView({
             if (diagnosticAutoRepoValue) onTargetChange(diagnosticAutoRepoValue);
             onOpenTab('verification');
           } : undefined}
+          onRetry={onRetry}
         />
       )}
 
@@ -2271,13 +2408,15 @@ function CompactScanStatus({
   runError,
   onChooseChecks,
   onOpenVerification,
+  onRetry,
 }: {
   target: TargetSelection;
   activeJob: CheckJob | null;
   allRepoRun: AllRepoRun | null;
-  runError: string | null;
+  runError: RunError | null;
   onChooseChecks: (profile?: string) => void;
   onOpenVerification?: () => void;
+  onRetry?: () => void;
 }) {
   return (
     <PaperCard className="compact-scan-status">
@@ -2289,7 +2428,7 @@ function CompactScanStatus({
         </div>}
       />
       <LiveScanProgress activeJob={activeJob} allRepoRun={allRepoRun} target={target} />
-      {runError && <div className="inline-error compact">{runError}</div>}
+      {runError && <RunErrorNotice error={runError} compact onRetry={onRetry} onOpenVerification={onOpenVerification} />}
     </PaperCard>
   );
 }
@@ -2342,7 +2481,7 @@ function ScanControlPanel({
   activeJob: CheckJob | null;
   allRepoRun: AllRepoRun | null;
   isRunningCheck: boolean;
-  runError: string | null;
+  runError: RunError | null;
   onRunQuick: () => void;
   onRunAll: () => void;
   onChooseChecks: (profile?: string) => void;
@@ -2400,7 +2539,7 @@ function ScanControlPanel({
       </div>
 
       <LiveScanProgress activeJob={activeJob} allRepoRun={allRepoRun} target={target} />
-      {runError && <div className="inline-error compact">{runError}</div>}
+      {runError && <RunErrorNotice error={runError} compact onRetry={onRunQuick} onOpenVerification={onOpenDiagnostic} />}
 
       <div className="scan-inventory-panel">
         <div>
@@ -3088,9 +3227,18 @@ function VerificationView({summary, target, targetRepos, onChooseChecks, onTarge
   );
 }
 
+const activityChips: {id: ActivityFilter; label: string}[] = [
+  {id: 'all', label: 'All'},
+  {id: 'scan', label: 'Scanner runs'},
+  {id: 'case', label: 'Cases'},
+  {id: 'honey', label: 'Honey keys'},
+];
+
 function ActivityView({summary, search, target}: {summary: DashboardSummary; search: string; target: TargetSelection}) {
+  const [activityFilter, setActivityFilter] = useState<ActivityFilter>('all');
   const scopeLabel = targetLabel(target);
   const activities = buildActivity(summary, target.mode === 'all-repos').filter((item) => {
+    if (activityFilter !== 'all' && item.category !== activityFilter) return false;
     if (!search.trim()) return true;
     return `${item.label} ${item.sub}`.toLowerCase().includes(search.toLowerCase());
   });
@@ -3120,7 +3268,11 @@ function ActivityView({summary, search, target}: {summary: DashboardSummary; sea
       <PaperCard padded={false}>
         <div className="event-feed-head">
           <Eyebrow>Event feed · Today · {scopeLabel}</Eyebrow>
-          <div className="chip-row compact"><Chip active>All</Chip><Chip>Scanner runs</Chip><Chip>Cases</Chip><Chip>Honey keys</Chip></div>
+          <div className="chip-row compact">
+            {activityChips.map((chip) => (
+              <Chip key={chip.id} active={activityFilter === chip.id} onClick={() => setActivityFilter(chip.id)}>{chip.label}</Chip>
+            ))}
+          </div>
         </div>
         <div className="activity-list feed">
           {activities.map((item) => <ActivityRow key={item.id} item={item} showTone />)}
