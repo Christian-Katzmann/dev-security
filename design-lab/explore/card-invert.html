@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Card inversion — comparison</title>
+<style>
+  :root{
+    --mist-200:#94a89e; --mist-300:#7d9189; --mist-500:#5e7570; --mist-700:#3c4b48; --mist-800:#2c3835; --mist-900:#1c2422;
+    --ink:#2c3835; --ink-muted:#54635e;
+    --font:-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif;
+    --mono:"SF Mono",ui-monospace,Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{background:#0e1714;font-family:var(--font);padding:36px;display:flex;gap:28px;justify-content:center;align-items:flex-start}
+  .col{width:520px}
+  .label{font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.5);margin-bottom:12px;padding-left:4px}
+  .scene{border-radius:20px;padding:26px;position:relative;overflow:hidden;min-height:560px}
+  .scene::after{content:"";position:absolute;inset:0;pointer-events:none;background-size:14px 14px}
+  .scene-h{font-size:26px;font-weight:600;letter-spacing:-.01em;margin-bottom:20px}
+  .eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:14px}
+  .row{display:flex;align-items:flex-start;gap:10px;margin-top:10px;font-size:13.5px}
+  .dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex:none}
+  .card{border-radius:16px;padding:20px;margin-bottom:16px;position:relative}
+  .posture{display:flex;align-items:center;gap:18px}
+  .ring{position:relative;width:96px;height:96px;flex:none}
+  .ring .num{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .num b{font-size:24px;font-weight:600;line-height:1}
+  .num span{font-family:var(--mono);font-size:8px;letter-spacing:.18em;text-transform:uppercase;margin-top:5px}
+
+  /* CURRENT — light frosted glass on grey, white text, blur, lit top edge */
+  .scene-current{background:linear-gradient(180deg,var(--mist-300),var(--mist-500))}
+  .scene-current::after{background-image:radial-gradient(rgba(255,255,255,.09) 1px,transparent 1px)}
+  .scene-current .scene-h{color:#fff}
+  .scene-current .card{background:rgba(255,255,255,.14);backdrop-filter:blur(20px) saturate(140%);-webkit-backdrop-filter:blur(20px) saturate(140%);border:1px solid rgba(255,255,255,.2);box-shadow:0 6px 24px rgba(28,36,34,.10),inset 0 1px 0 rgba(255,255,255,.28)}
+  .scene-current .eyebrow{color:rgba(255,255,255,.5)}
+  .scene-current .row{color:rgba(255,255,255,.92)}
+  .scene-current .num b{color:#fff} .scene-current .num span{color:rgba(255,255,255,.6)}
+
+  /* INVERTED — dark solid cards on light sage, two text systems, no glass */
+  .scene-invert{background:linear-gradient(180deg,#b6c4bd,var(--mist-200))}
+  .scene-invert::after{background-image:radial-gradient(rgba(28,36,34,.07) 1px,transparent 1px)}
+  .scene-invert .scene-h{color:var(--ink)}                 /* dark ink on light bg */
+  .scene-invert .card{background:linear-gradient(180deg,var(--mist-700),var(--mist-800));border:1px solid rgba(0,0,0,.18);box-shadow:0 8px 22px rgba(28,36,34,.22)}
+  .scene-invert .eyebrow{color:rgba(255,255,255,.45)}      /* light text on dark card */
+  .scene-invert .row{color:rgba(255,255,255,.9)}
+  .scene-invert .num b{color:#fff} .scene-invert .num span{color:rgba(255,255,255,.55)}
+</style></head>
+<body>
+  <div class="col">
+    <div class="label">Current · light frosted glass on grey</div>
+    <div class="scene scene-current">
+      <h3 class="scene-h">You're in good shape.</h3>
+      <div class="card posture">
+        <div class="ring">
+          <svg width="96" height="96" style="transform:rotate(-90deg)"><circle cx="48" cy="48" r="42" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="6"/><circle cx="48" cy="48" r="42" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="6" stroke-linecap="round" stroke-dasharray="264" stroke-dashoffset="50"/></svg>
+          <div class="num"><b>8.1</b><span>Steady</span></div>
+        </div>
+        <div><div class="eyebrow">Overall posture</div><div class="row" style="margin-top:2px">No critical or high findings.</div></div>
+      </div>
+      <div class="card">
+        <div class="eyebrow">Needs attention</div>
+        <div class="row"><span class="dot" style="background:#cbb994"></span>Outdated dependency · lodash</div>
+        <div class="row"><span class="dot" style="background:#cbb994"></span>Permissive CORS · api</div>
+      </div>
+      <div class="card"><div class="eyebrow">Open cases</div><div style="font-size:30px;font-weight:600;color:#fff">7</div></div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="label">Inverted · dark cards on light sage</div>
+    <div class="scene scene-invert">
+      <h3 class="scene-h">You're in good shape.</h3>
+      <div class="card posture">
+        <div class="ring">
+          <svg width="96" height="96" style="transform:rotate(-90deg)"><circle cx="48" cy="48" r="42" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="6"/><circle cx="48" cy="48" r="42" fill="none" stroke="rgba(255,255,255,.9)" stroke-width="6" stroke-linecap="round" stroke-dasharray="264" stroke-dashoffset="50"/></svg>
+          <div class="num"><b>8.1</b><span>Steady</span></div>
+        </div>
+        <div><div class="eyebrow">Overall posture</div><div class="row" style="margin-top:2px">No critical or high findings.</div></div>
+      </div>
+      <div class="card">
+        <div class="eyebrow">Needs attention</div>
+        <div class="row"><span class="dot" style="background:#cbb994"></span>Outdated dependency · lodash</div>
+        <div class="row"><span class="dot" style="background:#cbb994"></span>Permissive CORS · api</div>
+      </div>
+      <div class="card"><div class="eyebrow">Open cases</div><div style="font-size:30px;font-weight:600;color:#fff">7</div></div>
+    </div>
+  </div>
+</body></html>

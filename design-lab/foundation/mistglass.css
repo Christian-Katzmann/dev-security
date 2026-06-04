@@ -1,0 +1,79 @@
+/* ============================================================
+   Mistglass Grey — the cool sage→teal surface, transcribed from
+   MISTGLASS-GREY.md. This is a SECOND direction in the lab, parallel
+   to the dark gradient-mood system. Calm, fogged, white-on-grey.
+   ============================================================ */
+
+:root {
+  /* surface scale (sage → deep teal) */
+  --mist-100: #b6c4bd; --mist-200: #94a89e; --mist-300: #7d9189;
+  --mist-400: #69807a; --mist-500: #5e7570; --mist-600: #4d605c;
+  --mist-700: #3c4b48; --mist-800: #2c3835; --mist-900: #1c2422;
+
+  /* signature gradients — always vertical, light-top, two stops */
+  --mist-hero:      linear-gradient(180deg, #7d9189 0%, #5e7570 100%);
+  --mist-hero-deep: linear-gradient(180deg, #69807a 0%, #3c4b48 100%);
+
+  /* dot-grid texture — light motes over the gradient (felt, not seen) */
+  --mist-dotgrid: radial-gradient(rgba(255,255,255,0.08) 1px, transparent 1px);
+  --mist-dotgrid-size: 14px 14px;
+
+  /* foreground on grey — white graded by alpha IS the hierarchy */
+  --on-surface-strong: #ffffff;
+  --on-surface:        rgba(255,255,255,0.92);
+  --on-surface-muted:  rgba(255,255,255,0.70);
+  --on-surface-faint:  rgba(255,255,255,0.48);
+  --on-surface-ghost:  rgba(255,255,255,0.22);
+
+  /* white-translucent glass tiers */
+  --glass-light:    rgba(255,255,255,0.12);
+  --glass-lighter:  rgba(255,255,255,0.22);
+  --glass-lightest: rgba(255,255,255,0.40);
+  --glass-border:   rgba(255,255,255,0.18);
+
+  /* uncolored soft shadows (graphite alpha only — no glows, ever) */
+  --mist-shadow-2: 0 4px 12px rgba(28,36,34,0.06), 0 2px 4px rgba(28,36,34,0.04);
+  --mist-shadow-3: 0 12px 32px rgba(28,36,34,0.10), 0 4px 8px rgba(28,36,34,0.05);
+  --mist-shadow-glass: 0 6px 24px rgba(28,36,34,0.10), inset 0 1px 0 rgba(255,255,255,0.28);
+
+  /* heatmap ramp (its own tuned tones, per the manual) */
+  --heat-0: #eef1ef; --heat-1: #dbe2df; --heat-2: #c5d0cb;
+  --heat-3: #a9bdb5; --heat-4: #7d9189; --heat-5: #5e7570; --heat-6: #3c4b48;
+}
+
+/* the grey canvas: gradient + dot-grid over it, content above */
+.mist-canvas { position: relative; background: var(--mist-hero); }
+.mist-canvas::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background-image: var(--mist-dotgrid);
+  background-size: var(--mist-dotgrid-size);
+}
+.mist-canvas > * { position: relative; }
+
+/* mistglass card — frosted white glass with a lit top edge */
+.mist-glass {
+  background: rgba(255,255,255,0.14);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid rgba(255,255,255,0.20);
+  box-shadow: var(--mist-shadow-glass);
+}
+.mist-glass-hover { transition: background .2s ease, transform .2s ease; }
+.mist-glass-hover:hover { background: rgba(255,255,255,0.20); }
+
+/* solid white primary button (dark text uses the deep grey, never #000) */
+.mist-btn-primary {
+  background: #ffffff; color: var(--mist-700);
+  box-shadow: var(--mist-shadow-2);
+  transition: transform .15s ease, box-shadow .2s ease;
+}
+.mist-btn-primary:hover { box-shadow: var(--mist-shadow-3); }
+.mist-btn-primary:active { transform: scale(0.98); }
+
+/* glass (secondary) button */
+.mist-btn-glass {
+  background: var(--glass-light); color: var(--on-surface);
+  border: 1px solid var(--glass-border);
+  transition: background .2s ease;
+}
+.mist-btn-glass:hover { background: var(--glass-lighter); }

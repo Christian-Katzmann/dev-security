@@ -1,0 +1,62 @@
+/* DëvSec website UI kit — shared styles (grain, motion, auth flip, scrollbar) */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+
+html, body, #root { width: 100%; min-height: 100%; }
+body { margin: 0; background: #07070a; overflow-x: hidden; }
+
+@keyframes fade-in {
+  from { transform: translateY(8px); }
+  to   { transform: translateY(0); }
+}
+.animate-fade-in { animation: fade-in 600ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* Auth 3D flip */
+.auth-card-scene { perspective: 1200px; }
+.auth-card-inner {
+  display: grid;
+  transform-style: preserve-3d;
+  transition: transform 560ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.auth-card-inner.is-flipped { transform: rotateY(180deg); }
+.auth-card-face {
+  grid-area: 1 / 1;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+.auth-card-face-back { transform: rotateY(180deg); }
+
+/* PIN shake */
+.pin-code-shake { animation: pin-code-shake 420ms cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+@keyframes pin-code-shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-7px); }
+  40%, 60% { transform: translateX(7px); }
+}
+
+/* Film grain */
+.bg-grain { position: relative; }
+.bg-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.045;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(156,163,175,0.2); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(156,163,175,0.4); }
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-card-inner { transition: none; }
+  .pin-code-shake { animation: none; }
+  .animate-fade-in { animation: none; }
+}

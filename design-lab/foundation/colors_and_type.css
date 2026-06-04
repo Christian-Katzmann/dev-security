@@ -1,0 +1,197 @@
+/* ============================================================
+   DëvSec — Colors & Type Foundations
+   Local-first security observability. Dark, calm, technical.
+   Source of truth: devsec-website (src/index.css, constants.ts,
+   DESIGN.md). Fonts loaded from Google Fonts, matching the codebase.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+
+:root {
+  /* ---------- FONT FAMILIES ---------- */
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Plus Jakarta Sans", sans-serif;     /* same family, used tight-tracked for headings */
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
+
+  /* ---------- BASE SURFACE ---------- */
+  --bg-root: #07070a;          /* app shell behind every gradient */
+
+  /* ---------- THEME GRADIENTS (radial, center-out, 3 stops) ----------
+     Each surface is a different mood. Forest Moss is the primary brand. */
+
+  /* Forest Moss — PRIMARY (landing/product) */
+  --moss-from: #1a3a2a;
+  --moss-via:  #12251c;
+  --moss-to:   #0b1611;
+  --moss-accent: #10b981;       /* emerald — sparse accent / QR */
+
+  /* Clay Terracotta (authentication) */
+  --clay-from: #824e2d;
+  --clay-via:  #4f2d19;
+  --clay-to:   #1f1008;
+  --clay-accent: #d97706;       /* amber */
+
+  /* Plum Sangria (documentation) */
+  --plum-from: #3c162f;
+  --plum-via:  #240b1b;
+  --plum-to:   #10030b;
+  --plum-accent: #d946ef;       /* fuchsia */
+
+  /* Nordic Frost (alt docs / cool) */
+  --frost-from: #132838;
+  --frost-via:  #0b1620;
+  --frost-to:   #04070a;
+  --frost-accent: #0ea5e9;      /* sky */
+
+  /* Obsidian Core (minimal dark / GitHub) */
+  --obsidian-from: #171717;
+  --obsidian-via:  #0a0a0a;
+  --obsidian-to:   #020202;
+  --obsidian-accent: #f4f4f5;   /* zinc / white */
+
+  /* ---------- BRAND ACCENT (the one bright color) ----------
+     The single brighter accent the dashboard was missing. Change THIS one
+     value and it propagates everywhere (active nav, focus ring, key numbers,
+     link hover, primary emphasis). PROVISIONAL = Forest-Moss emerald until
+     Christian's brighter brand color lands. Keep usage sparse — atmosphere,
+     not interface. */
+  --accent:        #10b981;                    /* << replace with the new bright accent */
+  --accent-soft:   rgba(16, 185, 129, 0.14);   /* tinted fill (derive from --accent) */
+  --accent-line:   rgba(16, 185, 129, 0.40);   /* hairline / focus ring */
+
+  /* Ready-to-use background images */
+  --gradient-moss:     radial-gradient(circle at center, var(--moss-from) 0%, var(--moss-via) 50%, var(--moss-to) 100%);
+  --gradient-clay:     radial-gradient(circle at center, var(--clay-from) 0%, var(--clay-via) 50%, var(--clay-to) 100%);
+  --gradient-plum:     radial-gradient(circle at 50% 18%, var(--plum-from) 0%, var(--plum-via) 48%, var(--plum-to) 100%);
+  --gradient-frost:    radial-gradient(circle at center, var(--frost-from) 0%, var(--frost-via) 50%, var(--frost-to) 100%);
+  --gradient-obsidian: radial-gradient(circle at center, var(--obsidian-from) 0%, var(--obsidian-via) 50%, var(--obsidian-to) 100%);
+  /* Top sheen + bottom darken layered over any gradient */
+  --sheen-top:   radial-gradient(ellipse at top, rgba(255,255,255,0.08), transparent 48%);
+  --shade-bottom: linear-gradient(to bottom, transparent, rgba(0,0,0,0.10) 60%, rgba(0,0,0,0.20));
+
+  /* ---------- FOREGROUND / TEXT (white-on-dark scale) ---------- */
+  --fg1: #ffffff;                       /* primary text, headings */
+  --fg2: rgba(255,255,255,0.62);        /* body / descriptions */
+  --fg3: rgba(255,255,255,0.50);        /* secondary body, zinc-400-ish */
+  --fg4: rgba(255,255,255,0.36);        /* tertiary / mono labels */
+  --fg-zinc-400: #a1a1aa;               /* lucide zinc tones */
+  --fg-zinc-500: #71717a;               /* meta labels */
+
+  /* ---------- BORDERS (hairline, translucent) ---------- */
+  --border-faint:  rgba(255,255,255,0.05);   /* dividers, default */
+  --border-subtle: rgba(255,255,255,0.10);   /* card edges */
+  --border-mid:    rgba(255,255,255,0.20);   /* inputs, outlined buttons */
+  --border-strong: rgba(255,255,255,0.25);   /* terminal / auth panel */
+
+  /* ---------- TRANSLUCENT FILL SURFACES ---------- */
+  --fill-1:  rgba(255,255,255,0.05);    /* subtle card / chip */
+  --fill-2:  rgba(255,255,255,0.10);    /* hover state */
+  --fill-glass: rgba(0,0,0,0.40);       /* glass card base (pair w/ blur) */
+  --fill-nav:  rgba(0,0,0,0.20);        /* pill nav (pair w/ blur) */
+
+  /* ---------- INVERTED (white surface, e.g. primary button) ---------- */
+  --invert-bg: #ffffff;
+  --invert-fg: #000000;
+
+  /* ---------- RADII (mostly sharp; small radius on buttons) ---------- */
+  --radius-none: 0px;       /* terminal, auth panel, github card — sharp */
+  --radius-sm: 4px;         /* buttons, inputs, chips ("rounded") */
+  --radius-pill: 9999px;    /* scrollbar thumb, round dots */
+
+  /* ---------- BLUR ---------- */
+  --blur-nav: 12px;         /* backdrop-blur-md */
+  --blur-glass: 24px;       /* backdrop-blur-xl on auth card */
+
+  /* ---------- MOTION ---------- */
+  --ease-flip: cubic-bezier(0.22, 1, 0.36, 1);   /* card flip / smooth */
+  --dur-fast: 150ms;
+  --dur-base: 300ms;
+  --dur-flip: 560ms;
+
+  /* ---------- TYPE SCALE (px) ---------- */
+  --text-hero: 60px;        /* big display, leading-none */
+  --text-h1: 48px;
+  --text-h2: 36px;
+  --text-h3: 24px;
+  --text-body-lg: 18px;
+  --text-body: 16px;
+  --text-sm: 14px;
+  --text-mono-label: 10px;  /* uppercase tracking-widest */
+  --tracking-tight: -0.02em;
+  --tracking-wide: 0.01em;
+  --tracking-widest: 0.24em;  /* mono eyebrows */
+}
+
+/* ============================================================
+   SEMANTIC TYPE STYLES — apply directly to elements
+   ============================================================ */
+
+.display-hero {
+  font-family: var(--font-display);
+  font-size: var(--text-hero);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg1);
+}
+
+.h1 {
+  font-family: var(--font-display);
+  font-size: var(--text-h1);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg1);
+}
+
+.h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-h2);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg1);
+}
+
+.h3 {
+  font-family: var(--font-display);
+  font-size: var(--text-h3);
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg1);
+}
+
+.body-lg {
+  font-family: var(--font-sans);
+  font-size: var(--text-body-lg);
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: var(--tracking-wide);
+  color: var(--fg2);
+}
+
+.body {
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--fg3);
+}
+
+/* Mono eyebrow / technical label — the signature DëvSec accent */
+.mono-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-mono-label);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-widest);
+  color: var(--fg4);
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.78);
+}
