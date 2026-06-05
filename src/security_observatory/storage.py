@@ -1173,6 +1173,7 @@ class ObservatoryDB:
         dependency_manifest_entries: list[Any] | None = None,
         dependency_trust_enrichments: list[Any] | None = None,
         platform_posture_snapshot: dict[str, Any] | None = None,
+        iac_resources: list[Any] | None = None,
     ) -> None:
         # Persist only redacted, whitelist-validated cases. A raw dict skips
         # SecurityCase.__post_init__ (token redaction + action_level/confidence
@@ -1203,11 +1204,13 @@ class ObservatoryDB:
             else None
         )
         # Asset-graph nodes are derived from artifacts this method already holds
-        # (SBOM components + findings), so a scan with no SBOM and no IaC simply
-        # yields a smaller node set rather than failing. Edges are recovered by
-        # later campaign steps via ``replace_asset_edges``; this step persists
-        # only the nodes.
-        asset_nodes = derive_asset_nodes(components=component_dicts, findings=findings)
+        # (SBOM components + findings + recovered IaC resources), so a scan with
+        # no SBOM and no IaC simply yields a smaller node set rather than
+        # failing. Edges are wired separately via ``replace_asset_edges``; this
+        # method persists only the nodes.
+        asset_nodes = derive_asset_nodes(
+            components=component_dicts, findings=findings, iac_resources=iac_resources
+        )
         component_created_at = utc_now()
         trust_created_at = utc_now()
         platform_created_at = utc_now()

@@ -45,9 +45,9 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 1 — Build the asset graph (nodes + structural edges)
 
-- [ ] Step 1.1 — Asset-graph schema + node derivation
-- [ ] Step 1.2 — Recover dependency edges (the graph scanners discard)
-- [ ] Step 1.3 — Recover IaC resource edges (Checkov's discarded graph)
+- [x] Step 1.1 — Asset-graph schema + node derivation
+- [x] Step 1.2 — Recover dependency edges (the graph scanners discard)
+- [x] Step 1.3 — Recover IaC resource edges (Checkov's discarded graph)
 
 ### Phase 2 — Rank by reachable consequence
 

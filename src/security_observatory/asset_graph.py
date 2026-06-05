@@ -114,6 +114,7 @@ def derive_asset_nodes(
     components: Iterable[dict[str, Any]] | None = None,
     findings: Iterable[Any] | None = None,
     rotation_surfaces: Iterable[str] | None = None,
+    iac_resources: Iterable[Any] | None = None,
 ) -> list[AssetNode]:
     """Derive the asset-node set from data a scan already produced.
 
@@ -124,11 +125,19 @@ def derive_asset_nodes(
         version) -> ``component`` nodes (strong).
       - ``findings``: ``Finding`` objects or dicts. Secret findings
         (category ``secrets``) -> ``secret`` nodes keyed by file (strong). IaC
-        findings (Checkov) -> ``resource`` nodes keyed by file (weak, coarse).
+        findings (Checkov) -> ``resource`` nodes keyed by file (weak, coarse) —
+        but only for files no richer ``iac_resources`` entry already covers.
         Any finding carrying ``rotation_surfaces_json`` contributes those paths
         as ``secret`` surfaces too.
       - ``rotation_surfaces``: extra secret-bearing paths (weak), e.g. from a
         fresh ``recency.enumerate_rotation_surfaces`` call.
+      - ``iac_resources``: recovered Checkov resources (``iac.IaCResource`` or
+        dicts) — *real per-resource* identity. A data-store resource becomes a
+        ``datastore`` node, any other becomes a ``resource`` node, each keyed by
+        its resource address (weak). This is the seam that upgrades the coarse,
+        file-level resource node into the per-resource graph Phase 2 traverses;
+        when it is empty (a Checkov failure, or no IaC), node derivation falls
+        back to the coarse file-level ``resource`` nodes from the findings.
 
     A scan with no SBOM and no IaC simply yields a smaller set (secrets only, or
     nothing) — never a crash. Nodes are deduped on ``(node_type, identity_key)``;
@@ -169,6 +178,19 @@ def derive_asset_nodes(
             continue
         _add("component", fingerprint, _component_label(component), "strong")
 
+    # Real per-resource / datastore nodes recovered from Checkov's resource graph
+    # (see ``iac.parse_checkov_resources``). We track which IaC files these cover
+    # so the coarse file-level fallback below does not also mint a competing
+    # ``resource`` node for the same file.
+    covered_iac_files: set[str] = set()
+    for resource in iac_resources or []:
+        address, file_path, is_datastore = _iac_resource_fields(resource)
+        if not address:
+            continue
+        _add("datastore" if is_datastore else "resource", address, address, "weak")
+        if file_path:
+            covered_iac_files.add(_normalize_iac_path(file_path))
+
     for finding in findings or []:
         item = _finding_dict(finding)
         category = _text(item.get("category"))
@@ -180,9 +202,10 @@ def derive_asset_nodes(
             elif file_path:
                 _add("secret", file_path, file_path, "strong")
         elif category == "iac" and _text(item.get("scanner")) == "checkov":
-            # Coarse, file-level resource identity. The real per-resource graph
-            # (and datastore classification) is recovered in a later step.
-            if file_path:
+            # Coarse, file-level resource identity — the fallback used only when
+            # the richer per-resource graph above did not cover this file (e.g. a
+            # Checkov timeout that still produced findings).
+            if file_path and _normalize_iac_path(file_path) not in covered_iac_files:
                 _add("resource", file_path, file_path, "weak")
         # Findings may carry rotation surfaces (e.g. IOC findings) — secret-bearing
         # files that *may* hold credentials: weak until a scanner confirms one.
@@ -205,6 +228,37 @@ def _component_label(component: dict[str, Any]) -> str:
     if name:
         return name
     return _text(component.get("package_url")) or _text(component.get("component_fingerprint")) or "component"
+
+
+def _iac_resource_fields(resource: Any) -> tuple[str, str, bool]:
+    """Read ``(address, file_path, is_datastore)`` from an IaC resource.
+
+    Accepts either an ``iac.IaCResource`` (the scan path) or a plain dict (tests
+    and serialized inputs), so node derivation stays decoupled from the IaC
+    module's concrete type.
+    """
+    if isinstance(resource, dict):
+        address = _text(resource.get("address"))
+        file_path = _text(resource.get("file_path"))
+        is_datastore = bool(resource.get("is_datastore"))
+        return address, file_path, is_datastore
+    address = _text(getattr(resource, "address", None))
+    file_path = _text(getattr(resource, "file_path", None))
+    is_datastore = bool(getattr(resource, "is_datastore", False))
+    return address, file_path, is_datastore
+
+
+def _normalize_iac_path(path: str) -> str:
+    """Collapse the leading-slash / ``./`` difference between scanners.
+
+    Mirrors ``iac._normalize_path`` so the coarse-fallback suppression compares
+    Checkov finding paths (``/infra/main.tf``) and recovered resource file paths
+    on equal footing.
+    """
+    text = (path or "").strip().replace("\\", "/")
+    while text.startswith("./"):
+        text = text[2:]
+    return text.lstrip("/")
 
 
 def _finding_dict(finding: Any) -> dict[str, Any]:

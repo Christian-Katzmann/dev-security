@@ -27,6 +27,7 @@ from .iocs import default_pack_sources, ioc_match_payload, load_ioc_packs, match
 from .model import Finding, score_findings, severity_counts, slugify, utc_now_slug, write_json
 from .model import read_json_safely
 from .platform_posture import build_platform_posture_snapshot, platform_posture_regression_findings
+from .iac import derive_iac_resource_edges, load_checkov_resources
 from .recency import DEFAULT_RECENCY_WINDOW_DAYS, enrich_ioc_findings_with_rotation_advice
 from .rotation import detect_rotation_state
 from .scanners import run_behavioral_drift_scanner, run_scanner, scanner_names_for_profile
@@ -174,6 +175,7 @@ def scan_repo(
 
     sbom_components = load_sbom_components(scan_dir)
     sbom_dependency_edges = load_sbom_dependency_edges(scan_dir)
+    iac_resources = load_checkov_resources(scan_dir)
     sbom_created = sbom_created or bool(sbom_components)
     dependency_manifest_entries = parse_dependency_manifests(repo)
     dependency_trust = []
@@ -328,17 +330,27 @@ def scan_repo(
             dependency_manifest_entries=dependency_manifest_entries,
             dependency_trust_enrichments=dependency_trust,
             platform_posture_snapshot=platform_posture,
+            iac_resources=iac_resources,
         )
-        # Wire the recovered SBOM dependency graph onto the component nodes
-        # save_scan just stored. replace_asset_edges resolves each endpoint by
-        # component_fingerprint to an existing node and skips any that don't
-        # match, so this never mints a duplicate node. No edges (no dependency
-        # block) is a no-op, not a failure.
-        if sbom_dependency_edges:
+        # Wire every recovered edge onto the nodes save_scan just stored, in a
+        # single replace_asset_edges call (it deletes-then-inserts per scan, so
+        # the SBOM dependency graph and the IaC resource graph must go together
+        # or the second call would wipe the first). replace_asset_edges resolves
+        # each endpoint by identity_key to an existing node and skips any that
+        # don't match, so this never mints a duplicate node. No edges (no
+        # dependency block, no IaC) is a no-op, not a failure.
+        secret_files = sorted(
+            {finding.file for finding in unique_findings if finding.category == "secrets" and finding.file}
+        )
+        asset_edges = [
+            *sbom_dependency_edges,
+            *derive_iac_resource_edges(iac_resources, secret_files=secret_files),
+        ]
+        if asset_edges:
             db.replace_asset_edges(
                 scan_id=scan_id,
                 repo_name=repo_name,
-                edges=sbom_dependency_edges,
+                edges=asset_edges,
             )
     finally:
         db.close()
