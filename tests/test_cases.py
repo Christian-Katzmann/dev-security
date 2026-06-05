@@ -786,6 +786,19 @@ def test_no_consequence_cases_keep_todays_order():
     assert b.priority_reasons == []
 
 
+def test_active_incident_sorts_above_fix_now_even_at_lower_severity():
+    # active_incident is the top action_level: a confirmed intrusion near a node
+    # outranks everything, so even a low-severity active_incident must sort ahead
+    # of a critical fix_now. This proves action_level — not severity — leads.
+    incident = _ordering_case("incident", "low-sev confirmed intrusion", "low", "active_incident")
+    critical = _ordering_case("critical", "critical to fix now", "critical", "fix_now")
+
+    ordered = apply_consequence_priority([critical, incident])
+
+    assert incident.action_level == "active_incident"  # survives, never coerced
+    assert [case.case_id for case in ordered] == ["incident", "critical"]
+
+
 def _component(name: str, version: str) -> SBOMComponent:
     return SBOMComponent(
         name=name,

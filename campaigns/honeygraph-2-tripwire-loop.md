@@ -50,7 +50,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 1 — Wire decoys to the graph
 
-- [ ] Step 1.1 — Bind a honey key to an asset node + suggest top-consequence placement
+- [x] Step 1.1 — Bind a honey key to an asset node + suggest top-consequence placement
 - [ ] Step 1.2 — Add the active_incident state (a closed enum in two places)
 
 ### Phase 2 — Close the loop

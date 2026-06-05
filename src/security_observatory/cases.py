@@ -198,7 +198,7 @@ def build_security_cases(
     return sorted(cases, key=_case_sort_key)
 
 
-_ACTION_LEVEL_RANK = {"fix_now": 0, "verify": 1, "watch": 2, "info": 3}
+_ACTION_LEVEL_RANK = {"active_incident": 0, "fix_now": 1, "verify": 2, "watch": 3, "info": 4}
 _CONSEQUENCE_CONFIDENCE_RANK = {"unknown": 0, "weak": 1, "strong": 2}
 
 

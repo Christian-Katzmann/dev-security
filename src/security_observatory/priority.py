@@ -9,7 +9,7 @@ from .enrichment import DependencyEnrichment, DependencyTrustRecord, extract_fix
 from .model import Finding, SecurityCase, normalize_severity
 
 
-ACTION_LEVELS = {"fix_now", "verify", "watch", "info"}
+ACTION_LEVELS = {"active_incident", "fix_now", "verify", "watch", "info"}
 EXPLOITED_RE = re.compile(r"\b(known exploited|likely exploited|exploited in the wild|cisa kev|active exploitation)\b", re.IGNORECASE)
 DependencyContext = DependencyEnrichment | DependencyTrustRecord | dict[str, Any] | None
 
@@ -262,7 +262,7 @@ def _is_dependency(item: Finding | SecurityCase | dict[str, Any]) -> bool:
 
 
 def _attention_rank(action_level: str) -> int:
-    return {"fix_now": 0, "verify": 1, "watch": 2, "info": 3}.get(action_level, 3)
+    return {"active_incident": 0, "fix_now": 1, "verify": 2, "watch": 3, "info": 4}.get(action_level, 4)
 
 
 def _scanner_only(item: Finding | SecurityCase | dict[str, Any], scanners: list[str]) -> bool:
