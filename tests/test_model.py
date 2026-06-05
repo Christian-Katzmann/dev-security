@@ -89,3 +89,23 @@ def test_unclassifiable_confidence_falls_back_to_unknown_not_medium(value):
     # An unclassifiable confidence is honest about its uncertainty ("unknown"),
     # not optimistic ("medium"). This is the load-bearing honesty property.
     assert _case(value).confidence == "unknown"
+
+
+def _case_with_level(action_level: str) -> SecurityCase:
+    case = _case("high")
+    case.action_level = action_level
+    case.__post_init__()
+    return case
+
+
+@pytest.mark.parametrize("value", ["active_incident", "fix_now", "verify", "watch", "info"])
+def test_known_action_levels_survive_post_init(value):
+    # The action_level set is validated here AND in priority.ACTION_LEVELS; an
+    # unknown value silently becomes "verify". active_incident is a first-class
+    # top state, so it must survive __post_init__ unchanged like the others.
+    assert _case_with_level(value).action_level == value
+
+
+@pytest.mark.parametrize("value", ["", "bogus", "urgent"])
+def test_unknown_action_level_still_falls_back_to_verify(value):
+    assert _case_with_level(value).action_level == "verify"

@@ -446,7 +446,7 @@ def _scan_cases(scan: dict[str, object]) -> list[dict[str, object]]:
 
 def _case_sort_key(case: dict[str, object]) -> tuple[int, int, str]:
     return (
-        {"fix_now": 0, "verify": 1, "watch": 2, "info": 3}.get(str(case.get("action_level")), 9),
+        {"active_incident": 0, "fix_now": 1, "verify": 2, "watch": 3, "info": 4}.get(str(case.get("action_level")), 9),
         SEVERITY_ORDER.get(str(case.get("severity")), 99),
         str(case.get("title") or ""),
     )
@@ -715,7 +715,7 @@ def build_ai_prompt(scan: dict[str, object]) -> str:
     cases = sorted(
         [case for case in cases if isinstance(case, dict)],
         key=lambda item: (
-            {"fix_now": 0, "verify": 1, "watch": 2, "info": 3}.get(str(item.get("action_level")), 9),
+            {"active_incident": 0, "fix_now": 1, "verify": 2, "watch": 3, "info": 4}.get(str(item.get("action_level")), 9),
             SEVERITY_ORDER.get(str(item.get("severity")), 99),
             str(item.get("title")),
         ),

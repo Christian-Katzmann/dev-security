@@ -16,6 +16,38 @@ By default, DëvSec writes inserted decoys under `.devsec/honeykeys/` so the fil
 
 DëvSec never commits these files. It refuses to overwrite existing files, refuses to write outside the selected repo, and requires explicit confirmation before writing.
 
+## Deployed Decoys & the External Boundary
+
+By default a decoy's callback URL points at your local dashboard
+(`127.0.0.1:8876`). That is unreachable from the internet, so a default-mode trip
+means *something on this machine touched the decoy* — a curious local agent, a
+misconfigured job, a script that read the repo. Useful, but **not** evidence of a
+remote attacker.
+
+For a trip to mean "a real external attacker took the bait," two things have to
+be true that DëvSec cannot do for you:
+
+1. The decoy must live on a **deployed, internet-exposed surface** — not a local
+   repo file.
+2. Its callback must reach a **collector you host and expose** — not loopback.
+
+So the division of labour is explicit:
+
+- **DëvSec mints and binds.** *Deployed placement mode* lets you supply a
+  reachable collector base URL (e.g. an HTTPS tunnel in front of your own DëvSec
+  dashboard's `/api/honey/trigger`, or a deployed DëvSec instance). DëvSec bakes
+  that URL into the decoy instead of `127.0.0.1`, validates it is a well-formed
+  absolute `http(s)` URL, and remembers that the key is a deployed decoy. **DëvSec
+  never deploys the decoy, never hosts the collector, and never contacts the
+  URL** — it is config text, in keeping with the local-first, display-only
+  External-Surface posture.
+- **You deploy and host.** You stand up and expose the collector, place the decoy
+  on the surface you want to watch, and judge whether a given trip is a true
+  external intrusion.
+
+A `127.0.0.1` trip is never proof of a remote attacker. DëvSec will not claim
+otherwise.
+
 ## What Happens When One Is Touched
 
 If the key or its trackable URL is used, DëvSec records a security event and turns the affected project red/critical. The alert means possible unauthorized access or that a decoy secret was touched. It does not identify the attacker personally.
@@ -44,8 +76,8 @@ so the citations cannot silently drift the way they once did:
 
 | Claim | Guard | Location |
 | --- | --- | --- |
-| Refuses to overwrite existing files | `if target_path.exists():` → HTTP 409 "Placement file already exists." | `src/security_observatory/dashboard_server.py:2779` (the 409 message at `:2780`) |
-| Refuses to write outside the selected repo | `target_path.relative_to(repo_path)` (400 "Placement path must stay inside the repo." if it escapes); a key whose `repo_id` differs is rejected with "Honey Key belongs to a different repo." | `src/security_observatory/dashboard_server.py:2772` and `:2795` |
-| No duplicate Honey Key created | `except sqlite3.IntegrityError:` → HTTP 409 "Honey Key already exists." | `src/security_observatory/dashboard_server.py:2681` (the 409 message at `:2682`) |
+| Refuses to overwrite existing files | `if target_path.exists():` → HTTP 409 "Placement file already exists." | `src/security_observatory/dashboard_server.py:2944` (the 409 message at `:2945`) |
+| Refuses to write outside the selected repo | `target_path.relative_to(repo_path)` (400 "Placement path must stay inside the repo." if it escapes); a key whose `repo_id` differs is rejected with "Honey Key belongs to a different repo." | `src/security_observatory/dashboard_server.py:2937` and `:2960` |
+| No duplicate Honey Key created | `except sqlite3.IntegrityError:` → HTTP 409 "Honey Key already exists." | `src/security_observatory/dashboard_server.py:2846` (the 409 message at `:2847`) |
 | Stores only a secure hash of the raw key | `hash_honey_key` = `hashlib.sha256("honeykey:v1:" + token)`; the raw token is never persisted, only `token_hash` | `src/security_observatory/honey_keys.py:86` (declared `token_hash` at `:41`, stored at `:57`) |
 

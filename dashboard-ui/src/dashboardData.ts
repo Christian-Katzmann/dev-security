@@ -850,7 +850,7 @@ export type Finding = {
   created_at: string;
 };
 
-export type AttentionBucket = 'fix-now' | 'verify' | 'watch' | 'info';
+export type AttentionBucket = 'active-incident' | 'fix-now' | 'verify' | 'watch' | 'info';
 
 // Canonical case-decision vocabulary — mirrors lifecycle.DECISION_STATUSES on
 // the backend. `in_progress` (S-035) is "fix applied, awaiting rescan proof".
@@ -1147,6 +1147,78 @@ export type ConsequenceSummary = {
   crown_jewel: {identity_key: string; node_type: string; label: string} | null;
 };
 
+// ---------------------------------------------------------------------------
+// Blast-radius graph view (Honeygraph 2, step 3.1) — /api/graph payload.
+// ---------------------------------------------------------------------------
+
+/** One asset-graph node, pre-scored by reachable consequence server-side. */
+export type GraphNode = {
+  asset_node_id: number | null;
+  node_type: string;
+  identity_key: string;
+  label: string;
+  is_crown_jewel: boolean;
+  /** Node classification confidence: 'strong' | 'moderate' | 'weak' | 'unknown'. */
+  confidence: string;
+  /** How many other nodes a blast from here can reach (sizes the node). */
+  blast_radius: number;
+  reaches_crown_jewel: boolean;
+  distance_to_crown_jewel: number | null;
+  /** Weakest-link confidence of the path to the nearest crown jewel. */
+  consequence_confidence: string;
+};
+
+/** A directed edge, re-keyed to identity keys so it joins to GraphNode + path. */
+export type GraphEdge = {
+  src_identity_key: string;
+  dst_identity_key: string;
+  edge_type: string;
+  confidence: string;
+  reason: string;
+};
+
+/** One step of a lit blast-radius path (reachable node + how it was reached). */
+export type GraphIncidentPathStep = {
+  identity_key: string;
+  node_type: string;
+  label: string;
+  via?: string;
+  distance?: number;
+};
+
+/**
+ * The live honey-incident attached to a graph: which node tripped, the real
+ * blast-radius path from it, and the honest `message` (a trip proves intrusion
+ * NEAR this node, never that a specific finding was exploited). Shape mirrors
+ * `storage.active_node_incidents()` enriched by `consequence.build_graph_payload`.
+ */
+export type GraphActiveIncident = {
+  event_id: string;
+  honey_key_id?: string;
+  triggered_at?: string;
+  node_type: string;
+  identity_key: string;
+  node: {node_type?: string; identity_key: string; label?: string; asset_node_id?: number | null};
+  path: GraphIncidentPathStep[];
+  edges: GraphEdge[];
+  blast_radius: number | null;
+  reaches_crown_jewel: boolean;
+  crown_jewel: {identity_key: string; node_type: string; label: string} | null;
+  crown_jewel_path: GraphIncidentPathStep[];
+  message: string;
+};
+
+export type GraphPayload = {
+  repo: string;
+  scan_id: string | null;
+  crown_jewels_defined: boolean;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  active_incident: GraphActiveIncident | null;
+  active_incidents: GraphActiveIncident[];
+  reason_none?: string;
+};
+
 /**
  * The case shape as it actually arrives over the wire. These are exactly the
  * backend `SecurityCase` dataclass fields (`model.py` / built in `cases.py`)
@@ -1363,9 +1435,10 @@ const severityWeight: Record<Severity, number> = {
 
 export const severities: Severity[] = ['critical', 'high', 'medium', 'low', 'info'];
 
-export const attentionBuckets: AttentionBucket[] = ['fix-now', 'verify', 'watch', 'info'];
+export const attentionBuckets: AttentionBucket[] = ['active-incident', 'fix-now', 'verify', 'watch', 'info'];
 
 export const attentionBucketLabels: Record<AttentionBucket, string> = {
+  'active-incident': 'Active incident',
   'fix-now': 'Fix now',
   verify: 'Verify',
   watch: 'Watch',
@@ -1701,11 +1774,19 @@ export function honeyKeyById(summary: DashboardSummary, keyId: string): HoneyKey
 }
 
 function normalizeBucket(value: string | undefined, severity?: Severity): AttentionBucket {
-  // The backend (Python) encodes the action level as `fix_now`; the dashboard
-  // uses `fix-now`. That single snake_case→kebab boundary is the only alias we
-  // translate — no blanket rewrite that could silently reshape other values.
-  const normalized = value === 'fix_now' ? 'fix-now' : value;
-  if (normalized === 'fix-now' || normalized === 'verify' || normalized === 'watch' || normalized === 'info') return normalized;
+  // The backend (Python) encodes action levels with underscores (`fix_now`,
+  // `active_incident`); the dashboard uses kebab-case (`fix-now`,
+  // `active-incident`). We translate only those two known snake_case→kebab
+  // aliases — no blanket rewrite that could silently reshape other values.
+  const normalized = value === 'fix_now' ? 'fix-now' : value === 'active_incident' ? 'active-incident' : value;
+  if (
+    normalized === 'active-incident' ||
+    normalized === 'fix-now' ||
+    normalized === 'verify' ||
+    normalized === 'watch' ||
+    normalized === 'info'
+  )
+    return normalized;
   if (severity === 'critical' || severity === 'high') return 'fix-now';
   if (severity === 'medium') return 'verify';
   if (severity === 'low') return 'watch';
@@ -1844,7 +1925,7 @@ export function suppressedDisplayCases(summary: DashboardSummary): DisplayCase[]
 }
 
 export function actionBucketCounts(summary: DashboardSummary): Record<AttentionBucket, number> {
-  const counts: Record<AttentionBucket, number> = {'fix-now': 0, verify: 0, watch: 0, info: 0};
+  const counts: Record<AttentionBucket, number> = {'active-incident': 0, 'fix-now': 0, verify: 0, watch: 0, info: 0};
   for (const item of displayCases(summary)) {
     if (caseNeedsAttention(item)) counts[item.bucket] += 1;
   }

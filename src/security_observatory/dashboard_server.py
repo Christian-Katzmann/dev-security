@@ -18,6 +18,7 @@ import uuid
 import webbrowser
 
 from .cases import build_recovery_playbooks
+from .consequence import build_graph_payload, suggest_placement_node
 from .agent_lab import (
     AGENT_PROPOSAL_MAX_BYTES,
     AgentLabExecutionError,
@@ -63,6 +64,7 @@ from .honey_keys import (
     project_id_for_repo_path,
     sanitize_headers,
     summarize_body,
+    validate_collector_base_url,
 )
 from .managed_tools import (
     ManagedToolInstallError,
@@ -1594,6 +1596,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         (_match_exact_parsed("/api/ai-follow-up/resolution-runs"), "serve_ai_followup_resolution_runs"),
         (_match_exact_parsed("/api/install-preview"), "_get_install_preview"),
         (_match_exact_parsed("/api/honey/keys"), "_get_honey_keys"),
+        (_match_exact_parsed("/api/honey/suggest-placement"), "_get_honey_suggest_placement"),
         (_match_prefix_parsed("/api/honey/open/"), "_get_honey_open"),
         (_match_exact_parsed("/api/honey/trigger"), "_get_honey_trigger"),
         (_match_exact("/api/projects"), "_get_projects"),
@@ -1609,6 +1612,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         (_match_rstrip_parsed("/report"), "_get_report_page"),
         (_match_exact_parsed("/api/report"), "_get_report_download"),
         (_match_exact_parsed("/api/scan-diff"), "_get_scan_diff"),
+        (_match_exact_parsed("/api/graph"), "_get_graph"),
         (_match_rstrip_parsed("/api/fix-proposals"), "_get_fix_proposals"),
         (_match_regex_groups(_FIX_PROPOSAL_ID_RE, "proposal_id"), "serve_fix_proposal_detail"),
     ]
@@ -1780,6 +1784,70 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         finally:
             db.close()
 
+    def _get_honey_suggest_placement(self, parsed) -> None:
+        """Propose the top-consequence node to guard with a decoy.
+
+        Read-only: nothing is minted, bound, or written here. It returns the node to
+        guard (by human-readable label, never asking a human to author a 24-hex
+        fingerprint), why it ranks highest, whether it is solid enough to pre-offer
+        for auto-placement, and a preview of the decoy content. The actual mint +
+        bind happens when the human POSTs /api/honey/keys with this assetNodeId, and
+        planting still requires the confirm-before-write rail on /api/honey/insert.
+        """
+        query = parse_qs(parsed.query)
+        repo_path = (query.get("repoPath", [""])[0] or "").strip()
+        repo_name = (query.get("repoName", [""])[0] or "").strip()
+        if not repo_name and repo_path:
+            repo_name = Path(repo_path).name
+        if not repo_name:
+            self.send_error(400, "repoName or repoPath is required to suggest a placement.")
+            return
+        db = ObservatoryDB(self.db_path)
+        try:
+            scan = db.latest_scan_for_repo(repo_name)
+            if not scan:
+                self.send_json({
+                    "suggestion": None,
+                    "reason_none": f"No scan found for '{repo_name}'. Run a scan to build the asset graph first.",
+                })
+                return
+            scan_id = str(scan["id"])
+            nodes = db.list_asset_nodes(scan_id=scan_id)
+            edges = db.list_asset_edges(scan_id=scan_id)
+            suggestion = suggest_placement_node(nodes, edges)
+            if suggestion is None:
+                self.send_json({
+                    "suggestion": None,
+                    "reason_none": "This scan built no asset-graph nodes, so there is nothing to guard yet.",
+                })
+                return
+            signing_secret = db.honey_signing_secret()
+        finally:
+            db.close()
+
+        # Decoy content preview: minted in-memory and NOT stored. It shows the human
+        # the shape of the decoy file to confirm; the real, tracked Honey Key is
+        # generated only when they create it via POST /api/honey/keys.
+        preview_material = generate_honey_key(signing_secret)
+        decoy_preview = build_decoy_snippets(
+            base_url=self.request_base_url(),
+            name=f"Decoy for {suggestion.node['label']}",
+            token=preview_material.token,
+            token_id=preview_material.token_id,
+            signing_secret=signing_secret,
+        )
+        self.send_json({
+            "suggestion": suggestion.to_dict(),
+            "recommended_placement_path": _suggested_decoy_path(suggestion.node["label"]),
+            "decoy_preview": decoy_preview,
+            "notice": (
+                "This is a proposal. No Honey Key is minted and no file is written "
+                "until you create the decoy and confirm placement. The preview content "
+                "uses a throwaway token; the real Honey Key is generated when you "
+                "create it."
+            ),
+        })
+
     def _get_honey_open(self, parsed) -> None:
         token_id = parsed.path.removeprefix("/api/honey/open/").strip("/")
         query = parse_qs(parsed.query)
@@ -1885,6 +1953,56 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json_error(404, "One or both scans were not found.")
             return
         self.send_json(diff)
+
+    def _get_graph(self, parsed) -> None:
+        """The blast-radius graph payload: nodes scored by consequence + lit path.
+
+        Repo-scoped (the asset graph is built per scan): resolves the repo's latest
+        scan, lists its nodes + edges, scores every node by reachable consequence,
+        and overlays any *active* honey-incident path bound to a node in this graph.
+        Read-only. An empty graph returns empty ``nodes``/``edges`` with a plain
+        ``reason_none`` so the view shows an honest empty state, not an error.
+        """
+        query = parse_qs(parsed.query)
+        repo_path = (query.get("repoPath", [""])[0] or "").strip()
+        repo_name = (query.get("repoName", [""])[0] or "").strip()
+        if not repo_name and repo_path:
+            repo_name = Path(repo_path).name
+        if not repo_name:
+            self.send_json_error(400, "repoName or repoPath is required for the graph view.")
+            return
+        db = ObservatoryDB(self.db_path)
+        try:
+            scan = db.latest_scan_for_repo(repo_name)
+            if not scan:
+                self.send_json({
+                    "repo": repo_name,
+                    "scan_id": None,
+                    "crown_jewels_defined": False,
+                    "nodes": [],
+                    "edges": [],
+                    "active_incident": None,
+                    "active_incidents": [],
+                    "reason_none": (
+                        f"No scan found for '{repo_name}'. Run a scan to build the "
+                        f"asset graph first."
+                    ),
+                })
+                return
+            scan_id = str(scan["id"])
+            node_rows = db.list_asset_nodes(scan_id=scan_id)
+            edge_rows = db.list_asset_edges(scan_id=scan_id)
+            incidents = db.active_node_incidents()
+        finally:
+            db.close()
+        payload = build_graph_payload(node_rows, edge_rows, incidents)
+        payload["repo"] = repo_name
+        payload["scan_id"] = scan_id
+        if not payload["nodes"]:
+            payload["reason_none"] = (
+                "This scan built no asset-graph nodes, so there is nothing to map yet."
+            )
+        self.send_json(payload)
 
     def _get_fix_proposals(self, parsed) -> None:
         # The hands-off code-fix flow (propose -> clean-room review -> land)
@@ -2647,6 +2765,32 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             placement_path = str(payload.get("placementPath") or DEFAULT_PLACEMENT_PATHS[0]).strip()[:240]
             note = str(payload.get("note") or "").strip()[:500] or None
             created_by = str(payload.get("createdBy") or "").strip()[:120] or None
+            asset_node_id = _coerce_asset_node_id(payload.get("assetNodeId"))
+            if asset_node_id is _INVALID_ASSET_NODE_ID:
+                self.send_error(400, "assetNodeId must be a positive integer asset node id.")
+                return
+            # Deployed-decoy mode: the operator points the decoy's callback at a
+            # reachable collector they host themselves, so a trip can mean a real
+            # remote trip. Default is local (callback → 127.0.0.1). DëvSec only
+            # bakes the URL in as config; it never deploys or contacts it. See
+            # notes/2.2-external-confirmation-boundary.md.
+            placement_mode = str(payload.get("placementMode") or "").strip().lower()
+            raw_trigger_base = str(payload.get("triggerBaseUrl") or "").strip()
+            if not placement_mode:
+                placement_mode = "deployed" if raw_trigger_base else "local"
+            if placement_mode not in ("local", "deployed"):
+                self.send_error(400, "placementMode must be 'local' or 'deployed'.")
+                return
+            trigger_base_url: str | None = None
+            if placement_mode == "deployed":
+                if not raw_trigger_base:
+                    self.send_error(400, "Deployed placement requires a reachable triggerBaseUrl.")
+                    return
+                try:
+                    trigger_base_url = validate_collector_base_url(raw_trigger_base)
+                except ValueError as exc:
+                    self.send_error(400, str(exc))
+                    return
             db = ObservatoryDB(self.db_path)
             try:
                 signing_secret = db.honey_signing_secret()
@@ -2660,6 +2804,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     placement_path=placement_path,
                     note=note,
                     created_by=created_by,
+                    asset_node_id=asset_node_id,
+                    trigger_base_url=trigger_base_url,
                 )
                 snippets = build_decoy_snippets(
                     base_url=self.request_base_url(),
@@ -2667,13 +2813,32 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     token=material.token,
                     token_id=material.token_id,
                     signing_secret=signing_secret,
+                    trigger_base_url=trigger_base_url,
                 )
+                base_notice = "Honey Keys are fake, powerless decoy secrets. They alert you when touched. They do not prevent breaches by themselves."
+                if placement_mode == "deployed":
+                    placement_notice = (
+                        "Deployed decoy: the callback points at your collector "
+                        f"({trigger_base_url}). DëvSec mints and binds it but does NOT "
+                        "deploy the decoy or host the collector — you must place it on a "
+                        "reachable surface and keep that collector exposed. A 127.0.0.1 "
+                        "trip is not proof of a remote attacker."
+                    )
+                else:
+                    placement_notice = (
+                        "Local decoy: the callback points at this machine's dashboard "
+                        "(127.0.0.1). A trip means something local touched it, not a "
+                        "remote attacker. Use deployed placement to watch an exposed surface."
+                    )
                 self.send_json(
                     {
                         "key": key,
                         "raw_token": material.token,
                         "snippets": snippets,
-                        "notice": "Honey Keys are fake, powerless decoy secrets. They alert you when touched. They do not prevent breaches by themselves.",
+                        "placement_mode": placement_mode,
+                        "trigger_base_url": trigger_base_url,
+                        "notice": base_notice,
+                        "placement_notice": placement_notice,
                     }
                 )
             finally:
@@ -3657,6 +3822,28 @@ def _is_safe_honeykeys_path(path: str) -> bool:
     clean = Path(path)
     parts = clean.parts
     return len(parts) >= 3 and parts[0] == ".devsec" and parts[1] == "honeykeys"
+
+
+# Sentinel distinguishing "no assetNodeId given" (None, fine) from "a value was
+# given but it isn't a usable node id" (reject with 400).
+_INVALID_ASSET_NODE_ID = object()
+
+
+def _coerce_asset_node_id(raw: Any) -> int | None | object:
+    """Parse an optional bound-node id. None/blank => unbound; junk => sentinel."""
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return _INVALID_ASSET_NODE_ID
+    return value if value > 0 else _INVALID_ASSET_NODE_ID
+
+
+def _suggested_decoy_path(label: str) -> str:
+    """A safe default decoy path under .devsec/honeykeys/, named after the node."""
+    slug = re.sub(r"[^a-z0-9]+", "-", str(label).lower()).strip("-")[:48] or "decoy"
+    return f".devsec/honeykeys/{slug}.env"
 
 
 def _catalog_tool(tool_id: str, managed_tool_records: list[dict[str, Any]]) -> dict[str, Any] | None:

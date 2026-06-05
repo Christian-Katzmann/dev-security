@@ -8321,3 +8321,370 @@ summary:focus-visible,
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
+
+/* ---------------------------------------------------------------------------
+   Blast-radius graph view (Honeygraph 2, step 3.1)
+   The asset graph as a force-laid SVG: nodes coloured/sized by consequence,
+   crown jewels marked, an active-incident path lit with a glow.
+   --------------------------------------------------------------------------- */
+.blast-view {
+  gap: 16px;
+}
+.blast-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+  align-items: start;
+}
+.blast-main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+.blast-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border-soft);
+  background: var(--surface-card);
+  font-size: 13px;
+  color: var(--ink-muted);
+  line-height: 1.45;
+}
+.blast-banner svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.blast-banner code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--paper-soft);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.blast-banner-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.blast-banner-body strong {
+  color: var(--ink-strong);
+  font-weight: 600;
+}
+.blast-banner-incident {
+  border-color: color-mix(in srgb, var(--sev-crit) 45%, var(--border-soft));
+  background: color-mix(in srgb, var(--sev-crit) 7%, var(--surface-card));
+  color: var(--ink);
+}
+.blast-banner-incident > svg {
+  color: var(--sev-crit);
+}
+.blast-banner-error {
+  border-color: color-mix(in srgb, var(--sev-crit) 50%, var(--border-soft));
+  color: var(--sev-crit);
+}
+.blast-banner-info {
+  border-style: dashed;
+}
+.blast-banner-calm > svg {
+  color: var(--ink-faint);
+}
+
+.blast-canvas-shell {
+  position: relative;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  background:
+    radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--paper) 40%, var(--surface-card)), var(--surface-card));
+  overflow: hidden;
+}
+.blast-canvas-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 340px;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+.blast-canvas {
+  display: block;
+  width: 100%;
+  height: clamp(420px, 56vh, 640px);
+}
+.blast-canvas-refreshing {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  color: var(--ink-faint);
+  z-index: 2;
+}
+.blast-spin {
+  animation: blast-spin 0.9s linear infinite;
+}
+@keyframes blast-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.blast-edge {
+  stroke: var(--ink-faint);
+  stroke-opacity: 0.4;
+  stroke-width: 1.1;
+}
+.blast-edge-lit {
+  stroke: var(--sev-crit);
+  stroke-opacity: 0.95;
+  stroke-width: 2.4;
+}
+
+.blast-node {
+  cursor: pointer;
+  outline: none;
+}
+.blast-node-core {
+  stroke: var(--surface-card);
+  stroke-width: 1.5;
+  transition: r var(--dur-fast) var(--ease-standard);
+}
+.blast-node-halo {
+  opacity: 0.22;
+}
+.blast-node.is-tripped .blast-node-core {
+  stroke: var(--sev-crit);
+  stroke-width: 2.5;
+}
+.blast-node.is-selected .blast-node-core {
+  stroke: var(--ink-strong);
+  stroke-width: 2.5;
+}
+.blast-node:focus-visible .blast-node-core {
+  stroke: var(--ink-strong);
+  stroke-width: 2.5;
+}
+.blast-node-label {
+  font: 500 10px/1 var(--font-sans);
+  fill: var(--ink-muted);
+  pointer-events: none;
+}
+.blast-node.is-lit .blast-node-label,
+.blast-node.is-selected .blast-node-label {
+  fill: var(--ink-strong);
+  font-weight: 600;
+}
+.blast-node-crown {
+  color: #b9892f;
+  pointer-events: none;
+}
+.blast-node-trip {
+  color: var(--sev-crit);
+  pointer-events: none;
+}
+.blast-node.is-tripped {
+  animation: blast-pulse 1.8s ease-in-out infinite;
+}
+@keyframes blast-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.72;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .blast-node.is-tripped {
+    animation: none;
+  }
+  .blast-spin {
+    animation: none;
+  }
+}
+
+.blast-truncate-note {
+  margin: 0;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+.blast-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 2px 2px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.blast-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.blast-legend-swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+}
+.blast-legend-item svg {
+  color: #b9892f;
+}
+
+.blast-aside {
+  position: sticky;
+  top: 12px;
+}
+.blast-aside-empty,
+.blast-detail {
+  border: 1px solid var(--border-soft);
+  border-radius: var(--r-lg);
+  background: var(--surface-card);
+  padding: 16px;
+  font-size: 13px;
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+.blast-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.blast-detail-head svg {
+  color: var(--sev-crit);
+  flex: 0 0 auto;
+}
+.blast-detail-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-strong);
+  overflow-wrap: anywhere;
+}
+.blast-detail-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  margin: 0 0 12px;
+}
+.blast-detail-grid dt {
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+.blast-detail-grid dd {
+  margin: 0;
+  color: var(--ink);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.blast-detail-jewel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+}
+.blast-detail-jewel svg {
+  color: #b9892f;
+}
+.blast-detail-honest {
+  margin: 0 0 12px;
+  padding: 10px;
+  border-radius: var(--r-md);
+  background: color-mix(in srgb, var(--sev-crit) 7%, var(--surface-card));
+  border: 1px solid color-mix(in srgb, var(--sev-crit) 25%, var(--border-soft));
+  font-size: 12px;
+  color: var(--ink);
+}
+.blast-detail-note {
+  margin: 0;
+  font-size: 12px;
+}
+.blast-path h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+}
+.blast-path ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.blast-path li {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 5px 0 5px 4px;
+  font-size: 12px;
+  color: var(--ink);
+}
+.blast-path li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 18px;
+  bottom: -4px;
+  width: 1px;
+  background: color-mix(in srgb, var(--sev-crit) 40%, var(--border-soft));
+}
+.blast-path-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  margin-top: 4px;
+  border-radius: 999px;
+  background: var(--sev-crit);
+}
+.blast-path-origin {
+  font-weight: 600;
+}
+.blast-path-via {
+  color: var(--ink-faint);
+  font-style: normal;
+  font-size: 11px;
+}
+
+.blast-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+  padding: 56px 24px;
+  border: 1px dashed var(--border-soft);
+  border-radius: var(--r-lg);
+  background: var(--surface-card);
+  color: var(--ink-muted);
+}
+.blast-empty svg {
+  color: var(--ink-faint);
+}
+.blast-empty h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--ink-strong);
+}
+.blast-empty p {
+  margin: 0;
+  max-width: 420px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .blast-layout {
+    grid-template-columns: 1fr;
+  }
+  .blast-aside {
+    position: static;
+  }
+}

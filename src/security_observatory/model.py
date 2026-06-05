@@ -165,7 +165,7 @@ class SecurityCase:
     def __post_init__(self) -> None:
         self.title = redact_text(self.title or "Security case")
         self.plain_english_risk = redact_text(self.plain_english_risk or "")
-        self.action_level = self.action_level if self.action_level in {"fix_now", "verify", "watch", "info"} else "verify"
+        self.action_level = self.action_level if self.action_level in {"active_incident", "fix_now", "verify", "watch", "info"} else "verify"
         # Preserve "unknown" so a case never reads more certain than its evidence.
         # Anything unclassifiable falls back to "unknown" (honest), not "medium".
         self.confidence = self.confidence if self.confidence in {"high", "medium", "low", "unknown"} else "unknown"

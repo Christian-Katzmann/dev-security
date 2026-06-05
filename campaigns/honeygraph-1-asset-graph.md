@@ -58,7 +58,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 - [x] Step 3.1 — Show "why this ranks here" in the dashboard
 - [x] Step 3.2 — Prove the re-rank is truer (the trust-gate for Campaign 2)
-- [ ] Final review
+- [x] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
 
