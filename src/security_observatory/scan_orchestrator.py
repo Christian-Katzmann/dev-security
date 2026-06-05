@@ -22,7 +22,7 @@ import argparse
 from . import __version__
 from .asset_graph import derive_asset_nodes
 from .behavioral import select_behavioral_drift_targets
-from .cases import build_security_cases, scanner_evidence_gaps
+from .cases import apply_consequence_priority, build_security_cases, scanner_evidence_gaps
 from .consequence import attach_consequences
 from .crown_jewels import load_crown_jewel_labels, mark_crown_jewels
 from .enrichment import correlate_dependency_findings, enrich_dependency_trust
@@ -303,6 +303,10 @@ def scan_repo(
             *derive_iac_resource_edges(iac_resources, secret_files=secret_files),
         ]
         attach_consequences(cases, asset_nodes, asset_edges)
+        # Now that each case knows what it can reach, let consequence raise attention
+        # (a strong path to a crown jewel can promote to fix_now) and re-order. Pure,
+        # additive: cases with no consequence keep their build-time rank.
+        cases = apply_consequence_priority(cases)
     except BaseException:
         db.close()
         raise

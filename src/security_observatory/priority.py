@@ -78,6 +78,56 @@ def action_level_for(
     return decide_action_level(item, enrichment).action_level
 
 
+def with_consequence(decision: PriorityDecision, consequence: dict[str, Any] | None) -> PriorityDecision:
+    """Additive reachable-consequence boost (Honeygraph Phase 2).
+
+    A finding whose asset-graph node can reach a human-labeled crown jewel is more
+    dangerous than its scanner severity alone suggests. Modeled on
+    ``_with_dependency_trust``: it only ever *raises* attention and always explains
+    itself, so it can re-order findings but never silently override severity.
+
+      - A *strong* path (every hop confident, by the weakest-link rule) promotes the
+        finding to ``fix_now`` and says why in plain English.
+      - A *weak* or *unknown* path only adds a reason; it must never auto-promote,
+        because we never escalate on a low-confidence edge.
+
+    Promote-only for the MVP: a high-severity finding that reaches nothing is never
+    hushed. A case with no consequence (``None``) or that reaches no crown jewel is
+    returned untouched, so it ranks exactly as it does today.
+    """
+    if not consequence or not consequence.get("reaches_crown_jewel"):
+        return decision
+
+    confidence = str(consequence.get("confidence") or "unknown").lower()
+    jewel = consequence.get("crown_jewel") or {}
+    jewel_label = str(jewel.get("label") or jewel.get("identity_key") or "a crown-jewel asset")
+    hops = _hop_phrase(consequence.get("distance"))
+    reasons = list(decision.reasons)
+
+    if confidence == "strong":
+        reasons.append(
+            f"This finding can reach {jewel_label} {hops}, so it outranks "
+            "higher-severity findings that reach nothing."
+        )
+        if _attention_rank("fix_now") < _attention_rank(decision.action_level):
+            return PriorityDecision("fix_now", reasons)
+        return PriorityDecision(decision.action_level, reasons)
+
+    reasons.append(
+        f"This finding might reach {jewel_label} {hops}, but the path runs through a "
+        "low-confidence link, so it is flagged for a human instead of being auto-promoted."
+    )
+    return PriorityDecision(decision.action_level, reasons)
+
+
+def _hop_phrase(distance: Any) -> str:
+    try:
+        hops = int(distance)
+    except (TypeError, ValueError):
+        return "through the asset graph"
+    return "in 1 hop" if hops <= 1 else f"in {hops} hops"
+
+
 def _get(source: Finding | SecurityCase | dict[str, Any], key: str) -> Any:
     if isinstance(source, dict):
         return source.get(key)

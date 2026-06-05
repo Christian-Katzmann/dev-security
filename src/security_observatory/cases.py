@@ -8,7 +8,7 @@ import re
 
 from .catalog import SECURITY_PACK_DEFINITIONS, current_scan_profiles, scanner_catalog_compat
 from .model import Finding, SEVERITY_ORDER, SecurityCase, normalize_severity
-from .priority import decide_action_level
+from .priority import PriorityDecision, decide_action_level, with_consequence
 from .recency import rotation_surfaces_from_json
 
 
@@ -195,14 +195,60 @@ def build_security_cases(
         groups[_cluster_key(finding)].append(finding)
 
     cases = [_case_from_group(items, metadata, trust_index) for items in groups.values()]
-    return sorted(
-        cases,
-        key=lambda item: (
-            {"fix_now": 0, "verify": 1, "watch": 2, "info": 3}.get(item.action_level, 9),
-            -SEVERITY_ORDER.get(item.severity, 0),
-            item.title.lower(),
-        ),
+    return sorted(cases, key=_case_sort_key)
+
+
+_ACTION_LEVEL_RANK = {"fix_now": 0, "verify": 1, "watch": 2, "info": 3}
+_CONSEQUENCE_CONFIDENCE_RANK = {"unknown": 0, "weak": 1, "strong": 2}
+
+
+def _consequence_sort_key(case: SecurityCase) -> tuple:
+    """Reachable-consequence tiebreak, finer than the severity-label sort above it.
+
+    A case that can reach a crown jewel sorts ahead of one that reaches nothing,
+    preferring stronger paths, then nearer ones, then a larger blast radius. Cases
+    with no consequence — or that reach no crown jewel — all collapse to one neutral
+    key, so they fall through to the title tiebreak and keep exactly today's order.
+    A pure-additive break: it never reorders across severity, only within it.
+    """
+    consequence = case.consequence
+    if not isinstance(consequence, dict) or not consequence.get("reaches_crown_jewel"):
+        return (1,)
+    conf_rank = _CONSEQUENCE_CONFIDENCE_RANK.get(str(consequence.get("confidence") or "unknown").lower(), 0)
+    distance = consequence.get("distance")
+    distance = distance if isinstance(distance, int) else 1_000_000
+    blast = consequence.get("blast_radius") if isinstance(consequence.get("blast_radius"), int) else 0
+    return (0, -conf_rank, distance, -blast)
+
+
+def _case_sort_key(case: SecurityCase) -> tuple:
+    return (
+        _ACTION_LEVEL_RANK.get(case.action_level, 9),
+        -SEVERITY_ORDER.get(case.severity, 0),
+        _consequence_sort_key(case),
+        case.title.lower(),
     )
+
+
+def apply_consequence_priority(cases: list[SecurityCase]) -> list[SecurityCase]:
+    """Apply the reachable-consequence boost, then re-order.
+
+    Run AFTER ``attach_consequences`` has set ``case.consequence``. The boost is
+    additive: a strong path to a crown jewel can raise a case to ``fix_now`` (with a
+    plain-English reason), a weak path only explains, and a case with no consequence
+    is untouched and keeps its current rank. Severity stays the dominant sort key, so
+    a reordered low-severity finding never hides a high-severity one.
+    """
+    for case in cases:
+        if not isinstance(case.consequence, dict):
+            continue
+        decision = with_consequence(
+            PriorityDecision(case.action_level, list(case.priority_reasons)),
+            case.consequence,
+        )
+        case.action_level = decision.action_level
+        case.priority_reasons = decision.reasons
+    return sorted(cases, key=_case_sort_key)
 
 
 def scanner_evidence_gaps(scanners: Iterable[dict[str, Any]], profile: str | None = None) -> list[dict[str, Any]]:
