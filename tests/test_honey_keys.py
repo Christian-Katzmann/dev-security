@@ -828,3 +828,70 @@ def test_doc_guard_map_citations_resolve():
         assert f":{lineno}" in doc, (
             f"docs/honey-keys.md Guard Map no longer cites dashboard_server.py:{lineno}"
         )
+
+
+def test_loop_end_to_end_over_http(tmp_path):
+    """The whole tripwire loop, driven over real HTTP against 127.0.0.1 — not an
+    in-process db assertion. Mint + bind a decoy at the guarded node, trip it
+    through the live ``/api/honey/trigger`` route, then read the case flip and the
+    lit blast-radius path back from ``/api/summary`` and ``/api/graph``. This is
+    Step 3.2's end-to-end proof: the loop is *observed* across the HTTP boundary,
+    case-flip and path-light included, with the honesty boundary asserted."""
+    db = ObservatoryDB(tmp_path / "observatory.sqlite")
+    try:
+        web_node_id, fingerprints = _save_two_node_scan(db)
+    finally:
+        db.close()
+
+    base_url, stop = _start_server(tmp_path)
+    try:
+        # 1. Mint + bind a decoy to the top-consequence node (human-confirmed create).
+        created = _post_json(
+            f"{base_url}/api/honey/keys",
+            {
+                "repoPath": "/tmp/repo",
+                "repoName": "repo",
+                "name": "Decoy guarding web-server",
+                "placementPath": ".devsec/honeykeys/decoy.env",
+                "assetNodeId": web_node_id,
+            },
+        )
+        assert created["key"]["asset_node_id"] == web_node_id
+        # Local placement: the callback is loopback, so the notice must NOT imply
+        # a trip equals a remote attacker.
+        assert created["placement_mode"] == "local"
+        assert "not a\n" not in created["placement_notice"]  # sanity: notice present
+        raw_token = created["raw_token"]
+
+        # 2. Trip the decoy through the real trigger route (loopback = local plumbing).
+        tripped = _post_json(f"{base_url}/api/honey/trigger", {"api_key": raw_token})
+        assert tripped == {"accepted": True}
+
+        # 3. Observe the flip + lit path back over HTTP.
+        summary = _get_json(f"{base_url}/api/summary")
+        graph = _get_json(f"{base_url}/api/graph?repoPath=/tmp/repo&repoName=repo")
+    finally:
+        stop()
+
+    cases = {case["case_id"]: case for case in summary["cases"]}
+    web_case = cases["case-web"]
+    # The guarded node's case flipped to the new top state...
+    assert web_case["action_level"] == "active_incident"
+    incident = web_case["active_incident"]
+    assert incident["node"]["identity_key"] == fingerprints["web"]
+    # ...and the lit path is real graph data (it reaches the dependent app node).
+    assert fingerprints["app"] in {step["identity_key"] for step in incident["path"]}
+    # Honest language: intrusion NEAR the node, never "this finding was exploited".
+    assert "intrusion near this node" in incident["message"]
+    assert "exploited" not in incident["message"].split("not that")[0]
+    # The unrelated case at another location is NOT escalated by the trip.
+    assert cases["case-other"]["action_level"] == "verify"
+
+    # The graph view lights exactly this node's path and nothing else's.
+    lit = graph["active_incident"]
+    assert lit is not None
+    assert lit["identity_key"] == fingerprints["web"]
+    assert fingerprints["app"] in {step["identity_key"] for step in lit["path"]}
+    assert graph["scan_id"] == "scan-1"
+    # Exactly one node is lit — the trip illuminates near the node, not the fleet.
+    assert len(graph["active_incidents"]) == 1
