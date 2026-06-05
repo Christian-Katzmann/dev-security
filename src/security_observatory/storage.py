@@ -41,6 +41,7 @@ from .asset_graph import (
     AssetEdge,
     derive_asset_nodes,
 )
+from .crown_jewels import mark_crown_jewels
 from .honey_keys import HONEY_KEY_PREFIX, utc_now
 from .platform_posture import platform_posture_snapshot_fingerprint
 from .managed_tools import new_ownership_id, upsert_manifest_record, utc_now as managed_utc_now
@@ -1174,6 +1175,7 @@ class ObservatoryDB:
         dependency_trust_enrichments: list[Any] | None = None,
         platform_posture_snapshot: dict[str, Any] | None = None,
         iac_resources: list[Any] | None = None,
+        crown_jewels: list[Any] | None = None,
     ) -> None:
         # Persist only redacted, whitelist-validated cases. A raw dict skips
         # SecurityCase.__post_init__ (token redaction + action_level/confidence
@@ -1211,6 +1213,11 @@ class ObservatoryDB:
         asset_nodes = derive_asset_nodes(
             components=component_dicts, findings=findings, iac_resources=iac_resources
         )
+        # Crown jewels are human-declared (never inferred): a scan-time pass flips
+        # ``is_crown_jewel`` on the nodes whose identity a label matches. No labels
+        # (absent ``.devsec/crown-jewels.json``) leaves every node unmarked.
+        if crown_jewels:
+            asset_nodes = mark_crown_jewels(asset_nodes, crown_jewels)
         component_created_at = utc_now()
         trust_created_at = utc_now()
         platform_created_at = utc_now()

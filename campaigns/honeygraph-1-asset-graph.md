@@ -51,7 +51,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 2 — Rank by reachable consequence
 
-- [ ] Step 2.1 — Crown-jewel labels + reachability scoring
+- [x] Step 2.1 — Crown-jewel labels + reachability scoring
 - [ ] Step 2.2 — Consequence boost in the priority engine
 
 ### Phase 3 — Surface it, then prove it (the gate)
@@ -221,13 +221,15 @@ SCOPE: A consequence booster in priority.py modeled on _with_dependency_trust, p
 REQUIRED READING:
 1. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/priority.py  (decide_action_level ~26-71; the _with_dependency_trust boost precedent ~121-142; ACTION_LEVELS ~12; _attention_rank ~214)
 2. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/cases.py  (case ordering ~198-205 — action_level bucket then severity label)
-3. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/model.py  (priority_reasons list on SecurityCase)
+3. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/model.py  (priority_reasons list on SecurityCase; the `consequence` field 2.1 added)
 4. /Users/christiankatzmann/Dev/Projects/dëv-security/tests/test_priority.py  (boost test patterns)
 
+FROM 2.1 (use, don't rebuild): each `SecurityCase` now carries a `consequence` dict (or `None` when the case maps to no graph node — those must rank EXACTLY as today). Shape: `{reaches_crown_jewel: bool, distance: int|None, blast_radius: int, confidence: "unknown"|"weak"|"strong", crown_jewels_defined: bool, path: [...], crown_jewel: {...}|None}`. The confidence vocab is `unknown|weak|strong` — there is NO "medium" tier. The weakest-link rule already collapsed the whole path to one confidence, so the booster reads `consequence["confidence"]` directly.
+
 OUTPUT:
-- A consequence booster: reaches-crown-jewel on a strong/medium path can raise action_level (e.g. medium→fix_now); a weak path may add a reason but must NOT auto-promote.
-- A plain-English reason appended to priority_reasons, e.g. "This finding's API key can reach the customer database in 2 hops, so it outranks higher-severity findings that reach nothing."
-- Consequence breaks ties within an action_level bucket (finer than the severity-label tiebreak), without overriding severity.
+- A consequence booster: `reaches_crown_jewel` on a STRONG path (`confidence == "strong"`) can raise action_level (e.g. verify→fix_now); a `weak` path may add a reason but must NOT auto-promote; `unknown`/`None` consequence changes nothing.
+- A plain-English reason appended to priority_reasons, e.g. "This finding's API key can reach the customer database in 2 hops, so it outranks higher-severity findings that reach nothing." (The path + distance + crown_jewel label for the sentence are all on the `consequence` dict.)
+- Consequence breaks ties within an action_level bucket (finer than the severity-label tiebreak), without overriding severity — order by reaches_crown_jewel, then path confidence, then nearer distance, then larger blast_radius.
 - Receipt to campaigns/honeygraph-1-asset-graph/receipts/2.2-consequence-boost.md
 
 ACCEPTANCE:
@@ -258,10 +260,12 @@ REQUIRED READING:
 3. /Users/christiankatzmann/Dev/Projects/dëv-security/dashboard-ui/src/App.tsx  (find the case-rendering surface — there is no CaseCard.tsx in the current tree)
 4. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/dashboard_server.py  (the payload that carries cases — add consequence fields)
 
+FROM 2.1 (use, don't rebuild): the consequence already rides on each case as a `consequence` dict (it serializes through `SecurityCase.to_dict()` → `cases_json` and the normalized report). Exact shape: `{reaches_crown_jewel: bool, distance: int|None, blast_radius: int, confidence: "unknown"|"weak"|"strong", crown_jewels_defined: bool, path: [{identity_key, node_type, label, via?}], crown_jewel: {identity_key, node_type, label}|None}`. `path` is ordered finding-node → crown jewel; each step after the first carries `via` (the edge_type traversed, e.g. `reachable_from`/`stored_in`/`depends_on`) so "api-key → unlocks → prod-db" renders straight from it. `crown_jewels_defined=false` means no crown jewels were labeled (render "unknown", not "reaches nothing"); `consequence` absent/`null` means the case isn't in the graph (render nothing new).
+
 OUTPUT:
-- Carry the consequence summary (reaches_crown_jewel, distance, blast_radius, path, confidence) through the dashboard payload and UI types.
-- On the case surface, a compact line: the consequence reason + a textual path, e.g. "api-key → unlocks → prod-db (2 hops, strong)".
-- Honest empty/weak states: no crown jewels labeled, or a low-confidence path, reads as such — never false certainty.
+- Carry the consequence summary (the full dict above) through the dashboard payload and UI types.
+- On the case surface, a compact line: the consequence reason + a textual path built from `path` steps + `via`, e.g. "api-key → unlocks → prod-db (2 hops, strong)".
+- Honest empty/weak states: `crown_jewels_defined=false` reads as unknown; a `weak`-confidence path reads as weak — never false certainty.
 - Receipt to campaigns/honeygraph-1-asset-graph/receipts/3.1-surface-consequence.md
 
 ACCEPTANCE:

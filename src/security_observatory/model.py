@@ -156,6 +156,11 @@ class SecurityCase:
     priority_reasons: list[str] = field(default_factory=list)
     install_recency: dict[str, Any] | None = None
     rotation_surfaces: list[str] = field(default_factory=list)
+    # Reachable-consequence summary from the asset graph (Honeygraph Phase 2):
+    # whether this case's node can reach a human-labeled crown jewel, the min hop
+    # distance + path, the blast radius, and the weakest-link confidence. None
+    # when the case maps to no graph node — such cases must rank exactly as before.
+    consequence: dict[str, Any] | None = None
 
     def __post_init__(self) -> None:
         self.title = redact_text(self.title or "Security case")
@@ -175,6 +180,7 @@ class SecurityCase:
         self.priority_reasons = [redact_text(reason) for reason in self.priority_reasons if reason]
         self.install_recency = sanitize_json(self.install_recency) if isinstance(self.install_recency, dict) else None
         self.rotation_surfaces = sorted({redact_text(item) for item in self.rotation_surfaces if item})
+        self.consequence = sanitize_json(self.consequence) if isinstance(self.consequence, dict) else None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

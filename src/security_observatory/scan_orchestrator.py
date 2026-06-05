@@ -20,8 +20,11 @@ from typing import Any, Callable
 import argparse
 
 from . import __version__
+from .asset_graph import derive_asset_nodes
 from .behavioral import select_behavioral_drift_targets
 from .cases import build_security_cases, scanner_evidence_gaps
+from .consequence import attach_consequences
+from .crown_jewels import load_crown_jewel_labels, mark_crown_jewels
 from .enrichment import correlate_dependency_findings, enrich_dependency_trust
 from .iocs import default_pack_sources, ioc_match_payload, load_ioc_packs, match_ioc_packs
 from .model import Finding, score_findings, severity_counts, slugify, utc_now_slug, write_json
@@ -277,6 +280,29 @@ def scan_repo(
             {"repo": repo_name, "repo_path": str(repo), "scan_id": scan_id},
             dependency_trust,
         )
+        # Asset graph (Honeygraph Phase 2): assemble the same nodes + crown-jewel
+        # marks + edges save_scan will persist, then score each case by reachable
+        # consequence. Derivation is pure and deterministic, so this in-memory
+        # copy matches the persisted graph exactly. A repo with no crown jewels or
+        # no edges simply yields "unknown"/empty consequence — never a crash.
+        crown_jewel_labels = load_crown_jewel_labels(repo)
+        component_dicts = [component.to_dict() for component in sbom_components]
+        asset_nodes = mark_crown_jewels(
+            derive_asset_nodes(
+                components=component_dicts,
+                findings=unique_findings,
+                iac_resources=iac_resources,
+            ),
+            crown_jewel_labels,
+        )
+        secret_files = sorted(
+            {finding.file for finding in unique_findings if finding.category == "secrets" and finding.file}
+        )
+        asset_edges = [
+            *sbom_dependency_edges,
+            *derive_iac_resource_edges(iac_resources, secret_files=secret_files),
+        ]
+        attach_consequences(cases, asset_nodes, asset_edges)
     except BaseException:
         db.close()
         raise
@@ -331,21 +357,16 @@ def scan_repo(
             dependency_trust_enrichments=dependency_trust,
             platform_posture_snapshot=platform_posture,
             iac_resources=iac_resources,
+            crown_jewels=crown_jewel_labels,
         )
         # Wire every recovered edge onto the nodes save_scan just stored, in a
         # single replace_asset_edges call (it deletes-then-inserts per scan, so
         # the SBOM dependency graph and the IaC resource graph must go together
         # or the second call would wipe the first). replace_asset_edges resolves
         # each endpoint by identity_key to an existing node and skips any that
-        # don't match, so this never mints a duplicate node. No edges (no
+        # don't match, so this never mints a duplicate node. ``asset_edges`` was
+        # already assembled above for consequence scoring — reuse it. No edges (no
         # dependency block, no IaC) is a no-op, not a failure.
-        secret_files = sorted(
-            {finding.file for finding in unique_findings if finding.category == "secrets" and finding.file}
-        )
-        asset_edges = [
-            *sbom_dependency_edges,
-            *derive_iac_resource_edges(iac_resources, secret_files=secret_files),
-        ]
         if asset_edges:
             db.replace_asset_edges(
                 scan_id=scan_id,
