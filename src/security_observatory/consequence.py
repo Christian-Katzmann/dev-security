@@ -409,3 +409,159 @@ def _set_consequence(case: Any, value: dict[str, Any]) -> None:
         case["consequence"] = value
     else:
         setattr(case, "consequence", value)
+
+
+# ---------------------------------------------------------------------------
+# Decoy placement suggestion (Honeygraph 2 — the "worst node to guard")
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class PlacementSuggestion:
+    """A proposal for where to plant a decoy — the highest-consequence node.
+
+    This is a *suggestion only*: nothing is minted, bound, or written. The caller
+    presents it to a human who confirms before anything is planted.
+
+    ``ranked_by`` is ``"crown_jewel_reachability"`` when a labeled crown jewel is
+    reachable from the chosen node (the sharp signal), or ``"blast_radius"`` when no
+    crown jewel is labeled and we fall back to raw reach. ``auto_plant_safe`` is the
+    honesty gate: it is ``False`` for a weak/low-confidence node so the UI never
+    pre-offers auto-placement on an unproven surface — Campaign 1 proved only
+    strong-edge dependency reachability on real data.
+    """
+
+    node: dict[str, Any]
+    consequence: Consequence
+    ranked_by: str
+    crown_jewels_defined: bool
+    auto_plant_safe: bool
+    reason: str
+    warnings: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "node": dict(self.node),
+            "consequence": self.consequence.to_dict(),
+            "ranked_by": self.ranked_by,
+            "crown_jewels_defined": self.crown_jewels_defined,
+            "auto_plant_safe": self.auto_plant_safe,
+            "reason": self.reason,
+            "warnings": list(self.warnings),
+        }
+
+
+def _placement_is_confident(node_confidence: str, consequence: Consequence) -> bool:
+    """Whether a node is solid enough to pre-offer for auto-placement.
+
+    Conservative on purpose: the node itself must be ``strong``; a crown-jewel path
+    must also be ``strong`` end to end (no weak/unknown hop); and a node that reaches
+    nothing at all (blast radius 0, no crown jewel) illuminates no path, so guarding
+    it teaches an operator nothing.
+    """
+    if node_confidence != "strong":
+        return False
+    if consequence.reaches_crown_jewel:
+        return consequence.confidence == "strong"
+    return consequence.blast_radius > 0
+
+
+def suggest_placement_node(
+    node_rows: Iterable[Any],
+    edge_rows: Iterable[Any],
+) -> PlacementSuggestion | None:
+    """Pick the single highest-consequence node to guard with a decoy.
+
+    Ranks every node by reachable consequence (``_consequence_score`` — prefer
+    reaching a crown jewel, then a stronger path, then nearer, then a larger blast
+    radius). When a crown jewel is labeled, the winner is the surface whose
+    compromise most threatens it; when none is labeled — the common case, since
+    crown jewels are human-declared and may be absent — it degrades honestly to the
+    largest raw blast radius and says so in ``warnings``.
+
+    Returns ``None`` when there is no graph to rank. Pure and side-effect free.
+    """
+    rows = list(node_rows)
+    if not rows:
+        return None
+    consequences = compute_node_consequences(rows, edge_rows)
+    if not consequences:
+        return None
+
+    ranked: list[tuple[Any, tuple[str, str], Consequence]] = []
+    for row in rows:
+        key = (str(_get(row, "node_type") or ""), str(_get(row, "identity_key") or ""))
+        consequence = consequences.get(key)
+        if consequence is not None:
+            ranked.append((row, key, consequence))
+    if not ranked:
+        return None
+
+    best_row, best_key, best = max(ranked, key=lambda item: _consequence_score(item[2]))
+    node_type, identity_key = best_key
+    node_confidence = str(_get(best_row, "confidence") or "unknown")
+    node = {
+        "asset_node_id": _get(best_row, "id"),
+        "node_type": node_type,
+        "identity_key": identity_key,
+        "label": str(_get(best_row, "label") or identity_key),
+        "confidence": node_confidence,
+        "is_crown_jewel": bool(_get(best_row, "is_crown_jewel")),
+    }
+
+    auto_plant_safe = _placement_is_confident(node_confidence, best)
+    warnings: list[str] = []
+
+    if best.reaches_crown_jewel:
+        ranked_by = "crown_jewel_reachability"
+        jewel_label = (best.crown_jewel or {}).get("label", "a crown jewel")
+        hops = best.distance if best.distance is not None else "?"
+        reason = (
+            f"Highest-consequence dependency surface: if compromised, a blast from "
+            f"this node reaches the crown jewel '{jewel_label}' in {hops} hop(s), "
+            f"touching {best.blast_radius} asset(s) on the way. Guard it with a decoy "
+            f"and an intruder probing this surface trips the wire before reaching "
+            f"what matters."
+        )
+        if best.confidence != "strong":
+            warnings.append(
+                f"The path to the crown jewel leans on a '{best.confidence}'-confidence "
+                f"hop, so treat the reachability as unproven, not certain."
+            )
+    else:
+        ranked_by = "blast_radius"
+        reason = (
+            f"Highest-consequence dependency surface: if compromised, the blast from "
+            f"this node reaches {best.blast_radius} other asset(s) — the largest "
+            f"reachable surface in this graph."
+        )
+
+    if not best.crown_jewels_defined:
+        warnings.append(
+            "No crown jewel is labeled, so this is ranked by raw blast radius. Label "
+            "one in .devsec/crown-jewels.json so DëvSec can rank by what an intruder "
+            "could actually reach, not just how far the blast spreads."
+        )
+
+    if not auto_plant_safe:
+        if node_confidence != "strong":
+            warnings.append(
+                f"This node's classification confidence is '{node_confidence}', not "
+                f"'strong'. DëvSec will not pre-offer auto-placement here — confirm "
+                f"manually if you still want to guard this surface."
+            )
+        elif not best.reaches_crown_jewel and best.blast_radius == 0:
+            warnings.append(
+                "This node reaches nothing else in the graph (blast radius 0); a "
+                "decoy here illuminates no path."
+            )
+
+    return PlacementSuggestion(
+        node=node,
+        consequence=best,
+        ranked_by=ranked_by,
+        crown_jewels_defined=best.crown_jewels_defined,
+        auto_plant_safe=auto_plant_safe,
+        reason=reason,
+        warnings=tuple(warnings),
+    )

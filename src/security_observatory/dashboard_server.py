@@ -18,6 +18,7 @@ import uuid
 import webbrowser
 
 from .cases import build_recovery_playbooks
+from .consequence import suggest_placement_node
 from .agent_lab import (
     AGENT_PROPOSAL_MAX_BYTES,
     AgentLabExecutionError,
@@ -1594,6 +1595,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         (_match_exact_parsed("/api/ai-follow-up/resolution-runs"), "serve_ai_followup_resolution_runs"),
         (_match_exact_parsed("/api/install-preview"), "_get_install_preview"),
         (_match_exact_parsed("/api/honey/keys"), "_get_honey_keys"),
+        (_match_exact_parsed("/api/honey/suggest-placement"), "_get_honey_suggest_placement"),
         (_match_prefix_parsed("/api/honey/open/"), "_get_honey_open"),
         (_match_exact_parsed("/api/honey/trigger"), "_get_honey_trigger"),
         (_match_exact("/api/projects"), "_get_projects"),
@@ -1779,6 +1781,70 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json({"keys": db.list_honey_keys(project_id=project_id), "placement_paths": list(DEFAULT_PLACEMENT_PATHS)})
         finally:
             db.close()
+
+    def _get_honey_suggest_placement(self, parsed) -> None:
+        """Propose the top-consequence node to guard with a decoy.
+
+        Read-only: nothing is minted, bound, or written here. It returns the node to
+        guard (by human-readable label, never asking a human to author a 24-hex
+        fingerprint), why it ranks highest, whether it is solid enough to pre-offer
+        for auto-placement, and a preview of the decoy content. The actual mint +
+        bind happens when the human POSTs /api/honey/keys with this assetNodeId, and
+        planting still requires the confirm-before-write rail on /api/honey/insert.
+        """
+        query = parse_qs(parsed.query)
+        repo_path = (query.get("repoPath", [""])[0] or "").strip()
+        repo_name = (query.get("repoName", [""])[0] or "").strip()
+        if not repo_name and repo_path:
+            repo_name = Path(repo_path).name
+        if not repo_name:
+            self.send_error(400, "repoName or repoPath is required to suggest a placement.")
+            return
+        db = ObservatoryDB(self.db_path)
+        try:
+            scan = db.latest_scan_for_repo(repo_name)
+            if not scan:
+                self.send_json({
+                    "suggestion": None,
+                    "reason_none": f"No scan found for '{repo_name}'. Run a scan to build the asset graph first.",
+                })
+                return
+            scan_id = str(scan["id"])
+            nodes = db.list_asset_nodes(scan_id=scan_id)
+            edges = db.list_asset_edges(scan_id=scan_id)
+            suggestion = suggest_placement_node(nodes, edges)
+            if suggestion is None:
+                self.send_json({
+                    "suggestion": None,
+                    "reason_none": "This scan built no asset-graph nodes, so there is nothing to guard yet.",
+                })
+                return
+            signing_secret = db.honey_signing_secret()
+        finally:
+            db.close()
+
+        # Decoy content preview: minted in-memory and NOT stored. It shows the human
+        # the shape of the decoy file to confirm; the real, tracked Honey Key is
+        # generated only when they create it via POST /api/honey/keys.
+        preview_material = generate_honey_key(signing_secret)
+        decoy_preview = build_decoy_snippets(
+            base_url=self.request_base_url(),
+            name=f"Decoy for {suggestion.node['label']}",
+            token=preview_material.token,
+            token_id=preview_material.token_id,
+            signing_secret=signing_secret,
+        )
+        self.send_json({
+            "suggestion": suggestion.to_dict(),
+            "recommended_placement_path": _suggested_decoy_path(suggestion.node["label"]),
+            "decoy_preview": decoy_preview,
+            "notice": (
+                "This is a proposal. No Honey Key is minted and no file is written "
+                "until you create the decoy and confirm placement. The preview content "
+                "uses a throwaway token; the real Honey Key is generated when you "
+                "create it."
+            ),
+        })
 
     def _get_honey_open(self, parsed) -> None:
         token_id = parsed.path.removeprefix("/api/honey/open/").strip("/")
@@ -2647,6 +2713,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             placement_path = str(payload.get("placementPath") or DEFAULT_PLACEMENT_PATHS[0]).strip()[:240]
             note = str(payload.get("note") or "").strip()[:500] or None
             created_by = str(payload.get("createdBy") or "").strip()[:120] or None
+            asset_node_id = _coerce_asset_node_id(payload.get("assetNodeId"))
+            if asset_node_id is _INVALID_ASSET_NODE_ID:
+                self.send_error(400, "assetNodeId must be a positive integer asset node id.")
+                return
             db = ObservatoryDB(self.db_path)
             try:
                 signing_secret = db.honey_signing_secret()
@@ -2660,6 +2730,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     placement_path=placement_path,
                     note=note,
                     created_by=created_by,
+                    asset_node_id=asset_node_id,
                 )
                 snippets = build_decoy_snippets(
                     base_url=self.request_base_url(),
@@ -3657,6 +3728,28 @@ def _is_safe_honeykeys_path(path: str) -> bool:
     clean = Path(path)
     parts = clean.parts
     return len(parts) >= 3 and parts[0] == ".devsec" and parts[1] == "honeykeys"
+
+
+# Sentinel distinguishing "no assetNodeId given" (None, fine) from "a value was
+# given but it isn't a usable node id" (reject with 400).
+_INVALID_ASSET_NODE_ID = object()
+
+
+def _coerce_asset_node_id(raw: Any) -> int | None | object:
+    """Parse an optional bound-node id. None/blank => unbound; junk => sentinel."""
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return _INVALID_ASSET_NODE_ID
+    return value if value > 0 else _INVALID_ASSET_NODE_ID
+
+
+def _suggested_decoy_path(label: str) -> str:
+    """A safe default decoy path under .devsec/honeykeys/, named after the node."""
+    slug = re.sub(r"[^a-z0-9]+", "-", str(label).lower()).strip("-")[:48] or "decoy"
+    return f".devsec/honeykeys/{slug}.env"
 
 
 def _catalog_tool(tool_id: str, managed_tool_records: list[dict[str, Any]]) -> dict[str, Any] | None:

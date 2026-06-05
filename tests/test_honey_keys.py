@@ -7,9 +7,25 @@ from urllib import request
 import json
 import threading
 
+from security_observatory.consequence import suggest_placement_node
 from security_observatory.dashboard_server import DashboardHandler
 from security_observatory.honey_keys import generate_honey_key, hash_honey_key, honey_key_is_well_formed
 from security_observatory.storage import ObservatoryDB
+
+
+def _node(node_id, identity, label, *, node_type="component", confidence="strong", crown=False):
+    return {
+        "id": node_id,
+        "node_type": node_type,
+        "identity_key": identity,
+        "label": label,
+        "confidence": confidence,
+        "is_crown_jewel": 1 if crown else 0,
+    }
+
+
+def _edge(edge_type, src_id, dst_id, confidence="strong"):
+    return {"edge_type": edge_type, "src_node_id": src_id, "dst_node_id": dst_id, "confidence": confidence}
 
 
 def test_honey_key_generation_creates_unique_fake_keys(tmp_path):
@@ -279,6 +295,98 @@ def test_insert_endpoint_writes_decoy_file_without_overwriting_or_leaving_repo(t
     assert traversal_status == 400
 
 
+def test_honey_key_binds_to_asset_node(tmp_path):
+    db = ObservatoryDB(tmp_path / "observatory.sqlite")
+    try:
+        secret = db.honey_signing_secret()
+        material = generate_honey_key(secret)
+        key = db.create_honey_key(
+            key_id=material.token_id,
+            project_id="repo",
+            repo_id="/tmp/repo",
+            name="Legacy key",
+            token_hash=material.token_hash,
+            placement_path=".devsec/honeykeys/decoy.env",
+            asset_node_id=42,
+        )
+        fetched = db.get_honey_key(material.token_id)
+    finally:
+        db.close()
+
+    assert key["asset_node_id"] == 42
+    assert fetched["asset_node_id"] == 42
+
+
+def test_suggest_placement_picks_top_consequence_node(tmp_path):
+    # left-pad is a vulnerable dependency the crown-jewel app pulls in. depends_on
+    # points consumer -> provider, so the blast walks back from the app to the dep:
+    # guarding the dep (id=1) is what catches an intruder before the crown jewel.
+    nodes = [
+        _node(1, "vuln-fp", "left-pad (vulnerable dep)"),
+        _node(2, "app-fp", "web app", crown=True),
+        _node(3, "util-fp", "big-util (no crown reach)"),
+        _node(4, "c4", "consumer-a"),
+        _node(5, "c5", "consumer-b"),
+    ]
+    edges = [
+        _edge("depends_on", 2, 1),  # app depends_on left-pad => left-pad reaches app
+        _edge("depends_on", 4, 3),  # give big-util a larger raw blast (2) but no crown
+        _edge("depends_on", 5, 3),
+    ]
+
+    suggestion = suggest_placement_node(nodes, edges)
+
+    assert suggestion is not None
+    assert suggestion.node["asset_node_id"] == 1
+    assert suggestion.ranked_by == "crown_jewel_reachability"
+    assert suggestion.consequence.reaches_crown_jewel is True
+    assert suggestion.auto_plant_safe is True
+    # Human-readable: the proposal leads with a label, never a bare fingerprint.
+    assert "left-pad" in suggestion.node["label"]
+
+
+def test_suggest_placement_falls_back_to_blast_radius_without_crown_jewel():
+    nodes = [
+        _node(1, "vuln-fp", "left-pad (vulnerable dep)"),
+        _node(2, "app-fp", "web app"),  # no crown jewel labeled anywhere
+        _node(3, "util-fp", "big-util"),
+        _node(4, "c4", "consumer-a"),
+        _node(5, "c5", "consumer-b"),
+    ]
+    edges = [
+        _edge("depends_on", 2, 1),  # left-pad reaches 1 node
+        _edge("depends_on", 4, 3),  # big-util reaches 2 nodes => larger blast
+        _edge("depends_on", 5, 3),
+    ]
+
+    suggestion = suggest_placement_node(nodes, edges)
+
+    assert suggestion is not None
+    assert suggestion.ranked_by == "blast_radius"
+    assert suggestion.node["asset_node_id"] == 3  # the largest raw blast radius
+    assert suggestion.crown_jewels_defined is False
+    assert any("crown-jewels.json" in warning for warning in suggestion.warnings)
+
+
+def test_weak_confidence_node_is_not_offered_for_auto_placement():
+    nodes = [
+        _node(1, "vuln-fp", "left-pad (vulnerable dep)", confidence="weak"),
+        _node(2, "app-fp", "web app", crown=True),
+    ]
+    edges = [_edge("depends_on", 2, 1, confidence="weak")]
+
+    suggestion = suggest_placement_node(nodes, edges)
+
+    assert suggestion is not None
+    assert suggestion.node["asset_node_id"] == 1
+    assert suggestion.auto_plant_safe is False
+    assert any("'weak'" in warning for warning in suggestion.warnings)
+
+
+def test_suggest_placement_returns_none_on_empty_graph():
+    assert suggest_placement_node([], []) is None
+
+
 def _start_server(tmp_path: Path):
     assets_dir = tmp_path / "assets"
     assets_dir.mkdir()
@@ -331,12 +439,12 @@ def test_doc_guard_map_citations_resolve():
 
     # (source lines, 1-based cited line, substring that line MUST still contain)
     cited_guards = [
-        (dashboard, 2772, "target_path.relative_to(repo_path)"),
-        (dashboard, 2779, "if target_path.exists():"),
-        (dashboard, 2780, "Placement file already exists."),
-        (dashboard, 2681, "except sqlite3.IntegrityError:"),
-        (dashboard, 2682, "Honey Key already exists."),
-        (dashboard, 2795, "Honey Key belongs to a different repo."),
+        (dashboard, 2843, "target_path.relative_to(repo_path)"),
+        (dashboard, 2850, "if target_path.exists():"),
+        (dashboard, 2851, "Placement file already exists."),
+        (dashboard, 2752, "except sqlite3.IntegrityError:"),
+        (dashboard, 2753, "Honey Key already exists."),
+        (dashboard, 2866, "Honey Key belongs to a different repo."),
         (honey, 41, "token_hash"),
         (honey, 57, "token_hash=hash_honey_key"),
         (honey, 86, "hashlib.sha256"),
@@ -350,7 +458,7 @@ def test_doc_guard_map_citations_resolve():
 
     # The Guard Map must actually cite each dashboard_server.py guard line.
     doc = (repo_root / "docs" / "honey-keys.md").read_text(encoding="utf-8")
-    for lineno in (2772, 2779, 2780, 2681, 2682, 2795):
+    for lineno in (2843, 2850, 2851, 2752, 2753, 2866):
         assert f":{lineno}" in doc, (
             f"docs/honey-keys.md Guard Map no longer cites dashboard_server.py:{lineno}"
         )

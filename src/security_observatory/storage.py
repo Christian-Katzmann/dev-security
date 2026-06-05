@@ -467,6 +467,7 @@ create table if not exists honey_keys (
   status text not null check(status in ('active', 'triggered', 'archived')),
   placement_path text,
   note text,
+  asset_node_id integer,
   created_at text not null,
   created_by text,
   last_triggered_at text,
@@ -666,6 +667,11 @@ class ObservatoryDB:
         honey_columns = {row["name"] for row in self.conn.execute("pragma table_info(honey_keys)").fetchall()}
         if honey_columns and "note" not in honey_columns:
             self.conn.execute("alter table honey_keys add column note text")
+        # Honeygraph bridge: link a Honey Key to the asset node it guards. Additive
+        # and idempotent — mirrors the `note` column above; no SCHEMA_USER_VERSION
+        # bump (that gate is only for destructive rebuilds).
+        if honey_columns and "asset_node_id" not in honey_columns:
+            self.conn.execute("alter table honey_keys add column asset_node_id integer")
         finding_columns = {row["name"] for row in self.conn.execute("pragma table_info(findings)").fetchall()}
         for column in (
             "vulnerability_id",
@@ -2733,16 +2739,17 @@ class ObservatoryDB:
         placement_path: str | None,
         note: str | None = None,
         created_by: str | None = None,
+        asset_node_id: int | None = None,
     ) -> dict[str, Any]:
         now = utc_now()
         with self.conn:
             self.conn.execute(
                 """
                 insert into honey_keys
-                (id, project_id, repo_id, name, token_prefix, token_hash, status, placement_path, note, created_at, created_by, trigger_count)
-                values (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, 0)
+                (id, project_id, repo_id, name, token_prefix, token_hash, status, placement_path, note, asset_node_id, created_at, created_by, trigger_count)
+                values (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, 0)
                 """,
-                (key_id, project_id, repo_id, name, HONEY_KEY_PREFIX, token_hash, placement_path, note, now, created_by),
+                (key_id, project_id, repo_id, name, HONEY_KEY_PREFIX, token_hash, placement_path, note, asset_node_id, now, created_by),
             )
             self.conn.execute(
                 """

@@ -46,7 +46,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 0 — Recalibrate to what Campaign 1 actually shipped
 
-- [ ] Step 0.1 — True up this plan against delivered Campaign 1
+- [x] Step 0.1 — True up this plan against delivered Campaign 1
 
 ### Phase 1 — Wire decoys to the graph
 
