@@ -34,6 +34,13 @@ class HumanConfirmationRequired(ValueError):
     type first and divert the item to ``requires_human_confirmation`` instead of
     rejecting it.
     """
+from .asset_graph import (
+    CONFIDENCE_LEVELS as ASSET_CONFIDENCE_LEVELS,
+    EDGE_TYPES as ASSET_EDGE_TYPES,
+    NODE_TYPES as ASSET_NODE_TYPES,
+    AssetEdge,
+    derive_asset_nodes,
+)
 from .honey_keys import HONEY_KEY_PREFIX, utc_now
 from .platform_posture import platform_posture_snapshot_fingerprint
 from .managed_tools import new_ownership_id, upsert_manifest_record, utc_now as managed_utc_now
@@ -103,6 +110,17 @@ def _sql_in_check(column: str, values: Any) -> str:
 #: ``lifecycle.DECISION_STATUSES`` are physically the same set. Substituted into
 #: ``SCHEMA`` (below) and into ``_migrate_case_decision_status_constraint``.
 CASE_DECISION_STATUS_CHECK = _sql_in_check("status", lifecycle.DECISION_STATUSES)
+
+
+#: Asset-graph CHECK clauses, GENERATED from the canonical vocabularies in
+#: ``asset_graph`` so the schema and that source-of-truth cannot drift. The same
+#: confidence clause guards both ``asset_nodes`` and ``asset_edges`` (a node's
+#: confidence is how sure we are the asset is real; an edge's is how sure we are
+#: the relationship holds). Substituted into ``SCHEMA`` below and guarded by a
+#: drift test in ``tests/test_asset_graph.py``.
+ASSET_NODE_TYPE_CHECK = _sql_in_check("node_type", ASSET_NODE_TYPES)
+ASSET_EDGE_TYPE_CHECK = _sql_in_check("edge_type", ASSET_EDGE_TYPES)
+ASSET_CONFIDENCE_CHECK = _sql_in_check("confidence", ASSET_CONFIDENCE_LEVELS)
 
 
 SCHEMA = """
@@ -499,12 +517,58 @@ create index if not exists idx_honey_keys_project on honey_keys(project_id, stat
 create unique index if not exists idx_honey_keys_token_hash on honey_keys(token_hash);
 create index if not exists idx_honey_events_project on honey_key_events(project_id, triggered_at desc);
 create index if not exists idx_honey_events_key on honey_key_events(honey_key_id, triggered_at desc);
+
+-- Asset graph (Honeygraph campaign): the nodes worth protecting and how they
+-- connect. Purely additive — created via `if not exists` on every open, so an
+-- existing history DB gains both tables on next launch with no data migration.
+-- The CHECK enums are substituted from asset_graph's canonical vocabularies.
+create table if not exists asset_nodes (
+  id integer primary key autoincrement,
+  scan_id text not null,
+  repo_name text not null,
+  node_type text not null __ASSET_NODE_TYPE_CHECK__,
+  identity_key text not null,
+  label text not null,
+  is_crown_jewel integer not null default 0,
+  confidence text not null __ASSET_CONFIDENCE_CHECK__,
+  created_at text not null,
+  foreign key(scan_id) references scans(id)
+);
+
+create index if not exists idx_asset_nodes_scan on asset_nodes(scan_id);
+create index if not exists idx_asset_nodes_repo on asset_nodes(repo_name, scan_id);
+-- A node's identity within a scan is (node_type, identity_key); the unique index
+-- makes that the physical contract so derivation can never double-insert one.
+create unique index if not exists idx_asset_nodes_identity on asset_nodes(scan_id, node_type, identity_key);
+
+create table if not exists asset_edges (
+  id integer primary key autoincrement,
+  scan_id text not null,
+  repo_name text not null,
+  src_node_id integer not null,
+  dst_node_id integer not null,
+  edge_type text not null __ASSET_EDGE_TYPE_CHECK__,
+  confidence text not null __ASSET_CONFIDENCE_CHECK__,
+  reason text not null,
+  created_at text not null,
+  foreign key(scan_id) references scans(id),
+  foreign key(src_node_id) references asset_nodes(id),
+  foreign key(dst_node_id) references asset_nodes(id)
+);
+
+create index if not exists idx_asset_edges_scan on asset_edges(scan_id);
+create index if not exists idx_asset_edges_repo on asset_edges(repo_name, scan_id);
+create index if not exists idx_asset_edges_src on asset_edges(src_node_id);
+create index if not exists idx_asset_edges_dst on asset_edges(dst_node_id);
 """
 
 # Bind the case-decision CHECK to the canonical set at import time. A bare literal
 # here would let the SQL drift from lifecycle.DECISION_STATUSES; the substitution
 # makes them the same source.
 SCHEMA = SCHEMA.replace("__CASE_DECISION_STATUS_CHECK__", CASE_DECISION_STATUS_CHECK)
+SCHEMA = SCHEMA.replace("__ASSET_NODE_TYPE_CHECK__", ASSET_NODE_TYPE_CHECK)
+SCHEMA = SCHEMA.replace("__ASSET_EDGE_TYPE_CHECK__", ASSET_EDGE_TYPE_CHECK)
+SCHEMA = SCHEMA.replace("__ASSET_CONFIDENCE_CHECK__", ASSET_CONFIDENCE_CHECK)
 
 
 class ObservatoryDB:
@@ -1138,9 +1202,16 @@ class ObservatoryDB:
             if platform_posture_snapshot
             else None
         )
+        # Asset-graph nodes are derived from artifacts this method already holds
+        # (SBOM components + findings), so a scan with no SBOM and no IaC simply
+        # yields a smaller node set rather than failing. Edges are recovered by
+        # later campaign steps via ``replace_asset_edges``; this step persists
+        # only the nodes.
+        asset_nodes = derive_asset_nodes(components=component_dicts, findings=findings)
         component_created_at = utc_now()
         trust_created_at = utc_now()
         platform_created_at = utc_now()
+        node_created_at = utc_now()
         with self.conn:
             self.conn.execute(
                 """
@@ -1298,6 +1369,31 @@ class ObservatoryDB:
                     for row in trust_rows
                 ],
             )
+            # Replace this scan's asset graph. Drop edges before nodes (the FK
+            # points edges -> nodes); both are empty on a first save, so this is a
+            # no-op on re-save when no edges have been recovered yet.
+            self.conn.execute("delete from asset_edges where scan_id = ?", (scan_id,))
+            self.conn.execute("delete from asset_nodes where scan_id = ?", (scan_id,))
+            self.conn.executemany(
+                """
+                insert into asset_nodes
+                (scan_id, repo_name, node_type, identity_key, label, is_crown_jewel, confidence, created_at)
+                values (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        scan_id,
+                        repo_name,
+                        node.node_type,
+                        node.identity_key,
+                        node.label,
+                        1 if node.is_crown_jewel else 0,
+                        node.confidence,
+                        node_created_at,
+                    )
+                    for node in asset_nodes
+                ],
+            )
             self.conn.execute("delete from platform_posture_snapshots where scan_id = ?", (scan_id,))
             if platform_posture_row:
                 self.conn.execute(
@@ -1361,6 +1457,109 @@ class ObservatoryDB:
             params,
         ).fetchall()
         return [dict(row) for row in rows]
+
+    def list_asset_nodes(self, scan_id: str | None = None, repo_name: str | None = None) -> list[dict[str, Any]]:
+        """Return asset-graph nodes for a scan/repo, oldest-id first (stable order)."""
+        conditions = []
+        params: list[str] = []
+        if scan_id:
+            conditions.append("scan_id = ?")
+            params.append(scan_id)
+        if repo_name:
+            conditions.append("repo_name = ?")
+            params.append(repo_name)
+        where = f"where {' and '.join(conditions)}" if conditions else ""
+        rows = self.conn.execute(
+            f"""
+            select *
+            from asset_nodes
+            {where}
+            order by node_type asc, identity_key asc, id asc
+            """,
+            params,
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def list_asset_edges(self, scan_id: str | None = None, repo_name: str | None = None) -> list[dict[str, Any]]:
+        """Return asset-graph edges for a scan/repo, oldest-id first (stable order)."""
+        conditions = []
+        params: list[str] = []
+        if scan_id:
+            conditions.append("scan_id = ?")
+            params.append(scan_id)
+        if repo_name:
+            conditions.append("repo_name = ?")
+            params.append(repo_name)
+        where = f"where {' and '.join(conditions)}" if conditions else ""
+        rows = self.conn.execute(
+            f"""
+            select *
+            from asset_edges
+            {where}
+            order by id asc
+            """,
+            params,
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+    def replace_asset_edges(
+        self,
+        *,
+        scan_id: str,
+        repo_name: str,
+        edges: Iterable[AssetEdge],
+    ) -> int:
+        """Replace this scan's asset edges, resolving endpoints by node identity.
+
+        The seam the dependency-edge (1.2) and IaC-edge (1.3) steps build on:
+        they emit :class:`AssetEdge` objects addressed by the endpoints'
+        ``identity_key`` and call here. We map each identity to the numeric
+        ``asset_nodes.id`` already persisted for this scan, so edges reference the
+        scan's existing nodes and never mint duplicates. An edge whose source or
+        destination node does not exist in this scan is skipped (it cannot be a
+        valid relationship); the count of edges actually written is returned.
+        """
+        identity_to_id = {
+            (row["node_type"], row["identity_key"]): row["id"]
+            for row in self.list_asset_nodes(scan_id=scan_id, repo_name=repo_name)
+        }
+        # Resolution is by identity_key alone; node_type is not known to the
+        # edge, so build a key index keyed on identity_key (last writer wins only
+        # if two node types share an identity_key, which the unique index makes
+        # rare — components are fingerprints, surfaces are paths).
+        key_to_id: dict[str, int] = {}
+        for (_node_type, identity_key), node_id in identity_to_id.items():
+            key_to_id.setdefault(identity_key, node_id)
+        created_at = utc_now()
+        rows = []
+        for edge in edges:
+            src_id = key_to_id.get(edge.src_identity_key.strip())
+            dst_id = key_to_id.get(edge.dst_identity_key.strip())
+            if src_id is None or dst_id is None:
+                continue
+            rows.append(
+                (
+                    scan_id,
+                    repo_name,
+                    src_id,
+                    dst_id,
+                    edge.edge_type,
+                    edge.confidence,
+                    edge.reason,
+                    created_at,
+                )
+            )
+        with self.conn:
+            self.conn.execute("delete from asset_edges where scan_id = ?", (scan_id,))
+            self.conn.executemany(
+                """
+                insert into asset_edges
+                (scan_id, repo_name, src_node_id, dst_node_id, edge_type, confidence, reason, created_at)
+                values (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                rows,
+            )
+        return len(rows)
 
     def import_ioc_packs(self, packs: list[dict[str, Any]] | tuple[dict[str, Any], ...]) -> None:
         imported_at = utc_now()
