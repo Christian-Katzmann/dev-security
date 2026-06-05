@@ -469,6 +469,7 @@ create table if not exists honey_keys (
   placement_path text,
   note text,
   asset_node_id integer,
+  trigger_base_url text,
   created_at text not null,
   created_by text,
   last_triggered_at text,
@@ -675,6 +676,12 @@ class ObservatoryDB:
         # bump (that gate is only for destructive rebuilds).
         if honey_columns and "asset_node_id" not in honey_columns:
             self.conn.execute("alter table honey_keys add column asset_node_id integer")
+        # Deployed-decoy mode: an operator-supplied reachable collector base URL
+        # baked into this decoy's callback, so a trip can mean a *remote* trip.
+        # Null => local placement (callback points at 127.0.0.1). Additive +
+        # idempotent, mirroring the columns above; no SCHEMA_USER_VERSION bump.
+        if honey_columns and "trigger_base_url" not in honey_columns:
+            self.conn.execute("alter table honey_keys add column trigger_base_url text")
         # Honeygraph tripwire bridge: an incident records the node its decoy guarded
         # and the blast-radius snapshot computed at trip time. Additive + idempotent,
         # mirroring the columns above; no SCHEMA_USER_VERSION bump.
@@ -2758,16 +2765,17 @@ class ObservatoryDB:
         note: str | None = None,
         created_by: str | None = None,
         asset_node_id: int | None = None,
+        trigger_base_url: str | None = None,
     ) -> dict[str, Any]:
         now = utc_now()
         with self.conn:
             self.conn.execute(
                 """
                 insert into honey_keys
-                (id, project_id, repo_id, name, token_prefix, token_hash, status, placement_path, note, asset_node_id, created_at, created_by, trigger_count)
-                values (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, 0)
+                (id, project_id, repo_id, name, token_prefix, token_hash, status, placement_path, note, asset_node_id, trigger_base_url, created_at, created_by, trigger_count)
+                values (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, 0)
                 """,
-                (key_id, project_id, repo_id, name, HONEY_KEY_PREFIX, token_hash, placement_path, note, asset_node_id, now, created_by),
+                (key_id, project_id, repo_id, name, HONEY_KEY_PREFIX, token_hash, placement_path, note, asset_node_id, trigger_base_url, now, created_by),
             )
             self.conn.execute(
                 """

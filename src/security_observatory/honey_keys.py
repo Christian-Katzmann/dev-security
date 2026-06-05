@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 import base64
 import hashlib
 import hmac
@@ -131,9 +131,44 @@ def extract_honey_key_from_request(
     return None
 
 
-def build_decoy_snippets(*, base_url: str, name: str, token: str, token_id: str, signing_secret: str) -> dict[str, str]:
-    trigger_url = f"{base_url.rstrip('/')}/api/honey/trigger"
-    open_url = f"{base_url.rstrip('/')}/api/honey/open/{quote(token_id)}?sig={quote(open_url_signature(signing_secret, token_id))}"
+def validate_collector_base_url(value: str) -> str:
+    """Validate an operator-supplied collector base URL for a *deployed* decoy.
+
+    A deployed decoy must call back to a surface a real attacker can reach, not
+    the local 127.0.0.1 dashboard. The operator stands that collector up and
+    exposes it themselves (a tunnel, a reverse proxy, a deployed DëvSec
+    instance); DëvSec only bakes the URL into the decoy as config text. This
+    checks the URL is a well-formed absolute http(s) URL and normalizes it — it
+    deliberately never *contacts* the host (no liveness probe, no network call,
+    no local-first violation).
+    """
+    candidate = (value or "").strip()
+    parsed = urlparse(candidate)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise ValueError(
+            "Collector URL must be an absolute http(s) URL, e.g. https://collector.example.com"
+        )
+    return candidate.rstrip("/")
+
+
+def build_decoy_snippets(
+    *,
+    base_url: str,
+    name: str,
+    token: str,
+    token_id: str,
+    signing_secret: str,
+    trigger_base_url: str | None = None,
+) -> dict[str, str]:
+    # Local placement (default): the decoy calls back to the local dashboard
+    # (127.0.0.1), so a trip means "something on this machine touched it".
+    # Deployed placement: the operator supplies a reachable collector base URL
+    # and the callback points there instead — the only way a *remote* trip can
+    # ever reach DëvSec. DëvSec never contacts this URL; it is config text baked
+    # into the decoy. See campaigns/.../notes/2.2-external-confirmation-boundary.md.
+    callback_base = (trigger_base_url or base_url).rstrip("/")
+    trigger_url = f"{callback_base}/api/honey/trigger"
+    open_url = f"{callback_base}/api/honey/open/{quote(token_id)}?sig={quote(open_url_signature(signing_secret, token_id))}"
     return {
         ".env.backup": "\n".join(
             [

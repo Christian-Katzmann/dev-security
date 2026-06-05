@@ -64,6 +64,7 @@ from .honey_keys import (
     project_id_for_repo_path,
     sanitize_headers,
     summarize_body,
+    validate_collector_base_url,
 )
 from .managed_tools import (
     ManagedToolInstallError,
@@ -2717,6 +2718,28 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             if asset_node_id is _INVALID_ASSET_NODE_ID:
                 self.send_error(400, "assetNodeId must be a positive integer asset node id.")
                 return
+            # Deployed-decoy mode: the operator points the decoy's callback at a
+            # reachable collector they host themselves, so a trip can mean a real
+            # remote trip. Default is local (callback → 127.0.0.1). DëvSec only
+            # bakes the URL in as config; it never deploys or contacts it. See
+            # notes/2.2-external-confirmation-boundary.md.
+            placement_mode = str(payload.get("placementMode") or "").strip().lower()
+            raw_trigger_base = str(payload.get("triggerBaseUrl") or "").strip()
+            if not placement_mode:
+                placement_mode = "deployed" if raw_trigger_base else "local"
+            if placement_mode not in ("local", "deployed"):
+                self.send_error(400, "placementMode must be 'local' or 'deployed'.")
+                return
+            trigger_base_url: str | None = None
+            if placement_mode == "deployed":
+                if not raw_trigger_base:
+                    self.send_error(400, "Deployed placement requires a reachable triggerBaseUrl.")
+                    return
+                try:
+                    trigger_base_url = validate_collector_base_url(raw_trigger_base)
+                except ValueError as exc:
+                    self.send_error(400, str(exc))
+                    return
             db = ObservatoryDB(self.db_path)
             try:
                 signing_secret = db.honey_signing_secret()
@@ -2731,6 +2754,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     note=note,
                     created_by=created_by,
                     asset_node_id=asset_node_id,
+                    trigger_base_url=trigger_base_url,
                 )
                 snippets = build_decoy_snippets(
                     base_url=self.request_base_url(),
@@ -2738,13 +2762,32 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     token=material.token,
                     token_id=material.token_id,
                     signing_secret=signing_secret,
+                    trigger_base_url=trigger_base_url,
                 )
+                base_notice = "Honey Keys are fake, powerless decoy secrets. They alert you when touched. They do not prevent breaches by themselves."
+                if placement_mode == "deployed":
+                    placement_notice = (
+                        "Deployed decoy: the callback points at your collector "
+                        f"({trigger_base_url}). DëvSec mints and binds it but does NOT "
+                        "deploy the decoy or host the collector — you must place it on a "
+                        "reachable surface and keep that collector exposed. A 127.0.0.1 "
+                        "trip is not proof of a remote attacker."
+                    )
+                else:
+                    placement_notice = (
+                        "Local decoy: the callback points at this machine's dashboard "
+                        "(127.0.0.1). A trip means something local touched it, not a "
+                        "remote attacker. Use deployed placement to watch an exposed surface."
+                    )
                 self.send_json(
                     {
                         "key": key,
                         "raw_token": material.token,
                         "snippets": snippets,
-                        "notice": "Honey Keys are fake, powerless decoy secrets. They alert you when touched. They do not prevent breaches by themselves.",
+                        "placement_mode": placement_mode,
+                        "trigger_base_url": trigger_base_url,
+                        "notice": base_notice,
+                        "placement_notice": placement_notice,
                     }
                 )
             finally:

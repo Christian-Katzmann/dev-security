@@ -55,8 +55,8 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 ### Phase 2 — Close the loop
 
-- [ ] Step 2.1 — Trigger → flip the case → light the path
-- [ ] Step 2.2 — Confront the local-trigger gap honestly
+- [x] Step 2.1 — Trigger → flip the case → light the path
+- [x] Step 2.2 — Confront the local-trigger gap honestly
 
 ### Phase 3 — Show it and prove it
 
@@ -288,6 +288,7 @@ OUTPUT:
 ACCEPTANCE:
 - The simulated trip flips the right case and lights the right path, observed end-to-end (not just asserted in a unit test).
 - The verdict separates "confirmed intrusion near node" from "finding proven exploited" — no overclaim survives.
+- Per Step 2.2's boundary (notes/2.2-external-confirmation-boundary.md): the demo runs against 127.0.0.1 and therefore proves **local plumbing only**, NOT a real external attack. State that deployed-decoy mode is **config-only** — DëvSec mints + binds a decoy to an operator-supplied reachable collector URL but never deploys the decoy, hosts the collector, or contacts it — so a real external trip still requires operator action outside DëvSec. Do not let the verdict imply a local trip equals a remote attacker.
 - An honest "earns its keep for whom" conclusion that names the user it's for (the indie/solo dev shipping an exposed service).
 
 OPEN QUESTIONS: if the demo only proves local plumbing (no external trip is possible in this environment), say so — and state exactly what a real external validation would require before the claim ships.

@@ -7,6 +7,8 @@ from urllib import request
 import json
 import threading
 
+import pytest
+
 from security_observatory.asset_graph import AssetEdge
 from security_observatory.consequence import (
     apply_active_incidents,
@@ -14,7 +16,13 @@ from security_observatory.consequence import (
     suggest_placement_node,
 )
 from security_observatory.dashboard_server import DashboardHandler
-from security_observatory.honey_keys import generate_honey_key, hash_honey_key, honey_key_is_well_formed
+from security_observatory.honey_keys import (
+    build_decoy_snippets,
+    generate_honey_key,
+    hash_honey_key,
+    honey_key_is_well_formed,
+    validate_collector_base_url,
+)
 from security_observatory.model import SecurityCase
 from security_observatory.sbom import SBOMComponent
 from security_observatory.storage import ObservatoryDB
@@ -322,6 +330,103 @@ def test_honey_key_binds_to_asset_node(tmp_path):
 
     assert key["asset_node_id"] == 42
     assert fetched["asset_node_id"] == 42
+
+
+def test_local_decoy_callback_stays_on_loopback_base():
+    secret = "signing-secret"
+    material = generate_honey_key(secret)
+    snippets = build_decoy_snippets(
+        base_url="http://127.0.0.1:8876",
+        name="Local decoy",
+        token=material.token,
+        token_id=material.token_id,
+        signing_secret=secret,
+    )
+    # Default (local) placement keeps the callback on loopback — a trip means
+    # "something local touched it", never a remote attacker.
+    for snippet in snippets.values():
+        assert "http://127.0.0.1:8876/api/honey/trigger" in snippet
+        assert "collector.example.com" not in snippet
+
+
+def test_deployed_decoy_callback_points_at_operator_collector():
+    secret = "signing-secret"
+    material = generate_honey_key(secret)
+    snippets = build_decoy_snippets(
+        base_url="http://127.0.0.1:8876",
+        name="Deployed decoy",
+        token=material.token,
+        token_id=material.token_id,
+        signing_secret=secret,
+        trigger_base_url="https://collector.example.com",
+    )
+    # Deployed placement bakes the operator's reachable collector into the
+    # callback instead of loopback — the only way a remote trip can reach DëvSec.
+    for snippet in snippets.values():
+        assert "https://collector.example.com/api/honey/trigger" in snippet
+        assert "https://collector.example.com/api/honey/open/" in snippet
+        assert "127.0.0.1" not in snippet
+
+
+def test_validate_collector_base_url_accepts_https_and_strips_slash():
+    assert validate_collector_base_url("https://collector.example.com/") == "https://collector.example.com"
+    assert validate_collector_base_url("  http://canary.internal:9000  ") == "http://canary.internal:9000"
+
+
+def test_validate_collector_base_url_rejects_junk():
+    for bad in ("", "collector.example.com", "ftp://x", "javascript:alert(1)", "not a url"):
+        with pytest.raises(ValueError):
+            validate_collector_base_url(bad)
+
+
+def test_create_honey_key_deployed_mode_persists_collector_and_points_decoy(tmp_path):
+    base_url, stop = _start_server(tmp_path)
+    try:
+        created = _post_json(
+            f"{base_url}/api/honey/keys",
+            {
+                "repoPath": str(tmp_path / "repo"),
+                "repoName": "repo",
+                "name": "Deployed canary",
+                "placementMode": "deployed",
+                "triggerBaseUrl": "https://collector.example.com/",
+            },
+        )
+        # Deployed mode is honestly recorded and the callback targets the collector.
+        assert created["placement_mode"] == "deployed"
+        assert created["trigger_base_url"] == "https://collector.example.com"
+        assert created["key"]["trigger_base_url"] == "https://collector.example.com"
+        for snippet in created["snippets"].values():
+            assert "https://collector.example.com/api/honey/trigger" in snippet
+            assert "127.0.0.1" not in snippet
+        # A bad collector URL is rejected; a deployed request without one is rejected.
+        assert _post_json_expect_error(
+            f"{base_url}/api/honey/keys",
+            {"repoName": "repo", "placementMode": "deployed", "triggerBaseUrl": "not-a-url"},
+        ) == 400
+        assert _post_json_expect_error(
+            f"{base_url}/api/honey/keys",
+            {"repoName": "repo", "placementMode": "deployed"},
+        ) == 400
+    finally:
+        stop()
+
+
+def test_create_honey_key_defaults_to_local_loopback_callback(tmp_path):
+    base_url, stop = _start_server(tmp_path)
+    try:
+        created = _post_json(
+            f"{base_url}/api/honey/keys",
+            {"repoPath": str(tmp_path / "repo"), "repoName": "repo", "name": "Local canary"},
+        )
+        assert created["placement_mode"] == "local"
+        assert created["trigger_base_url"] is None
+        assert created["key"]["trigger_base_url"] is None
+        for snippet in created["snippets"].values():
+            assert "/api/honey/trigger" in snippet
+            assert "collector.example.com" not in snippet
+    finally:
+        stop()
 
 
 def test_suggest_placement_picks_top_consequence_node(tmp_path):
@@ -700,12 +805,12 @@ def test_doc_guard_map_citations_resolve():
 
     # (source lines, 1-based cited line, substring that line MUST still contain)
     cited_guards = [
-        (dashboard, 2843, "target_path.relative_to(repo_path)"),
-        (dashboard, 2850, "if target_path.exists():"),
-        (dashboard, 2851, "Placement file already exists."),
-        (dashboard, 2752, "except sqlite3.IntegrityError:"),
-        (dashboard, 2753, "Honey Key already exists."),
-        (dashboard, 2866, "Honey Key belongs to a different repo."),
+        (dashboard, 2886, "target_path.relative_to(repo_path)"),
+        (dashboard, 2893, "if target_path.exists():"),
+        (dashboard, 2894, "Placement file already exists."),
+        (dashboard, 2795, "except sqlite3.IntegrityError:"),
+        (dashboard, 2796, "Honey Key already exists."),
+        (dashboard, 2909, "Honey Key belongs to a different repo."),
         (honey, 41, "token_hash"),
         (honey, 57, "token_hash=hash_honey_key"),
         (honey, 86, "hashlib.sha256"),
@@ -719,7 +824,7 @@ def test_doc_guard_map_citations_resolve():
 
     # The Guard Map must actually cite each dashboard_server.py guard line.
     doc = (repo_root / "docs" / "honey-keys.md").read_text(encoding="utf-8")
-    for lineno in (2843, 2850, 2851, 2752, 2753, 2866):
+    for lineno in (2886, 2893, 2894, 2795, 2796, 2909):
         assert f":{lineno}" in doc, (
             f"docs/honey-keys.md Guard Map no longer cites dashboard_server.py:{lineno}"
         )
