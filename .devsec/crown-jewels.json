@@ -1,0 +1,10 @@
+{
+  "_comment": "Crown jewels are the assets in THIS repo worth protecting most — the data stores, secret stores, or components a breach must never reach. DëvSec never guesses these; you declare them here. Each scan flips is_crown_jewel=1 on the matching asset-graph node, and findings that can reach a crown jewel get pushed up the ranking. Absent or empty file = no crown jewels = graceful (consequence reads 'unknown', never a crash).",
+  "_how_to_find_identity_keys": "Run a scan, then read the asset-graph nodes (list_asset_nodes). The identity_key is: a Terraform resource address for IaC resources/datastores (e.g. aws_db_instance.customer_db), a file path for secrets, or a component fingerprint for dependencies. node_type is optional and only disambiguates a rare identity clash.",
+  "_examples": [
+    { "identity_key": "aws_db_instance.customer_db", "node_type": "datastore", "note": "production customer database" },
+    { "identity_key": "aws_secretsmanager_secret.prod_signing_key", "node_type": "datastore", "note": "signing key store" },
+    "config/prod-secrets.env"
+  ],
+  "crown_jewels": []
+}

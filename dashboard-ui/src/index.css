@@ -2276,6 +2276,31 @@ kbd {
   color: #16a34a;
 }
 
+/* Consequence line: compact "why this ranks here" block shown only when the
+   case's asset-graph node can reach a human-labeled crown jewel. */
+.consequence-line {
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border-radius: var(--r-md);
+  background: var(--sev-warn-tint-10);
+  border: 1px solid rgba(201, 138, 63, 0.22);
+}
+
+.consequence-path {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--sev-warn-ink);
+  letter-spacing: 0;
+}
+
+.consequence-caveat {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ink-muted);
+  font-style: italic;
+}
+
 .button.primary,
 a.button.primary {
   background: var(--ink-strong);

@@ -1122,6 +1122,31 @@ export type Suppression = {
   updated_at?: string | null;
 };
 
+export type ConsequencePathStep = {
+  identity_key: string;
+  node_type: string;
+  label: string;
+  via?: string;
+};
+
+/**
+ * Reachable-consequence summary attached to a case by the Honeygraph pipeline
+ * (consequence.py). Tells the UI whether this case can reach a human-labeled
+ * crown jewel, how far, through which path, and how confident we are.
+ * Confidence is the weakest-link across the path: "strong" | "moderate" |
+ * "weak" | "unknown". crown_jewels_defined=false means no labels exist yet —
+ * distinct from reaches_crown_jewel=false (labels exist but path doesn't reach one).
+ */
+export type ConsequenceSummary = {
+  reaches_crown_jewel: boolean;
+  distance: number | null;
+  blast_radius: number;
+  confidence: string;
+  crown_jewels_defined: boolean;
+  path: ConsequencePathStep[];
+  crown_jewel: {identity_key: string; node_type: string; label: string} | null;
+};
+
 /**
  * The case shape as it actually arrives over the wire. These are exactly the
  * backend `SecurityCase` dataclass fields (`model.py` / built in `cases.py`)
@@ -1169,6 +1194,7 @@ export type SecurityCase = {
   resolved_at?: string;
   honey_event_id?: string;
   incident?: HoneyIncident | null;
+  consequence?: ConsequenceSummary | null;
 };
 
 export type DisplayCase = {
@@ -1203,6 +1229,7 @@ export type DisplayCase = {
    * The case card uses this to pre-fill the rotation modal.
    */
   inferredSecretName?: string;
+  consequence?: ConsequenceSummary | null;
 };
 
 export type ScanCompleteness = {
@@ -1762,6 +1789,7 @@ function caseToDisplayCase(item: SecurityCase, index: number): DisplayCase {
     installRecency: item.install_recency,
     rotationSurfaces: item.rotation_surfaces,
     inferredSecretName: item.inferred_secret_name ?? undefined,
+    consequence: item.consequence as ConsequenceSummary | null | undefined,
   };
 }
 

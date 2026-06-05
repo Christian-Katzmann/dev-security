@@ -4,7 +4,11 @@ import sqlite3
 import pytest
 
 from security_observatory import lifecycle
-from security_observatory.cases import build_recovery_playbooks, build_security_cases
+from security_observatory.cases import (
+    apply_consequence_priority,
+    build_recovery_playbooks,
+    build_security_cases,
+)
 from security_observatory.dashboard_pages import build_ai_prompt, raw_report_fallback
 from security_observatory.enrichment import correlate_dependency_findings
 from security_observatory.model import Finding, SecurityCase
@@ -689,6 +693,97 @@ def test_fixed_case_still_present_reads_in_progress(tmp_path):
 
     case = next(item for item in summary["cases"] if item["case_id"] == cases[0].case_id)
     assert case["lifecycle_state"] == "in_progress"
+
+
+# ---------------------------------------------------------------------------
+# Consequence boost + ordering (Honeygraph step 2.2)
+# ---------------------------------------------------------------------------
+
+
+def _ordering_case(case_id, title, severity, action_level, consequence=None):
+    case = SecurityCase(
+        case_id=case_id,
+        title=title,
+        plain_english_risk="r",
+        action_level=action_level,
+        confidence="medium",
+        category="code-security",
+        severity=severity,
+        affected_files=[],
+        evidence=[],
+        scanners=["semgrep"],
+        fix_steps=[],
+        agent_prompt="p",
+        source_fingerprints=[case_id],
+    )
+    case.consequence = consequence
+    return case
+
+
+def test_strong_consequence_boosts_and_reorders_above_higher_severity():
+    # A medium finding that reaches a crown jewel on a strong path...
+    reacher = _ordering_case(
+        "reacher",
+        "aaa medium that reaches the crown jewel",
+        "medium",
+        "verify",
+        consequence={
+            "reaches_crown_jewel": True,
+            "confidence": "strong",
+            "distance": 2,
+            "blast_radius": 4,
+            "crown_jewels_defined": True,
+            "crown_jewel": {"identity_key": "db", "label": "the customer database"},
+        },
+    )
+    # ...vs a high finding that reaches nothing.
+    bystander = _ordering_case("bystander", "zzz high that reaches nothing", "high", "verify")
+
+    ordered = apply_consequence_priority([bystander, reacher])
+
+    # The reacher is promoted to fix_now and now sorts first; the high finding is
+    # still visible at verify — never hidden, just out-ranked by consequence.
+    assert reacher.action_level == "fix_now"
+    assert bystander.action_level == "verify"
+    assert [case.case_id for case in ordered] == ["reacher", "bystander"]
+
+
+def test_consequence_tiebreak_does_not_override_severity_within_a_bucket():
+    # Same action bucket; a high finding that reaches nothing must still sort ahead
+    # of a low finding that reaches a crown jewel weakly (severity stays dominant).
+    high = _ordering_case("high", "zzz high reaches nothing", "high", "verify")
+    low = _ordering_case(
+        "low",
+        "aaa low reaches weakly",
+        "low",
+        "verify",
+        consequence={
+            "reaches_crown_jewel": True,
+            "confidence": "weak",
+            "distance": 1,
+            "blast_radius": 1,
+            "crown_jewels_defined": True,
+            "crown_jewel": {"identity_key": "db", "label": "the customer database"},
+        },
+    )
+
+    ordered = apply_consequence_priority([low, high])
+
+    assert low.action_level == "verify"  # weak path never promotes
+    assert [case.case_id for case in ordered] == ["high", "low"]
+
+
+def test_no_consequence_cases_keep_todays_order():
+    a = _ordering_case("a", "aaa", "medium", "verify")
+    b = _ordering_case("b", "bbb", "medium", "verify")
+
+    ordered = apply_consequence_priority([b, a])
+
+    # Pure-additive: with no consequence, order falls back to the title tiebreak,
+    # exactly as build_security_cases sorts today.
+    assert [case.case_id for case in ordered] == ["a", "b"]
+    assert a.priority_reasons == []
+    assert b.priority_reasons == []
 
 
 def _component(name: str, version: str) -> SBOMComponent:

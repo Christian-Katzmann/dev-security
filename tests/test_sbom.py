@@ -8,7 +8,11 @@ from security_observatory import scan_orchestrator as scan_module
 from security_observatory.model import ScannerStatus
 from security_observatory.scanners import ScannerResult
 from security_observatory.silent_upgrades import detect_silent_upgrades
-from security_observatory.sbom import SBOMComponent, parse_sbom_components
+from security_observatory.sbom import (
+    SBOMComponent,
+    parse_sbom_components,
+    parse_sbom_dependency_edges,
+)
 from security_observatory.storage import ObservatoryDB
 
 
@@ -119,6 +123,178 @@ def test_component_fingerprint_is_stable_for_same_package_version_and_changes_wi
 
     assert base.component_fingerprint == same_identity.component_fingerprint
     assert base.component_fingerprint != changed_version.component_fingerprint
+
+
+def test_cyclonedx_dependency_block_becomes_depends_on_edges():
+    data = _cyclonedx_graph_fixture()
+    components = parse_sbom_components(data)
+    edges = parse_sbom_dependency_edges(data, components)
+
+    fingerprint = {component.name: component.component_fingerprint for component in components}
+    edge_pairs = {(edge.src_identity_key, edge.dst_identity_key) for edge in edges}
+
+    # app -> express (direct) and express -> accepts (transitive) are both recovered.
+    assert (fingerprint["app"], fingerprint["express"]) in edge_pairs
+    assert (fingerprint["express"], fingerprint["accepts"]) in edge_pairs
+    assert all(edge.edge_type == "depends_on" for edge in edges)
+    # A declared dependency graph is strong — we never invent a weak/heuristic link.
+    assert all(edge.confidence == "strong" for edge in edges)
+    direct_edge = next(
+        edge for edge in edges if edge.src_identity_key == fingerprint["app"]
+    )
+    assert "app@1.0.0" in direct_edge.reason
+    assert "express@4.18.2" in direct_edge.reason
+
+
+def test_vulnerable_transitive_package_traces_back_to_a_direct_dependency():
+    data = _cyclonedx_graph_fixture()
+    components = parse_sbom_components(data)
+    edges = parse_sbom_dependency_edges(data, components)
+
+    fingerprint = {component.name: component.component_fingerprint for component in components}
+    # Walk depends_on edges *backwards* from the vulnerable transitive package
+    # (accepts) up to the package nothing else depends on (the direct/root).
+    incoming = {edge.dst_identity_key: edge.src_identity_key for edge in edges}
+    has_incoming = {edge.dst_identity_key for edge in edges}
+
+    node = fingerprint["accepts"]
+    chain = [node]
+    while node in incoming:
+        node = incoming[node]
+        chain.append(node)
+
+    assert chain[0] == fingerprint["accepts"]
+    assert chain[-1] == fingerprint["app"]
+    # The terminal node is a direct dependency: nothing depends on it.
+    assert fingerprint["app"] not in has_incoming
+
+
+def test_sbom_without_dependency_block_yields_no_edges():
+    data = _cyclonedx_fixture()  # the standard fixture carries no `dependencies`
+    components = parse_sbom_components(data)
+
+    assert parse_sbom_dependency_edges(data, components) == []
+
+
+def test_partial_dependency_block_skips_unresolved_refs():
+    data = _cyclonedx_graph_fixture()
+    # A dependency entry pointing at a ref that has no matching component must be
+    # skipped, not minted into a phantom edge.
+    data["dependencies"].append({"ref": "pkg:npm/express@4.18.2", "dependsOn": ["pkg:npm/ghost@9.9.9"]})
+    data["dependencies"].append({"ref": "pkg:npm/ghost@9.9.9", "dependsOn": ["pkg:npm/accepts@1.3.8"]})
+    components = parse_sbom_components(data)
+    edges = parse_sbom_dependency_edges(data, components)
+
+    fingerprint = {component.name: component.component_fingerprint for component in components}
+    resolvable = {(edge.src_identity_key, edge.dst_identity_key) for edge in edges}
+
+    # Only the two fully-resolvable edges survive; nothing references "ghost".
+    assert resolvable == {
+        (fingerprint["app"], fingerprint["express"]),
+        (fingerprint["express"], fingerprint["accepts"]),
+    }
+
+
+def test_syft_artifact_relationships_become_depends_on_edges():
+    data = {
+        "artifacts": [
+            {"id": "art-app", "name": "app", "version": "1.0.0", "type": "npm", "purl": "pkg:npm/app@1.0.0"},
+            {"id": "art-express", "name": "express", "version": "4.18.2", "type": "npm", "purl": "pkg:npm/express@4.18.2"},
+        ],
+        "artifactRelationships": [
+            # Syft: parent is a dependency-of child, so child (app) depends_on parent (express).
+            {"parent": "art-express", "child": "art-app", "type": "dependency-of"},
+            {"parent": "art-express", "child": "art-app", "type": "ownership-by-file-overlap"},
+        ],
+    }
+    components = parse_sbom_components(data, source_format="syft")
+    edges = parse_sbom_dependency_edges(data, components, source_format="syft")
+
+    fingerprint = {component.name: component.component_fingerprint for component in components}
+    assert len(edges) == 1
+    assert edges[0].src_identity_key == fingerprint["app"]
+    assert edges[0].dst_identity_key == fingerprint["express"]
+    assert edges[0].edge_type == "depends_on"
+    assert edges[0].confidence == "strong"
+
+
+def test_dependency_edges_persist_onto_existing_nodes_without_minting(tmp_path: Path):
+    data = _cyclonedx_graph_fixture()
+    components = parse_sbom_components(data)
+    edges = parse_sbom_dependency_edges(data, components)
+    db = ObservatoryDB(tmp_path / "observatory.sqlite")
+    try:
+        db.save_scan(
+            scan_id="repo-20260101T000000Z",
+            repo_name="repo",
+            repo_path="/tmp/repo",
+            started_at="2026-01-01T00:00:00+00:00",
+            finished_at="2026-01-01T00:01:00+00:00",
+            profile="deps",
+            health_score=100,
+            status="ok",
+            scanner_statuses=[{"scanner": "syft", "available": True, "findings": 0}],
+            findings=[],
+            report_path=str(tmp_path / "report.json"),
+            sbom_components=components,
+        )
+        node_count_before_edges = len(db.list_asset_nodes(scan_id="repo-20260101T000000Z"))
+        written = db.replace_asset_edges(
+            scan_id="repo-20260101T000000Z",
+            repo_name="repo",
+            edges=edges,
+        )
+        nodes = db.list_asset_nodes(scan_id="repo-20260101T000000Z")
+        stored_edges = db.list_asset_edges(scan_id="repo-20260101T000000Z")
+    finally:
+        db.close()
+
+    # Edges reference the nodes 1.1 derived — no new nodes were minted.
+    assert written == 2
+    assert len(nodes) == node_count_before_edges == len(components)
+    node_ids = {node["id"] for node in nodes}
+    for edge in stored_edges:
+        assert edge["src_node_id"] in node_ids
+        assert edge["dst_node_id"] in node_ids
+        assert edge["edge_type"] == "depends_on"
+        assert edge["confidence"] == "strong"
+
+
+def test_scan_repo_persists_dependency_edges_from_sbom(tmp_path: Path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    home = tmp_path / "home"
+
+    def fake_run_scanner(scanner, repo, repo_name, scan_dir, rules_dir):
+        sbom_path = scan_dir / "sbom.cyclonedx.json"
+        sbom_path.write_text(json.dumps(_cyclonedx_graph_fixture()), encoding="utf-8")
+        status = ScannerStatus(
+            scanner="syft",
+            available=True,
+            command=["syft"],
+            started_at="2026-01-01T00:00:00+00:00",
+            finished_at="2026-01-01T00:00:01+00:00",
+            sbom_report=str(sbom_path),
+        )
+        return ScannerResult(status=status, findings=[], sbom_created=True)
+
+    monkeypatch.setattr(scan_module, "scanner_names_for_profile", lambda args: ["syft"])
+    monkeypatch.setattr(scan_module, "run_scanner", fake_run_scanner)
+
+    summary = scan_module.scan_repo(repo, _deps_args(), home)
+    db = ObservatoryDB(home / "db" / "observatory.sqlite")
+    try:
+        nodes = db.list_asset_nodes(scan_id=summary["scan_id"])
+        edges = db.list_asset_edges(scan_id=summary["scan_id"])
+    finally:
+        db.close()
+
+    assert summary["status"] == "ok"
+    # Three components -> three nodes; two declared dependency relationships -> two edges.
+    assert len([node for node in nodes if node["node_type"] == "component"]) == 3
+    assert len(edges) == 2
+    assert all(edge["edge_type"] == "depends_on" for edge in edges)
+    assert all(edge["confidence"] == "strong" for edge in edges)
 
 
 def test_storage_creates_schema_and_persists_components_with_scan_and_repo(tmp_path: Path):
@@ -710,6 +886,42 @@ def _cyclonedx_fixture(version: str = "4.17.21") -> dict:
                 "licenses": [{"license": {"id": "MIT"}}],
                 "properties": [{"name": "syft:location:0:path", "value": "package-lock.json"}],
             }
+        ],
+    }
+
+
+def _cyclonedx_graph_fixture() -> dict:
+    """A small CycloneDX SBOM carrying a real dependency graph: app -> express -> accepts."""
+    return {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.5",
+        "components": [
+            {
+                "bom-ref": "pkg:npm/app@1.0.0",
+                "type": "application",
+                "name": "app",
+                "version": "1.0.0",
+                "purl": "pkg:npm/app@1.0.0",
+            },
+            {
+                "bom-ref": "pkg:npm/express@4.18.2",
+                "type": "library",
+                "name": "express",
+                "version": "4.18.2",
+                "purl": "pkg:npm/express@4.18.2",
+            },
+            {
+                "bom-ref": "pkg:npm/accepts@1.3.8",
+                "type": "library",
+                "name": "accepts",
+                "version": "1.3.8",
+                "purl": "pkg:npm/accepts@1.3.8",
+            },
+        ],
+        "dependencies": [
+            {"ref": "pkg:npm/app@1.0.0", "dependsOn": ["pkg:npm/express@4.18.2"]},
+            {"ref": "pkg:npm/express@4.18.2", "dependsOn": ["pkg:npm/accepts@1.3.8"]},
+            {"ref": "pkg:npm/accepts@1.3.8", "dependsOn": []},
         ],
     }
 

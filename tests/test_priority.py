@@ -1,6 +1,22 @@
 from security_observatory.enrichment import DependencyTrustRecord
 from security_observatory.model import Finding
-from security_observatory.priority import action_level_for, decide_action_level
+from security_observatory.priority import (
+    PriorityDecision,
+    action_level_for,
+    decide_action_level,
+    with_consequence,
+)
+
+
+def _consequence(reaches=True, confidence="strong", distance=2, jewel_label="the customer database", blast=3):
+    return {
+        "reaches_crown_jewel": reaches,
+        "confidence": confidence,
+        "distance": distance,
+        "blast_radius": blast,
+        "crown_jewels_defined": True,
+        "crown_jewel": {"identity_key": "db", "label": jewel_label},
+    }
 
 
 def test_secrets_are_fix_now():
@@ -147,3 +163,61 @@ def test_dependency_trust_record_object_gets_same_priority_reasoning():
 
     assert decision.action_level == "verify"
     assert any("maintenance signals look weak" in reason for reason in decision.reasons)
+
+
+# ---------------------------------------------------------------------------
+# Reachable-consequence boost (Honeygraph step 2.2)
+# ---------------------------------------------------------------------------
+
+
+def test_strong_path_to_crown_jewel_promotes_to_fix_now():
+    # A medium finding (verify) that can reach the customer database on a strong
+    # path outranks higher-severity findings that reach nothing.
+    base = PriorityDecision("verify", ["medium severity"])
+
+    boosted = with_consequence(base, _consequence(confidence="strong", distance=2))
+
+    assert boosted.action_level == "fix_now"
+    assert any("can reach the customer database in 2 hops" in reason for reason in boosted.reasons)
+    assert any("outranks higher-severity findings that reach nothing" in reason for reason in boosted.reasons)
+    # The original reason is preserved — the boost is additive.
+    assert boosted.reasons[0] == "medium severity"
+
+
+def test_weak_path_explains_but_does_not_promote():
+    base = PriorityDecision("watch", ["low severity"])
+
+    boosted = with_consequence(base, _consequence(confidence="weak", distance=3))
+
+    assert boosted.action_level == "watch"  # no auto-promotion on a low-confidence edge
+    assert any("low-confidence link" in reason for reason in boosted.reasons)
+    assert not any("outranks higher-severity" in reason for reason in boosted.reasons)
+
+
+def test_unknown_confidence_path_does_not_promote():
+    base = PriorityDecision("verify", ["medium severity"])
+
+    boosted = with_consequence(base, _consequence(confidence="unknown", distance=1))
+
+    assert boosted.action_level == "verify"
+    assert any("flagged for a human" in reason for reason in boosted.reasons)
+
+
+def test_no_consequence_data_is_returned_unchanged():
+    base = PriorityDecision("watch", ["low severity"])
+
+    assert with_consequence(base, None) is base
+    # Reaches no crown jewel -> also untouched, ranks exactly as today.
+    unchanged = with_consequence(base, _consequence(reaches=False, confidence="unknown", distance=None))
+    assert unchanged.action_level == "watch"
+    assert unchanged.reasons == ["low severity"]
+
+
+def test_consequence_boost_never_demotes_a_fix_now_finding():
+    # A strong reach on a finding already at fix_now adds context but cannot lower it.
+    base = PriorityDecision("fix_now", ["critical severity"])
+
+    boosted = with_consequence(base, _consequence(confidence="strong", distance=1))
+
+    assert boosted.action_level == "fix_now"
+    assert any("can reach the customer database in 1 hop" in reason for reason in boosted.reasons)
