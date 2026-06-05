@@ -30,7 +30,7 @@ from .platform_posture import build_platform_posture_snapshot, platform_posture_
 from .recency import DEFAULT_RECENCY_WINDOW_DAYS, enrich_ioc_findings_with_rotation_advice
 from .rotation import detect_rotation_state
 from .scanners import run_behavioral_drift_scanner, run_scanner, scanner_names_for_profile
-from .sbom import load_sbom_components
+from .sbom import load_sbom_components, load_sbom_dependency_edges
 from .silent_upgrades import detect_silent_upgrades, parse_dependency_manifests
 from .storage import ObservatoryDB
 
@@ -173,6 +173,7 @@ def scan_repo(
             )
 
     sbom_components = load_sbom_components(scan_dir)
+    sbom_dependency_edges = load_sbom_dependency_edges(scan_dir)
     sbom_created = sbom_created or bool(sbom_components)
     dependency_manifest_entries = parse_dependency_manifests(repo)
     dependency_trust = []
@@ -328,6 +329,17 @@ def scan_repo(
             dependency_trust_enrichments=dependency_trust,
             platform_posture_snapshot=platform_posture,
         )
+        # Wire the recovered SBOM dependency graph onto the component nodes
+        # save_scan just stored. replace_asset_edges resolves each endpoint by
+        # component_fingerprint to an existing node and skips any that don't
+        # match, so this never mints a duplicate node. No edges (no dependency
+        # block) is a no-op, not a failure.
+        if sbom_dependency_edges:
+            db.replace_asset_edges(
+                scan_id=scan_id,
+                repo_name=repo_name,
+                edges=sbom_dependency_edges,
+            )
     finally:
         db.close()
     return report

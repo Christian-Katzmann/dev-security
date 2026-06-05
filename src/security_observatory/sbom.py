@@ -6,6 +6,8 @@ from typing import Any
 import hashlib
 import json
 
+from .asset_graph import AssetEdge
+
 
 @dataclass(frozen=True, slots=True)
 class SBOMComponent:
@@ -75,6 +77,148 @@ def load_sbom_components(scan_dir: Path) -> list[SBOMComponent]:
         if components:
             return components
     return []
+
+
+def load_sbom_dependency_edges(scan_dir: Path) -> list[AssetEdge]:
+    """Recover ``depends_on`` edges from the same SBOM that produced the nodes.
+
+    DëvSec runs Syft to emit both CycloneDX and Syft-native SBOMs, then (until
+    now) kept only the flat component list. The *dependency graph* — which
+    package pulls in which — sits in that same output and was thrown away. This
+    reads it back as :class:`asset_graph.AssetEdge` objects addressed by
+    ``component_fingerprint``, so :meth:`storage.replace_asset_edges` can wire
+    them to the component nodes already stored for the scan (no new nodes).
+
+    We walk the same format-preference order as :func:`load_sbom_components`
+    (CycloneDX first, then Syft) and derive the edges from the *same* file that
+    yielded the components, so every edge endpoint resolves to a real node. An
+    SBOM with no dependency block simply yields no edges — never a crash.
+    """
+    for source_format, path in (
+        ("cyclonedx", scan_dir / "sbom.cyclonedx.json"),
+        ("syft", scan_dir / "syft.json"),
+    ):
+        data = _read_json(path)
+        components = parse_sbom_components(data, source_format=source_format, source_file=str(path))
+        if components:
+            return parse_sbom_dependency_edges(data, components, source_format=source_format)
+    return []
+
+
+def parse_sbom_dependency_edges(
+    data: Any,
+    components: list[SBOMComponent],
+    *,
+    source_format: str | None = None,
+) -> list[AssetEdge]:
+    """Parse declared dependency relationships into ``depends_on`` edges.
+
+    ``data`` is the raw SBOM JSON; ``components`` is the already-parsed component
+    list (so edge endpoints reuse the exact ``component_fingerprint`` identities
+    the nodes carry). Both CycloneDX ``dependencies`` and Syft
+    ``artifactRelationships`` are *declared* graphs, so the edges they yield are
+    ``strong`` — we never fabricate a weak/heuristic link here (no inference is
+    done; that confidence tier stays reserved for a future heuristic linker).
+
+    Edges are deduped on ``(source, destination)`` and self-loops are dropped. A
+    reference that does not map to a parsed component (e.g. the synthetic root
+    node CycloneDX puts in ``metadata.component``) is skipped rather than minting
+    a phantom node.
+    """
+    if not isinstance(data, dict):
+        return []
+
+    detected_format = source_format or _detect_format(data)
+    ref_to_fingerprint: dict[str, str] = {}
+    ref_to_label: dict[str, str] = {}
+    for component in components:
+        if not component.bom_ref:
+            continue
+        ref_to_fingerprint.setdefault(component.bom_ref, component.component_fingerprint)
+        ref_to_label.setdefault(component.bom_ref, _component_display_name(component))
+
+    if detected_format == "syft":
+        pairs = _syft_dependency_pairs(data)
+    else:
+        pairs = _cyclonedx_dependency_pairs(data)
+
+    edges: list[AssetEdge] = []
+    seen: set[tuple[str, str]] = set()
+    for src_ref, dst_ref in pairs:
+        src_fingerprint = ref_to_fingerprint.get(src_ref)
+        dst_fingerprint = ref_to_fingerprint.get(dst_ref)
+        if not src_fingerprint or not dst_fingerprint:
+            continue
+        if src_fingerprint == dst_fingerprint:
+            continue
+        key = (src_fingerprint, dst_fingerprint)
+        if key in seen:
+            continue
+        seen.add(key)
+        src_label = ref_to_label.get(src_ref) or src_ref
+        dst_label = ref_to_label.get(dst_ref) or dst_ref
+        edges.append(
+            AssetEdge(
+                src_identity_key=src_fingerprint,
+                dst_identity_key=dst_fingerprint,
+                edge_type="depends_on",
+                confidence="strong",
+                reason=f"{src_label} declares a dependency on {dst_label} in the SBOM dependency graph.",
+            )
+        )
+    return edges
+
+
+def _cyclonedx_dependency_pairs(data: dict[str, Any]) -> list[tuple[str, str]]:
+    """Yield (depender_ref, dependency_ref) from a CycloneDX ``dependencies`` block."""
+    dependencies = data.get("dependencies")
+    if not isinstance(dependencies, list):
+        return []
+    pairs: list[tuple[str, str]] = []
+    for entry in dependencies:
+        if not isinstance(entry, dict):
+            continue
+        ref = _clean_text(entry.get("ref"))
+        depends_on = entry.get("dependsOn")
+        if not ref or not isinstance(depends_on, list):
+            continue
+        for dependency in depends_on:
+            dependency_ref = _clean_text(dependency)
+            if dependency_ref:
+                pairs.append((ref, dependency_ref))
+    return pairs
+
+
+def _syft_dependency_pairs(data: dict[str, Any]) -> list[tuple[str, str]]:
+    """Yield (depender_ref, dependency_ref) from Syft ``artifactRelationships``.
+
+    Syft serialises a ``dependency-of`` relationship as ``{parent, child}`` where
+    the *parent* is a dependency of the *child* — so the child is the depender.
+    Other relationship types (``contains``, ``ownership-by-file-overlap``,
+    ``evident-by``) are not dependency edges and are ignored.
+    """
+    relationships = data.get("artifactRelationships")
+    if not isinstance(relationships, list):
+        return []
+    pairs: list[tuple[str, str]] = []
+    for relationship in relationships:
+        if not isinstance(relationship, dict):
+            continue
+        if _clean_text(relationship.get("type")) != "dependency-of":
+            continue
+        parent = _clean_text(relationship.get("parent"))
+        child = _clean_text(relationship.get("child"))
+        if parent and child:
+            pairs.append((child, parent))
+    return pairs
+
+
+def _component_display_name(component: SBOMComponent) -> str:
+    if component.name and component.version:
+        return f"{component.name}@{component.version}"
+    if component.name:
+        return component.name
+    return component.package_url or component.bom_ref or "component"
 
 
 def parse_sbom_components(
