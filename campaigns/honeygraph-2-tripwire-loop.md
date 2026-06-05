@@ -51,7 +51,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 ### Phase 1 — Wire decoys to the graph
 
 - [x] Step 1.1 — Bind a honey key to an asset node + suggest top-consequence placement
-- [ ] Step 1.2 — Add the active_incident state (a closed enum in two places)
+- [x] Step 1.2 — Add the active_incident state (a closed enum in two places)
 
 ### Phase 2 — Close the loop
 
@@ -245,6 +245,7 @@ REQUIRED READING:
 2. /Users/christiankatzmann/Dev/Projects/dëv-security/dashboard-ui/src/dashboardData.ts  + /Users/christiankatzmann/Dev/Projects/dëv-security/dashboard-ui/src/uiTypes.ts  (carry nodes/edges/consequence/incident path to the UI)
 3. /Users/christiankatzmann/Dev/Projects/dëv-security/dashboard-ui/src/App.tsx  (where a new view mounts)
 4. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/dashboard_server.py  (expose a graph payload) — build it from storage.list_asset_nodes ~1471 + storage.list_asset_edges ~1493 + consequence.compute_node_consequences ~189 (nodes, edges, consequence/blast_radius, crown-jewel flags, and any active-incident path)
+5. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/consequence.py  (Step 2.1 added `blast_radius_from(node_key, node_rows, edge_rows)` — the reachable blast path as real graph data; reuse it for the lit path, do NOT recompute). The active-incident path is ALSO already attached to the flipped case by 2.1 as `case["active_incident"]` — shape: `{event_id, honey_key_id, triggered_at, node{node_type,identity_key,label,asset_node_id}, path[{identity_key,node_type,label,via,distance}], edges[{src_identity_key,dst_identity_key,edge_type,confidence}], blast_radius, reaches_crown_jewel, crown_jewel, crown_jewel_path, message}`. The source of truth for *which* node is live is `storage.active_node_incidents()`. Node identity_key + edge src/dst_identity_key are the join keys to the graph payload's nodes.
 
 OUTPUT:
 - A graph payload endpoint (nodes + edges + consequence + any active-incident path).
@@ -280,7 +281,7 @@ REQUIRED READING:
 4. campaigns/honeygraph-1-asset-graph/notes/consequence-vs-severity.md  (what the graph could actually promise)
 
 OUTPUT:
-- Drive the loop end-to-end against 127.0.0.1: mint + bind a decoy at the top-consequence node, simulate a trigger, confirm the case flips to active_incident and the path lights up.
+- Drive the loop end-to-end against 127.0.0.1: mint + bind a decoy at the top-consequence node, simulate a trigger, confirm the case flips to active_incident and the path lights up. (2.1 made the flip a serve-time overlay — cases are derived per scan, so the trip pins a blast snapshot on the incident at `honey_incidents.blast_path_json` and `storage.active_node_incidents()` + `consequence.apply_active_incidents()` flip ONLY the case AT the tripped node, never the whole path. Assert the node's case is `active_incident` AND an unrelated case is not.)
 - A verdict note at campaigns/honeygraph-2-tripwire-loop/notes/3.2-loop-verdict.md: what this proves (plumbing + IR illumination near a node, scoped to **dependency reachability** — the only class Campaign 1 proved on real data) vs what it does NOT (a real external attacker; a deployed surface; and datastore/IaC blast-radius, which is mechanism-only — zero datastore nodes ever fired on a real repo, per the Campaign 1 gate). Does the loop earn its surface vs the existing case list, and for whom?
 - Receipt to campaigns/honeygraph-2-tripwire-loop/receipts/3.2-end-to-end-proof.md
 

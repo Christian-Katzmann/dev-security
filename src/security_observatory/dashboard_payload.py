@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Any
 import json
 
+from .consequence import apply_active_incidents
 from .decisions import assemble_suppression, suppression_counts
 from .rotation import detect_rotation_state, read_rotation_status
 from .rotation_inference import infer_secret_name, load_catalog_secret_names
@@ -49,6 +50,12 @@ def assemble_dashboard_payload(db: Any) -> dict[str, Any]:
     db.prune_honey_key_events(retention_days=retention_days)
     case_decisions = db.case_decisions_map()
     managed_tool_records = db.list_managed_tools()
+    # Tripwire bridge (Honeygraph 2): open incidents bound to an asset node, grouped
+    # by repo. Each flips the case sitting AT its guarded node to active_incident and
+    # lights the blast-radius path — applied per repo as the cases are assembled.
+    node_incidents_by_repo: dict[str, list[dict[str, Any]]] = {}
+    for incident in db.active_node_incidents():
+        node_incidents_by_repo.setdefault(str(incident.get("project_id")), []).append(incident)
 
     latest = db.latest_scans()
     latest_scan_ids = [str(row["id"]) for row in latest]
@@ -114,6 +121,7 @@ def assemble_dashboard_payload(db: Any) -> dict[str, Any]:
             _attach_case_decision(case, case_decisions)
             current_cases.append(case)
 
+        apply_active_incidents(current_cases, node_incidents_by_repo.get(row["repo_name"], []))
         assembled = assemble_suppression(current_cases, current_findings, case_decisions)
         scan_payloads[scan_id] = assembled
         active_cases = assembled["active_cases"]

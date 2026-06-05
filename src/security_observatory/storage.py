@@ -41,6 +41,7 @@ from .asset_graph import (
     AssetEdge,
     derive_asset_nodes,
 )
+from .consequence import apply_active_incidents, blast_radius_from
 from .crown_jewels import mark_crown_jewels
 from .honey_keys import HONEY_KEY_PREFIX, utc_now
 from .platform_posture import platform_posture_snapshot_fingerprint
@@ -510,6 +511,8 @@ create table if not exists honey_incidents (
   archived_reset integer not null default 0,
   accepted_risk_note text,
   closed_at text,
+  asset_node_id integer,
+  blast_path_json text,
   created_at text not null,
   updated_at text not null,
   foreign key(event_id) references honey_key_events(id)
@@ -672,6 +675,14 @@ class ObservatoryDB:
         # bump (that gate is only for destructive rebuilds).
         if honey_columns and "asset_node_id" not in honey_columns:
             self.conn.execute("alter table honey_keys add column asset_node_id integer")
+        # Honeygraph tripwire bridge: an incident records the node its decoy guarded
+        # and the blast-radius snapshot computed at trip time. Additive + idempotent,
+        # mirroring the columns above; no SCHEMA_USER_VERSION bump.
+        incident_columns = {row["name"] for row in self.conn.execute("pragma table_info(honey_incidents)").fetchall()}
+        if incident_columns and "asset_node_id" not in incident_columns:
+            self.conn.execute("alter table honey_incidents add column asset_node_id integer")
+        if incident_columns and "blast_path_json" not in incident_columns:
+            self.conn.execute("alter table honey_incidents add column blast_path_json text")
         finding_columns = {row["name"] for row in self.conn.execute("pragma table_info(findings)").fetchall()}
         for column in (
             "vulnerability_id",
@@ -2016,6 +2027,13 @@ class ObservatoryDB:
                 case["repo"] = scan["repo_name"]
                 case["repo_name"] = scan["repo_name"]
                 _attach_case_decision(case, case_decisions)
+        # Tripwire overlay: flip the case at any tripped, bound node to active_incident.
+        repo_incidents = [
+            incident
+            for incident in self.active_node_incidents()
+            if str(incident.get("project_id")) == str(scan["repo_name"])
+        ]
+        apply_active_incidents([case for case in cases if isinstance(case, dict)], repo_incidents)
         assembled = assemble_suppression(
             [case for case in cases if isinstance(case, dict)],
             findings,
@@ -2871,7 +2889,110 @@ class ObservatoryDB:
                     "update honey_keys set last_triggered_at = ?, trigger_count = trigger_count + 1 where id = ?",
                     (now, key_id),
                 )
+        # Tripwire bridge: if this decoy was bound to an asset node (Step 1.1), snapshot
+        # the node it guarded + the blast-radius path at trip time onto the incident.
+        # The case sitting at that node flips to active_incident at serve time (cases
+        # are derived per scan, so the flip is a read-time overlay, not a stored edit).
+        asset_node_id = honey_key.get("asset_node_id")
+        if asset_node_id is not None:
+            self._attach_incident_blast_path(event_id, asset_node_id)
         return self.get_honey_key_event(event_id) or {}
+
+    def _attach_incident_blast_path(self, event_id: str, asset_node_id: Any) -> None:
+        """Resolve a bound node id → its blast-radius path and pin it to the incident.
+
+        Snapshots the node's *identity* (not just its numeric id) into the incident,
+        so the serve-time case flip survives a later rescan that reassigns node ids.
+        A missing node (no scan yet, or an id from a pruned scan) records nothing —
+        the honest degrade: no binding, no flip.
+        """
+        try:
+            node_id = int(asset_node_id)
+        except (TypeError, ValueError):
+            return
+        node_row = self.conn.execute(
+            "select node_type, identity_key, label, scan_id from asset_nodes where id = ?",
+            (node_id,),
+        ).fetchone()
+        if not node_row:
+            return
+        scan_id = str(node_row["scan_id"])
+        node_key = (str(node_row["node_type"]), str(node_row["identity_key"]))
+        blast = blast_radius_from(
+            node_key,
+            self.list_asset_nodes(scan_id=scan_id),
+            self.list_asset_edges(scan_id=scan_id),
+        )
+        if blast is None:
+            # The id resolved but its graph didn't (shouldn't happen) — still record
+            # the bound identity so the case can flip, just with an empty path.
+            blast = {
+                "node": {"node_type": node_key[0], "identity_key": node_key[1], "label": str(node_row["label"])},
+                "reachable": [],
+                "edges": [],
+                "blast_radius": 0,
+                "reaches_crown_jewel": False,
+                "crown_jewel": None,
+                "crown_jewel_path": [],
+            }
+        blast.setdefault("node", {})["asset_node_id"] = node_id
+        with self.conn:
+            self.conn.execute(
+                "update honey_incidents set asset_node_id = ?, blast_path_json = ? where event_id = ?",
+                (node_id, json.dumps(blast, sort_keys=True), event_id),
+            )
+
+    def active_node_incidents(self) -> list[dict[str, Any]]:
+        """Open incidents bound to an asset node — the bridge that flips a case.
+
+        An incident is "active" when it is not closed and its key is not archived. We
+        read the bound node identity + blast-radius path from the snapshot pinned at
+        trip time (``blast_path_json``), so matching a case to its node never depends
+        on a numeric id that a rescan may have reassigned. Newest trip first, so the
+        serve-time overlay keeps the most recent when a node trips twice.
+        """
+        rows = self.conn.execute(
+            """
+            select i.event_id as event_id, i.blast_path_json as blast_path_json,
+                   e.project_id as project_id, e.honey_key_id as honey_key_id,
+                   e.triggered_at as triggered_at
+            from honey_incidents i
+            join honey_key_events e on e.id = i.event_id
+            join honey_keys k on k.id = e.honey_key_id
+            where i.closed_at is null
+              and k.status != 'archived'
+              and i.blast_path_json is not null
+            order by e.triggered_at desc, i.event_id desc
+            """
+        ).fetchall()
+        incidents: list[dict[str, Any]] = []
+        for row in rows:
+            try:
+                snapshot = json.loads(row["blast_path_json"])
+            except (TypeError, json.JSONDecodeError):
+                continue
+            node = snapshot.get("node") or {}
+            identity_key = str(node.get("identity_key") or "")
+            if not identity_key:
+                continue
+            incidents.append(
+                {
+                    "event_id": row["event_id"],
+                    "project_id": row["project_id"],
+                    "honey_key_id": row["honey_key_id"],
+                    "triggered_at": row["triggered_at"],
+                    "node_type": node.get("node_type"),
+                    "identity_key": identity_key,
+                    "node": node,
+                    "path": snapshot.get("reachable") or [],
+                    "edges": snapshot.get("edges") or [],
+                    "blast_radius": snapshot.get("blast_radius"),
+                    "reaches_crown_jewel": bool(snapshot.get("reaches_crown_jewel")),
+                    "crown_jewel": snapshot.get("crown_jewel"),
+                    "crown_jewel_path": snapshot.get("crown_jewel_path") or [],
+                }
+            )
+        return incidents
 
     def get_honey_key_event(self, event_id: str) -> dict[str, Any] | None:
         row = self.conn.execute("select * from honey_key_events where id = ?", (event_id,)).fetchone()

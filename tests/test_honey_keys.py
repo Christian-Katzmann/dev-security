@@ -7,9 +7,16 @@ from urllib import request
 import json
 import threading
 
-from security_observatory.consequence import suggest_placement_node
+from security_observatory.asset_graph import AssetEdge
+from security_observatory.consequence import (
+    apply_active_incidents,
+    blast_radius_from,
+    suggest_placement_node,
+)
 from security_observatory.dashboard_server import DashboardHandler
 from security_observatory.honey_keys import generate_honey_key, hash_honey_key, honey_key_is_well_formed
+from security_observatory.model import SecurityCase
+from security_observatory.sbom import SBOMComponent
 from security_observatory.storage import ObservatoryDB
 
 
@@ -385,6 +392,260 @@ def test_weak_confidence_node_is_not_offered_for_auto_placement():
 
 def test_suggest_placement_returns_none_on_empty_graph():
     assert suggest_placement_node([], []) is None
+
+
+# ---------------------------------------------------------------------------
+# Tripwire bridge (Step 2.1): trigger → flip the case → light the path
+# ---------------------------------------------------------------------------
+
+
+def _sbom_component(name: str, version: str, *, ecosystem: str = "npm") -> SBOMComponent:
+    return SBOMComponent(
+        name=name,
+        version=version,
+        ecosystem=ecosystem,
+        component_type="library",
+        package_url=f"pkg:{ecosystem}/{name}@{version}",
+        license=None,
+        supplier=None,
+        source_path=None,
+    )
+
+
+def _dependency_case(case_id: str, fingerprint: str, *, title: str) -> SecurityCase:
+    return SecurityCase(
+        case_id=case_id,
+        title=title,
+        plain_english_risk="A dependency has a known weakness.",
+        action_level="fix_now",
+        confidence="high",
+        category="dependencies",
+        severity="high",
+        affected_files=["package-lock.json"],
+        evidence=[{"scanner": "trivy", "title": title, "location": "package-lock.json", "component_fingerprint": fingerprint}],
+        scanners=["trivy"],
+        fix_steps=["Upgrade it."],
+        agent_prompt="Upgrade the dependency.",
+        source_fingerprints=[fingerprint],
+    )
+
+
+def _save_two_node_scan(db: ObservatoryDB, *, scan_id: str = "scan-1", repo: str = "repo"):
+    """Persist a scan whose graph is `web <- (depends_on) - app`, plus two cases:
+    one AT the web node (guarded) and one unrelated. Returns (web_node_id, fingerprints)."""
+    web = _sbom_component("web-server", "1.0.0")
+    app = _sbom_component("app", "2.0.0")
+    case_web = _dependency_case("case-web", web.component_fingerprint, title="web-server vulnerability")
+    case_other = SecurityCase(
+        case_id="case-other",
+        title="Risky code in lib/other.py",
+        plain_english_risk="A risky code path.",
+        action_level="verify",
+        confidence="medium",
+        category="code-security",
+        severity="medium",
+        affected_files=["lib/other.py"],
+        evidence=[{"scanner": "semgrep", "title": "risky", "location": "lib/other.py:3"}],
+        scanners=["semgrep"],
+        fix_steps=["Fix it."],
+        agent_prompt="Fix the code.",
+        source_fingerprints=["other-fp"],
+    )
+    db.save_scan(
+        scan_id=scan_id,
+        repo_name=repo,
+        repo_path="/tmp/repo",
+        started_at="2026-01-01T00:00:00+00:00",
+        finished_at="2026-01-01T00:01:00+00:00",
+        profile="quick",
+        health_score=80,
+        status="ok",
+        scanner_statuses=[],
+        findings=[],
+        report_path="/tmp/repo/report.json",
+        cases=[case_web, case_other],
+        sbom_components=[web, app],
+    )
+    # app depends_on web => a blast from web reaches app (depends_on walks reversed).
+    db.replace_asset_edges(
+        scan_id=scan_id,
+        repo_name=repo,
+        edges=[
+            AssetEdge(
+                src_identity_key=app.component_fingerprint,
+                dst_identity_key=web.component_fingerprint,
+                edge_type="depends_on",
+                confidence="strong",
+                reason="app depends on web-server",
+            )
+        ],
+    )
+    web_node_id = db.conn.execute(
+        "select id from asset_nodes where scan_id = ? and identity_key = ?",
+        (scan_id, web.component_fingerprint),
+    ).fetchone()["id"]
+    return web_node_id, {"web": web.component_fingerprint, "app": app.component_fingerprint}
+
+
+def test_blast_radius_path_uses_real_edges():
+    """The illuminated path is real graph data, not a guess: it follows the edges."""
+    nodes = [
+        _node(1, "web-fp", "web-server"),
+        _node(2, "app-fp", "app"),
+        _node(3, "cli-fp", "cli"),
+        _node(4, "lonely-fp", "unconnected"),
+    ]
+    # app depends_on web, cli depends_on app => from web the blast reaches app then cli.
+    edges = [_edge("depends_on", 2, 1), _edge("depends_on", 3, 2)]
+
+    blast = blast_radius_from(("component", "web-fp"), nodes, edges)
+
+    assert blast is not None
+    assert blast["blast_radius"] == 2
+    reached = {step["identity_key"]: step["distance"] for step in blast["reachable"]}
+    assert reached == {"app-fp": 1, "cli-fp": 2}  # lonely-fp is NOT reachable
+    # Every illuminated edge is a real edge between two reachable endpoints.
+    edge_pairs = {(e["src_identity_key"], e["dst_identity_key"]) for e in blast["edges"]}
+    assert edge_pairs == {("web-fp", "app-fp"), ("app-fp", "cli-fp")}
+
+
+def test_blast_radius_from_returns_none_for_unknown_node():
+    assert blast_radius_from(("component", "ghost"), [_node(1, "web-fp", "web")], []) is None
+
+
+def test_apply_active_incidents_flips_only_the_node_case():
+    """The case AT the guarded node flips; a case on the blast path does NOT."""
+    case_at_node = {
+        "case_id": "c1",
+        "action_level": "fix_now",
+        "affected_files": [],
+        "evidence": [{"component_fingerprint": "web-fp"}],
+        "rotation_surfaces": [],
+        "priority_reasons": [],
+    }
+    downstream_case = {
+        "case_id": "c2",
+        "action_level": "verify",
+        "affected_files": [],
+        "evidence": [{"component_fingerprint": "app-fp"}],  # app is on the path, not the node
+        "rotation_surfaces": [],
+        "priority_reasons": [],
+    }
+    incident = {
+        "node_type": "component",
+        "identity_key": "web-fp",
+        "node": {"node_type": "component", "identity_key": "web-fp", "label": "web-server"},
+        "path": [{"identity_key": "app-fp", "distance": 1}],
+        "edges": [{"src_identity_key": "web-fp", "dst_identity_key": "app-fp"}],
+        "event_id": "evt-1",
+        "honey_key_id": "key-1",
+        "triggered_at": "2026-01-01T00:00:00+00:00",
+        "blast_radius": 1,
+    }
+
+    flipped = apply_active_incidents([case_at_node, downstream_case], [incident])
+
+    assert flipped == ["c1"]
+    assert case_at_node["action_level"] == "active_incident"
+    assert case_at_node["active_incident"]["path"] == [{"identity_key": "app-fp", "distance": 1}]
+    assert "intrusion near this node" in case_at_node["active_incident"]["message"]
+    # No copy claims the specific finding was exploited.
+    assert "exploited" not in case_at_node["active_incident"]["message"].split("not that")[0]
+    # The case on the blast path is illuminated but NOT escalated.
+    assert downstream_case["action_level"] == "verify"
+    assert "active_incident" not in downstream_case
+
+
+def test_trigger_on_bound_node_flips_that_case_and_lights_the_path(tmp_path):
+    db = ObservatoryDB(tmp_path / "observatory.sqlite")
+    try:
+        web_node_id, fingerprints = _save_two_node_scan(db)
+        secret = db.honey_signing_secret()
+        material = generate_honey_key(secret)
+        db.create_honey_key(
+            key_id=material.token_id,
+            project_id="repo",
+            repo_id="/tmp/repo",
+            name="Decoy guarding web-server",
+            token_hash=material.token_hash,
+            placement_path=".devsec/honeykeys/decoy.env",
+            asset_node_id=web_node_id,
+        )
+        raw_key = dict(db.conn.execute("select * from honey_keys where id = ?", (material.token_id,)).fetchone())
+        event = db.record_honey_key_trigger(
+            honey_key=raw_key,
+            ip_address="127.0.0.1",
+            user_agent="pytest",
+            method="POST",
+            path="/api/honey/trigger",
+            headers={"User-Agent": "pytest"},
+            body_summary=None,
+            confidence=0.98,
+            source_type="api_call",
+        )
+        payload = db.dashboard_payload()
+        export = db.scan_export("scan-1")
+    finally:
+        db.close()
+
+    # The incident snapshot was pinned at trip time with the real blast path.
+    incident_row = export  # alias for clarity below
+    cases_by_id = {case["case_id"]: case for case in payload["cases"]}
+    web_case = cases_by_id["case-web"]
+    assert web_case["action_level"] == "active_incident"
+    assert web_case["active_incident"]["node"]["identity_key"] == fingerprints["web"]
+    path_ids = {step["identity_key"] for step in web_case["active_incident"]["path"]}
+    assert fingerprints["app"] in path_ids  # the blast path is real graph data
+    assert "exploited" not in web_case["active_incident"]["message"].split("not that")[0]
+
+    # The unrelated case is untouched (no false flip along/near the node).
+    assert cases_by_id["case-other"]["action_level"] == "verify"
+
+    # The same flip is visible in the single-scan export view.
+    export_cases = {case["case_id"]: case for case in incident_row["cases"]}
+    assert export_cases["case-web"]["action_level"] == "active_incident"
+    assert export_cases["case-other"]["action_level"] == "verify"
+
+
+def test_trigger_on_unbound_key_records_event_without_false_case_flip(tmp_path):
+    db = ObservatoryDB(tmp_path / "observatory.sqlite")
+    try:
+        _save_two_node_scan(db)
+        secret = db.honey_signing_secret()
+        material = generate_honey_key(secret)
+        db.create_honey_key(
+            key_id=material.token_id,
+            project_id="repo",
+            repo_id="/tmp/repo",
+            name="Free-floating decoy",
+            token_hash=material.token_hash,
+            placement_path=".devsec/honeykeys/decoy.env",
+            # NOTE: no asset_node_id — this key guards no node.
+        )
+        raw_key = dict(db.conn.execute("select * from honey_keys where id = ?", (material.token_id,)).fetchone())
+        db.record_honey_key_trigger(
+            honey_key=raw_key,
+            ip_address="127.0.0.1",
+            user_agent="pytest",
+            method="POST",
+            path="/api/honey/trigger",
+            headers={"User-Agent": "pytest"},
+            body_summary=None,
+            confidence=0.98,
+            source_type="api_call",
+        )
+        payload = db.dashboard_payload()
+        node_incidents = db.active_node_incidents()
+    finally:
+        db.close()
+
+    # The event was recorded (project goes red, generic honey case appears)...
+    assert payload["honey_key_events"][0]["honey_key_id"] == material.token_id
+    assert any(case["title"] == "Honey Key triggered" for case in payload["cases"])
+    # ...but no real finding/case was falsely flipped to active_incident.
+    flipped = [case for case in payload["cases"] if case.get("action_level") == "active_incident"]
+    assert flipped == []
+    assert node_incidents == []
 
 
 def _start_server(tmp_path: Path):

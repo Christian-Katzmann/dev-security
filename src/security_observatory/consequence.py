@@ -34,6 +34,7 @@ consequence (``None``) and must rank exactly as it does today.
 from __future__ import annotations
 
 import heapq
+from collections import deque
 from dataclasses import dataclass
 from typing import Any, Iterable
 
@@ -565,3 +566,150 @@ def suggest_placement_node(
         reason=reason,
         warnings=tuple(warnings),
     )
+
+
+# ---------------------------------------------------------------------------
+# Tripwire bridge (Honeygraph 2 — trigger → flip the case → light the path)
+# ---------------------------------------------------------------------------
+
+
+#: The only honest thing a tripped decoy proves. A trip means an adversary
+#: reached this region of the graph and took the bait — it does NOT prove this
+#: specific finding was the entry vector, nor that it was "exploited". Every
+#: surface that renders an active incident reuses this exact wording so the
+#: honesty boundary can never drift between Python and the dashboard.
+ACTIVE_INCIDENT_MESSAGE = (
+    "Confirmed intrusion near this node: a decoy guarding this high-consequence "
+    "dependency surface was triggered. This proves an adversary reached this region "
+    "and took the bait — not that this specific finding was exploited. Treat every "
+    "asset on the illuminated blast-radius path as potentially within reach."
+)
+
+
+def blast_radius_from(
+    node_key: tuple[str, str],
+    node_rows: Iterable[Any],
+    edge_rows: Iterable[Any],
+) -> dict[str, Any] | None:
+    """The reachable blast region from a *tripped* node, as real graph data.
+
+    A breadth-first walk over the same blast-propagation adjacency the consequence
+    score uses (``reachable_from``/``stored_in``/``unlocks`` forward, ``depends_on``
+    reversed). Returns the ordered set of reachable nodes — each tagged with its hop
+    ``distance`` and the ``via`` edge it was first reached through — plus the BFS-tree
+    edges actually traversed, so a caller (or the graph view) lights a path that is
+    real edges, never a guess. The nearest-crown-jewel path rides along when one is
+    labeled and reachable.
+
+    Returns ``None`` when the node is not in the graph. Pure and side-effect free.
+    """
+    graph = _build_graph_nodes(node_rows)
+    nodes = graph.nodes
+    if node_key not in nodes:
+        return None
+    adjacency = _build_adjacency(graph, edge_rows)
+    crown_keys = {key for key, node in nodes.items() if node.is_crown_jewel}
+    crown_jewels_defined = bool(crown_keys)
+
+    # BFS in blast-propagation direction: distance is hop count; the first edge to
+    # reach each node defines its place in the spanning tree (a stable, readable
+    # "how the blast spreads" view, not every possible path).
+    distance: dict[tuple[str, str], int] = {node_key: 0}
+    parent: dict[tuple[str, str], tuple[tuple[str, str], str, str]] = {}
+    order: list[tuple[str, str]] = []
+    queue: deque[tuple[str, str]] = deque([node_key])
+    while queue:
+        current = queue.popleft()
+        for neighbor, edge_type, edge_conf in adjacency.get(current, ()):
+            if neighbor in distance:
+                continue
+            distance[neighbor] = distance[current] + 1
+            parent[neighbor] = (current, edge_type, edge_conf)
+            order.append(neighbor)
+            queue.append(neighbor)
+
+    reachable = [
+        {**_node_summary(nodes[key], parent[key][1]), "distance": distance[key]}
+        for key in order
+    ]
+    edges = [
+        {
+            "src_identity_key": parent[key][0][1],
+            "dst_identity_key": key[1],
+            "edge_type": parent[key][1],
+            "confidence": parent[key][2],
+        }
+        for key in order
+    ]
+
+    # Reuse the consequence search for the nearest-crown-jewel path + weakest-link
+    # confidence — identical traversal, so the two views can never disagree.
+    consequence = _consequence_from(node_key, nodes, adjacency, crown_keys, crown_jewels_defined)
+    return {
+        "node": _node_summary(nodes[node_key]),
+        "reachable": reachable,
+        "edges": edges,
+        "blast_radius": len(order),
+        "reaches_crown_jewel": consequence.reaches_crown_jewel,
+        "crown_jewel": dict(consequence.crown_jewel) if consequence.crown_jewel else None,
+        "crown_jewel_path": [dict(step) for step in consequence.path],
+        "confidence": consequence.confidence,
+        "crown_jewels_defined": crown_jewels_defined,
+    }
+
+
+def apply_active_incidents(
+    cases: Iterable[Any],
+    incidents: Iterable[dict[str, Any]],
+) -> list[str]:
+    """Flip the case sitting AT each tripped, bound node to ``active_incident``.
+
+    **The rule (the campaign's open question, answered):** only the case *at* the
+    guarded node escalates — never every case along the blast path. A trip proves an
+    adversary reached *this* node and took the bait; the downstream nodes are blast
+    radius (what they could reach *next*), not confirmed-touched, so escalating them
+    too would outrun the evidence. The path is attached to the flipped case for
+    illumination, not escalation.
+
+    Honesty is structural: the attached context and the prepended reason both use
+    :data:`ACTIVE_INCIDENT_MESSAGE` — "intrusion near this node", never "this finding
+    was exploited". Mutates the matching case dicts in place; returns the flipped
+    ``case_id`` list. A serve-time overlay (cases are derived per scan, so the flip
+    can't be a stored mutation), mirroring how ``_attach_case_decision`` overlays a
+    suppression onto a freshly derived case.
+    """
+    by_key: dict[tuple[str, str], dict[str, Any]] = {}
+    for incident in incidents:
+        key = (str(incident.get("node_type") or ""), str(incident.get("identity_key") or ""))
+        if key[1]:
+            # Newest trip wins if two open incidents somehow guard the same node;
+            # callers pass them newest-first, so keep the first seen.
+            by_key.setdefault(key, incident)
+    if not by_key:
+        return []
+
+    flipped: list[str] = []
+    for case in cases:
+        if not isinstance(case, dict):
+            continue
+        match = next((by_key[key] for key in case_node_identities(case) if key in by_key), None)
+        if match is None:
+            continue
+        case["action_level"] = "active_incident"
+        case["active_incident"] = {
+            "event_id": match.get("event_id"),
+            "honey_key_id": match.get("honey_key_id"),
+            "triggered_at": match.get("triggered_at"),
+            "node": match.get("node"),
+            "path": list(match.get("path") or []),
+            "edges": list(match.get("edges") or []),
+            "blast_radius": match.get("blast_radius"),
+            "reaches_crown_jewel": bool(match.get("reaches_crown_jewel")),
+            "crown_jewel": match.get("crown_jewel"),
+            "crown_jewel_path": list(match.get("crown_jewel_path") or []),
+            "message": ACTIVE_INCIDENT_MESSAGE,
+        }
+        reasons = [reason for reason in (case.get("priority_reasons") or []) if reason != ACTIVE_INCIDENT_MESSAGE]
+        case["priority_reasons"] = [ACTIVE_INCIDENT_MESSAGE, *reasons]
+        flipped.append(str(case.get("case_id") or case.get("id") or ""))
+    return flipped
