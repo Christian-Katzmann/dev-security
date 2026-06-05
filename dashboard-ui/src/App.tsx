@@ -109,6 +109,8 @@ import {
   AttentionBucket,
   CaseDecisionStatus,
   CaseLifecycleState,
+  ConsequenceSummary,
+  ConsequencePathStep,
   DashboardMode,
   DashboardSummary,
   DisplayCase,
@@ -3882,6 +3884,37 @@ function EmptyRepoView({repoName, onRunQuick, onChooseChecks}: {repoName: string
   );
 }
 
+function formatConsequencePath(path: ConsequencePathStep[]): string {
+  if (!path.length) return '';
+  const tokens: string[] = [path[0].label];
+  for (let i = 1; i < path.length; i++) {
+    const step = path[i];
+    tokens.push('→');
+    if (step.via) {
+      tokens.push(step.via);
+      tokens.push('→');
+    }
+    tokens.push(step.label);
+  }
+  return tokens.join(' ');
+}
+
+function ConsequenceLine({consequence}: {consequence: ConsequenceSummary}) {
+  if (!consequence.reaches_crown_jewel) return null;
+  const conf = consequence.confidence;
+  const isWeak = conf === 'weak' || conf === 'unknown';
+  const hops = consequence.distance === 1 ? '1 hop' : `${consequence.distance ?? '?'} hops`;
+  const pathText = formatConsequencePath(consequence.path);
+  return (
+    <div className="consequence-line">
+      <span className="consequence-path">{pathText} ({hops}, {conf})</span>
+      {isWeak && (
+        <span className="consequence-caveat">Low-confidence path — not auto-promoted, flagged for review.</span>
+      )}
+    </div>
+  );
+}
+
 function CaseDetailCard({
   item,
   repoDisplayName,
@@ -3955,6 +3988,7 @@ function CaseDetailCard({
       </div>
       <h2>{item.title}</h2>
       <p>{item.why}</p>
+      {item.consequence?.reaches_crown_jewel && <ConsequenceLine consequence={item.consequence} />}
       <KV label="Case" value={caseDisplayId(item)} />
       <KV label="Repository" value={repoDisplayName ?? item.repoName} />
       <KV label="Location" value={item.location} />
