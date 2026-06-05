@@ -18,7 +18,7 @@ import uuid
 import webbrowser
 
 from .cases import build_recovery_playbooks
-from .consequence import suggest_placement_node
+from .consequence import build_graph_payload, suggest_placement_node
 from .agent_lab import (
     AGENT_PROPOSAL_MAX_BYTES,
     AgentLabExecutionError,
@@ -1612,6 +1612,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         (_match_rstrip_parsed("/report"), "_get_report_page"),
         (_match_exact_parsed("/api/report"), "_get_report_download"),
         (_match_exact_parsed("/api/scan-diff"), "_get_scan_diff"),
+        (_match_exact_parsed("/api/graph"), "_get_graph"),
         (_match_rstrip_parsed("/api/fix-proposals"), "_get_fix_proposals"),
         (_match_regex_groups(_FIX_PROPOSAL_ID_RE, "proposal_id"), "serve_fix_proposal_detail"),
     ]
@@ -1952,6 +1953,56 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_json_error(404, "One or both scans were not found.")
             return
         self.send_json(diff)
+
+    def _get_graph(self, parsed) -> None:
+        """The blast-radius graph payload: nodes scored by consequence + lit path.
+
+        Repo-scoped (the asset graph is built per scan): resolves the repo's latest
+        scan, lists its nodes + edges, scores every node by reachable consequence,
+        and overlays any *active* honey-incident path bound to a node in this graph.
+        Read-only. An empty graph returns empty ``nodes``/``edges`` with a plain
+        ``reason_none`` so the view shows an honest empty state, not an error.
+        """
+        query = parse_qs(parsed.query)
+        repo_path = (query.get("repoPath", [""])[0] or "").strip()
+        repo_name = (query.get("repoName", [""])[0] or "").strip()
+        if not repo_name and repo_path:
+            repo_name = Path(repo_path).name
+        if not repo_name:
+            self.send_json_error(400, "repoName or repoPath is required for the graph view.")
+            return
+        db = ObservatoryDB(self.db_path)
+        try:
+            scan = db.latest_scan_for_repo(repo_name)
+            if not scan:
+                self.send_json({
+                    "repo": repo_name,
+                    "scan_id": None,
+                    "crown_jewels_defined": False,
+                    "nodes": [],
+                    "edges": [],
+                    "active_incident": None,
+                    "active_incidents": [],
+                    "reason_none": (
+                        f"No scan found for '{repo_name}'. Run a scan to build the "
+                        f"asset graph first."
+                    ),
+                })
+                return
+            scan_id = str(scan["id"])
+            node_rows = db.list_asset_nodes(scan_id=scan_id)
+            edge_rows = db.list_asset_edges(scan_id=scan_id)
+            incidents = db.active_node_incidents()
+        finally:
+            db.close()
+        payload = build_graph_payload(node_rows, edge_rows, incidents)
+        payload["repo"] = repo_name
+        payload["scan_id"] = scan_id
+        if not payload["nodes"]:
+            payload["reason_none"] = (
+                "This scan built no asset-graph nodes, so there is nothing to map yet."
+            )
+        self.send_json(payload)
 
     def _get_fix_proposals(self, parsed) -> None:
         # The hands-off code-fix flow (propose -> clean-room review -> land)

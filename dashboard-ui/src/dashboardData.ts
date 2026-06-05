@@ -1147,6 +1147,78 @@ export type ConsequenceSummary = {
   crown_jewel: {identity_key: string; node_type: string; label: string} | null;
 };
 
+// ---------------------------------------------------------------------------
+// Blast-radius graph view (Honeygraph 2, step 3.1) — /api/graph payload.
+// ---------------------------------------------------------------------------
+
+/** One asset-graph node, pre-scored by reachable consequence server-side. */
+export type GraphNode = {
+  asset_node_id: number | null;
+  node_type: string;
+  identity_key: string;
+  label: string;
+  is_crown_jewel: boolean;
+  /** Node classification confidence: 'strong' | 'moderate' | 'weak' | 'unknown'. */
+  confidence: string;
+  /** How many other nodes a blast from here can reach (sizes the node). */
+  blast_radius: number;
+  reaches_crown_jewel: boolean;
+  distance_to_crown_jewel: number | null;
+  /** Weakest-link confidence of the path to the nearest crown jewel. */
+  consequence_confidence: string;
+};
+
+/** A directed edge, re-keyed to identity keys so it joins to GraphNode + path. */
+export type GraphEdge = {
+  src_identity_key: string;
+  dst_identity_key: string;
+  edge_type: string;
+  confidence: string;
+  reason: string;
+};
+
+/** One step of a lit blast-radius path (reachable node + how it was reached). */
+export type GraphIncidentPathStep = {
+  identity_key: string;
+  node_type: string;
+  label: string;
+  via?: string;
+  distance?: number;
+};
+
+/**
+ * The live honey-incident attached to a graph: which node tripped, the real
+ * blast-radius path from it, and the honest `message` (a trip proves intrusion
+ * NEAR this node, never that a specific finding was exploited). Shape mirrors
+ * `storage.active_node_incidents()` enriched by `consequence.build_graph_payload`.
+ */
+export type GraphActiveIncident = {
+  event_id: string;
+  honey_key_id?: string;
+  triggered_at?: string;
+  node_type: string;
+  identity_key: string;
+  node: {node_type?: string; identity_key: string; label?: string; asset_node_id?: number | null};
+  path: GraphIncidentPathStep[];
+  edges: GraphEdge[];
+  blast_radius: number | null;
+  reaches_crown_jewel: boolean;
+  crown_jewel: {identity_key: string; node_type: string; label: string} | null;
+  crown_jewel_path: GraphIncidentPathStep[];
+  message: string;
+};
+
+export type GraphPayload = {
+  repo: string;
+  scan_id: string | null;
+  crown_jewels_defined: boolean;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  active_incident: GraphActiveIncident | null;
+  active_incidents: GraphActiveIncident[];
+  reason_none?: string;
+};
+
 /**
  * The case shape as it actually arrives over the wire. These are exactly the
  * backend `SecurityCase` dataclass fields (`model.py` / built in `cases.py`)

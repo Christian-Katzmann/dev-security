@@ -76,8 +76,8 @@ so the citations cannot silently drift the way they once did:
 
 | Claim | Guard | Location |
 | --- | --- | --- |
-| Refuses to overwrite existing files | `if target_path.exists():` → HTTP 409 "Placement file already exists." | `src/security_observatory/dashboard_server.py:2893` (the 409 message at `:2894`) |
-| Refuses to write outside the selected repo | `target_path.relative_to(repo_path)` (400 "Placement path must stay inside the repo." if it escapes); a key whose `repo_id` differs is rejected with "Honey Key belongs to a different repo." | `src/security_observatory/dashboard_server.py:2886` and `:2909` |
-| No duplicate Honey Key created | `except sqlite3.IntegrityError:` → HTTP 409 "Honey Key already exists." | `src/security_observatory/dashboard_server.py:2795` (the 409 message at `:2796`) |
+| Refuses to overwrite existing files | `if target_path.exists():` → HTTP 409 "Placement file already exists." | `src/security_observatory/dashboard_server.py:2944` (the 409 message at `:2945`) |
+| Refuses to write outside the selected repo | `target_path.relative_to(repo_path)` (400 "Placement path must stay inside the repo." if it escapes); a key whose `repo_id` differs is rejected with "Honey Key belongs to a different repo." | `src/security_observatory/dashboard_server.py:2937` and `:2960` |
+| No duplicate Honey Key created | `except sqlite3.IntegrityError:` → HTTP 409 "Honey Key already exists." | `src/security_observatory/dashboard_server.py:2846` (the 409 message at `:2847`) |
 | Stores only a secure hash of the raw key | `hash_honey_key` = `hashlib.sha256("honeykey:v1:" + token)`; the raw token is never persisted, only `token_hash` | `src/security_observatory/honey_keys.py:86` (declared `token_hash` at `:41`, stored at `:57`) |
 

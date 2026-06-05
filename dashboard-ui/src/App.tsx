@@ -186,8 +186,9 @@ const CatalogToolPage = lazy(() => import('./components/catalog/CatalogToolPage'
 const CatalogPackPage = lazy(() => import('./components/catalog/CatalogPackPage'));
 const AgentLabView = lazy(() => import('./components/agent-lab/AgentLabView'));
 const FixProposalsView = lazy(() => import('./components/FixProposalsView'));
+const BlastRadiusView = lazy(() => import('./components/BlastRadiusView'));
 
-type TabId = 'overview' | 'cases' | 'honey-keys' | 'scanners' | 'agent-lab' | 'fix-proposals' | 'playbooks' | 'verification' | 'activity' | 'reports' | 'settings';
+type TabId = 'overview' | 'cases' | 'honey-keys' | 'blast-radius' | 'scanners' | 'agent-lab' | 'fix-proposals' | 'playbooks' | 'verification' | 'activity' | 'reports' | 'settings';
 type ViewModeAvailability = 'normal' | 'repo-required' | 'global';
 type ViewModeRegistryEntry = {
   supportedModes: DashboardMode[];
@@ -345,6 +346,7 @@ const navGroups: {title?: string; items: NavItem[]}[] = [
     items: [
       {id: 'cases', label: 'Cases', icon: FileSearch},
       {id: 'honey-keys', label: 'Honey keys', icon: KeyRound},
+      {id: 'blast-radius', label: 'Blast radius', icon: Radar},
       {id: 'scanners', label: 'Tool catalog', icon: PackageSearch},
       {id: 'agent-lab', label: 'Agent lab', icon: Workflow},
       {id: 'fix-proposals', label: 'Code fixes', icon: GitPullRequest},
@@ -364,6 +366,7 @@ const tabTitles: Record<TabId, string> = {
   overview: 'Overview',
   cases: 'Cases',
   'honey-keys': 'Honey keys',
+  'blast-radius': 'Blast radius',
   scanners: 'Tool catalog',
   'agent-lab': 'Agent lab',
   'fix-proposals': 'Code fixes',
@@ -383,6 +386,11 @@ const viewsByMode: Record<TabId, ViewModeRegistryEntry> = {
     supportedModes: ['repo'],
     availability: 'repo-required',
     unavailableReason: 'Pick a repo to inspect Honey keys.',
+  },
+  'blast-radius': {
+    supportedModes: ['repo'],
+    availability: 'repo-required',
+    unavailableReason: 'Pick a repo to map its blast radius.',
   },
   playbooks: {
     supportedModes: ['repo'],
@@ -1746,6 +1754,7 @@ function ActiveView({
   }
   if (tab === 'cases') return <CasesView summary={summary} search={search} target={target} onCaseDecision={onCaseDecision} onRefresh={onRefresh} />;
   if (tab === 'honey-keys') return <HoneyKeysView summary={summary} target={target} onRefresh={onRefresh} />;
+  if (tab === 'blast-radius') return <BlastRadiusView target={target} targetRepos={targetRepos} onTargetChange={onTargetChange} />;
   if (tab === 'scanners') return <CatalogRouter route={catalogRoute} summary={summary} onRouteChange={onCatalogRouteChange} onRefresh={onRefresh} onChooseChecks={onChooseChecks} />;
   if (tab === 'agent-lab') return <AgentLabView summary={summary} target={target} targetRepos={targetRepos} onRefresh={onRefresh} onTargetChange={onTargetChange} />;
   if (tab === 'fix-proposals') return <FixProposalsView />;

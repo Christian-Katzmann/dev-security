@@ -713,3 +713,105 @@ def apply_active_incidents(
         case["priority_reasons"] = [ACTIVE_INCIDENT_MESSAGE, *reasons]
         flipped.append(str(case.get("case_id") or case.get("id") or ""))
     return flipped
+
+
+# ---------------------------------------------------------------------------
+# Blast-radius graph view payload (Honeygraph 2 — show it)
+# ---------------------------------------------------------------------------
+
+
+def build_graph_payload(
+    node_rows: Iterable[Any],
+    edge_rows: Iterable[Any],
+    incidents: Iterable[dict[str, Any]] = (),
+) -> dict[str, Any]:
+    """Assemble the blast-radius graph view payload from real scan data.
+
+    Every node carries its reachable ``consequence`` (blast radius, crown-jewel
+    reachability, weakest-link confidence) so the view can size/colour it by
+    consequence and mark crown jewels — never by a placeholder. Edges are
+    re-keyed from storage's numeric ``src_node_id``/``dst_node_id`` to the
+    ``identity_key`` join keys the front end and the incident path already speak,
+    so the lit path and the base graph reference the same nodes.
+
+    ``incidents`` is the global ``active_node_incidents()`` set; we keep only the
+    ones whose tripped node is actually in *this* graph (matched by identity, the
+    rescan-stable key) so a graph never lights a path for another repo's trip. The
+    honest :data:`ACTIVE_INCIDENT_MESSAGE` rides along on each scoped incident.
+
+    Pure and side-effect free; returns empty ``nodes``/``edges`` (not ``None``) for
+    an empty graph so the caller renders an honest empty state, not an error.
+    """
+    rows = list(node_rows)
+    edges_in = list(edge_rows)
+    consequences = compute_node_consequences(rows, edges_in)
+    crown_jewels_defined = any(bool(_get(row, "is_crown_jewel")) for row in rows)
+
+    id_to_identity: dict[Any, str] = {}
+    node_keys: set[tuple[str, str]] = set()
+    nodes: list[dict[str, Any]] = []
+    for row in rows:
+        node_type = str(_get(row, "node_type") or "")
+        identity_key = str(_get(row, "identity_key") or "")
+        if not identity_key:
+            continue
+        node_id = _get(row, "id")
+        if node_id is not None:
+            id_to_identity[node_id] = identity_key
+        node_keys.add((node_type, identity_key))
+        consequence = consequences.get((node_type, identity_key))
+        nodes.append(
+            {
+                "asset_node_id": node_id,
+                "node_type": node_type,
+                "identity_key": identity_key,
+                "label": str(_get(row, "label") or identity_key),
+                "is_crown_jewel": bool(_get(row, "is_crown_jewel")),
+                "confidence": str(_get(row, "confidence") or "unknown"),
+                "blast_radius": consequence.blast_radius if consequence else 0,
+                "reaches_crown_jewel": (
+                    consequence.reaches_crown_jewel if consequence else False
+                ),
+                "distance_to_crown_jewel": consequence.distance if consequence else None,
+                "consequence_confidence": (
+                    consequence.confidence if consequence else "unknown"
+                ),
+            }
+        )
+
+    edges: list[dict[str, Any]] = []
+    for row in edges_in:
+        src = id_to_identity.get(_get(row, "src_node_id")) or _get(row, "src_identity_key")
+        dst = id_to_identity.get(_get(row, "dst_node_id")) or _get(row, "dst_identity_key")
+        src = str(src).strip() if src else ""
+        dst = str(dst).strip() if dst else ""
+        if not src or not dst:
+            continue
+        edges.append(
+            {
+                "src_identity_key": src,
+                "dst_identity_key": dst,
+                "edge_type": str(_get(row, "edge_type") or ""),
+                "confidence": str(_get(row, "confidence") or "unknown"),
+                "reason": str(_get(row, "reason") or ""),
+            }
+        )
+
+    scoped_incidents: list[dict[str, Any]] = []
+    for incident in incidents:
+        key = (
+            str(incident.get("node_type") or ""),
+            str(incident.get("identity_key") or ""),
+        )
+        if key in node_keys:
+            scoped_incidents.append({**incident, "message": ACTIVE_INCIDENT_MESSAGE})
+
+    return {
+        "crown_jewels_defined": crown_jewels_defined,
+        "nodes": nodes,
+        "edges": edges,
+        # ``active_node_incidents()`` is newest-first, so the head is the most
+        # recent live trip — what the view lights by default.
+        "active_incident": scoped_incidents[0] if scoped_incidents else None,
+        "active_incidents": scoped_incidents,
+    }

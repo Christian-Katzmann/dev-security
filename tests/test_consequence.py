@@ -14,7 +14,9 @@ follow forward (secret -> resource -> datastore), and ``depends_on`` is walked
 
 from security_observatory.asset_graph import AssetEdge, AssetNode
 from security_observatory.consequence import (
+    ACTIVE_INCIDENT_MESSAGE,
     attach_consequences,
+    build_graph_payload,
     case_node_identities,
     compute_node_consequences,
 )
@@ -300,3 +302,94 @@ def test_consequence_from_persisted_graph(tmp_path):
         assert secret_conseq.crown_jewel["identity_key"] == "aws_db_instance.customers"
     finally:
         db.close()
+
+
+# ---------------------------------------------------------------------------
+# Graph view payload (Honeygraph 2 — the blast-radius graph view)
+# ---------------------------------------------------------------------------
+
+
+def _graph_fixture():
+    """A 3-node chain ending in a crown jewel: secret -> resource -> datastore."""
+    nodes = [
+        _node("secret", "app/.env", "strong"),
+        _node("resource", "aws_instance.api", "strong"),
+        _node("datastore", "aws_db_instance.customers", "strong", crown=True),
+    ]
+    edges = [
+        _edge("app/.env", "aws_instance.api", "reachable_from", "strong"),
+        _edge("aws_instance.api", "aws_db_instance.customers", "stored_in", "strong"),
+    ]
+    return nodes, edges
+
+
+def test_build_graph_payload_scores_nodes_and_keeps_edges():
+    nodes, edges = _graph_fixture()
+    payload = build_graph_payload(nodes, edges)
+
+    assert payload["crown_jewels_defined"] is True
+    assert len(payload["nodes"]) == 3
+    assert len(payload["edges"]) == 2
+
+    secret = next(n for n in payload["nodes"] if n["identity_key"] == "app/.env")
+    # The entry node reaches the crown jewel two hops away, touching two assets.
+    assert secret["reaches_crown_jewel"] is True
+    assert secret["blast_radius"] == 2
+    assert secret["distance_to_crown_jewel"] == 2
+    assert secret["consequence_confidence"] == "strong"
+
+    jewel = next(n for n in payload["nodes"] if n["node_type"] == "datastore")
+    assert jewel["is_crown_jewel"] is True
+
+    # Edges carry identity-key endpoints the front end + incident path join on.
+    first = payload["edges"][0]
+    assert first["src_identity_key"] == "app/.env"
+    assert first["dst_identity_key"] == "aws_instance.api"
+    assert first["edge_type"] == "reachable_from"
+
+
+def test_build_graph_payload_no_crown_jewel_is_honest():
+    nodes = [_node("component", "pkg:a", "strong"), _node("component", "pkg:b", "strong")]
+    edges = [_edge("pkg:a", "pkg:b", "depends_on", "strong")]
+    payload = build_graph_payload(nodes, edges)
+    assert payload["crown_jewels_defined"] is False
+    assert all(n["reaches_crown_jewel"] is False for n in payload["nodes"])
+    assert payload["active_incident"] is None
+
+
+def test_build_graph_payload_scopes_incident_to_this_graph():
+    nodes, edges = _graph_fixture()
+    in_graph = {
+        "event_id": "evt-1",
+        "honey_key_id": "key-1",
+        "triggered_at": "2026-06-06T00:00:00Z",
+        "node_type": "secret",
+        "identity_key": "app/.env",
+        "node": {"node_type": "secret", "identity_key": "app/.env", "label": "app/.env"},
+        "path": [],
+        "edges": [],
+        "blast_radius": 2,
+        "reaches_crown_jewel": True,
+    }
+    out_of_graph = {
+        "event_id": "evt-2",
+        "node_type": "secret",
+        "identity_key": "other-repo/.env",
+        "node": {"identity_key": "other-repo/.env"},
+    }
+    payload = build_graph_payload(nodes, edges, [in_graph, out_of_graph])
+
+    # Only the trip whose node is in THIS graph lights a path.
+    assert len(payload["active_incidents"]) == 1
+    incident = payload["active_incident"]
+    assert incident["identity_key"] == "app/.env"
+    # The honest-language constant rides along so the view can never drift from it.
+    assert incident["message"] == ACTIVE_INCIDENT_MESSAGE
+
+
+def test_build_graph_payload_empty_graph_is_empty_not_error():
+    payload = build_graph_payload([], [])
+    assert payload["nodes"] == []
+    assert payload["edges"] == []
+    assert payload["active_incident"] is None
+    assert payload["crown_jewels_defined"] is False
