@@ -2,6 +2,32 @@
    insight screens: each visual is quiet evidence under a plain-language insight.
    Thin strokes, white-on-grey, end-dots, mono labels. Color stays reserved. */
 
+/* MTickMeter — a row of thin vertical ticks (an equalizer / segment meter).
+   The first `lit` ticks are coloured — a solid `color`, or a `from`→`to`
+   gradient interpolated across the lit run — and the rest use the faint
+   `track`. The shared motif behind the severity ladder, launch-readiness, and
+   the repo-health score. */
+function MTickMeter({ count = 22, lit, value = 0, max = 10, color = "rgba(255,255,255,0.82)", from, to, track = "rgba(255,255,255,0.15)", height = 22, gap = 3 }) {
+  const litCount = Math.max(0, Math.min(count, lit != null ? lit : Math.round((value / max) * count)));
+  const toRgb = (h) => { const s = h.replace("#", ""); return [0, 2, 4].map((i) => parseInt(s.slice(i, i + 2), 16)); };
+  const ramp = from && to ? [toRgb(from), toRgb(to)] : null;
+  return (
+    <div className="flex w-full items-stretch" style={{ gap, height }}>
+      {Array.from({ length: count }).map((_, i) => {
+        let bg = track;
+        if (i < litCount) {
+          if (ramp) {
+            const t = litCount <= 1 ? 1 : i / (litCount - 1);
+            const c = ramp[0].map((a, k) => Math.round(a + (ramp[1][k] - a) * t));
+            bg = `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+          } else bg = color;
+        }
+        return <div key={i} className="flex-1 rounded-full" style={{ background: bg, minWidth: 2 }} />;
+      })}
+    </div>
+  );
+}
+
 /* thin posture/exposure ring with an end-dot */
 function MRing({ value = 8.1, max = 10, unit = "/10", tier, size = 156 }) {
   const sw = 4, pad = 9;
@@ -29,49 +55,53 @@ function MRing({ value = 8.1, max = 10, unit = "/10", tier, size = 156 }) {
   );
 }
 
-/* hairline severity bars — big right-aligned numbers, the label carries meaning */
-function MSeverityBars({ rows }) {
+/* hairline severity bars — big right-aligned numbers, the label carries meaning.
+   `fill` distributes the rows over the tile's full height (for a tall tile). */
+function MSeverityBars({ rows, fill = false }) {
   const max = Math.max(...rows.map((r) => r.value), 1);
-  return (
-    <div className="space-y-5">
-      {rows.map((r) => (
-        <div key={r.label}>
-          <div className="mb-2 flex items-baseline justify-between">
-            <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em]" style={{ fontFamily: MONO, color: "var(--on-surface-faint)" }}>
-              {r.color && <span className="h-1.5 w-1.5 rounded-full" style={{ background: r.color }} />}{r.label}
-            </span>
-            <span className="font-semibold" style={{ fontSize: 17, color: "var(--on-surface-strong)" }}>{r.value}</span>
-          </div>
-          <div className="h-[5px] w-full overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.10)" }}>
-            <div className="h-full rounded-full" style={{ width: `${(r.value / max) * 100}%`, background: r.color || "rgba(255,255,255,0.82)" }} />
-          </div>
-        </div>
-      ))}
+  const renderItem = (r) => (
+    <div key={r.label}>
+      <div className="mb-2 flex items-baseline justify-between">
+        <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em]" style={{ fontFamily: MONO, color: "var(--on-surface-faint)" }}>
+          {r.color && <span className="h-1.5 w-1.5 rounded-full" style={{ background: r.color }} />}{r.label}
+        </span>
+        <span className="font-semibold tabular-nums" style={{ fontSize: fill ? 21 : 17, color: "var(--on-surface-strong)" }}>{r.value}</span>
+      </div>
+      <MTickMeter count={20} value={r.value} max={max} color={r.color || "rgba(255,255,255,0.7)"} height={fill ? 22 : 14} />
     </div>
   );
+  if (fill) return <div className="flex h-full flex-col justify-between">{rows.map(renderItem)}</div>;
+  return <div className="space-y-5">{rows.map(renderItem)}</div>;
 }
 
-/* minimal open-vs-resolved line trend */
-function MLineTrend({ open, resolved }) {
-  const W = 320, H = 96, n = open.length;
+/* minimal open-vs-resolved line trend. `compact` is a slim sparkline variant
+   for a short tile — it fills its height and keeps a one-line legend. */
+function MLineTrend({ open, resolved, compact = false }) {
+  const W = 320, H = compact ? 40 : 96, n = open.length;
   const all = open.concat(resolved);
   const max = Math.max(...all), min = Math.min(...all);
+  const pad = compact ? 4 : 6;
   const x = (i) => (i / (n - 1)) * W;
-  const y = (v) => H - 6 - ((v - min) / (max - min || 1)) * (H - 16);
+  const y = (v) => H - pad - ((v - min) / (max - min || 1)) * (H - pad * 2 - 3);
   const pts = (arr) => arr.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
-  return (
-    <div>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: "100%", height: H }}>
-        <polyline points={pts(resolved)} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeDasharray="3 4" />
-        <polyline points={pts(open)} fill="none" stroke="rgba(255,255,255,0.92)" strokeWidth="2" />
-        <circle cx={x(n - 1)} cy={y(open[n - 1])} r="3" fill="#fff" />
-      </svg>
-      <div className="mt-3 flex items-center gap-5 font-mono text-[10px] uppercase tracking-[0.16em]" style={{ fontFamily: MONO, color: "var(--on-surface-faint)" }}>
-        <span className="flex items-center gap-2"><span className="h-px w-4" style={{ background: "rgba(255,255,255,0.92)" }} /> open · {open[open.length - 1]}</span>
-        <span className="flex items-center gap-2"><span className="h-px w-4" style={{ background: "rgba(255,255,255,0.4)", borderTop: "1px dashed" }} /> resolved · {resolved[resolved.length - 1]}</span>
-      </div>
+  const legend = (
+    <div className={`flex items-center gap-5 font-mono text-[10px] uppercase tracking-[0.16em] ${compact ? "" : "mt-3"}`} style={{ fontFamily: MONO, color: "var(--on-surface-faint)" }}>
+      <span className="flex items-center gap-2"><span className="h-px w-4" style={{ background: "rgba(255,255,255,0.92)" }} /> open · {open[open.length - 1]}</span>
+      <span className="flex items-center gap-2"><span className="h-px w-4" style={{ background: "rgba(255,255,255,0.4)", borderTop: "1px dashed" }} /> resolved · {resolved[resolved.length - 1]}</span>
     </div>
   );
+  const chart = (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: "100%", height: H }}>
+      <polygon points={`0,${H} ${pts(open)} ${W},${H}`} fill="rgba(255,255,255,0.08)" stroke="none" />
+      <polyline points={pts(resolved)} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeDasharray="3 4" />
+      <polyline points={pts(open)} fill="none" stroke="rgba(255,255,255,0.92)" strokeWidth="2" />
+      <circle cx={x(n - 1)} cy={y(open[n - 1])} r="3" fill="#fff" />
+    </svg>
+  );
+  if (compact) {
+    return <div className="flex h-full flex-col justify-center gap-2">{chart}{legend}</div>;
+  }
+  return <div>{chart}{legend}</div>;
 }
 
 /* scan-activity contribution heatmap (weekdays brighter) — fills its widget:
@@ -138,4 +168,4 @@ function MCoverageArcs({ overall = 74, items = [], size = 168 }) {
   );
 }
 
-Object.assign(window, { MRing, MSeverityBars, MLineTrend, MHeatmap, MCoverageArcs });
+Object.assign(window, { MTickMeter, MRing, MSeverityBars, MLineTrend, MHeatmap, MCoverageArcs });

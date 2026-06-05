@@ -2,18 +2,18 @@
 # Phase 1 inspection helper. Emits a one-page report covering everything
 # the agent needs to decide strategy before touching any files. Read-only.
 #
-# Designed to be invoked by the agent at the start of a /appify session,
+# Designed to be invoked by the agent at the start of a /app-it session,
 # before deciding worktree strategy, dev script, framework port semantics,
 # multi-app structure, FSA usage, asset candidates, sibling-app collisions.
 #
 # Usage:
 #   ./scripts/inspect.sh                  # report on current repo
-#   APPIFY_PROJECT_ROOT=/path/to/main \
+#   APP_IT_PROJECT_ROOT=/path/to/main \
 #       ./scripts/inspect.sh              # inspect a different path
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT="${APPIFY_PROJECT_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+ROOT="${APP_IT_PROJECT_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
 cd "$ROOT"
 
@@ -30,7 +30,7 @@ if [ -d "$ROOT/.git" ] || [ -f "$ROOT/.git" ]; then
     GIT_COMMON="$(git -C "$ROOT" rev-parse --git-common-dir 2>/dev/null || true)"
     if [ -n "$GIT_DIR" ] && [ -n "$GIT_COMMON" ] && [ "$GIT_DIR" != "$GIT_COMMON" ]; then
         echo "WORKTREE: yes — common-dir is $GIT_COMMON"
-        echo "  Pick a strategy: (a) bypass — write to main checkout; (b) APPIFY_PROJECT_ROOT env override; (c) bake worktree + document rebuild."
+        echo "  Pick a strategy: (a) bypass — write to main checkout; (b) APP_IT_PROJECT_ROOT env override; (c) bake worktree + document rebuild."
     else
         echo "Worktree: no (canonical checkout)"
     fi
@@ -40,7 +40,7 @@ if [ -d "$ROOT/.git" ] || [ -f "$ROOT/.git" ]; then
 fi
 
 print_section "Project type signals (verify from disk, ignore CLAUDE.md)"
-for f in package.json next.config.ts next.config.js next.config.mjs vite.config.ts vite.config.js vite.config.mjs tauri.conf.json electron.json electron-builder.yml electron-builder.json pyproject.toml requirements.txt Cargo.toml Gemfile manifest.json index.html; do
+for f in package.json next.config.ts next.config.js next.config.mjs vite.config.ts vite.config.js vite.config.mjs astro.config.ts astro.config.js astro.config.mjs svelte.config.ts svelte.config.js svelte.config.mjs tauri.conf.json electron.json electron-builder.yml electron-builder.json pyproject.toml requirements.txt Cargo.toml Gemfile manifest.json index.html; do
     [ -f "$ROOT/$f" ] && echo "  $f" || true
 done
 [ -d "$ROOT/src-tauri" ] && echo "  src-tauri/ (Tauri project)" || true
@@ -68,7 +68,7 @@ for k, v in matched:
     flag_warn = ""
     # Hardcoded -p / --port flag → launcher's PORT env will be ignored
     if re.search(r"(--port|\s-p)\s+\d+", v):
-        flag_warn = "   ⚠ hardcoded port literal — bypass via direct binary or add dev:appify"
+        flag_warn = "   ⚠ hardcoded port literal — bypass via direct binary or add dev:app-it"
     # concurrently / npm-run-all / turbo / pnpm -r → orchestrator detected
     elif re.search(r"\b(concurrently|npm-run-all|turbo run|pnpm -r)\b", v):
         flag_warn = "   ✓ multi-process orchestrator — A3.1 candidate (reuse existing)"
@@ -76,6 +76,35 @@ for k, v in matched:
 print()
 print(f"  package.json name:        {pkg.get('name', '(none)')}")
 print(f"  package.json displayName: {pkg.get('displayName', '(none)')}")
+
+deps = {}
+for section in ("dependencies", "devDependencies", "optionalDependencies"):
+    deps.update(pkg.get(section, {}))
+
+def has(name):
+    return name in deps
+
+recipes = []
+if has("vite") and has("react") and has("react-dom") and (
+    has("@vitejs/plugin-react") or has("@vitejs/plugin-react-swc")
+):
+    recipes.append(
+        "Vite + React — port 5173; start_command '<pm> run dev -- --host 127.0.0.1 --port $PORT --strictPort'"
+    )
+if has("@sveltejs/kit") and has("@sveltejs/vite-plugin-svelte") and has("svelte") and has("vite"):
+    recipes.append(
+        "SvelteKit — port 5173; start_command '<pm> run dev -- --host 127.0.0.1 --port $PORT --strictPort'"
+    )
+if has("astro"):
+    recipes.append(
+        "Astro — port 4321; start_command '<pm> run dev -- --host 127.0.0.1 --port $PORT'"
+    )
+
+if recipes:
+    print()
+    print("  framework recipe candidates:")
+    for recipe in recipes:
+        print(f"    - {recipe}")
 PY
 fi
 
@@ -85,7 +114,7 @@ if [ -f "$ROOT/vite.config.ts" ] || [ -f "$ROOT/vite.config.js" ] || [ -f "$ROOT
         [ -f "$cfg" ] || continue
         if grep -nE 'server:\s*\{[^}]*port:\s*[0-9]+' "$cfg" 2>/dev/null | head -3; then
             echo "  → vite.config.ts has hardcoded server.port literal."
-            echo "    Vanilla single-server: pass --port via START_COMMAND ('npm run dev -- --port \$PORT')."
+            echo "    Vanilla single-server: pass CLI flags via START_COMMAND ('npm run dev -- --host 127.0.0.1 --port \$PORT --strictPort')."
             echo "    Multi-server / proxy: edit vite.config.ts — see SKILL.md A3.2 carve-out."
         fi
         if grep -nE 'proxy:\s*\{[^}]*target:\s*["'"'"']http://localhost:[0-9]+' "$cfg" 2>/dev/null | head -3; then
@@ -109,23 +138,24 @@ $GREP_CMD "\.createWritable\(|\.getFile\(\)|writable\.write\(" \
     --include='*.{ts,tsx,js,jsx}' src/ services/ app/ 2>/dev/null | head -8 || echo "  (none found)"
 
 print_section "Sibling appified apps & their preferred ports (collision check)"
-if [ -d "$HOME/Desktop/MyApps" ]; then
-    PORTS_FOUND=""
-    for app in "$HOME/Desktop/MyApps"/*.app; do
+PORTS_FOUND=""
+for install_dir in "$HOME/Applications/App It" "$HOME/Desktop/MyApps"; do
+    [ -d "$install_dir" ] || continue
+    for app in "$install_dir"/*.app; do
         [ -d "$app" ] || continue
         name="$(basename "$app" .app)"
         run_script="$app/Contents/MacOS/run"
         if [ -f "$run_script" ]; then
-            port="$(grep -E "^PREFERRED_PORT=" "$run_script" 2>/dev/null | head -1 | cut -d= -f2 || true)"
+            port="$(grep -E "^PREFERRED(_FE)?_PORT=" "$run_script" 2>/dev/null | head -1 | cut -d= -f2 || true)"
             if [ -n "$port" ]; then
-                echo "  $name → :$port"
+                echo "  $name → :$port ($install_dir)"
                 PORTS_FOUND="$PORTS_FOUND $port"
             fi
         fi
     done
-    if [ -z "$PORTS_FOUND" ]; then echo "  (no .app launchers with PREFERRED_PORT found)"; fi
-else
-    echo "  ~/Desktop/MyApps not yet created"
+done
+if [ -z "$PORTS_FOUND" ]; then
+    echo "  (no app-it launchers found under ~/Applications/App It or legacy ~/Desktop/MyApps)"
 fi
 
 print_section "Currently bound ports (3000–5200 range)"

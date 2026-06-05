@@ -1,5 +1,5 @@
 #!/bin/bash
-# appify launcher (Chrome --app fallback variant). Used when:
+# app-it launcher (Chrome --app fallback variant). Used when:
 #   1. swiftc is unavailable AND xcode-select --install isn't feasible, OR
 #   2. The app needs FSA real-I/O (handle.createWritable / handle.getFile),
 #      OR other Chromium-only Web APIs (Web USB / Bluetooth / HID / MIDI).
@@ -14,7 +14,7 @@
 #   • Window startup is slower (Chrome profile init).
 #   • Cmd+Q vs red-X are not distinguished. Closing the window leaves the
 #     dev server daemon running until desktop-quit.sh.
-#     Set APPIFY_CHROME_KEEP_WARM=0 for the launcher to tear down the
+#     Set APP_IT_CHROME_KEEP_WARM=0 for the launcher to tear down the
 #     daemon when Chrome exits (loses the warm-server benefit).
 #
 # Substituted by desktop-build.sh — see run-template.sh for placeholder docs.
@@ -25,18 +25,26 @@ APP_NAME="__APP_NAME__"
 APP_SLUG="__APP_SLUG__"
 PROJECT_ROOT="__PROJECT_ROOT__"
 PREFERRED_PORT=__PORT__
-START_COMMAND="__START_COMMAND__"
 POLYFILL_PATH="__POLYFILL_PATH__"
 
-LOG_DIR="$HOME/Library/Logs/$APP_NAME"
-mkdir -p "$LOG_DIR"
+# Keep `$PORT` and other shell syntax literal until the daemon spawns below.
+# A plain double-quoted assignment here would expand `$PORT` before the
+# launcher has selected its runtime port, breaking Vite/SvelteKit recipes.
+START_COMMAND="$(cat <<'APP_IT_START_COMMAND'
+__START_COMMAND__
+APP_IT_START_COMMAND
+)"
+
+STATE_DIR="$HOME/Library/Application Support/app-it/$APP_SLUG"
+LOG_DIR="$HOME/Library/Logs/app-it/$APP_SLUG"
+mkdir -p "$STATE_DIR" "$LOG_DIR"
 SERVER_LOG="$LOG_DIR/server.log"
-PID_FILE="$LOG_DIR/server.pid"
-PORT_FILE="$LOG_DIR/server.port"
-PROFILE="$HOME/Library/Application Support/$APP_NAME/BrowserProfile"
+PID_FILE="$STATE_DIR/server.pid"
+PORT_FILE="$STATE_DIR/server.port"
+PROFILE="$STATE_DIR/BrowserProfile"
 mkdir -p "$PROFILE"
 
-KEEP_WARM="${APPIFY_CHROME_KEEP_WARM:-1}"
+KEEP_WARM="${APP_IT_CHROME_KEEP_WARM:-1}"
 
 # --- PATH augmentation -------------------------------------------------
 NVM_BIN=""
@@ -90,8 +98,16 @@ if [ -f "$PID_FILE" ] && [ -f "$PORT_FILE" ]; then
             DESCENDANTS="$EXPECTED_PID"
             CURRENT="$EXPECTED_PID"
             for _ in 1 2 3 4; do
-                NEXT_GEN="$(pgrep -P "$CURRENT" 2>/dev/null | tr '\n' ' ')"
-                [ -z "$NEXT_GEN" ] && break
+                # Expand one PID per pgrep call. macOS `pgrep -P` returns nothing
+                # for a space-joined / trailing-space argument, so passing the
+                # whole generation at once would silently halt the walk at the
+                # first level and miss deeper listeners (npm → node-vite,
+                # pnpm → node → next-server). Walk per-pid so each call is clean.
+                NEXT_GEN=""
+                for _pid in $CURRENT; do
+                    NEXT_GEN="$NEXT_GEN $(pgrep -P "$_pid" 2>/dev/null | tr '\n' ' ')"
+                done
+                [ -z "${NEXT_GEN// /}" ] && break
                 DESCENDANTS="$DESCENDANTS $NEXT_GEN"
                 CURRENT="$NEXT_GEN"
             done

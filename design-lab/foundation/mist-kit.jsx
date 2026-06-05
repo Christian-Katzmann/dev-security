@@ -37,7 +37,7 @@ function MEyebrow({ children, className = "" }) {
 
 function MGlass({ hover = false, className = "", style = {}, children }) {
   return (
-    <div className={`mist-glass ${hover ? "mist-glass-hover" : ""} rounded-2xl ${className}`} style={style}>
+    <div className={`mist-glass ${hover ? "mist-glass-hover" : ""} rounded-xl ${className}`} style={style}>
       {children}
     </div>
   );
@@ -68,7 +68,7 @@ function MState({ state }) {
 }
 
 function MBtn({ variant = "glass", children, onClick, className = "" }) {
-  const base = "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13.5px] transition";
+  const base = "inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-[13.5px] transition";
   if (variant === "primary")
     return <button type="button" onClick={onClick} className={`mist-btn-primary font-medium ${base} ${className}`}>{children}</button>;
   if (variant === "ghost")
@@ -124,31 +124,39 @@ function MPageHead({ eyebrow, title, sub, actions }) {
   );
 }
 
-/* MBento — the tiling widget grid (4 columns; widgets span 1–4). */
+/* MBento — the tiling widget board. 4 columns with a fixed row unit (in CSS),
+   so tiles can span both columns AND rows for real size variety. Tiles place
+   themselves with `gc`/`gr` (grid-column / grid-row). Collapses to one column
+   on narrow widths (see .mist-bento). */
 function MBento({ children, className = "" }) {
-  return (
-    <div className={`grid gap-4 ${className}`} style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gridAutoFlow: "row dense" }}>
-      {children}
-    </div>
-  );
+  return <div className={`mist-bento ${className}`}>{children}</div>;
 }
 
-/* MWidget — a self-contained bento tile. Apple-widget craft: generous radius +
-   padding, frosted glass, an optional eyebrow/insight header and a footer slot.
-   `span` = grid columns (1 = square, 2 = wide, 4 = full). Content fills the
-   middle; design each widget to fit its size. */
-function MWidget({ span = 2, minH = 168, eyebrow, insight, footer, pad = 22, center = false, className = "", children }) {
+/* MWidget — a self-contained bento tile, built as a distinct liftable frosted
+   object (.mist-tile). Place it on the board with `gc` (grid-column, e.g.
+   "1 / 3") and `gr` (grid-row, e.g. "3 / 6"). Optional eyebrow/insight header
+   with a right-aligned `headRight` slot, and a footer slot. Content fills the
+   middle — design each widget to fit its cell. `lift` enables hover elevation
+   for interactive tiles only. */
+function MWidget({ gc, gr, span, minH, eyebrow, insight, headRight, footer, pad = 20, lift = false, className = "", children }) {
+  const style = { padding: pad };
+  if (gc) style.gridColumn = gc;
+  else if (span) style.gridColumn = `span ${span} / span ${span}`;
+  if (gr) style.gridRow = gr;
+  if (minH && !gr) style.minHeight = minH;
   return (
-    <div className={`mist-glass flex flex-col rounded-[22px] ${className}`}
-      style={{ gridColumn: `span ${span} / span ${span}`, minHeight: minH, padding: pad }}>
+    <div className={`mist-tile flex flex-col ${lift ? "mist-tile-lift" : ""} ${className}`} style={style}>
       {(eyebrow || insight) && (
-        <div className="shrink-0" style={{ marginBottom: insight ? 18 : 14 }}>
-          {eyebrow && <MEyebrow className={insight ? "mb-2" : ""}>{eyebrow}</MEyebrow>}
-          {insight && <div className="text-[17px] font-medium leading-snug tracking-tight" style={{ color: "var(--on-surface-strong)" }}>{insight}</div>}
+        <div className="flex shrink-0 items-start justify-between gap-3" style={{ marginBottom: insight ? 14 : 11 }}>
+          <div className="min-w-0">
+            {eyebrow && <MEyebrow className={insight ? "mb-1.5" : ""}>{eyebrow}</MEyebrow>}
+            {insight && <div className="text-[15.5px] font-medium leading-snug tracking-tight" style={{ color: "var(--on-surface-strong)" }}>{insight}</div>}
+          </div>
+          {headRight && <div className="shrink-0">{headRight}</div>}
         </div>
       )}
-      <div className={`min-h-0 flex-1 ${center ? "flex flex-col items-center justify-center" : ""}`}>{children}</div>
-      {footer && <div className="mt-4 shrink-0">{footer}</div>}
+      <div className="min-h-0 flex-1">{children}</div>
+      {footer && <div className="mt-3 shrink-0">{footer}</div>}
     </div>
   );
 }

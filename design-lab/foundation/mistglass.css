@@ -41,8 +41,18 @@
   --heat-3: #a9bdb5; --heat-4: #7d9189; --heat-5: #5e7570; --heat-6: #3c4b48;
 }
 
-/* the grey canvas: gradient + dot-grid over it, content above */
-.mist-canvas { position: relative; background: var(--mist-hero); }
+/* the lab's base tone — keep any over-scroll / gutter in the Mistglass family
+   (the shared styles.css ships a near-black website body we must not reveal). */
+html, body { background: #51655f; }
+
+/* the grey canvas: a slightly deeper sage→teal so the frosted tiles separate,
+   a soft top-left light for dimension, dot-grid over it, content above */
+.mist-canvas {
+  position: relative;
+  background:
+    radial-gradient(120% 90% at 18% -10%, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0) 46%),
+    linear-gradient(168deg, #76897f 0%, #5d736d 58%, #51655f 100%);
+}
 .mist-canvas::before {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background-image: var(--mist-dotgrid);
@@ -77,3 +87,50 @@
   transition: background .2s ease;
 }
 .mist-btn-glass:hover { background: var(--glass-lighter); }
+
+/* ── Bento tile — a distinct, liftable frosted object ──────────────────────
+   Richer than .mist-glass: a top-lit vertical frost gradient, a bright lit
+   edge, and a layered graphite drop-shadow so each tile reads as a real pane
+   floating over the grey. Still pure Mistglass — white-on-grey, no glow,
+   shadows are graphite alpha only. */
+.mist-tile {
+  position: relative;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.205) 0%, rgba(255,255,255,0.115) 62%, rgba(255,255,255,0.095) 100%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  backdrop-filter: blur(22px) saturate(150%);
+  border: 1px solid rgba(255,255,255,0.22);
+  box-shadow:
+    0 14px 30px -12px rgba(18,26,24,0.34),
+    0 5px 12px -6px rgba(18,26,24,0.22),
+    inset 0 1px 0 0 rgba(255,255,255,0.46),
+    inset 0 0 0 1px rgba(255,255,255,0.04);
+  transition: transform .24s cubic-bezier(.22,1,.36,1), box-shadow .24s ease, background .24s ease;
+}
+
+/* lift only on interactive tiles — motion follows affordance, not decoration */
+.mist-tile-lift { cursor: pointer; }
+.mist-tile-lift:hover {
+  transform: translateY(-3px);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.245) 0%, rgba(255,255,255,0.13) 62%, rgba(255,255,255,0.10) 100%);
+  box-shadow:
+    0 26px 50px -14px rgba(18,26,24,0.40),
+    0 9px 18px -8px rgba(18,26,24,0.24),
+    inset 0 1px 0 0 rgba(255,255,255,0.54),
+    inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+
+/* ── Bento board — 4-col grid with a fixed row unit so tiles can span rows
+   (real large + tall tiles), collapsing to a single column on narrow widths. */
+.mist-bento {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: 116px;
+}
+@media (max-width: 980px) {
+  .mist-bento { grid-template-columns: 1fr; grid-auto-rows: auto; }
+  .mist-bento > * { grid-column: 1 / -1 !important; grid-row: auto !important; min-height: 132px; }
+}

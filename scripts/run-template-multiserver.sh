@@ -1,5 +1,5 @@
 #!/bin/bash
-# appify launcher (multi-server cohabiting variant). Used for A3.2 — when
+# app-it launcher (multi-server cohabiting variant). Used for A3.2 — when
 # the project has a separate frontend + backend that must run together,
 # AND the project does NOT already have a multi-process orchestrator.
 #
@@ -10,7 +10,7 @@
 # This template allocates two ports (frontend + backend), exports them
 # distinctly (PORT and API_PORT), boots both via setsid, waits for the
 # frontend port, hands off to the wrapper. Records both ports in
-# ~/Library/Logs/<App>/{server,backend}.port for desktop-quit.sh to sweep.
+# ~/Library/Application Support/app-it/<slug>/{server,backend}.port for cleanup.
 #
 # Required source edits (carve-out from "don't touch app source"):
 #   • Frontend config: server.port reads process.env.PORT
@@ -34,19 +34,30 @@ APP_NAME="__APP_NAME__"
 APP_SLUG="__APP_SLUG__"
 PROJECT_ROOT="__PROJECT_ROOT__"
 PREFERRED_FE_PORT=__PORT__
-START_COMMAND="__START_COMMAND__"
 PREFERRED_BE_PORT=__BACKEND_PORT__
-BACKEND_START_COMMAND="__BACKEND_START_COMMAND__"
 POLYFILL_PATH="__POLYFILL_PATH__"
 
-LOG_DIR="$HOME/Library/Logs/$APP_NAME"
-mkdir -p "$LOG_DIR"
+# Keep `$PORT` / `$API_PORT` and other shell syntax literal until the daemon
+# spawns below. A plain double-quoted assignment here would expand those values
+# before the launcher has selected its runtime ports.
+START_COMMAND="$(cat <<'APP_IT_START_COMMAND'
+__START_COMMAND__
+APP_IT_START_COMMAND
+)"
+BACKEND_START_COMMAND="$(cat <<'APP_IT_BACKEND_START_COMMAND'
+__BACKEND_START_COMMAND__
+APP_IT_BACKEND_START_COMMAND
+)"
+
+STATE_DIR="$HOME/Library/Application Support/app-it/$APP_SLUG"
+LOG_DIR="$HOME/Library/Logs/app-it/$APP_SLUG"
+mkdir -p "$STATE_DIR" "$LOG_DIR"
 SERVER_LOG="$LOG_DIR/server.log"
 BACKEND_LOG="$LOG_DIR/backend.log"
-PID_FILE="$LOG_DIR/server.pid"
-PORT_FILE="$LOG_DIR/server.port"
-BACKEND_PID_FILE="$LOG_DIR/backend.pid"
-BACKEND_PORT_FILE="$LOG_DIR/backend.port"
+PID_FILE="$STATE_DIR/server.pid"
+PORT_FILE="$STATE_DIR/server.port"
+BACKEND_PID_FILE="$STATE_DIR/backend.pid"
+BACKEND_PORT_FILE="$STATE_DIR/backend.port"
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
@@ -107,9 +118,14 @@ descendant_holds_port() {
     local descendants="$supervisor"
     local current="$supervisor"
     for _ in 1 2 3 4; do
-        local next_gen
-        next_gen="$(pgrep -P "$current" 2>/dev/null | tr '\n' ' ')"
-        [ -z "$next_gen" ] && break
+        # One PID per pgrep call — macOS `pgrep -P` returns nothing for a
+        # space-joined argument, so a multi-PID generation would otherwise halt
+        # the walk and miss deeper listeners.
+        local next_gen="" _pid
+        for _pid in $current; do
+            next_gen="$next_gen $(pgrep -P "$_pid" 2>/dev/null | tr '\n' ' ')"
+        done
+        [ -z "${next_gen// /}" ] && break
         descendants="$descendants $next_gen"
         current="$next_gen"
     done
@@ -235,6 +251,17 @@ fi
 
 URL="http://localhost:$CHOSEN_FE_PORT"
 
+# --- Headless smoke seam (CI / SSH / --check) --------------------------
+# Both servers are up, daemonized, and recorded (server.{pid,port} +
+# backend.{pid,port}); the frontend is reachable. With APP_IT_SMOKE set,
+# print the runtime URLs and exit 0 instead of opening the GUI window, so a
+# headless caller can probe both ports (curl, desktop:doctor) and stop them
+# (desktop:quit). Zero effect on a normal Dock launch (APP_IT_SMOKE unset).
+if [ -n "${APP_IT_SMOKE:-}" ]; then
+    echo "app-it smoke: $APP_NAME ready at $URL (fe pid $(cat "$PID_FILE" 2>/dev/null) :$CHOSEN_FE_PORT, be pid $(cat "$BACKEND_PID_FILE" 2>/dev/null) :$CHOSEN_BE_PORT)"
+    exit 0
+fi
+
 # --- Hand off to the native WebKit wrapper -----------------------------
 WRAPPER="$HERE/wrapper"
 if [ ! -x "$WRAPPER" ]; then
@@ -243,5 +270,8 @@ if [ ! -x "$WRAPPER" ]; then
 fi
 
 # Pass the frontend PID to the wrapper for Cmd+Q kill semantics.
-# desktop-quit.sh handles backend cleanup via port-sweep.
+# wrapper.swift's killServer() also discovers backend.pid / backend.port
+# as siblings of $PID_FILE in the same log dir, so Cmd+Q tears down both
+# servers without further argv plumbing. desktop-quit.sh remains the
+# defensive sweep for whatever Cmd+Q didn't catch (re-parented children).
 exec "$WRAPPER" "$URL" "$APP_NAME" "$CHOSEN_FE_PORT" "$PID_FILE" "$POLYFILL_PATH"

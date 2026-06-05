@@ -53,7 +53,7 @@ Each step activates a skill or runs a command and pastes a short prompt. The pro
 
 - [x] Step 3.1 — Render the recovery notice + craft the failure/loading states
 - [x] Step 3.2 — Finish the design-token sweep (S-054)
-- [ ] Final review
+- [x] Final review
 
 Each step heading is followed by a `Model:` line (recommended agent + thinking effort) and a `Parallel:` line (which sibling steps can run alongside it).
 

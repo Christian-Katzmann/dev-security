@@ -10,7 +10,7 @@ function MistNavItem({ item, active, onNavigate }) {
   return (
     <button type="button" onClick={() => onNavigate(item.id)}
       aria-current={on ? "page" : undefined}
-      className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13.5px] transition"
+      className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-[13.5px] transition"
       style={{ color: on ? "var(--on-surface-strong)" : "var(--on-surface-faint)", background: on ? "var(--glass-light)" : "transparent" }}
       onMouseEnter={(e) => { if (!on) e.currentTarget.style.color = "var(--on-surface-muted)"; }}
       onMouseLeave={(e) => { if (!on) e.currentTarget.style.color = "var(--on-surface-faint)"; }}>
@@ -39,7 +39,7 @@ function MistShell({ groups, active, activeId, onNavigate, children, target = "a
             <div className="mb-1.5 font-mono text-[9px] uppercase tracking-[0.22em]" style={{ color: "var(--on-surface-ghost)", fontFamily: MONO }}>Workspace</div>
             <div className="relative">
               <select value={target} onChange={(e) => onTarget && onTarget(e.target.value)}
-                className="w-full appearance-none rounded-lg px-3 py-2 pr-8 text-[13px] outline-none transition"
+                className="w-full appearance-none rounded-md px-3 py-2 pr-8 text-[13px] outline-none transition"
                 style={{ background: "rgba(255,255,255,0.10)", border: "1px solid var(--glass-border)", color: "var(--on-surface)" }}>
                 <option value="all">All repositories</option>
                 {repos.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -48,7 +48,7 @@ function MistShell({ groups, active, activeId, onNavigate, children, target = "a
                 style={{ transform: "translateY(-50%) rotate(90deg)", color: "var(--on-surface-faint)" }} />
             </div>
             <button type="button" onClick={() => onTarget && onTarget("__add__")}
-              className="mt-2 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-[12.5px] transition"
+              className="mt-2 flex w-full items-center gap-2 rounded-md px-3 py-2 text-[12.5px] transition"
               style={{ color: "var(--on-surface-muted)", border: "1px solid var(--glass-border)" }}>
               <span style={{ fontSize: 16, lineHeight: 1 }}>+</span> Add repository
             </button>
