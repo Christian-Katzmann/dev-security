@@ -14,7 +14,7 @@ Wire DëvSec's honeytoken engine to the asset graph from Campaign 1: bind a deco
 - **Placement is human-in-the-loop.** DëvSec *suggests* the top-consequence node and the decoy content; a human confirms before anything is planted. Never auto-plant on an inferred or low-confidence node. The existing planting code already refuses to overwrite real files and restricts to safe decoy paths — keep those rails.
 - **The local-trigger gap is real and must be faced, not papered over.** Today the trigger endpoint is the local dashboard (`127.0.0.1:8876`) and decoys land in local repo files — a remote attacker can reach neither. For a trip to mean "real external attacker," the decoy must live in a deployed surface and the trigger must be reachable. This campaign draws that boundary explicitly and builds only the smallest honest piece; it does not fake an internet deploy.
 - **Re-aim the audience.** The loop pays off for someone with deployed, exposed assets worth attacking and the capacity to act on a live alert — the indie/solo dev shipping an internet-exposed service, not the offline-repo hobbyist. Don't oversell it for purely local code.
-- **`active_incident` is a new top action_level — and the enum is a closed set in two places.** It must be added to BOTH `model.py` `SecurityCase.__post_init__` AND `priority.py` `ACTION_LEVELS`, or an unknown value silently falls back to "verify" and the new state vanishes.
+- **`active_incident` is a new top action_level — and it must be added to every site that hard-codes the set, or it vanishes.** The set is hard-coded in four places (verified in Step 0.1, see `notes/0.1-recalibration.md`): the **only** silent-fallback *validation* site is `model.py` `SecurityCase.__post_init__` (inline literal `{"fix_now","verify","watch","info"}`, line ~168 — miss this and `active_incident` is silently coerced to "verify"); the two *ordering* sites are `priority.py` `_attention_rank` (~264) and `cases.py` `_ACTION_LEVEL_RANK` (~201); and `priority.py` `ACTION_LEVELS` (~12) is a currently-dead reference set — update it for hygiene but know it changes no behavior on its own. (The original plan said "validated in two places, model + `ACTION_LEVELS`"; that was wrong — `ACTION_LEVELS` is unused and `model.py` is the sole validator.)
 - **Reuse, don't rebuild:** the `honey_incidents` IR lifecycle already exists; the loop opens an incident, it doesn't invent a new lifecycle.
 - **Self-recalibrating Step 0.1:** this campaign was authored before Campaign 1 was built, so assumed schema names, field names, and paths will drift. Step 0.1 reads current `main` and trues up the later step prompts in place before any implementation.
 - **Branch:** `honeygraph-tripwire` off `main` (after Campaign 1 has merged). Merge to `main` when Final review is APPROVED.
@@ -108,26 +108,29 @@ Add the `asset_node_id` link (brand-new column) and extend decoy minting so a ke
 SCOPE: Add asset_node_id to honey_keys and a "suggest placement at the top-consequence node" surface that mints + binds a decoy for human confirmation. Keep all existing planting safety rails.
 
 REQUIRED READING:
-1. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/storage.py  (honey_keys schema ~441-456 — add asset_node_id + migration)
-2. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/honey_keys.py  (build_decoy_snippets ~134; key material)
-3. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/dashboard_server.py  (honey create + planting ~2640-2801 — the no-overwrite / safe-path rails to keep; /api/honey routes)
-4. /Users/christiankatzmann/Dev/Projects/dëv-security/tests/test_honey_keys.py
+1. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/storage.py  (honey_keys schema lines 460-475 — add asset_node_id; add the column in `_ensure_columns` ~662, mirroring the `note` column at 666-668. Do NOT bump SCHEMA_USER_VERSION — that gate is for destructive rebuilds only. Read API: list_asset_nodes ~1471, list_asset_edges ~1493.)
+2. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/honey_keys.py  (build_decoy_snippets ~134-172; key material helpers)
+3. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/consequence.py  (compute_node_consequences ~189 — the real per-node blast_radius / reaches_crown_jewel ranking the suggestion must use; the Consequence dataclass)
+4. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/crown_jewels.py  (human-labeled `.devsec/crown-jewels.json`, matched by identity_key — crown jewels are NEVER inferred; there may be none)
+5. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/dashboard_server.py  (honey create + planting: create_honey_key ~2640, insert_honey_key_file ~2744-2807 — KEEP every rail: confirmPlacement required, relative-path only, must stay inside repo, safe `.devsec/honeykeys/` path unless advancedPlacement via `_is_safe_honeykeys_path` ~3656, and the HTTP-409 no-overwrite check at ~2778; /api/honey routes ~1596-1628)
+6. /Users/christiankatzmann/Dev/Projects/dëv-security/tests/test_honey_keys.py
 
 OUTPUT:
-- asset_node_id column on honey_keys (+ migration) linking a key to an asset node.
-- A "suggest placement" surface: given Campaign 1's consequence ranking, propose the top-consequence node + the decoy content for human confirmation. Keep existing rails: refuse to overwrite real files, restrict to safe decoy paths, gate advanced placement.
+- asset_node_id column on honey_keys, added in `_ensure_columns` (additive, idempotent — mirror the `note` column), linking a key to the asset node it guards.
+- A "suggest placement" surface: rank nodes via `consequence.compute_node_consequences` and propose the top node + the decoy content for human confirmation. When a crown jewel is labeled, prefer the highest-consequence node that reaches it; when NONE is labeled (the common case — crown jewels are human-declared and may be absent), degrade honestly: rank by raw `blast_radius` and tell the user "label a crown jewel to sharpen this." Keep existing rails: refuse to overwrite real files (409), restrict to safe decoy paths, gate advanced placement.
+- Present the candidate node from a human-readable list (node label / package name), NEVER by asking for a component_fingerprint (a 24-hex string no human can author — Campaign 1 gate condition #2).
 - Never auto-plant on a weak/low-confidence node — require explicit confirmation.
 - Receipt to campaigns/honeygraph-2-tripwire-loop/receipts/1.1-bind-decoy-to-node.md
 
 ACCEPTANCE:
-- A honey key carries the node it guards.
-- The existing planting safety rails are intact (no overwrite, safe paths).
+- A honey key carries the node it guards (asset_node_id).
+- The existing planting safety rails are intact (409 no-overwrite, safe paths, confirm-before-write).
 - Placement is proposed, not performed, until a human confirms.
-- Tests: key binds to a node; the suggestion picks the top-consequence node; a weak-confidence node is not offered for auto-placement.
+- Tests: key binds to a node; the suggestion picks the top-consequence node (and falls back to highest blast_radius when no crown jewel is labeled); a weak-confidence node is not offered for auto-placement.
 
-OPEN QUESTIONS: if Campaign 1 delivered only dependency reachability (no datastore nodes), what IS the "worst node" to guard? Surface this — it may mean guarding a high-consequence dependency surface instead of a data store.
+OPEN QUESTIONS — ANSWERED by Step 0.1 (see notes/0.1-recalibration.md): Campaign 1 delivered **dependency reachability only** — zero datastore nodes ever fired on a real repo (no Terraform in the fleet; the datastore classifier is Terraform-only). So the "worst node" to guard is a **high-consequence dependency/component surface** (the web server, DB client, or deploy tool), NOT a data store. All copy must say "high-consequence dependency surface," never imply a guarded database. Also: there may be no crown jewel at all until a human labels one — handle that case honestly (rank by blast_radius).
 
-FORWARD SWEEP: if the binding column name or the suggestion payload differs from what 2.1 and 3.1 assume, true up their prompts now.
+FORWARD SWEEP: if the binding column name (asset_node_id) or the suggestion payload differs from what 2.1 and 3.1 assume, true up their prompts now.
 ```
 
 ## Step 1.2 — Add the active_incident state (a closed enum in two places)
@@ -140,24 +143,24 @@ Introduce `active_incident` as the new top action_level. The validated enum live
 ```text
 SCOPE: Add active_incident as the top action_level (above fix_now) for a case with a confirmed intrusion near its node.
 
-REQUIRED READING:
-1. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/model.py  (the action_level validation in SecurityCase.__post_init__ ~163 — a closed set with a SILENT fallback to "verify")
-2. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/priority.py  (ACTION_LEVELS ~12 and _attention_rank ~214 — the second place the set lives)
-3. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/cases.py  (the ordering map {fix_now:0,...} ~201)
+REQUIRED READING (the set is hard-coded in FOUR places — verified in Step 0.1; line numbers are current):
+1. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/model.py  (SecurityCase.__post_init__ line ~168 — the INLINE literal `{"fix_now","verify","watch","info"}` with a SILENT fallback to "verify". This is the ONLY validation site; it does NOT import ACTION_LEVELS. Miss this and active_incident is silently coerced to "verify".)
+2. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/priority.py  (_attention_rank ~264 — the dict `{"fix_now":0,...}` that actually orders attention; AND ACTION_LEVELS ~12 — a currently-DEAD set referenced nowhere in src/, update it for hygiene only)
+3. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/cases.py  (_ACTION_LEVEL_RANK ~201 — the dict `{"fix_now":0,...}` that orders cases in the list)
 4. /Users/christiankatzmann/Dev/Projects/dëv-security/tests/test_priority.py
 
 OUTPUT:
-- Add active_incident to the action_level set in BOTH model.py __post_init__ AND priority.py ACTION_LEVELS. (Reminder: this set is validated in two places; an unknown value silently becomes "verify" — miss one and the new state disappears.)
-- Place active_incident above fix_now in every ordering map (_attention_rank, the cases.py ordering dict, and any UI severity/level map).
+- Add active_incident to the validation set in model.py __post_init__ (~168) — this is the single silent-fallback gate; without it the state vanishes.
+- Place active_incident ABOVE fix_now in BOTH ordering dicts: priority._attention_rank (~264) and cases._ACTION_LEVEL_RANK (~201) — give active_incident rank -1 (or shift all existing ranks down by one). Also add it to the dead priority.ACTION_LEVELS set (~12) for consistency, and to any UI severity/level map (see OPEN QUESTIONS).
 - Receipt to campaigns/honeygraph-2-tripwire-loop/receipts/1.2-active-incident-state.md
 
 ACCEPTANCE:
-- active_incident is a first-class top state, not silently coerced to verify.
-- It sorts above fix_now everywhere cases are ordered.
+- active_incident is a first-class top state, not silently coerced to verify (model.py:168 accepts it).
+- It sorts above fix_now everywhere cases are ordered (_attention_rank AND _ACTION_LEVEL_RANK).
 - No existing action_level behavior changes.
 - Tests: a case set to active_incident survives __post_init__ and sorts to the very top.
 
-OPEN QUESTIONS: is there dashboard code (filters, color/label maps) that hard-codes the four-value set? Find and extend it, or the new state renders blank.
+OPEN QUESTIONS: is there dashboard UI code (filters, color/label maps in dashboard-ui/src/) that hard-codes the four-value action_level set? Find and extend it, or the new state renders blank.
 
 FORWARD SWEEP: if you touched any shared ordering/label map, confirm 2.1 (which sets the state) and 3.1 (which renders it) still line up.
 ```
@@ -170,17 +173,17 @@ Parallel: NO
 The payoff. When a honey key fires, map its node to the case at that node, flip it to `active_incident`, and illuminate the blast-radius path — using Campaign 1's edges. Be precise about what this proves.
 
 ```text
-SCOPE: On a honey_key_event, resolve asset_node_id → the case at that node, set it to active_incident, open an incident, and compute the reachable path. Honest language throughout.
+SCOPE: On a honey_key trigger, resolve asset_node_id → the case at that node, set it to active_incident, ensure an incident is open, and compute the reachable path. Honest language throughout.
 
 REQUIRED READING:
-1. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/dashboard_server.py  (/api/honey/trigger handler ~2350; honey_key_events write)
-2. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/storage.py  (honey_key_events / honey_incidents ~458-496; asset_edges traversal)
-3. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/honey_keys.py  (event recording)
-4. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/cases.py  (flip a case's action_level; attach incident context)
+1. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/dashboard_server.py  (the real trigger handler is `trigger_honey_key` ~3523, dispatched by `_post_honey_trigger` ~1913 / `_get_honey_trigger` ~1808; it calls db.record_honey_key_trigger — hook the bridge here or in that storage method)
+2. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/storage.py  (record_honey_key_trigger ~2792 — NOTE: it ALREADY writes the honey_key_events row AND auto-opens a honey_incidents row AND flips the key to 'triggered'. So the incident is already opened for you — the NEW work is the bridge: asset_node_id → case → active_incident → attach path. honey_key_events/honey_incidents schema ~477-515; read API list_asset_nodes ~1471, list_asset_edges ~1493)
+3. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/consequence.py  (compute_node_consequences ~189 + the Consequence.path/blast_radius — the REAL graph traversal that produces the reachable path; do not hand-roll edge walking)
+4. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/cases.py  (apply_consequence_priority ~233 sets case.action_level ~249 — the seam to flip a case to active_incident; attach incident context)
 
 OUTPUT:
-- On a honey_key_event, resolve asset_node_id → the finding/case at that node, set that case to active_incident, and open a honey_incident (reuse the existing IR lifecycle).
-- Compute the blast-radius path from the tripped node (reachable nodes via asset_edges) and attach it to the incident.
+- On a honey_key trigger of a bound key, resolve asset_node_id → the finding/case at that node, set that case to active_incident. The honey_incident is already opened by record_honey_key_trigger (reuse that existing IR lifecycle — do NOT invent a new one).
+- Compute the blast-radius path from the tripped node using consequence.compute_node_consequences (reachable nodes via asset_edges) and attach it to the incident.
 - Honest language everywhere: "confirmed intrusion near this node / on this path" — NOT "this finding is proven exploited." A trip proves an adversary reached this region and took the bait, not that this specific vulnerability was the entry vector.
 - Receipt to campaigns/honeygraph-2-tripwire-loop/receipts/2.1-confirmation-loop.md
 
@@ -207,7 +210,7 @@ SCOPE: Decide and document how external confirmation actually works, and impleme
 
 REQUIRED READING:
 1. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/dashboard_server.py  (/api/honey/trigger + open routes; how the decoy points at the trigger URL)
-2. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/honey_keys.py  (build_decoy_snippets — the trigger_url/open_url baked into the decoy ~134-172)
+2. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/honey_keys.py  (build_decoy_snippets ~134-172 — note trigger_url = `{base_url}/api/honey/trigger` and open_url are baked into each decoy from `base_url`, which is the local 127.0.0.1 dashboard today; this is exactly the local-trigger gap to confront)
 3. /Users/christiankatzmann/Dev/Projects/dëv-security/AGENTS.md  (local-first promise; safe_base_url 127.0.0.1:8876; the External-Surface MVP-safety line — do not imply it's active)
 4. /Users/christiankatzmann/Dev/Projects/dëv-security/mcp/README.md  (how external / IR actions are framed and guarded)
 
@@ -241,7 +244,7 @@ REQUIRED READING:
 1. /Users/christiankatzmann/Dev/Projects/dëv-security/dashboard-ui/package.json  (React 19 + Vite; NO graph/network lib is installed — add a suitable one)
 2. /Users/christiankatzmann/Dev/Projects/dëv-security/dashboard-ui/src/dashboardData.ts  + /Users/christiankatzmann/Dev/Projects/dëv-security/dashboard-ui/src/uiTypes.ts  (carry nodes/edges/consequence/incident path to the UI)
 3. /Users/christiankatzmann/Dev/Projects/dëv-security/dashboard-ui/src/App.tsx  (where a new view mounts)
-4. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/dashboard_server.py  (expose a graph payload: nodes, edges, consequence, active-incident path)
+4. /Users/christiankatzmann/Dev/Projects/dëv-security/src/security_observatory/dashboard_server.py  (expose a graph payload) — build it from storage.list_asset_nodes ~1471 + storage.list_asset_edges ~1493 + consequence.compute_node_consequences ~189 (nodes, edges, consequence/blast_radius, crown-jewel flags, and any active-incident path)
 
 OUTPUT:
 - A graph payload endpoint (nodes + edges + consequence + any active-incident path).
@@ -278,7 +281,7 @@ REQUIRED READING:
 
 OUTPUT:
 - Drive the loop end-to-end against 127.0.0.1: mint + bind a decoy at the top-consequence node, simulate a trigger, confirm the case flips to active_incident and the path lights up.
-- A verdict note at campaigns/honeygraph-2-tripwire-loop/notes/3.2-loop-verdict.md: what this proves (plumbing + IR illumination near a node) vs what it does not (a real external attacker, a deployed surface). Does the loop earn its surface vs the existing case list, and for whom?
+- A verdict note at campaigns/honeygraph-2-tripwire-loop/notes/3.2-loop-verdict.md: what this proves (plumbing + IR illumination near a node, scoped to **dependency reachability** — the only class Campaign 1 proved on real data) vs what it does NOT (a real external attacker; a deployed surface; and datastore/IaC blast-radius, which is mechanism-only — zero datastore nodes ever fired on a real repo, per the Campaign 1 gate). Does the loop earn its surface vs the existing case list, and for whom?
 - Receipt to campaigns/honeygraph-2-tripwire-loop/receipts/3.2-end-to-end-proof.md
 
 ACCEPTANCE:
